@@ -1,0 +1,35 @@
+name: Keep Render Alive
+
+# Render free-tier services sleep after 15 minutes of inactivity.
+# This workflow pings the health endpoint every 14 minutes to prevent sleep.
+# GitHub Actions free tier gives 2,000 min/month — this uses ~720 min/month.
+
+on:
+  schedule:
+    # Every 14 minutes, 24/7.  Cron format: minute hour day month weekday
+    - cron: "*/14 * * * *"
+  workflow_dispatch:    # Allow manual trigger from GitHub Actions UI
+
+jobs:
+  ping:
+    name: Ping backend health
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Ping /health
+        env:
+          RENDER_URL: ${{ secrets.RENDER_BACKEND_URL }}
+        run: |
+          if [ -z "$RENDER_URL" ]; then
+            echo "RENDER_BACKEND_URL secret not set — skipping ping"
+            exit 0
+          fi
+          echo "Pinging $RENDER_URL/health ..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$RENDER_URL/health")
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "Unexpected status $STATUS — service may be down"
+            exit 1
+          fi
+          echo "Service is healthy"

@@ -1,0 +1,89 @@
+# DigitalMyHotels — Render deployment blueprint
+# Deploy at: https://render.com/deploy
+#
+# Pair with:
+#   - Neon Postgres (ap-southeast-1 / Singapore) for DATABASE_URL
+#   - Backblaze B2 (sg-sin-001 / Singapore) for object storage
+#
+# After first deploy:
+#   1. Change the super admin password immediately
+#   2. Set all `sync: false` secrets in the Render dashboard
+#   3. Verify the health endpoint: https://your-service.onrender.com/health
+
+services:
+  - type: web
+    name: digitalmyhotels-api
+    runtime: python
+    plan: free
+    region: singapore          # Closest to India; matches Neon ap-southeast-1 + B2 sg-sin-001
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    preDeployCommand: alembic upgrade head
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /health
+    autoDeploy: true            # Deploy automatically on every git push
+
+    envVars:
+      # ── App ──────────────────────────────────────────────────────────────
+      - key: APP_NAME
+        value: DigitalMyHotels
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: SQL_ECHO
+        value: "false"
+
+      # ── Database (Neon) ──────────────────────────────────────────────────
+      - key: DATABASE_URL
+        sync: false             # Paste your Neon Singapore connection string
+
+      # ── Auth ─────────────────────────────────────────────────────────────
+      - key: SECRET_KEY
+        generateValue: true     # Render generates a secure random value automatically
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "15"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "14"
+      - key: REFRESH_COOKIE_SECURE
+        value: "true"           # Render serves over HTTPS
+      - key: REFRESH_COOKIE_SAMESITE
+        value: none             # Required for cross-origin (Vercel → Render)
+      - key: REFRESH_COOKIE_DOMAIN
+        sync: false             # Set to your Render domain, e.g. .onrender.com
+
+      # ── CORS ─────────────────────────────────────────────────────────────
+      - key: CORS_ORIGINS
+        sync: false             # e.g. ["https://your-app.vercel.app"]
+
+      # ── UPI encryption ───────────────────────────────────────────────────
+      - key: UPI_ENCRYPTION_KEY
+        sync: false             # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+      # ── Storage (Backblaze B2 — Singapore) ───────────────────────────────
+      - key: STORAGE_BACKEND
+        value: b2
+      - key: B2_ENDPOINT
+        value: https://s3.sg-sin-001.backblazeb2.com
+      - key: B2_KEY_ID
+        sync: false             # Backblaze Application Key ID
+      - key: B2_APPLICATION_KEY
+        sync: false             # Backblaze Application Key (secret)
+      - key: B2_BUCKET_NAME
+        value: digitalmyhotels
+      - key: B2_PUBLIC_BASE_URL
+        sync: false             # e.g. https://s3.sg-sin-001.backblazeb2.com/digitalmyhotels
+      - key: B2_REGION
+        value: sg-sin-001
+
+      # ── Email (Resend) ────────────────────────────────────────────────────
+      - key: EMAIL_BACKEND
+        value: resend           # Change to 'stub' if you don't have a Resend key yet
+      - key: EMAIL_FROM
+        value: noreply@digitalmyhotels.in
+      - key: RESEND_API_KEY
+        sync: false
+
+      # ── Rate limiting ─────────────────────────────────────────────────────
+      - key: RATE_LIMIT_LOGIN_PER_MINUTE
+        value: "10"

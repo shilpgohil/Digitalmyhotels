@@ -1,0 +1,645 @@
+DigitalMyHotels
+Final Hotel Management System — Software Requirements Specification
+Room Booking • Guest Check-in • Guest Checkout • Payments • Hotel Expenses • GST • Invoices • Housekeeping • Multi-Hotel SaaS
+
+Document Status
+Document
+Final Product & Development Requirements
+Product
+DigitalMyHotels
+Scope
+Hotel Partner Portal + Main Admin / Super Admin Portal
+Primary workflow
+Booking → Check-in → Stay → Charges/Payments → Checkout → Cleaning → Available
+Source basis
+Uploaded SRS requirements, including the original Partner/Super Admin requirements and reviewed missing-point additions
+Common Requirement -Customer only one time entry any other places after next time only search phone or aadharcard last 4 digit search if auto fill button then auto fill and that only customer base detail not showing booking history-Hotel Partner detail self hotel data not other hotels data show that systemBasic Demo: URL: https://rohivira.com/hmsFigma prototype supplied in the original requirements:
+https://www.figma.com/proto/lWgFgtdDmaRdQ7AcA6bSah/Final-Partner-Flow?node-id=27-320&p=f&t=EDHAeLO9r53tfLmt-0&scaling=min-zoom&content-scaling=fixed&page-id=0%3A1
+URL:  https://chatgpt.com/c/6a7c59d9-c120-83ee-a009-a05e0edfccee 
+1. Executive Summary
+DigitalMyHotels is a multi-tenant SaaS hotel management platform for managing hotel properties, rooms, reservations, guests, check-in/check-out, payments, invoices, GST, expenses, housekeeping, reports, staff permissions and hotel subscriptions. The platform contains a Hotel Partner Portal and a Main Admin/Super Admin Portal. Each hotel must have strict tenant-level data isolation.
+2. Source Requirements Retained
+The uploaded requirements define the two major portals, role hierarchy, partner modules, dashboard, hotel management, room management, booking, guest management, check-in, checkout, current guests, expenses, payments, invoices, GST, owner team management, housekeeping, reports, audit logs, notifications, Super Admin, subscriptions, database, APIs, security, business rules, edge cases, UI/UX, user flows, technology, development phases, MVP and QA. The final document retains those requirements and adds the missing hotel-operational controls identified during review.
+3. User Roles & Permissions
+Hierarchy: SUPER ADMIN → HOTEL OWNER → HOTEL TEAM MEMBERS
+Role
+Check-in/out
+Rooms
+Payments/Expenses
+Team
+Admin
+Super Admin
+View/control across hotels
+View/control
+View system-level data
+Manage hotels/users
+Full platform
+Owner
+Full hotel access
+Full hotel access
+Full hotel financial access
+Create/manage team
+Hotel settings
+Manager
+Operational access as permitted
+Operational access
+Full financial/payment/expense access
+No owner creation
+Reports
+Admin / Reception
+Create/manage check-in & checkout
+Room status/allocation
+Limited operational payment collection; no sensitive reports by default
+No
+Hotel operations
+Housekeeping
+No financial access
+Cleaning/maintenance/status
+No
+No
+Housekeeping only
+Only the Hotel Owner can create hotel team-member accounts. Owner-created roles may include Manager, Admin/Receptionist, Housekeeping and future custom staff roles.
+4. Hotel Partner Portal
+Partner Login
+Dashboard
+Hotel Management / Edit Hotel
+Room Management
+Room Types
+Reservation / Booking Management
+Guest Management
+Guest Check-in
+Guest Check-out
+Current Guests
+Hotel Charges / Services
+Room Status
+Housekeeping
+Payment Details / Payment Ledger
+Invoice Management / Invoice Preview
+GST Details
+Hotel Expenses
+Reports
+Daily Closing
+Shift Handover
+Team Members
+Settings
+5. Hotel Setup & Configuration
+Hotel name, logo, address, city, state, country, phone, email, website and description
+Check-in time and standard checkout time
+Cancellation/no-show policy
+UPI ID and bank details
+Invoice prefix and invoice numbering sequence
+GST registration status, GSTIN, legal/trade name, address, state and state code
+Tax-inclusive or tax-exclusive pricing
+Hotel service/charge configuration
+6. Room Management
+Room data must include room number, floor, room type, price, extra guest price, maximum occupancy, amenities and active/inactive status.
+Room statuses:
+Available
+Reserved
+Occupied
+Cleaning
+Maintenance
+Room transition rules:
+Confirmed booking → Reserved
+Successful check-in → Occupied
+Checkout → Cleaning Required
+Housekeeping completion → Available
+Maintenance issue → Maintenance
+
+The system must prevent double booking and assignment of rooms that are occupied, blocked or under maintenance.
+7. Reservation / Booking Management
+Booking number, guest, room/room type, check-in/check-out dates, adults, children and number of rooms
+Booking source, booking status and payment status
+Advance payment, security deposit, due amount, discount and tax
+Cancellation, no-show, modification and booking history
+Statuses: Pending, Confirmed, Checked-in, Checked-out, Cancelled, No-show
+Room availability validation before confirmation
+Room-change history when a reservation is reassigned
+8. Guest Management
+Guest list and reusable guest profile
+Primary guest and accompanying/co-guests
+Name, mobile, email, address, city, state, country
+ID proof type/number and ID verification status
+Guest history, previous stays, booking history and notes
+Guest registration record and registration number
+Purpose of visit and company name where applicable
+Digital acknowledgement/signature where required by hotel policy
+9. Guest Check-in — Complete Workflow
+Search existing booking or create a walk-in booking
+Select existing guest or create a new guest
+Mark Primary Guest and add accompanying guests
+Verify guest details and required ID information
+Select/allocate room after availability validation
+Capture actual check-in date/time and expected checkout
+Capture adults/children and occupancy
+Calculate room rate, extra guest charges, discounts and GST
+Record advance payment and/or security deposit
+Select payment method and transaction reference where applicable
+Calculate paid, partial and due amounts
+Generate receipt and invoice as applicable
+Confirm check-in and change room status to Occupied
+Payment methods: Cash, UPI, Card, Bank Transfer and Other.
+Early check-in must support hotel policy, grace period, optional fee and authorized approval.
+10. Guest Check-out — Complete Workflow
+Open active guest stay and verify room/guest details
+Capture actual checkout date/time
+Calculate number of nights and room charges
+Add all additional hotel charges/services
+Apply approved discounts and GST
+Apply previous payments and security deposit
+Calculate final total, paid amount, due amount and refund amount
+Collect outstanding payment or process authorized due/credit case
+Generate final invoice and payment receipt
+Confirm checkout
+Automatically set room to Cleaning Required
+Record checkout in audit history
+Late checkout must support grace period, late fee and authorized approval.
+If a balance remains due, the system must either block checkout or allow an authorized checkout with Payment Due status, due date, reason and approving user.
+Completed checkout reversal/reopen must be restricted to Owner/Manager or an explicitly authorized role and must create an audit record.
+11. Final Folio / Hotel Charges & Services
+Additional charges must be structured, not stored as an unexplained total.
+Food / restaurant
+Laundry
+Room service
+Extra bed
+Minibar
+Transport
+Other hotel services
+Each charge should contain charge ID, category/service, description, quantity, rate, amount, tax, booking/room, created by and date/time.
+12. Security Deposit
+Deposit amount and payment method
+Deposit receipt/reference
+Deposit status
+Deposit refund
+Deposit adjustment against final bill
+Deposit included in checkout reconciliation
+13. Current Guests
+Guest name, primary guest indicator, mobile, room, booking number
+Check-in date/time and expected checkout
+Payment status and due amount
+View, checkout, invoice and payment actions
+Room transfer and guest-stay history where permitted
+14. Hotel Expenses — Complete Specification
+Expense list and add expense
+Category, expense date, payment date and amount
+Payment method and payment status
+Vendor and vendor details
+Description and bill/receipt attachments
+Bill number and bill date
+Taxable amount, CGST, SGST, IGST and total where applicable
+Created by, approved by, status and audit history
+Edit/delete subject to role and approval restrictions
+Expense workflow: Draft → Submitted → Approved → Paid. Rejected is an allowed branch.
+Recommended permissions: Staff/Admin creates where permitted; Manager approves and manages financial expenses; Owner has full control.
+15. Expense Categories & Vendors
+Expense categories may include Electricity, Water, Internet, Staff Salary, Maintenance, Cleaning, Laundry, Food, Supplies, Marketing, Transportation and Other.
+Owner/authorized Manager can add, edit, disable and manage categories.
+Vendor management should include vendor name, contact person, mobile/email, address, GSTIN/PAN where applicable, bank/UPI details, category and active/inactive status.
+16. Recurring Expenses
+Recurring expense templates
+Frequency (monthly/quarterly/yearly/custom)
+Start/end dates
+Amount and vendor
+Automatic draft expense creation
+Reminder before due date
+17. Payment Management & Guest Ledger
+Payment ID, booking ID, guest, invoice, amount, payment date and method
+Payment status: Unpaid, Partial, Paid, Failed, Refunded, Cancelled
+Transaction/reference number
+Collected by
+Refund and refund status
+Payment correction with original value, corrected value, reason, approver and audit log
+Payment receipt generation
+Maintain a booking/guest ledger with dated debits, credits and running balance. Every payment must be allocated to the relevant booking/invoice and remain traceable.
+18. Invoice & GST
+Invoice number, invoice date, hotel details, GSTIN, guest details and address
+Room/stay details, number of nights and all charge line items
+Discount, CGST, SGST, IGST, total, paid, due and payment method
+Invoice status: Draft, Generated, Partially Paid, Paid, Cancelled, Refunded
+Preview, print, PDF download, share and cancellation
+Centralized GST calculation service
+GSTIN format validation, state/state-code validation and tax rounding rules
+Credit/debit adjustment workflow where required
+19. Housekeeping & Maintenance
+Cleaning Required
+Cleaning In Progress
+Clean / Ready
+Inspection Required
+Maintenance
+Out of Service
+Room cleaning assignment
+Cleaning completion timestamp and staff member
+Maintenance reason, notes and expected completion
+20. Daily Hotel Closing / Day-End
+Add a Day-End Closing module for reception/management reconciliation.
+Today's check-ins and check-outs
+Current guests
+Room occupancy
+Cash collected
+UPI collected
+Card collected
+Bank transfer collected
+Total revenue
+Total expenses
+Refunds
+Due payments
+Cash balance/reconciliation
+Closing notes
+Closed by and closing date/time
+Workflow: Open Day → Transactions → Review → Reconcile → Close Day. Post-closing corrections require authorized approval and audit logging.
+21. Reception Shift Handover
+Opening/closing cash
+Payments collected
+Pending payments
+Current guests
+Expected check-outs
+Room issues
+Pending operational issues
+Handover notes
+Previous shift / next shift
+Handover confirmation
+22. Owner Team Management
+Create Team Member
+Name, email, mobile, role and account status
+Reset password
+Enable/disable account
+Delete/deactivate account
+Last login
+Role/permission assignment
+Only the Hotel Owner can create team-member accounts. The Owner should not create another Owner account unless the Super Admin explicitly authorizes it.
+23. Reports & Analytics
+Occupancy report
+Revenue report
+Expense report
+Profit/loss report
+Payment report
+Booking report
+Check-in report
+Checkout report
+Cancellation/no-show report
+Room report
+Guest report
+GST report
+Daily closing report
+Expense category/vendor/payment-method reports
+Filters: Today, Yesterday, This Week, This Month and Custom Date. Export: PDF, Excel/CSV and Print.
+24. Audit Logs
+Login/logout
+Booking creation/modification/cancellation
+Check-in/checkout
+Room status/change/transfer
+Payment/refund/correction
+Expense creation/approval/edit/deletion
+Invoice generation/cancellation
+Team member creation/password reset
+Hotel/GST/UPI/settings changes
+Daily closing/reopening
+Store user, action, entity, timestamp and previous/new values where applicable.
+25. Notifications
+New booking
+Check-in reminder
+Checkout reminder
+Payment due
+Payment received
+Booking cancellation
+Expense approval/rejection
+Subscription expiry
+Hotel expiry
+New team member
+Password reset
+26. Main Admin / Super Admin Portal
+Main Admin Login
+Hotel Management Dashboard
+Total Hotels
+Active Hotels
+Inactive Hotels
+Trial Hotels
+Today's Check-ins / Check-outs
+Total Revenue
+Total Users
+Recently Expired Hotels
+Expiring Soon
+Recent Hotel Registrations
+Add New Hotel
+Active Hotels
+Suspended Hotels
+Hotel Details
+Subscription Management
+Settings
+27. Subscription Management
+Plans, price and duration
+Trial period
+Start and expiry dates
+Payment status
+Active / Expiring Soon / Expired / Suspended
+Expiry restrictions and grace period
+Define whether existing data remains viewable after expiry
+Define which transactions are blocked after expiry
+28. Database Design
+Users
+Roles
+Permissions
+Hotels
+Hotel Settings
+Hotel Team Members
+Rooms
+Room Types
+Room Amenities
+Guests
+Guest Documents
+Guest Registrations
+Bookings
+Booking Rooms
+Check-ins
+Check-outs
+Room Transfers
+Hotel Charges/Services
+Payments
+Refunds
+Guest/Booking Ledger
+Expenses
+Expense Categories
+Vendors
+Recurring Expenses
+Invoices
+Invoice Items
+GST Settings
+Housekeeping
+Maintenance
+Daily Closings
+Shift Handovers
+Notifications
+Audit Logs
+Subscriptions
+Subscription Plans
+Every hotel-scoped entity must contain the appropriate hotel/tenant reference. Financial records should use soft-delete/voiding and audit rules instead of destructive deletion.
+29. API Design
+Authentication
+Users / Roles / Permissions
+Hotels
+Rooms / Room Types
+Guests / Guest Registrations
+Bookings
+Check-in / Checkout
+Room Transfers
+Hotel Charges
+Payments / Refunds / Ledger
+Expenses / Vendors / Recurring Expenses
+Invoices / GST
+Housekeeping / Maintenance
+Reports / Daily Closing / Shift Handover
+Notifications
+Audit Logs
+Subscriptions
+Main Admin
+For each important API define method, endpoint, request, response, authentication, permission, validation and error response.
+30. Security & Multi-Tenancy
+Strict tenant isolation
+Role-based and permission-based access
+Password hashing
+Secure password reset
+Session/token management and expiration
+Rate limiting and brute-force protection
+Input validation
+Secure file upload
+API authorization on every hotel-scoped request
+Audit logging
+Backups and recovery
+31. Critical Business Rules
+1. Hotel data must be isolated between tenants.
+2. Only Hotel Owner can create hotel team accounts.
+3. Manager can access financial/payment/expense information.
+4. Admin/Reception can manage check-in/check-out and operational room status.
+5. Housekeeping can manage cleaning/maintenance/status and cannot access financial information.
+6. Double booking must be prevented.
+7. Occupied, blocked or maintenance rooms cannot be allocated.
+8. Checkout changes room to Cleaning Required.
+9. Cleaning completion changes room to Available.
+10. Payment status must correctly reflect unpaid/partial/paid/refunded.
+11. Invoice totals must reconcile with charge and payment records.
+12. GST must be calculated by centralized rules.
+13. Financial corrections must never silently overwrite history.
+14. Every material financial/operational change must be audited.
+15. Daily closing corrections require authorization.
+16. Expired hotels follow defined subscription restrictions.
+32. Critical Edge Cases
+Walk-in guest
+Multiple guests in one room
+Early check-in
+Late checkout
+Early checkout
+Extended stay
+Room change after check-in
+Booking modification
+Cancellation
+No-show
+Partial payment
+Full payment
+Security deposit
+Refund
+Failed payment
+Double booking attempt
+Room under maintenance
+Guest leaves with outstanding balance
+Checkout reversal
+Invoice cancellation
+GST changes
+Expense correction
+Recurring expense failure
+Hotel subscription expiry
+User account disabled
+Multiple staff editing the same booking
+Daily closing already completed
+33. Page-by-Page Requirements
+For every screen, define: Page name, purpose, route, allowed roles, UI sections, cards, tables, form fields, search, filters, sorting, pagination, buttons, actions, validation, empty/loading/error/success states, confirmation modals and permissions.
+34. Core User Flows
+1. Owner creates team member
+2. Admin login
+3. New booking
+4. Walk-in guest check-in
+5. Existing booking check-in
+6. Room transfer
+7. Add hotel service charge
+8. Guest checkout
+9. Payment collection
+10. Partial payment
+11. Refund
+12. Security deposit refund/adjustment
+13. Hotel expense creation and approval
+14. Recurring expense
+15. Room cleaning
+16. Room maintenance
+17. Invoice generation
+18. Daily closing
+19. Shift handover
+20. Hotel registration
+21. Hotel subscription expiry
+22. Password reset
+35. Recommended Technology Architecture
+Preferred direction: Frontend React/Next.js; Backend Node.js; relational database recommended for transactional consistency and reporting. The final implementation should include secure authentication, REST APIs, object/file storage, PDF invoice generation, notification services, background jobs, logging, monitoring, backups, deployment and CI/CD.
+The architecture must support multi-tenancy, transactional financial operations and horizontal growth without mixing hotel data.
+36. Development Phases
+Phase 1: Authentication + Hotel + Users + Rooms + Room Types
+Phase 2: Bookings + Guests + Check-in + Checkout + Room Transfer
+Phase 3: Payments + Ledger + Expenses + Vendors + Invoices + GST
+Phase 4: Hotel Charges + Housekeeping + Maintenance + Reports
+Phase 5: Daily Closing + Shift Handover + Notifications
+Phase 6: Super Admin + Subscriptions + Security + Audit + Performance + Production
+37. MVP / Must-Have Scope
+Authentication and role permissions
+Hotel and room setup
+Room status and availability
+Booking
+Guest management
+Guest registration
+Check-in
+Checkout
+Multiple guests per room
+Room transfer
+Security deposit
+Hotel charges/services
+Payments and guest ledger
+Invoices and GST
+Hotel expenses with approval
+Housekeeping
+Basic reports
+Audit logs
+38. Recommended Phase-2 Features
+Recurring expenses
+Vendor management
+Daily closing
+Shift handover
+Advanced reports
+Notifications
+Credit/debit adjustments
+39. QA / Testing Checklist
+Authentication and authorization
+Role/permission isolation
+Multi-tenant security
+Room availability and double-booking prevention
+Booking lifecycle
+Guest registration
+Multiple guests per room
+Check-in calculations
+Early check-in
+Room transfer
+Checkout calculations
+Late checkout
+Due payment handling
+Security deposit
+Refund
+Payment correction
+Hotel charges
+Expense approval
+Expense calculations
+GST calculations and rounding
+Invoice reconciliation
+Housekeeping transitions
+Daily closing
+Audit logs
+Subscription expiry
+Responsive UI
+API/security/performance testing
+40. Final Requirement Traceability
+Requirement
+Module
+Page
+Role
+API
+Priority
+Guest check-in
+Check-in
+Guest Check-in
+Admin/Owner
+/check-ins
+Must Have
+Guest checkout
+Checkout
+Guest Check-out
+Admin/Owner
+/check-outs
+Must Have
+Room availability
+Rooms
+Room Status
+Admin/Manager/Owner
+/rooms
+Must Have
+Hotel expenses
+Expenses
+Hotel Expenses
+Manager/Owner
+/expenses
+Must Have
+Payment ledger
+Payments
+Payment Details
+Manager/Owner
+/payments
+Must Have
+Invoice/GST
+Billing
+Invoice/GST
+Manager/Owner
+/invoices
+Must Have
+Housekeeping
+Operations
+Housekeeping
+Housekeeping/Owner
+/housekeeping
+Must Have
+Daily closing
+Operations
+Daily Closing
+Manager/Owner
+/daily-closing
+Recommended
+41. Final Implementation Notes
+This specification should be treated as the baseline for UI/UX, frontend, backend, QA and AI coding work. Before implementation, the Figma prototype should be compared screen-by-screen with this specification. Where Figma and the functional specification differ, the product owner should explicitly approve the final behavior. Financial, room-allocation and tenant-isolation rules must be implemented as backend-enforced rules, not only UI restrictions.
+Appendix A — Original Figma Reference
+
+
+My Technologies Recommended Architecture 
+
+Layer
+Recommended technology
+Frontend
+Next.js + React + TypeScript
+UI
+Tailwind CSS + shadcn/ui
+Backend
+Node.js + NestJS + TypeScript
+API
+REST API
+Database
+PostgreSQL
+ORM
+Prisma or Drizzle
+Cache
+Redis
+Queue/background jobs
+BullMQ + Redis
+Authentication
+JWT + refresh token / secure HTTP-only cookies
+Authorization
+RBAC + tenant-level permissions
+File storage
+AWS S3 / Cloudflare R2
+
+
+Email
+AWS SES / Resend
+SMS/WhatsApp
+Provider API as required
+Search
+PostgreSQL initially; OpenSearch later if needed
+Monitoring
+Sentry + application logs
+Deployment
+AWS / Azure / managed cloud
+CI/CD
+GitHub Actions
+Reverse proxy/CDN
+Cloudflare
+

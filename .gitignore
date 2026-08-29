@@ -1,0 +1,57 @@
+# ── Python / backend ─────────────────────────────────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Environment / secrets ────────────────────────────────────────────────────
+# NEVER commit real credentials. .env.example files ARE committed.
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env.local
+
+# ── Next.js / frontend ───────────────────────────────────────────────────────
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/coverage/
+frontend/node_modules/
+frontend/.vercel/
+frontend/next-env.d.ts
+frontend/*.tsbuildinfo
+
+# ── Local storage (uploaded files in dev) ────────────────────────────────────
+.local-storage/
+*.log
+
+# ── Client reference files — large images / Word docs not for source control ─
+main documents/
+admin_flow_images/
+
+# ── IDE / Cursor agent folder ────────────────────────────────────────────────
+.cursor/
+
+# ── Temporary / generated ────────────────────────────────────────────────────
+srs_extracted.txt
+*.pem
+.turbo/
+
+# ── IDE / OS ──────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

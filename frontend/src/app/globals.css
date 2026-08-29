@@ -1,0 +1,245 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * DigitalMyHotels design tokens.
+ * Direction from the visual references: deep navy structure, restrained gold
+ * accent, off-white surfaces, semantic status colors. Serious and precise —
+ * no gradients, no glow.
+ */
+:root {
+  /* Brand */
+  --navy-950: #081020;
+  --navy-900: #0b1526;
+  --navy-800: #122038;
+  --navy-700: #1b2d4b;
+  --navy-100: #dde4ef;
+  --gold-600: #a67c1e;
+  --gold-500: #c09a2e;
+  --gold-400: #d4af4a;
+  --gold-100: #f5ecd4;
+
+  /* Semantic status */
+  --status-success: #1a7f4e;
+  --status-success-bg: #e3f3ea;
+  --status-warning: #9a6a08;
+  --status-warning-bg: #fbf0d3;
+  --status-danger: #b3362c;
+  --status-danger-bg: #fbe4e1;
+  --status-info: #175e77;
+  --status-info-bg: #e0eff5;
+
+  /* shadcn semantic tokens */
+  --background: #f6f7f9;
+  --foreground: #16202e;
+  --card: #ffffff;
+  --card-foreground: #16202e;
+  --popover: #ffffff;
+  --popover-foreground: #16202e;
+  --primary: #0b1526;
+  --primary-foreground: #f8fafc;
+  --secondary: #e9edf3;
+  --secondary-foreground: #16202e;
+  --muted: #eef1f5;
+  --muted-foreground: #5a6778;
+  --accent: #f5ecd4;
+  --accent-foreground: #6b5312;
+  --destructive: #b3362c;
+  --destructive-foreground: #ffffff;
+  --border: #dfe4eb;
+  --input: #d4dbe4;
+  --ring: #c09a2e;
+
+  --radius: 0.5rem;
+
+  /* Sidebar (dark navy shell) */
+  --sidebar: #0b1526;
+  --sidebar-foreground: #cdd6e4;
+  --sidebar-primary: #c09a2e;
+  --sidebar-primary-foreground: #0b1526;
+  --sidebar-accent: #1b2d4b;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #1b2d4b;
+  --sidebar-ring: #c09a2e;
+}
+
+.dark {
+  --background: #0b1220;
+  --foreground: #e6eaf1;
+  --card: #111a2b;
+  --card-foreground: #e6eaf1;
+  --popover: #111a2b;
+  --popover-foreground: #e6eaf1;
+  --primary: #d4af4a;
+  --primary-foreground: #131a12;
+  --secondary: #1b2740;
+  --secondary-foreground: #e6eaf1;
+  --muted: #182238;
+  --muted-foreground: #93a1b8;
+  --accent: #22304e;
+  --accent-foreground: #e6eaf1;
+  --destructive: #d4544a;
+  --destructive-foreground: #ffffff;
+  --border: #223050;
+  --input: #2a3a5c;
+  --ring: #d4af4a;
+
+  --sidebar: #081020;
+  --sidebar-foreground: #cdd6e4;
+  --sidebar-primary: #d4af4a;
+  --sidebar-primary-foreground: #081020;
+  --sidebar-accent: #16233c;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #16233c;
+  --sidebar-ring: #d4af4a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-navy-950: var(--navy-950);
+  --color-navy-900: var(--navy-900);
+  --color-navy-800: var(--navy-800);
+  --color-navy-700: var(--navy-700);
+  --color-navy-100: var(--navy-100);
+  --color-gold-600: var(--gold-600);
+  --color-gold-500: var(--gold-500);
+  --color-gold-400: var(--gold-400);
+  --color-gold-100: var(--gold-100);
+
+  --color-success: var(--status-success);
+  --color-success-bg: var(--status-success-bg);
+  --color-warning: var(--status-warning);
+  --color-warning-bg: var(--status-warning-bg);
+  --color-danger: var(--status-danger);
+  --color-danger-bg: var(--status-danger-bg);
+  --color-info: var(--status-info);
+  --color-info-bg: var(--status-info-bg);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: var(--font-sans-stack);
+  --font-display: var(--font-display-stack);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer utilities {
+  /* ── Smooth micro-interactions ─────────────────────────────────────── */
+
+  /* Interactive rows and list items */
+  .table tr,
+  [role="row"] {
+    transition: background-color 150ms ease;
+  }
+
+  /* Badge / status pill pop-in */
+  .badge,
+  [data-slot="badge"],
+  [data-slot="status-badge"] {
+    transition: opacity 100ms ease, transform 100ms ease;
+  }
+
+  /* Cards lift slightly on hover (opt-in via Tailwind class) */
+  .card-hover {
+    transition: box-shadow 150ms ease, transform 150ms ease;
+  }
+  .card-hover:hover {
+    box-shadow: 0 4px 16px rgb(0 0 0 / 0.08);
+    transform: translateY(-1px);
+  }
+
+  /* Sidebar link transitions */
+  [data-slot="sidebar-link"],
+  aside a,
+  aside button {
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+
+  /* Button loading pulse */
+  button[disabled] {
+    transition: opacity 150ms ease;
+  }
+
+  /* Dialog content slide-in is handled by driver.js and Base UI; these
+     reinforce the system-level feel for custom dialogs. */
+  [data-slot="dialog-content"] {
+    animation: dialog-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, calc(-50% + 8px)) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+  }
+
+  /* Toast queue items */
+  [data-sonner-toast] {
+    animation: toast-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Page section fade-in used by collapsible card bodies */
+  .section-open {
+    animation: section-open 160ms ease both;
+  }
+
+  @keyframes section-open {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Skeleton shimmer (used by Skeleton component) */
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to   { background-position:  200% 0; }
+  }
+}
