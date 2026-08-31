@@ -153,7 +153,7 @@ function Section({
   );
 }
 
-/** Document upload tile — with optional OCR triggered on front-face uploads. */
+/** Document upload tile — shows image preview after upload + optional OCR on front face. */
 function DocUpload({
   guestId,
   side,
@@ -173,17 +173,25 @@ function DocUpload({
   const [uploaded, setUploaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [ocrRunning, setOcrRunning] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+
+  // Clean up blob URL when component unmounts
+  useEffect(() => {
+    return () => { if (preview) URL.revokeObjectURL(preview); };
+  }, [preview]);
 
   const onFile = async (file: File | undefined) => {
     if (!file || !guestId) return;
     setBusy(true);
+    // Show local preview immediately — before upload
+    const previewUrl = URL.createObjectURL(file);
+    setPreview(previewUrl);
     try {
       const compressed = await compressDocument(file);
 
-      // Run OCR on front face before uploading (in parallel with upload)
+      // Run OCR on front face in parallel with upload
       if (side === "front" && onOcrResult) {
         setOcrRunning(true);
-        // Don't await here — let upload proceed while OCR runs
         const { parseIdDocument } = await import("@/lib/id-ocr");
         parseIdDocument(compressed, idType ?? "Aadhar Card")
           .then(onOcrResult)
@@ -200,36 +208,52 @@ function DocUpload({
       setUploaded(true);
       onUploaded?.();
     } catch (e) {
+      setPreview(null);
       toast.error(e instanceof ApiError ? e.message : "Upload failed");
     } finally {
       setBusy(false);
     }
   };
 
-  const statusLabel = ocrRunning
-    ? "Reading ID…"
-    : busy
-    ? "Uploading…"
-    : uploaded
-    ? "✓ Uploaded"
-    : label;
-
   return (
     <label
       className={cn(
-        "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center text-xs transition-colors",
+        "relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 overflow-hidden text-center text-xs transition-colors",
         !guestId && "pointer-events-none opacity-40",
-        uploaded
-          ? "border-green-400 bg-green-50 text-green-700"
+        preview
+          ? "border-green-400 p-0 h-28"
           : ocrRunning
-          ? "border-gold-400 bg-gold-50 text-gold-700 animate-pulse"
-          : "border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground",
+          ? "border-gold-400 bg-gold-50 text-gold-700 animate-pulse p-4"
+          : "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4",
       )}
     >
-      <Upload className={cn("size-5", ocrRunning && "animate-spin")} aria-hidden />
-      <span className="font-medium">{statusLabel}</span>
-      {ocrRunning && (
-        <span className="text-[10px] text-gold-600">Extracting details…</span>
+      {preview ? (
+        /* Image thumbnail fills the tile */
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={preview}
+            alt="ID document"
+            className="h-full w-full object-cover"
+          />
+          {/* Status overlay */}
+          <div className={cn(
+            "absolute bottom-0 left-0 right-0 px-2 py-1 text-[10px] font-semibold text-center",
+            uploaded ? "bg-green-600/80 text-white" : "bg-gold-500/80 text-navy-900",
+          )}>
+            {ocrRunning ? "Reading ID…" : busy ? "Uploading…" : "✓ Uploaded"}
+          </div>
+        </>
+      ) : (
+        <>
+          <Upload className={cn("size-5", ocrRunning && "animate-spin")} aria-hidden />
+          <span className="font-medium">
+            {ocrRunning ? "Reading ID…" : busy ? "Uploading…" : label}
+          </span>
+          {ocrRunning && (
+            <span className="text-[10px] text-gold-600">Extracting details…</span>
+          )}
+        </>
       )}
       <input
         type="file"
@@ -341,7 +365,7 @@ function AutofillBanner({
   );
 }
 
-/** Queued doc upload tile (queues the file; uploads after guest is created). */
+/** Queued doc upload tile — shows preview thumbnail; queues file for upload after guest creation. */
 function QueuedDocUpload({
   side,
   label,
@@ -352,14 +376,22 @@ function QueuedDocUpload({
   readonly onQueued: (side: "front" | "back" | "selfie", file: File) => void;
 }) {
   const [queued, setQueued] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => { if (preview) URL.revokeObjectURL(preview); };
+  }, [preview]);
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    setPreview(previewUrl);
     try {
       const compressed = await compressDocument(file);
       onQueued(side, compressed);
       setQueued(true);
     } catch {
+      setPreview(null);
       toast.error("Could not process image");
     }
   };
@@ -367,14 +399,26 @@ function QueuedDocUpload({
   return (
     <label
       className={cn(
-        "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center text-xs transition-colors",
-        queued
-          ? "border-gold-400 bg-gold-50 text-gold-700"
-          : "border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground",
+        "relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 overflow-hidden text-center text-xs transition-colors",
+        preview
+          ? "border-gold-400 p-0 h-28"
+          : "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4",
       )}
     >
-      <Upload className="size-5" aria-hidden />
-      <span className="font-medium">{queued ? "✓ Ready" : label}</span>
+      {preview ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={preview} alt="ID document" className="h-full w-full object-cover" />
+          <div className="absolute bottom-0 left-0 right-0 bg-gold-500/80 px-2 py-1 text-[10px] font-semibold text-navy-900 text-center">
+            {queued ? "✓ Ready to upload" : "Processing…"}
+          </div>
+        </>
+      ) : (
+        <>
+          <Upload className="size-5" aria-hidden />
+          <span className="font-medium">{label}</span>
+        </>
+      )}
       <input
         type="file"
         accept="image/png,image/jpeg,image/webp"

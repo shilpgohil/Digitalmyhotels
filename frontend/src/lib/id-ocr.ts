@@ -2,7 +2,7 @@
  * ID Document OCR — browser-side text extraction with confidence scoring.
  *
  * Uses Tesseract.js (dynamically imported) to run OCR on uploaded ID images.
- * Supports Aadhar Card, PAN Card, Passport, and Driving Licence.
+ * Supports: Aadhar Card, PAN Card, Passport, Driving Licence, Voter ID.
  *
  * Returns structured fields + a 0–1 confidence score.
  * Callers decide: ≥ 0.55 → offer autofill, < 0.55 → warn user.
@@ -33,10 +33,13 @@ const PATTERNS = {
   aadhar:   /\b\d{4}\s?\d{4}\s?\d{4}\b/,
   pan:      /\b[A-Z]{5}\d{4}[A-Z]\b/,
   passport: /\b[A-Z]\d{7}\b/,
-  dl:       /\b[A-Z]{2}\d{2}\s?\d{11}\b/,
+  // DL: state code (2 letters) + district/year + serial — flexible match
+  dl:       /\b[A-Z]{2}[-\s]?\d{2}[-\s]?\d{4}[-\s]?\d{7}\b|\b[A-Z]{2}\d{2}\s?\d{4}\s?\d{7}\b/,
+  // Voter ID (EPIC): 3 uppercase letters + 7 digits (e.g. ABC1234567)
+  voter:    /\b[A-Z]{3}\d{7}\b/,
 
   // Date in common Indian formats: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD
-  dob: /(?:DOB|Date of Birth|Birth|जन्म)[:\s]*(\d{2}[\/\-]\d{2}[\/\-]\d{4}|\d{4}[\/\-]\d{2}[\/\-]\d{2})/i,
+  dob: /(?:DOB|Date of Birth|Birth Date|जन्म|जन्मतिथि)[:\s]*(\d{2}[\/\-]\d{2}[\/\-]\d{4}|\d{4}[\/\-]\d{2}[\/\-]\d{2})/i,
   // Loose date — anywhere in the text (fallback)
   date: /\b(\d{2}[\/\-]\d{2}[\/\-]\d{4})\b/,
 
@@ -251,6 +254,61 @@ function parsePassport(text: string): Partial<ParsedIdFields> & { score: number 
   return { ...fields, score };
 }
 
+function parseVoterID(text: string): Partial<ParsedIdFields> & { score: number } {
+  const fields: Partial<ParsedIdFields> = { id_type_detected: "Voter ID" };
+  let score = 0;
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  // Voter ID (EPIC) number
+  const voterMatch = text.match(PATTERNS.voter);
+  if (voterMatch) { fields.id_number = voterMatch[0]; score += 0.30; }
+
+  // DOB
+  const dobMatch = text.match(PATTERNS.dob) ?? text.match(PATTERNS.date);
+  if (dobMatch) {
+    const normalized = normalizeDate(dobMatch[1] ?? dobMatch[0]);
+    if (normalized) { fields.date_of_birth = normalized; score += 0.20; }
+  }
+
+  // Gender
+  const genderMatch = text.match(PATTERNS.gender);
+  if (genderMatch) { fields.gender = normalizeGender(genderMatch[1]); score += 0.15; }
+
+  // Name: voter cards show "Name:" or the name directly after header
+  // Skip father's name line ("S/O", "D/O", "W/O")
+  for (const line of lines) {
+    if (/\b(S\/O|D\/O|W\/O|H\/O|Father|Mother|Husband|पिता|पति|माता)/i.test(line)) continue;
+    if (/ELECTION|VOTER|INDIA|भारत|निर्वाचन/i.test(line)) continue;
+    const cleaned = line.replace(/^(Name|नाम)[:\s]*/i, "");
+    const nm = cleaned.match(PATTERNS.name);
+    if (nm) {
+      const candidate = cleanName(nm[0]);
+      if (candidate.split(" ").length >= 2 && candidate.length > 4) {
+        fields.name = candidate;
+        score += 0.25;
+        break;
+      }
+    }
+  }
+
+  // Address: voter cards have a distinct "Address:" section
+  const addrLineIdx = lines.findIndex((l) => /^(Address|Residential|पता)/i.test(l));
+  if (addrLineIdx >= 0) {
+    const addrLines = lines
+      .slice(addrLineIdx + 1, addrLineIdx + 4)
+      .filter((l) => l.length > 3 && !PATTERNS.voter.test(l));
+    if (addrLines.length > 0) {
+      // Also include text on the Address: line itself (after the label)
+      const labelLine = lines[addrLineIdx].replace(/^(Address|Residential|पता)[:\s]*/i, "").trim();
+      const allAddr = [labelLine, ...addrLines].filter(Boolean);
+      fields.address = allAddr.join(", ");
+      score += 0.10;
+    }
+  }
+
+  return { ...fields, score };
+}
+
 function parseDrivingLicence(text: string): Partial<ParsedIdFields> & { score: number } {
   const fields: Partial<ParsedIdFields> = { id_type_detected: "Driving License" };
   let score = 0;
@@ -287,16 +345,36 @@ function parseDrivingLicence(text: string): Partial<ParsedIdFields> & { score: n
 function detectAndParse(text: string): Partial<ParsedIdFields> & { score: number } {
   const upper = text.toUpperCase();
 
+  // PAN: explicit number pattern or header text
   if (PATTERNS.pan.test(text) || upper.includes("INCOME TAX") || upper.includes("PERMANENT ACCOUNT")) {
     return parsePAN(text);
   }
+  // Passport: explicit header or document number format
   if (upper.includes("PASSPORT") || PATTERNS.passport.test(text)) {
     return parsePassport(text);
   }
-  if (upper.includes("DRIVING") || upper.includes("LICENCE") || upper.includes("LICENSE") || PATTERNS.dl.test(text)) {
+  // Driving Licence: keyword or pattern
+  if (
+    upper.includes("DRIVING") ||
+    upper.includes("LICENCE") ||
+    upper.includes("LICENSE") ||
+    upper.includes("MOTOR VEHICLE") ||
+    PATTERNS.dl.test(text)
+  ) {
     return parseDrivingLicence(text);
   }
-  // Default: Aadhar (most common in India)
+  // Voter ID: EPIC keyword or pattern
+  if (
+    upper.includes("ELECTION") ||
+    upper.includes("VOTER") ||
+    upper.includes("EPIC") ||
+    upper.includes("ELECTORAL") ||
+    upper.includes("निर्वाचन") ||
+    PATTERNS.voter.test(text)
+  ) {
+    return parseVoterID(text);
+  }
+  // Default: Aadhar (most common)
   return parseAadhar(text);
 }
 
@@ -347,6 +425,7 @@ export async function parseIdDocument(
       if (idType === "PAN Card") parsed = parsePAN(rawText);
       else if (idType === "Passport") parsed = parsePassport(rawText);
       else if (idType === "Driving License") parsed = parseDrivingLicence(rawText);
+      else if (idType === "Voter ID") parsed = parseVoterID(rawText);
     }
 
     // Blend Tesseract's character-level confidence with our field-match score.
