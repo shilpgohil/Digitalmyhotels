@@ -100,6 +100,28 @@ export interface CurrentGuestOut {
   guest_count: number;
 }
 
+export interface GuestCreatePayload {
+  full_name: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  postal_code?: string;
+  gender?: string;
+  date_of_birth?: string;
+  id_proof_type?: string;
+  id_number?: string;
+}
+
+export interface CheckInCreateOut {
+  id: string;
+  booking_id: string;
+  booking_number: string;
+  checked_in_at: string;
+  registration_numbers: string[];
+}
+
 export interface CheckOutOut {
   id: string;
   booking_id: string;
