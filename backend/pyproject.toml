@@ -7,7 +7,8 @@ requires-python = ">=3.12"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["alembic/versions"]
+# Exclude versioned migrations and one-off deployment/helper scripts
+extend-exclude = ["alembic/versions", "scripts/_*.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "C4"]
