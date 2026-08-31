@@ -6,8 +6,11 @@ name: Keep Render Alive
 
 on:
   schedule:
-    # Every 14 minutes, 24/7.  Cron format: minute hour day month weekday
-    - cron: "*/14 * * * *"
+    # Every 10 minutes, 24/7 — Render free tier sleeps after 15 min of inactivity.
+    # Pinging every 10 min gives a 5-min safety buffer.
+    # GitHub Actions cron uses ~720 min/month on 14-min; 10-min uses ~1,008 min/month
+    # (still well within the 2,000 min free quota).
+    - cron: "*/10 * * * *"
   workflow_dispatch:    # Allow manual trigger from GitHub Actions UI
 
 jobs:

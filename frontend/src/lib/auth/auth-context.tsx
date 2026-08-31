@@ -54,17 +54,18 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
 
   // Session restoration after reload: refresh cookie → access token → /me.
   //
-  // Retries up to 3 times with exponential back-off (500 ms, 1 s, 2 s) so that
-  // a briefly slow backend start-up after a PC reboot does not immediately log
-  // the user out. Only after all retries fail is status set to "unauthenticated".
+  // Retries up to 5 times with exponential back-off (500 ms, 1 s, 2 s, 4 s, 8 s)
+  // = ~15.5 s total. This covers Render free-tier warm-ups (typically 5–15 s after
+  // a keep-alive ping or first hit). Only after all retries fail is status set to
+  // "unauthenticated". The keep-alive cron prevents deep cold starts (30–60 s).
   useEffect(() => {
     let cancelled = false;
 
     const tryRefresh = async (attempt = 0): Promise<boolean> => {
       const ok = await refreshAccessToken();
       if (ok || cancelled) return ok;
-      if (attempt >= 2) return false;
-      const delay = 500 * 2 ** attempt;          // 500 ms → 1 s → 2 s
+      if (attempt >= 4) return false;             // max 5 attempts
+      const delay = 500 * 2 ** attempt;           // 500 ms → 1 s → 2 s → 4 s → 8 s
       await new Promise((r) => setTimeout(r, delay));
       return cancelled ? false : tryRefresh(attempt + 1);
     };

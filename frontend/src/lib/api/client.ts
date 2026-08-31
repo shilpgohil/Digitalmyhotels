@@ -61,11 +61,18 @@ async function parseError(response: Response): Promise<ApiError> {
 
 let refreshPromise: Promise<boolean> | null = null;
 
-/** Refresh the access token using the HttpOnly cookie. Deduplicates concurrent calls. */
+/** Refresh the access token using the HttpOnly cookie. Deduplicates concurrent calls.
+ *
+ * IMPORTANT: Always uses a relative URL so the request goes through the
+ * Next.js server-side proxy (same-origin from the browser's perspective).
+ * This prevents cross-origin cookie blocking (3rd-party cookie deprecation
+ * in Chrome/Safari) and is safe for both local dev and Vercel production.
+ */
 export async function refreshAccessToken(): Promise<boolean> {
   refreshPromise ??= (async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+      // Relative path — always proxied by Next.js rewrites, never cross-origin.
+      const response = await fetch(`/api/v1/auth/refresh`, {
         method: "POST",
         credentials: "include",
       });

@@ -36,7 +36,9 @@ services:
 
       # ── Database (Neon) ──────────────────────────────────────────────────
       - key: DATABASE_URL
-        sync: false             # Paste your Neon Singapore connection string
+        sync: false             # Use the Neon POOLED connection string (hostname contains "-pooler")
+                                # e.g. postgresql+asyncpg://user:pass@ep-xxx-pooler.ap-southeast-1.aws.neon.tech/dbname?sslmode=require
+                                # The pooler handles connection management — backend uses NullPool in production.
 
       # ── Auth ─────────────────────────────────────────────────────────────
       - key: SECRET_KEY
@@ -48,9 +50,13 @@ services:
       - key: REFRESH_COOKIE_SECURE
         value: "true"           # Render serves over HTTPS
       - key: REFRESH_COOKIE_SAMESITE
-        value: none             # Required for cross-origin (Vercel → Render)
-      - key: REFRESH_COOKIE_DOMAIN
-        sync: false             # Set to your Render domain, e.g. .onrender.com
+        value: lax              # "lax" is correct — browser sends requests via Vercel proxy (same-site)
+      # REFRESH_COOKIE_DOMAIN is intentionally NOT set.
+      # The Next.js server-side proxy (API_PROXY_TARGET) makes the browser see
+      # all API calls as same-origin (vercel.app → vercel.app proxy → render.com).
+      # Leaving the domain blank lets the browser scope the cookie to vercel.app,
+      # which avoids third-party cookie blocking in Chrome/Safari.
+      # DO NOT set this to .onrender.com — that would break cookie delivery.
 
       # ── CORS ─────────────────────────────────────────────────────────────
       - key: CORS_ORIGINS

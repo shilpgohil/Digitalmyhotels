@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
+from functools import partial
 from pathlib import Path
 from uuid import uuid4
 
@@ -77,17 +79,30 @@ class _S3CompatibleStorage(StorageBackend):
         )
 
     async def put_bytes(self, *, key: str, data: bytes, content_type: str) -> str:
-        self.client.put_object(
-            Bucket=self.bucket, Key=key, Body=data, ContentType=content_type
+        # boto3 is synchronous — run in a thread so the asyncio event loop is
+        # never blocked during network I/O to the S3-compatible endpoint.
+        await asyncio.to_thread(
+            partial(
+                self.client.put_object,
+                Bucket=self.bucket,
+                Key=key,
+                Body=data,
+                ContentType=content_type,
+            )
         )
         return key
 
     async def get_bytes(self, key: str) -> bytes:
-        obj = self.client.get_object(Bucket=self.bucket, Key=key)
-        return obj["Body"].read()
+        result = await asyncio.to_thread(
+            partial(self.client.get_object, Bucket=self.bucket, Key=key)
+        )
+        # Body.read() is also blocking I/O — run it in the thread too.
+        return await asyncio.to_thread(result["Body"].read)
 
     async def delete(self, key: str) -> None:
-        self.client.delete_object(Bucket=self.bucket, Key=key)
+        await asyncio.to_thread(
+            partial(self.client.delete_object, Bucket=self.bucket, Key=key)
+        )
 
     def public_url(self, key: str) -> str | None:
         if not self.public_base:
