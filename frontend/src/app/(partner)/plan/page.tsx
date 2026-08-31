@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { BadgeCheck } from "lucide-react";
+import { fmtApiDate } from "@/lib/formatting";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -65,7 +66,7 @@ function PlanContent() {
                   {t("currentPlan")}
                 </p>
                 <p className="text-sm font-medium">
-                  {t("validUntil")} {sub.data.expiry_date}
+                  {t("validUntil")} {fmtApiDate(sub.data.expiry_date)}
                 </p>
               </div>
               <StatusBadge tone={tone}>{status}</StatusBadge>

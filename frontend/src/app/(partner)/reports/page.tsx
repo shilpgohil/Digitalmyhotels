@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
+import { fmtApiDate } from "@/lib/formatting";
 import { PERMISSIONS } from "@/lib/permissions";
 import {
   Table,
@@ -318,7 +319,7 @@ function ReportsContent() {
                       <TableCell className="font-medium">{row.booking_number}</TableCell>
                       <TableCell>{row.guest_name}</TableCell>
                       <TableCell className="text-muted-foreground">
-                        {row.invoice_number} · {row.invoice_date}
+                        {row.invoice_number} · {fmtApiDate(row.invoice_date)}
                       </TableCell>
                       <TableCell className="tabular-nums">₹{row.taxable}</TableCell>
                       <TableCell className="tabular-nums">₹{row.cgst}</TableCell>

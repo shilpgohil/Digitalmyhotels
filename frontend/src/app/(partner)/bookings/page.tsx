@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, MoreVertical, LogIn, XCircle, UserX } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
+import { fmtApiDate } from "@/lib/formatting";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -224,7 +225,7 @@ function BookingsContent() {
                         .join(", ")}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {booking.check_in_date} → {booking.check_out_date}
+                      {fmtApiDate(booking.check_in_date)} → {fmtApiDate(booking.check_out_date)}
                     </TableCell>
                     <TableCell className="tabular-nums">₹{booking.total_amount}</TableCell>
                     <TableCell>

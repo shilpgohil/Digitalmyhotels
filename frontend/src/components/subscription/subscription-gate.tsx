@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarX2 } from "lucide-react";
+import { fmtApiDate } from "@/lib/formatting";
 import {
   Dialog,
   DialogContent,
@@ -60,8 +61,8 @@ export function SubscriptionGate() {
         >
           <span>
             {blocked
-              ? t("expiredBanner", { date: sub.data.expiry_date })
-              : t("expiringBanner", { date: sub.data.expiry_date })}
+              ? t("expiredBanner", { date: fmtApiDate(sub.data.expiry_date) })
+              : t("expiringBanner", { date: fmtApiDate(sub.data.expiry_date) })}
           </span>
           <Link href="/plan" className="font-semibold underline">
             {t("viewPlans")}
@@ -78,7 +79,7 @@ export function SubscriptionGate() {
             <DialogTitle className="font-display text-xl">{t("expiredTitle")}</DialogTitle>
           </DialogHeader>
           <p className="text-center text-sm text-muted-foreground">
-            {t("expiredBody", { date: sub.data.expiry_date })}
+            {t("expiredBody", { date: fmtApiDate(sub.data.expiry_date) })}
           </p>
           <Link
             href="/plan"

@@ -1,8 +1,8 @@
 /**
- * Shared date/time formatting utilities.
+ * Shared date/time formatting utilities — Indian locale (DD/MM/YYYY).
  *
- * All datetimes from the backend are UTC ISO 8601 strings.
- * We render them in a human-readable format using the browser locale.
+ * All date/time values from the backend are UTC ISO 8601 strings.
+ * All dates are rendered in Indian format (DD/MM/YYYY or DD MMM YYYY).
  */
 
 /**
@@ -30,11 +30,14 @@ export function localTomorrow(): string {
   ].join("-");
 }
 
-/** Format a UTC ISO datetime string as DD MMM YYYY, HH:mm (24hr, local zone). */
+/**
+ * Format a UTC ISO datetime string → "31 Aug 2026, 14:30" (Indian style, 24hr).
+ * Month name avoids DD/MM vs MM/DD ambiguity in date+time displays.
+ */
 export function fmtDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat("en-IN", {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -47,11 +50,14 @@ export function fmtDateTime(iso: string | null | undefined): string {
   }
 }
 
-/** Format a date-only string as DD MMM YYYY. */
+/**
+ * Format a date-only ISO string → "31 Aug 2026" (Indian style with short month name).
+ * Use for displayed dates where readability matters.
+ */
 export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat("en-IN", {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -61,13 +67,55 @@ export function fmtDate(iso: string | null | undefined): string {
   }
 }
 
-/** Format time portion only (HH:mm 24hr). */
+/**
+ * Format a raw YYYY-MM-DD API date string → "31/08/2026" (DD/MM/YYYY).
+ * Use for compact table cells and inline displays of API date fields.
+ */
+export function fmtApiDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  // Fast path: YYYY-MM-DD pattern — parse directly to avoid timezone issues.
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  // Fallback for other formats.
+  try {
+    return new Intl.DateTimeFormat("en-IN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+/** Format time portion only → "14:30" (24hr). */
 export function fmtTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat("en-IN", {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+/**
+ * Format a UTC ISO datetime as a full locale-aware string → "31 Aug 2026, 14:30:05".
+ * Use for audit logs and other verbose displays.
+ */
+export function fmtDateTimeFull(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try {
+    return new Intl.DateTimeFormat("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
       hour12: false,
     }).format(new Date(iso));
   } catch {

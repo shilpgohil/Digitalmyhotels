@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Upload } from "lucide-react";
-import { localToday } from "@/lib/formatting";
+import { fmtApiDate, localToday } from "@/lib/formatting";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -138,7 +138,7 @@ function ExpensesContent() {
               <TableBody>
                 {expenses.data.items.map((ex) => (
                   <TableRow key={ex.id}>
-                    <TableCell>{ex.expense_date}</TableCell>
+                    <TableCell>{fmtApiDate(ex.expense_date)}</TableCell>
                     <TableCell className="tabular-nums">₹{ex.amount}</TableCell>
                     <TableCell>{ex.description ?? "—"}</TableCell>
                     <TableCell>

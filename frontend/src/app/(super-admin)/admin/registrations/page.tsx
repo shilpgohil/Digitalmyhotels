@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api/client";
+import { fmtDate } from "@/lib/formatting";
 import type { HotelAdminListOut } from "@/types/money";
 
 const PAGE_SIZE = 10;
@@ -101,11 +102,7 @@ function RegistrationsContent() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{h.city ?? "—"}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                    {new Date(h.created_at).toLocaleDateString("en-IN", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
+                    {fmtDate(h.created_at)}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {h.subscription_plan_name ?? "—"}

@@ -33,7 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PaymentStatusBadge } from "@/components/stay/booking-badges";
-import { fmtDateTime, fmtDate } from "@/lib/formatting";
+import { fmtDateTime, fmtDate, fmtApiDate } from "@/lib/formatting";
 import { CheckoutDialog } from "@/components/stay/checkout-dialog";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -249,8 +249,8 @@ function StayDetailDialog({
       <table>
         <tr><td>${tb("guest")}</td><td>${b.primary_guest_name ?? ""}</td></tr>
         <tr><td>${tb("roomsCol")}</td><td>${rooms}</td></tr>
-        <tr><td>${tb("checkinDate")}</td><td>${b.check_in_date}</td></tr>
-        <tr><td>${tb("checkoutDate")}</td><td>${b.check_out_date}</td></tr>
+        <tr><td>${tb("checkinDate")}</td><td>${fmtApiDate(b.check_in_date)}</td></tr>
+        <tr><td>${tb("checkoutDate")}</td><td>${fmtApiDate(b.check_out_date)}</td></tr>
         <tr><td>${tb("adults")} / ${tb("children")}</td><td>${b.adults} / ${b.children}</td></tr>
         <tr><td>${tb("total")}</td><td>₹${b.total_amount}</td></tr>
         <tr><td>${tb("due")}</td><td>₹${b.due_amount}</td></tr>
@@ -284,8 +284,8 @@ function StayDetailDialog({
                 .map((r) => r.room_number)
                 .join(", ")}
             />
-            <Detail label={tb("checkinDate")} value={b.check_in_date} />
-            <Detail label={tb("checkoutDate")} value={b.check_out_date} />
+            <Detail label={tb("checkinDate")} value={fmtApiDate(b.check_in_date)} />
+            <Detail label={tb("checkoutDate")} value={fmtApiDate(b.check_out_date)} />
             <Detail label={`${tb("adults")} / ${tb("children")}`} value={`${b.adults} / ${b.children}`} />
             <Detail label={tb("payment")} value={b.payment_status} />
             <Detail label={tb("total")} value={`₹${b.total_amount}`} />

@@ -69,7 +69,7 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError, apiUpload } from "@/lib/api/client";
 import { compressDocument } from "@/lib/compress-image";
-import { localToday, localTomorrow } from "@/lib/formatting";
+import { fmtApiDate, localToday, localTomorrow } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import type { ListOut } from "@/types/hotel";
 import type {
@@ -244,7 +244,7 @@ function DocUpload({
             uploaded ? "bg-green-600/80 text-white" : "bg-gold-500/80 text-navy-900",
           )}>
             {ocrRunning ? "Reading ID…" : busy ? "Uploading…" : "✓ Uploaded"}
-          </div>
+        </div>
         </>
       ) : (
         <>
@@ -343,8 +343,8 @@ function AutofillBanner({
             <span className="w-24 shrink-0 font-semibold text-green-700">{item.label}</span>
             <span className="text-green-800 truncate">{item.value}</span>
           </div>
-        ))}
-      </div>
+              ))}
+            </div>
 
       <div className="flex items-center gap-2 px-4 py-3 border-t border-green-200 bg-green-50/50">
         <button
@@ -361,8 +361,8 @@ function AutofillBanner({
           className="inline-flex h-8 items-center px-3 text-xs font-medium text-green-700 hover:underline"
         >
           Skip — fill manually
-        </button>
-      </div>
+              </button>
+            </div>
     </div>
   );
 }
@@ -595,7 +595,7 @@ function AdditionalGuestEntry({
             <Button type="button" size="sm" onClick={handleSearch} disabled={searching}>
               <Search className="size-4" aria-hidden />
               {searching ? "…" : "Search"}
-            </Button>
+                      </Button>
           </div>
           {searchResults.length > 0 && (
             <ul className="rounded-lg border divide-y">
@@ -651,7 +651,7 @@ function AdditionalGuestEntry({
                 placeholder="Last 4 digits minimum"
               />
             </div>
-          </div>
+        </div>
 
           {/* Doc uploads — front triggers OCR */}
           <div className="grid grid-cols-3 gap-2">
@@ -1116,11 +1116,11 @@ function CheckinForm({
           </div>
           <div>
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Check In Date</Label>
-            <p className="mt-1">{booking.check_in_date}</p>
+            <p className="mt-1">{fmtApiDate(booking.check_in_date)}</p>
           </div>
           <div>
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Checkout Date</Label>
-            <p className="mt-1">{booking.check_out_date}</p>
+            <p className="mt-1">{fmtApiDate(booking.check_out_date)}</p>
           </div>
           <div>
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Guest Type</Label>
@@ -1686,7 +1686,7 @@ function NewBookingInlineForm({
         }}
       >
         {/* Guest picker */}
-        <div className="space-y-1.5">
+            <div className="space-y-1.5">
           <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Guest *
           </Label>
@@ -1694,7 +1694,7 @@ function NewBookingInlineForm({
             selected={guest?.id ? guest : null}
             onSelected={(g) => setGuest(g.id ? g : null)}
           />
-        </div>
+            </div>
 
         {/* Dates — placed BEFORE room picker so availability reacts to dates */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -1753,7 +1753,7 @@ function NewBookingInlineForm({
         </div>
 
         {/* Date-aware room availability picker */}
-        <div className="space-y-1.5">
+          <div className="space-y-1.5">
           <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Select Rooms *
           </Label>
@@ -1790,13 +1790,13 @@ function NewBookingInlineForm({
             </Label>
             <Input id="nb-requests" name="special_requests" placeholder="Optional" />
           </div>
-        </div>
+          </div>
 
-        {error && (
+          {error && (
           <p className="rounded-lg bg-danger-bg border border-danger/30 px-3 py-2 text-sm text-danger" role="alert">
-            {error}
-          </p>
-        )}
+              {error}
+            </p>
+          )}
 
         {/* Actions */}
         <div className="flex items-center justify-between pt-1">
@@ -1814,9 +1814,9 @@ function NewBookingInlineForm({
           >
             <LogIn className="size-4" aria-hidden />
             {mutation.isPending ? "Creating…" : "Create Booking & Check In"}
-          </Button>
+            </Button>
         </div>
-      </form>
+        </form>
     </div>
   );
 }
@@ -1978,7 +1978,7 @@ function CheckinContent() {
                         .join(", ")}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground text-xs">
-                      {booking.check_in_date} → {booking.check_out_date}
+                      {fmtApiDate(booking.check_in_date)} → {fmtApiDate(booking.check_out_date)}
                     </TableCell>
                     <TableCell className="tabular-nums">₹{booking.total_amount}</TableCell>
                     <TableCell className="tabular-nums font-medium">₹{booking.due_amount}</TableCell>

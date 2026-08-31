@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api/client";
+import { fmtDate } from "@/lib/formatting";
 import type { HotelAdminOut, PlatformDashboardOut } from "@/types/money";
 import { RenewDialog } from "@/components/admin/renew-dialog";
 
@@ -242,7 +243,7 @@ export default function AdminDashboardPage() {
                   <td className="px-4 py-3 text-muted-foreground">{h.owner_name ?? "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground">{h.city ?? "—"}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                    {new Date(h.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                    {fmtDate(h.created_at)}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{h.subscription_plan_name ?? "—"}</td>
                   <td className="px-4 py-3">

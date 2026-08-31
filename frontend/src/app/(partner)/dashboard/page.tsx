@@ -31,6 +31,7 @@ import {
 import { PaymentStatusBadge } from "@/components/stay/booking-badges";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
+import { fmtApiDate } from "@/lib/formatting";
 import { PERMISSIONS } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import type { RoomStatusSummaryOut } from "@/types/hotel";
@@ -190,7 +191,7 @@ export default function DashboardPage() {
                           <TableCell>{guest.primary_guest_name}</TableCell>
                           <TableCell>{guest.rooms.join(", ")}</TableCell>
                           <TableCell className="text-muted-foreground">
-                            {guest.check_out_date}
+                            {fmtApiDate(guest.check_out_date)}
                           </TableCell>
                           <TableCell>
                             <PaymentStatusBadge status={guest.payment_status} />

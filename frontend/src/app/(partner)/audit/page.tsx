@@ -18,6 +18,7 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
 import { RequirePermission } from "@/components/auth/require-permission";
+import { fmtDateTimeFull } from "@/lib/formatting";
 
 interface AuditLogOut {
   id: string;
@@ -101,7 +102,7 @@ function AuditContent() {
                 {logs.data.items.map((log) => (
                   <TableRow key={log.id}>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                      {new Date(log.created_at).toLocaleString()}
+                      {fmtDateTimeFull(log.created_at)}
                     </TableCell>
                     <TableCell className="font-mono text-xs">{log.action}</TableCell>
                     <TableCell>{log.entity_type}</TableCell>

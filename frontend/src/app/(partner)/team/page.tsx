@@ -37,6 +37,7 @@ import { StatusBadge } from "@/components/feedback/status-badge";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
+import { fmtDateTime } from "@/lib/formatting";
 import type { ListOut, TeamMemberOut } from "@/types/hotel";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -127,7 +128,7 @@ function TeamContent() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {member.last_login_at
-                        ? new Date(member.last_login_at).toLocaleString()
+                        ? fmtDateTime(member.last_login_at)
                         : "—"}
                     </TableCell>
                     <TableCell className="text-right">

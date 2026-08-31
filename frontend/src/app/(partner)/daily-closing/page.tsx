@@ -14,6 +14,7 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { fmtApiDate } from "@/lib/formatting";
 import type { DailyClosingOut } from "@/types/money";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -74,7 +75,7 @@ function DailyClosingContent() {
         {row && (
           <section className="rounded-lg border bg-card p-5">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-display text-xl">{row.business_date}</h2>
+              <h2 className="font-display text-xl">{fmtApiDate(row.business_date)}</h2>
               <StatusBadge tone={row.status === "closed" ? "success" : "warning"}>{row.status}</StatusBadge>
             </div>
             <dl className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
@@ -116,7 +117,7 @@ function DailyClosingContent() {
           <ul className="mt-6 space-y-2 text-sm">
             {history.data.map((h) => (
               <li key={h.id} className="flex justify-between rounded-lg border bg-card px-4 py-2">
-                <span>{h.business_date}</span>
+                <span>{fmtApiDate(h.business_date)}</span>
                 <span>{h.status}</span>
               </li>
             ))}

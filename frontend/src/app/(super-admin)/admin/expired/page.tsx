@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch } from "@/lib/api/client";
+import { fmtApiDate } from "@/lib/formatting";
 import type { HotelAdminListOut } from "@/types/money";
 import { RenewDialog } from "@/components/admin/renew-dialog";
 
@@ -83,9 +84,7 @@ function ExpiredContent() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{h.city ?? "—"}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                    {h.expiry_date
-                      ? new Date(h.expiry_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-                      : "—"}
+                    {h.expiry_date ? fmtApiDate(h.expiry_date) : "—"}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {h.subscription_plan_name ?? "—"}
