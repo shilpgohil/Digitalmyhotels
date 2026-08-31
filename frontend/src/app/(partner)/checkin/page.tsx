@@ -26,7 +26,6 @@
  */
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -64,12 +63,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { GuestPicker } from "@/components/guests/guest-picker";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError, apiUpload } from "@/lib/api/client";
 import { compressDocument } from "@/lib/compress-image";
 import { cn } from "@/lib/utils";
-import type { ListOut } from "@/types/hotel";
+import type { ListOut, RoomOut } from "@/types/hotel";
 import type {
   BookingOut,
   CheckInCreateOut,
@@ -153,27 +153,43 @@ function Section({
   );
 }
 
-/** Document upload tile. */
+/** Document upload tile — with optional OCR triggered on front-face uploads. */
 function DocUpload({
   guestId,
   side,
   label,
+  idType,
   onUploaded,
+  onOcrResult,
 }: {
   readonly guestId: string | null;
   readonly side: "front" | "back" | "selfie";
   readonly label: string;
+  readonly idType?: string;
   readonly onUploaded?: () => void;
+  readonly onOcrResult?: (result: import("@/lib/id-ocr").IdOcrResult) => void;
 }) {
   const { activeHotelId } = useAuth();
   const [uploaded, setUploaded] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [ocrRunning, setOcrRunning] = useState(false);
 
   const onFile = async (file: File | undefined) => {
     if (!file || !guestId) return;
     setBusy(true);
     try {
       const compressed = await compressDocument(file);
+
+      // Run OCR on front face before uploading (in parallel with upload)
+      if (side === "front" && onOcrResult) {
+        setOcrRunning(true);
+        // Don't await here — let upload proceed while OCR runs
+        const { parseIdDocument } = await import("@/lib/id-ocr");
+        parseIdDocument(compressed, idType ?? "Aadhar Card")
+          .then(onOcrResult)
+          .finally(() => setOcrRunning(false));
+      }
+
       const form = new FormData();
       form.append("side", side);
       form.append("document_type", "id_proof");
@@ -190,6 +206,14 @@ function DocUpload({
     }
   };
 
+  const statusLabel = ocrRunning
+    ? "Reading ID…"
+    : busy
+    ? "Uploading…"
+    : uploaded
+    ? "✓ Uploaded"
+    : label;
+
   return (
     <label
       className={cn(
@@ -197,11 +221,16 @@ function DocUpload({
         !guestId && "pointer-events-none opacity-40",
         uploaded
           ? "border-green-400 bg-green-50 text-green-700"
+          : ocrRunning
+          ? "border-gold-400 bg-gold-50 text-gold-700 animate-pulse"
           : "border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground",
       )}
     >
-      <Upload className="size-5" aria-hidden />
-      <span className="font-medium">{busy ? "Uploading…" : uploaded ? "✓ Uploaded" : label}</span>
+      <Upload className={cn("size-5", ocrRunning && "animate-spin")} aria-hidden />
+      <span className="font-medium">{statusLabel}</span>
+      {ocrRunning && (
+        <span className="text-[10px] text-gold-600">Extracting details…</span>
+      )}
       <input
         type="file"
         accept="image/png,image/jpeg,image/webp"
@@ -210,6 +239,105 @@ function DocUpload({
         onChange={(e) => onFile(e.target.files?.[0])}
       />
     </label>
+  );
+}
+
+// ─── Autofill Banner ─────────────────────────────────────────────────────────
+
+/**
+ * Shown after OCR completes.
+ *  - High confidence → shows extracted fields + "Auto-fill" button.
+ *  - Low confidence  → shows warning message only.
+ */
+function AutofillBanner({
+  result,
+  onAccept,
+  onDismiss,
+}: {
+  readonly result: import("@/lib/id-ocr").IdOcrResult;
+  readonly onAccept: (fields: import("@/lib/id-ocr").ParsedIdFields) => void;
+  readonly onDismiss: () => void;
+}) {
+  if (!result.can_autofill) {
+    return (
+      <div className="flex items-start gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm">
+        <AlertTriangle className="size-4 shrink-0 text-orange-500 mt-0.5" aria-hidden />
+        <div className="flex-1">
+          <p className="font-semibold text-orange-700">Unable to Auto-fill</p>
+          <p className="mt-0.5 text-orange-600 text-xs">{result.message}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="text-orange-400 hover:text-orange-600 text-base leading-none"
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
+      </div>
+    );
+  }
+
+  const { fields } = result;
+  const detectedItems = [
+    fields.name && { label: "Name", value: fields.name },
+    fields.id_number && { label: "ID Number", value: fields.id_number },
+    fields.date_of_birth && { label: "Date of Birth", value: fields.date_of_birth },
+    fields.gender && { label: "Gender", value: fields.gender },
+    fields.address && { label: "Address", value: fields.address.slice(0, 60) + (fields.address.length > 60 ? "…" : "") },
+  ].filter(Boolean) as { label: string; value: string }[];
+
+  const pct = Math.round(result.confidence * 100);
+
+  return (
+    <div className="rounded-xl border border-green-200 bg-green-50 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-green-200">
+        <div className="flex items-center gap-2">
+          <BadgeCheck className="size-4 text-green-600" aria-hidden />
+          <span className="text-sm font-semibold text-green-800">
+            ID Details Detected
+          </span>
+          <span className="rounded-full bg-green-200 px-2 py-0.5 text-[10px] font-bold text-green-700">
+            {pct}% confidence
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="text-green-400 hover:text-green-600 text-base leading-none"
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="px-4 py-3 space-y-1.5">
+        {detectedItems.map((item) => (
+          <div key={item.label} className="flex gap-2 text-xs">
+            <span className="w-24 shrink-0 font-semibold text-green-700">{item.label}</span>
+            <span className="text-green-800 truncate">{item.value}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2 px-4 py-3 border-t border-green-200 bg-green-50/50">
+        <button
+          type="button"
+          onClick={() => onAccept(fields)}
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-green-600 px-3 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
+        >
+          <BadgeCheck className="size-3.5" aria-hidden />
+          Auto-fill Form
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="inline-flex h-8 items-center px-3 text-xs font-medium text-green-700 hover:underline"
+        >
+          Skip — fill manually
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -275,6 +403,7 @@ function AdditionalGuestEntry({
   const [resolved, setResolved] = useState<ResolvedCoGuest | null>(null);
   const [mode, setMode] = useState<"search" | "form">("search");
   const [docs, setDocs] = useState<{ side: "front" | "back" | "selfie"; file: File }[]>([]);
+  const [coOcrResult, setCoOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
 
   // New guest form state
   const [form, setForm] = useState<GuestCreatePayload>({
@@ -340,7 +469,7 @@ function AdditionalGuestEntry({
           <div className="flex items-center gap-2">
             <BadgeCheck className="size-4 text-green-600" aria-hidden />
             <span className="text-sm font-semibold">{resolved.full_name}</span>
-          </div>
+        </div>
           <button
             type="button"
             onClick={() => {
@@ -378,7 +507,7 @@ function AdditionalGuestEntry({
         >
           <Trash2 className="size-4" aria-hidden />
         </button>
-      </div>
+            </div>
 
       {/* Mode toggle */}
       <div className="flex rounded-lg overflow-hidden border text-xs font-medium w-fit">
@@ -401,8 +530,8 @@ function AdditionalGuestEntry({
           )}
         >
           Create New
-        </button>
-      </div>
+              </button>
+            </div>
 
       {mode === "search" ? (
         <div className="space-y-3">
@@ -478,12 +607,40 @@ function AdditionalGuestEntry({
             </div>
           </div>
 
-          {/* Doc uploads */}
+          {/* Doc uploads — front triggers OCR */}
           <div className="grid grid-cols-3 gap-2">
-            <QueuedDocUpload side="front" label="Upload Front" onQueued={handleQueueDoc} />
+            <QueuedDocUpload
+              side="front"
+              label="Upload Front"
+              onQueued={(side, file) => {
+                handleQueueDoc(side, file);
+                // Run OCR on the front face
+                import("@/lib/id-ocr").then(({ parseIdDocument }) =>
+                  parseIdDocument(file, form.id_proof_type ?? "Aadhar Card").then(setCoOcrResult),
+                );
+              }}
+            />
             <QueuedDocUpload side="back" label="Upload Back" onQueued={handleQueueDoc} />
             <QueuedDocUpload side="selfie" label="Selfie Capture" onQueued={handleQueueDoc} />
           </div>
+
+          {/* OCR autofill banner for additional guest */}
+          {coOcrResult && (
+            <AutofillBanner
+              result={coOcrResult}
+              onAccept={(fields) => {
+                if (fields.name) set("full_name", fields.name);
+                if (fields.id_number) set("id_number", fields.id_number);
+                if (fields.gender) set("gender", fields.gender);
+                if (fields.date_of_birth) set("date_of_birth", fields.date_of_birth);
+                if (fields.address) set("address", fields.address);
+                if (fields.id_type_detected) set("id_proof_type", fields.id_type_detected);
+                setCoOcrResult(null);
+                toast.success("Guest details auto-filled from ID");
+              }}
+              onDismiss={() => setCoOcrResult(null)}
+            />
+          )}
 
           {/* Guest details */}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -545,10 +702,10 @@ function AdditionalGuestEntry({
             }}
           >
             Confirm Guest Details
-          </Button>
+                      </Button>
         </div>
-      )}
-    </div>
+          )}
+        </div>
   );
 }
 
@@ -577,6 +734,9 @@ function CheckinForm({
   const [pgAddress, setPgAddress] = useState("");
   const [pgPurpose, setPgPurpose] = useState("");
   const [pgCompany, setPgCompany] = useState("");
+
+  // ── OCR autofill state (primary guest) ──
+  const [pgOcrResult, setPgOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
 
   // ── Additional guests ──
   const [coGuests, setCoGuests] = useState<ResolvedCoGuest[]>([]);
@@ -694,8 +854,8 @@ function CheckinForm({
           )._newForm;
           if (!newForm) continue;
           const created = await api<{ id: string }>("/api/v1/guests", {
-            method: "POST",
-            body: {
+        method: "POST",
+        body: {
               full_name: newForm.full_name.trim(),
               phone: newForm.phone.trim(),
               email: newForm.email?.trim() || undefined,
@@ -811,7 +971,7 @@ function CheckinForm({
     },
     onSuccess: (result) => {
       setCheckinResult(result);
-      setError(null);
+    setError(null);
       queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
       queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
       queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
@@ -843,7 +1003,7 @@ function CheckinForm({
 
   // ── Post-check-in success state ──────────────────────────────────────────
   if (checkinResult) {
-    return (
+  return (
       <div className="mx-auto max-w-2xl space-y-6 py-8">
         <div className="rounded-xl border bg-white shadow-sm p-8 text-center space-y-4">
           <div className="flex size-16 items-center justify-center rounded-full bg-green-100 mx-auto">
@@ -991,6 +1151,8 @@ function CheckinForm({
               guestId={booking.primary_guest_id ?? null}
               side="front"
               label="Upload Front Face"
+              idType={pgIdType}
+              onOcrResult={(result) => setPgOcrResult(result)}
             />
             <DocUpload
               guestId={booking.primary_guest_id ?? null}
@@ -1003,6 +1165,24 @@ function CheckinForm({
               label="Selfie Capture"
             />
           </div>
+
+          {/* OCR autofill banner — appears after front-face upload */}
+          {pgOcrResult && (
+            <AutofillBanner
+              result={pgOcrResult}
+              onAccept={(fields) => {
+                if (fields.name) setPgName(fields.name);
+                if (fields.id_number) setPgIdNumber(fields.id_number);
+                if (fields.gender) setPgGender(fields.gender);
+                if (fields.date_of_birth) setPgDob(fields.date_of_birth);
+                if (fields.address) setPgAddress(fields.address);
+                if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
+                setPgOcrResult(null);
+                toast.success("Form auto-filled from ID document");
+              }}
+              onDismiss={() => setPgOcrResult(null)}
+            />
+          )}
 
           {/* Guest personal details */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -1026,7 +1206,7 @@ function CheckinForm({
                 <option value="Female">Female</option>
                 <option value="Other">Other</option>
               </select>
-            </div>
+          </div>
             <div className="space-y-1.5">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Date of Birth</Label>
               <Input type="date" value={pgDob} onChange={(e) => setPgDob(e.target.value)} />
@@ -1055,14 +1235,14 @@ function CheckinForm({
               onRemove={() => removeGuestEntry(key)}
             />
           ))}
-          <button
-            type="button"
+                <button
+                  type="button"
             onClick={addGuestEntry}
             className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
           >
             <Plus className="size-4" aria-hidden />
             Add Guest
-          </button>
+                </button>
         </div>
       </Section>
 
@@ -1123,8 +1303,8 @@ function CheckinForm({
                   </button>
                 </div>
               </div>
-            </div>
-          ))}
+              </div>
+            ))}
         </div>
       </Section>
 
@@ -1139,7 +1319,7 @@ function CheckinForm({
                 return (
                   <button
                     key={svc.id}
-                    type="button"
+                type="button"
                     onClick={() => toggleService(svc.id)}
                     className={cn(
                       "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
@@ -1296,7 +1476,7 @@ function CheckinForm({
               />
             </div>
           )}
-        </div>
+          </div>
       </Section>
 
       {/* ── Footer: Terms + Actions ───────────────────────────────────────── */}
@@ -1314,16 +1494,16 @@ function CheckinForm({
           </span>
         </label>
 
-        {error && (
+          {error && (
           <p className="rounded-lg bg-danger-bg border border-danger/30 px-3 py-2 text-sm text-danger" role="alert">
-            {error}
-          </p>
-        )}
+              {error}
+            </p>
+          )}
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Button type="button" variant="outline" onClick={onBack}>
             Cancel
-          </Button>
+            </Button>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -1360,6 +1540,217 @@ function CheckinForm({
 
 // ─── Booking selection list ───────────────────────────────────────────────────
 
+// ─── Inline New Booking Form ─────────────────────────────────────────────────
+// Renders INLINE on the check-in landing page — no popup, no separate page.
+// On success it immediately transitions to the check-in form for the new booking.
+
+function NewBookingInlineForm({
+  onClose,
+  onCreated,
+}: {
+  readonly onClose: () => void;
+  readonly onCreated: (booking: BookingOut) => void;
+}) {
+  const api = useApi();
+  const { activeHotelId } = useAuth();
+  const [guest, setGuest] = useState<{ id: string; full_name: string } | null>(null);
+  const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const rooms = useQuery({
+    queryKey: ["rooms", activeHotelId, "for-booking-checkin"],
+    queryFn: () => api<ListOut<RoomOut>>("/api/v1/rooms?limit=200"),
+    enabled: !!activeHotelId,
+  });
+
+  const allocatable = (rooms.data?.items ?? []).filter((r) =>
+    ["available", "clean_ready"].includes(r.status),
+  );
+
+  const mutation = useMutation({
+    mutationFn: (form: FormData) => {
+      const fs = (k: string, fb = "") => (form.get(k) as string | null) ?? fb;
+      return api<BookingOut>("/api/v1/bookings", {
+        method: "POST",
+        body: {
+          primary_guest_id: guest?.id,
+          room_ids: selectedRooms,
+          check_in_date: fs("check_in_date"),
+          check_out_date: fs("check_out_date"),
+          adults: Number(fs("adults", "1")),
+          children: Number(fs("children", "0")),
+          discount_amount: fs("discount_amount", "0"),
+          security_deposit: fs("security_deposit", "0"),
+          special_requests: fs("special_requests").trim() || null,
+        },
+      });
+    },
+    onSuccess: (booking) => {
+      toast.success("Booking created — starting check-in");
+      onCreated(booking);
+    },
+    onError: (e) => setError(e instanceof ApiError ? e.message : "Failed to create booking"),
+  });
+
+  return (
+    <div className="rounded-xl border bg-white shadow-sm overflow-hidden mb-4">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b bg-navy-900">
+        <div className="flex items-center gap-2.5">
+          <ClipboardList className="size-4 text-gold-400" aria-hidden />
+          <h2 className="text-sm font-semibold text-white">New Booking</h2>
+          <span className="text-xs text-gold-300 opacity-80">— fills automatically for check-in</span>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-white/60 hover:text-white transition-colors text-lg leading-none"
+          aria-label="Close"
+        >
+          ×
+        </button>
+      </div>
+
+      <form
+        className="p-5 space-y-5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!guest?.id || selectedRooms.length === 0) {
+            setError("Please select a guest and at least one room.");
+            return;
+          }
+          mutation.mutate(new FormData(e.currentTarget));
+        }}
+      >
+        {/* Guest picker */}
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Guest *
+          </Label>
+          <GuestPicker
+            selected={guest?.id ? guest : null}
+            onSelected={(g) => setGuest(g.id ? g : null)}
+          />
+        </div>
+
+        {/* Room selection */}
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Select Rooms *
+          </Label>
+          {rooms.isLoading && <Skeleton className="h-12 w-full" />}
+          {!rooms.isLoading && allocatable.length === 0 && (
+            <p className="text-sm text-muted-foreground">No available rooms at the moment.</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {allocatable.map((room) => {
+              const checked = selectedRooms.includes(room.id);
+              return (
+                <button
+                  key={room.id}
+                  type="button"
+                  aria-pressed={checked}
+                  onClick={() =>
+                    setSelectedRooms((prev) =>
+                      checked ? prev.filter((id) => id !== room.id) : [...prev, room.id],
+                    )
+                  }
+                  className={cn(
+                    "rounded-lg border px-3 py-1.5 text-sm transition-colors",
+                    checked
+                      ? "border-gold-500 bg-gold-100 font-semibold text-navy-900"
+                      : "border-border hover:bg-muted",
+                  )}
+                >
+                  {room.room_number}
+                  <span className="ml-1.5 text-xs text-muted-foreground">
+                    {room.room_type_name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Dates, counts, financial */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="nb-cin" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Check-in Date *
+            </Label>
+            <Input id="nb-cin" name="check_in_date" type="date" required
+              defaultValue={new Date().toISOString().slice(0, 10)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="nb-cout" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Check-out Date *
+            </Label>
+            <Input id="nb-cout" name="check_out_date" type="date" required
+              defaultValue={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="nb-adults" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Adults
+            </Label>
+            <Input id="nb-adults" name="adults" type="number" min={1} max={40} defaultValue={1} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="nb-children" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Children
+            </Label>
+            <Input id="nb-children" name="children" type="number" min={0} max={40} defaultValue={0} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="nb-discount" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Discount (₹)
+            </Label>
+            <Input id="nb-discount" name="discount_amount" type="number" min={0} step="0.01" defaultValue={0} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="nb-deposit" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Security Deposit (₹)
+            </Label>
+            <Input id="nb-deposit" name="security_deposit" type="number" min={0} step="0.01" defaultValue={0} />
+          </div>
+          <div className="col-span-2 space-y-1.5">
+            <Label htmlFor="nb-requests" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Special Requests
+            </Label>
+            <Input id="nb-requests" name="special_requests" placeholder="Optional" />
+          </div>
+        </div>
+
+        {error && (
+          <p className="rounded-lg bg-danger-bg border border-danger/30 px-3 py-2 text-sm text-danger" role="alert">
+            {error}
+          </p>
+        )}
+
+        {/* Actions */}
+        <div className="flex items-center justify-between pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 items-center rounded-lg border border-border px-3 text-sm hover:bg-muted transition-colors"
+          >
+            Cancel
+          </button>
+          <Button
+            type="submit"
+            disabled={mutation.isPending || !guest?.id || selectedRooms.length === 0}
+            className="bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
+          >
+            <LogIn className="size-4" aria-hidden />
+            {mutation.isPending ? "Creating…" : "Create Booking & Check In"}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ─── Booking selection list ───────────────────────────────────────────────────
+
 const CHECKIN_SESSION_KEY = "dmh.checkin.selectedBookingId";
 
 function CheckinContent() {
@@ -1367,6 +1758,7 @@ function CheckinContent() {
   const queryClient = useQueryClient();
   const { activeHotelId } = useAuth();
   const [selectedBooking, setSelectedBooking] = useState<BookingOut | null>(null);
+  const [newBookingOpen, setNewBookingOpen] = useState(false);
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(() =>
     typeof window !== "undefined" ? sessionStorage.getItem(CHECKIN_SESSION_KEY) : null,
   );
@@ -1423,17 +1815,34 @@ function CheckinContent() {
     <>
       <PartnerHeader title="Guest Check-in" subtitle="Front Desk" />
       <main className="flex-1 overflow-y-auto p-6">
+        {/* ── Inline New Booking Form — expands on the same page, no popup ── */}
+        {newBookingOpen && (
+          <NewBookingInlineForm
+            onClose={() => setNewBookingOpen(false)}
+            onCreated={(booking) => {
+              setNewBookingOpen(false);
+              // Jump straight into the check-in form for the newly created booking
+              sessionStorage.setItem(CHECKIN_SESSION_KEY, booking.id);
+              setSelectedBooking(booking);
+              queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
+            }}
+          />
+        )}
+
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-muted-foreground">
-            Bookings ready for check-in
+            {newBookingOpen ? "New Booking" : "Bookings ready for check-in"}
           </h2>
-          <Link
-            href="/bookings?new=1"
-            className={cn(buttonVariants({ variant: "outline" }))}
-          >
-            <Plus className="size-4" aria-hidden />
-            New Booking
-          </Link>
+          {!newBookingOpen && (
+            <button
+              type="button"
+              onClick={() => setNewBookingOpen(true)}
+              className={cn(buttonVariants({ variant: "outline" }))}
+            >
+              <Plus className="size-4" aria-hidden />
+              New Booking
+            </button>
+          )}
         </div>
 
         <div className="rounded-xl border bg-white shadow-sm">
