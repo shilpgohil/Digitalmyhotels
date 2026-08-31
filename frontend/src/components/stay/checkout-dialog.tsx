@@ -149,6 +149,17 @@ export function CheckoutDialog({
     staleTime: 60_000,
   });
 
+  // UPI ID — shown alongside QR for staff to read out / verify with guest
+  const upiConfigQuery = useQuery({
+    queryKey: ["hotel-payment-config", activeHotelId],
+    queryFn: () =>
+      api<{ upi_id: string | null; config_version: number; has_logo: boolean; qr_version: number }>(
+        "/api/v1/hotels/me/payment-config",
+      ),
+    enabled: showQr && !!activeHotelId,
+    staleTime: 300_000,
+  });
+
   // Fetch actual QR PNG image as a blob URL
   const qrImageQuery = useQuery({
     queryKey: ["hotel-qr-png", activeHotelId],
@@ -599,13 +610,24 @@ export function CheckoutDialog({
                               <img
                                 src={qrImageQuery.data}
                                 alt="UPI QR Code"
-                                className="h-40 w-40 rounded-lg object-contain"
+                                className="h-44 w-44 rounded-lg object-contain"
                               />
                               <p className="text-sm font-semibold text-navy-900 text-center">
                                 {qrInfoQuery.data?.payment_label ?? "Scan to pay via UPI"}
                               </p>
+                              {/* UPI ID — visible to authorized staff */}
+                              {upiConfigQuery.data?.upi_id && (
+                                <div className="flex items-center gap-2 rounded-lg border border-dashed border-gold-400 bg-gold-50 px-3 py-2">
+                                  <span className="text-[10px] font-semibold text-gold-700 uppercase tracking-wide shrink-0">
+                                    UPI ID
+                                  </span>
+                                  <span className="font-mono text-sm font-semibold text-navy-900 select-all">
+                                    {upiConfigQuery.data.upi_id}
+                                  </span>
+                                </div>
+                              )}
                               <p className="text-[11px] text-muted-foreground text-center">
-                                Ask guest to scan this QR code with any UPI app
+                                Ask guest to scan QR or pay to the UPI ID above
                               </p>
                             </>
                           ) : (
