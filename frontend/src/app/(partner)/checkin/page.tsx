@@ -1830,10 +1830,25 @@ function CheckinContent() {
   const queryClient = useQueryClient();
   const { activeHotelId } = useAuth();
   const [selectedBooking, setSelectedBooking] = useState<BookingOut | null>(null);
-  const [newBookingOpen, setNewBookingOpen] = useState(false);
+  // Auto-open the inline booking form when navigated here with ?new=1
+  const [newBookingOpen, setNewBookingOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      return new URLSearchParams(window.location.search).get("new") === "1";
+    }
+    return false;
+  });
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(() =>
     typeof window !== "undefined" ? sessionStorage.getItem(CHECKIN_SESSION_KEY) : null,
   );
+
+  // Clean ?new=1 from URL after reading it (prevents re-opening on back navigation).
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new") === "1") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("new");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, []); // run once on mount
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 50;
 

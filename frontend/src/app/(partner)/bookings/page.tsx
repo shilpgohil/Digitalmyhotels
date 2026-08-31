@@ -1,24 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, MoreVertical, LogIn, XCircle, UserX } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +22,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { GuestPicker } from "@/components/guests/guest-picker";
 import {
   BookingStatusBadge,
   PaymentStatusBadge,
@@ -42,7 +30,6 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
 import type { ListOut } from "@/types/hotel";
-import { RoomAvailabilityPicker } from "@/components/rooms/room-availability-picker";
 import type { BookingOut } from "@/types/stay";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -63,19 +50,8 @@ function BookingsContent() {
   const [search, setSearch] = useState(() => searchParams.get("q") ?? "");
   const [fromDate, setFromDate] = useState(() => searchParams.get("from") ?? "");
   const [toDate, setToDate] = useState(() => searchParams.get("to") ?? "");
-  // If navigated with ?new=1 (e.g. from check-in page), auto-open the dialog.
-  const [autoOpen, setAutoOpen] = useState(() => searchParams.get("new") === "1");
-  const autoOpenHandled = useRef(false);
   const [cancelTarget, setCancelTarget] = useState<BookingOut | null>(null);
   const cancelConfirm = useConfirmDialog();
-
-  // Clean ?new=1 from the URL immediately so a refresh doesn't re-open the dialog.
-  useEffect(() => {
-    if (searchParams.get("new") === "1" && !autoOpenHandled.current) {
-      autoOpenHandled.current = true;
-      router.replace("/bookings", { scroll: false });
-    }
-  }, [searchParams, router]);
 
   const filterQs =
     (search ? `&q=${encodeURIComponent(search)}` : "") +
@@ -168,7 +144,14 @@ function BookingsContent() {
               onChange={(e) => setToDate(e.target.value)}
             />
           </div>
-          <NewBookingDialog onCreated={invalidate} defaultOpen={autoOpen} onOpenChange={(o) => { if (!o) setAutoOpen(false); }} />
+          <button
+            type="button"
+            onClick={() => router.push("/checkin?new=1")}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-gold-500 px-2.5 text-sm font-medium text-navy-900 hover:bg-gold-400"
+          >
+            <Plus className="size-4" aria-hidden />
+            {t("newBooking")}
+          </button>
 
         <ConfirmDialog
           open={cancelConfirm.open}
@@ -298,228 +281,6 @@ function BookingsContent() {
         </div>
       </main>
     </>
-  );
-}
-
-function NewBookingDialog({
-  onCreated,
-  defaultOpen = false,
-  onOpenChange,
-}: {
-  readonly onCreated: () => void;
-  readonly defaultOpen?: boolean;
-  readonly onOpenChange?: (open: boolean) => void;
-}) {
-  const t = useTranslations("bookings");
-  const tc = useTranslations("common");
-  const api = useApi();
-  const [open, setOpen] = useState(defaultOpen);
-  const handleOpenChange = (v: boolean) => { setOpen(v); onOpenChange?.(v); };
-
-  const { activeHotelId } = useAuth();
-  const queryClient = useQueryClient();
-  const [guest, setGuest] = useState<{ id: string; full_name: string } | null>(null);
-  const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [availRefreshKey, setAvailRefreshKey] = useState(0);
-
-  // Date state — drives the availability picker
-  const [checkIn, setCheckIn] = useState(new Date().toISOString().slice(0, 10));
-  const [checkOut, setCheckOut] = useState(
-    new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
-  );
-  // Guest counts — for capacity validation in picker
-  const [adultsCount, setAdultsCount] = useState(1);
-  const [childCount, setChildCount] = useState(0);
-
-  // Hotel settings — for check-in/out time display
-  const settings = useQuery({
-    queryKey: ["hotel-settings", activeHotelId],
-    queryFn: () => api<{ check_in_time: string; check_out_time: string }>(
-      "/api/v1/hotels/me/settings"
-    ),
-    enabled: open && !!activeHotelId,
-    staleTime: 5 * 60_000,
-  });
-
-  const mutation = useMutation({
-    mutationFn: (form: FormData) => {
-      const fs = (k: string, fb = "") => (form.get(k) as string | null) ?? fb;
-      return api<BookingOut>("/api/v1/bookings", {
-        method: "POST",
-        body: {
-          primary_guest_id: guest?.id,
-          room_ids: selectedRooms,
-          check_in_date: checkIn,
-          check_out_date: checkOut,
-          adults: Number(fs("adults", "1")),
-          children: Number(fs("children", "0")),
-          discount_amount: fs("discount_amount", "0"),
-          security_deposit: fs("security_deposit", "0"),
-          special_requests: fs("special_requests").trim() || null,
-        },
-      });
-    },
-    onSuccess: () => {
-      toast.success(t("bookingCreated"));
-      setOpen(false);
-      setGuest(null);
-      setSelectedRooms([]);
-      setError(null);
-      onCreated();
-    },
-    onError: (e) => {
-      const msg = e instanceof ApiError ? e.message : tc("error");
-      setError(msg);
-      // Race condition: another booking grabbed the room — re-fetch availability.
-      if (e instanceof ApiError && e.code === "double_booking") {
-        setSelectedRooms([]);
-        setAvailRefreshKey((k) => k + 1);
-        queryClient.invalidateQueries({ queryKey: ["room-availability", activeHotelId] });
-      }
-    },
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/80">
-        <Plus className="size-4" aria-hidden />
-        {t("newBooking")}
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{t("newBooking")}</DialogTitle>
-        </DialogHeader>
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!guest?.id || selectedRooms.length === 0) {
-              setError(tc("requiredField"));
-              return;
-            }
-            mutation.mutate(new FormData(e.currentTarget));
-          }}
-        >
-          {/* Guest */}
-          <div className="space-y-1.5">
-            <Label>{t("guest")}</Label>
-            <GuestPicker
-              selected={guest?.id ? guest : null}
-              onSelected={(g) => setGuest(g.id ? g : null)}
-            />
-          </div>
-
-          {/* Dates — placed BEFORE room picker so availability reacts to dates */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="b-cin">
-                {t("checkinDate")}
-                {settings.data?.check_in_time && (
-                  <span className="ml-1.5 text-[10px] font-normal text-gold-600">
-                    @ {settings.data.check_in_time.slice(0, 5)}
-                  </span>
-                )}
-              </Label>
-              <Input
-                id="b-cin"
-                name="check_in_date"
-                type="date"
-                required
-                value={checkIn}
-                onChange={(e) => setCheckIn(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="b-cout">
-                {t("checkoutDate")}
-                {settings.data?.check_out_time && (
-                  <span className="ml-1.5 text-[10px] font-normal text-gold-600">
-                    @ {settings.data.check_out_time.slice(0, 5)}
-                  </span>
-                )}
-              </Label>
-              <Input
-                id="b-cout"
-                name="check_out_date"
-                type="date"
-                required
-                value={checkOut}
-                onChange={(e) => setCheckOut(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="b-adults">{t("adults")}</Label>
-              <Input
-                id="b-adults"
-                name="adults"
-                type="number"
-                min={1}
-                max={40}
-                value={adultsCount}
-                onChange={(e) => setAdultsCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="b-children">{t("children")}</Label>
-              <Input
-                id="b-children"
-                name="children"
-                type="number"
-                min={0}
-                max={40}
-                value={childCount}
-                onChange={(e) => setChildCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
-              />
-            </div>
-          </div>
-
-          {/* Date-aware room availability picker */}
-          <div className="space-y-1.5">
-            <Label>{t("selectRooms")}</Label>
-            <RoomAvailabilityPicker
-              checkIn={checkIn}
-              checkOut={checkOut}
-              selectedRooms={selectedRooms}
-              onSelectionChange={setSelectedRooms}
-              checkInTime={settings.data?.check_in_time}
-              checkOutTime={settings.data?.check_out_time}
-              adults={adultsCount}
-              guestChildren={childCount}
-              refreshKey={availRefreshKey}
-            />
-          </div>
-
-          {/* Financial */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="b-discount">{t("discount")}</Label>
-              <Input id="b-discount" name="discount_amount" type="number" min={0} step="0.01" defaultValue={0} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="b-deposit">{t("securityDeposit")}</Label>
-              <Input id="b-deposit" name="security_deposit" type="number" min={0} step="0.01" defaultValue={0} />
-            </div>
-            <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="b-requests">{t("specialRequests")}</Label>
-              <Input id="b-requests" name="special_requests" />
-            </div>
-          </div>
-
-          {error && (
-            <p className="text-sm text-danger" role="alert">{error}</p>
-          )}
-          <DialogFooter>
-            <DialogClose className="inline-flex h-8 items-center rounded-lg border border-border px-2.5 text-sm hover:bg-muted">
-              {tc("cancel")}
-            </DialogClose>
-            <Button type="submit" disabled={mutation.isPending || selectedRooms.length === 0}>
-              {mutation.isPending ? tc("saving") : tc("save")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
 
