@@ -37,6 +37,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
+import { getAccessToken } from "@/lib/auth/session";
 import { cn } from "@/lib/utils";
 import type { CheckOutOut, CurrentGuestOut } from "@/types/stay";
 import type { BookingOut } from "@/types/stay";
@@ -87,7 +88,7 @@ export function CheckoutDialog({
   const [lateFee, setLateFee] = useState("0");
   const [allowDue, setAllowDue] = useState(false);
   const [dueReason, setDueReason] = useState("");
-  const [payMethod, setPayMethod] = useState<"cash" | "upi">("cash");
+  const [payMethod, setPayMethod] = useState<"cash" | "upi" | "card" | "bank_transfer" | "other">("cash");
   const [payAmount, setPayAmount] = useState("0");
   const [showQr, setShowQr] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,11 +142,32 @@ export function CheckoutDialog({
     staleTime: 0,
   });
 
-  const qrQuery = useQuery({
-    queryKey: ["hotel-qr-available", activeHotelId],
+  const qrInfoQuery = useQuery({
+    queryKey: ["hotel-qr-info", activeHotelId],
     queryFn: () => api<HotelQr>("/api/v1/hotels/me/payment-qr"),
-    enabled: !!activeHotelId && step === "payment" && payMethod === "upi",
+    enabled: !!activeHotelId && showQr,
     staleTime: 60_000,
+  });
+
+  // Fetch actual QR PNG image as a blob URL
+  const qrImageQuery = useQuery({
+    queryKey: ["hotel-qr-png", activeHotelId],
+    queryFn: async () => {
+      const token = getAccessToken();
+      const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image`, {
+        headers: {
+          Authorization: `Bearer ${token ?? ""}`,
+          "X-Hotel-Id": activeHotelId ?? "",
+        },
+        credentials: "include",
+      });
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      return URL.createObjectURL(blob);
+    },
+    enabled: showQr && !!activeHotelId,
+    staleTime: 300_000,
   });
 
 
@@ -479,13 +501,14 @@ export function CheckoutDialog({
                         type="button"
                         onClick={() => setPayMethod(m)}
                         className={cn(
-                          "flex-1 rounded-lg border py-2 text-sm font-medium transition-colors uppercase",
+                          "flex-1 flex items-center justify-center gap-1.5 rounded-lg border py-2 text-sm font-medium transition-colors",
                           payMethod === m
                             ? "border-navy-900 bg-navy-900 text-white"
                             : "hover:bg-muted",
                         )}
                       >
-                        {m}
+                        {m === "cash" ? <BanknoteIcon className="size-3.5" aria-hidden /> : <QrCode className="size-3.5" aria-hidden />}
+                        {m.toUpperCase()}
                       </button>
                     ))}
                   </div>
@@ -525,55 +548,85 @@ export function CheckoutDialog({
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Collect payment from guest
                   </p>
-                  <div className="flex gap-2">
-                    {(["cash", "upi"] as const).map((m) => (
+
+                  {/* Payment method buttons — all methods for record keeping */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { id: "cash",          label: "Cash",        icon: BanknoteIcon },
+                      { id: "upi",           label: "UPI / QR",    icon: QrCode },
+                      { id: "card",          label: "Card",        icon: IndianRupee },
+                      { id: "bank_transfer", label: "Net Banking",  icon: IndianRupee },
+                      { id: "other",         label: "Other",       icon: IndianRupee },
+                    ] as const).map(({ id, label, icon: Icon }) => (
                       <button
-                        key={m}
+                        key={id}
                         type="button"
                         onClick={() => {
-                          setPayMethod(m);
-                          setShowQr(m === "upi");
+                          setPayMethod(id);
+                          setShowQr(id === "upi");
                           setAllowDue(false);
                         }}
                         className={cn(
-                          "flex-1 flex items-center justify-center gap-1.5 rounded-lg border py-2 text-sm font-medium transition-colors",
-                          payMethod === m && !allowDue
+                          "flex flex-col items-center justify-center gap-1 rounded-xl border py-2.5 px-2 text-xs font-medium transition-colors",
+                          payMethod === id && !allowDue
                             ? "border-navy-900 bg-navy-900 text-white"
-                            : "hover:bg-muted",
+                            : "hover:bg-muted border-border",
                         )}
                       >
-                        {m === "cash" ? (
-                          <BanknoteIcon className="size-3.5" aria-hidden />
-                        ) : (
-                          <QrCode className="size-3.5" aria-hidden />
-                        )}
-                        {m.toUpperCase()}
+                        <Icon className="size-3.5" aria-hidden />
+                        {label}
                       </button>
                     ))}
                   </div>
 
+                  {/* UPI QR display */}
                   {payMethod === "upi" && !allowDue && (
                     <div className="space-y-2">
                       <button
                         type="button"
                         onClick={() => setShowQr(!showQr)}
-                        className="text-xs text-gold-600 underline"
+                        className="text-xs text-gold-600 font-medium underline"
                       >
                         {showQr ? "Hide QR Code" : "Show UPI QR Code"}
                       </button>
                       {showQr && (
-                        <div className="flex flex-col items-center rounded-lg border bg-muted/30 p-3 gap-2">
-                          {qrQuery.isLoading ? (
-                            <Skeleton className="h-32 w-32" />
+                        <div className="flex flex-col items-center rounded-xl border bg-white p-4 gap-3 shadow-sm">
+                          {qrImageQuery.isLoading ? (
+                            <Skeleton className="h-40 w-40 rounded-lg" />
+                          ) : qrImageQuery.data ? (
+                            <>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={qrImageQuery.data}
+                                alt="UPI QR Code"
+                                className="h-40 w-40 rounded-lg object-contain"
+                              />
+                              <p className="text-sm font-semibold text-navy-900 text-center">
+                                {qrInfoQuery.data?.payment_label ?? "Scan to pay via UPI"}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground text-center">
+                                Ask guest to scan this QR code with any UPI app
+                              </p>
+                            </>
                           ) : (
-                            <p className="text-xs text-muted-foreground text-center">
-                              {qrQuery.data?.payment_label ?? "Scan to pay"}
-                              <br />
-                              <span className="text-[10px]">Ask guest to scan hotel&apos;s UPI QR</span>
-                            </p>
+                            <div className="text-center py-4">
+                              <QrCode className="size-10 text-muted-foreground/30 mx-auto mb-2" aria-hidden />
+                              <p className="text-xs text-muted-foreground">
+                                UPI QR not configured.
+                                <br />
+                                Set it up in Settings → Payments.
+                              </p>
+                            </div>
                           )}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Card / Net Banking manual note */}
+                  {(payMethod === "card" || payMethod === "bank_transfer" || payMethod === "other") && !allowDue && (
+                    <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-700">
+                      Manual record — collect {payMethod === "card" ? "via POS/card machine" : payMethod === "bank_transfer" ? "via net banking" : "payment"} from guest and record here for your accounts.
                     </div>
                   )}
 
