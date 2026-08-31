@@ -316,6 +316,7 @@ function NewBookingDialog({
   const [open, setOpen] = useState(defaultOpen);
   const handleOpenChange = (v: boolean) => { setOpen(v); onOpenChange?.(v); };
 
+  const { activeHotelId } = useAuth();
   const [guest, setGuest] = useState<{ id: string; full_name: string } | null>(null);
   const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -325,6 +326,16 @@ function NewBookingDialog({
   const [checkOut, setCheckOut] = useState(
     new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
   );
+
+  // Hotel settings — for check-in/out time display
+  const settings = useQuery({
+    queryKey: ["hotel-settings", activeHotelId],
+    queryFn: () => api<{ check_in_time: string; check_out_time: string }>(
+      "/api/v1/hotels/me/settings"
+    ),
+    enabled: open && !!activeHotelId,
+    staleTime: 5 * 60_000,
+  });
 
   const mutation = useMutation({
     mutationFn: (form: FormData) => {
@@ -388,7 +399,14 @@ function NewBookingDialog({
           {/* Dates — placed BEFORE room picker so availability reacts to dates */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="space-y-1.5">
-              <Label htmlFor="b-cin">{t("checkinDate")}</Label>
+              <Label htmlFor="b-cin">
+                {t("checkinDate")}
+                {settings.data?.check_in_time && (
+                  <span className="ml-1.5 text-[10px] font-normal text-gold-600">
+                    @ {settings.data.check_in_time.slice(0, 5)}
+                  </span>
+                )}
+              </Label>
               <Input
                 id="b-cin"
                 name="check_in_date"
@@ -399,7 +417,14 @@ function NewBookingDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="b-cout">{t("checkoutDate")}</Label>
+              <Label htmlFor="b-cout">
+                {t("checkoutDate")}
+                {settings.data?.check_out_time && (
+                  <span className="ml-1.5 text-[10px] font-normal text-gold-600">
+                    @ {settings.data.check_out_time.slice(0, 5)}
+                  </span>
+                )}
+              </Label>
               <Input
                 id="b-cout"
                 name="check_out_date"
@@ -427,6 +452,8 @@ function NewBookingDialog({
               checkOut={checkOut}
               selectedRooms={selectedRooms}
               onSelectionChange={setSelectedRooms}
+              checkInTime={settings.data?.check_in_time}
+              checkOutTime={settings.data?.check_out_time}
             />
           </div>
 

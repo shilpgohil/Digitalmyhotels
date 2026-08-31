@@ -1597,6 +1597,7 @@ function NewBookingInlineForm({
   readonly onCreated: (booking: BookingOut) => void;
 }) {
   const api = useApi();
+  const { activeHotelId } = useAuth();
   const [guest, setGuest] = useState<{ id: string; full_name: string } | null>(null);
   const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -1606,6 +1607,16 @@ function NewBookingInlineForm({
   const [checkOut, setCheckOut] = useState(
     new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
   );
+
+  // Hotel settings for check-in/out time display
+  const settings = useQuery({
+    queryKey: ["hotel-settings", activeHotelId],
+    queryFn: () => api<{ check_in_time: string; check_out_time: string }>(
+      "/api/v1/hotels/me/settings"
+    ),
+    enabled: !!activeHotelId,
+    staleTime: 5 * 60_000,
+  });
 
   const mutation = useMutation({
     mutationFn: (form: FormData) => {
@@ -1678,6 +1689,11 @@ function NewBookingInlineForm({
           <div className="space-y-1.5">
             <Label htmlFor="nb-cin" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Check-in Date *
+              {settings.data?.check_in_time && (
+                <span className="ml-1 text-gold-600 font-bold normal-case">
+                  @ {settings.data.check_in_time.slice(0, 5)}
+                </span>
+              )}
             </Label>
             <Input id="nb-cin" name="check_in_date" type="date" required
               value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
@@ -1685,6 +1701,11 @@ function NewBookingInlineForm({
           <div className="space-y-1.5">
             <Label htmlFor="nb-cout" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Check-out Date *
+              {settings.data?.check_out_time && (
+                <span className="ml-1 text-gold-600 font-bold normal-case">
+                  @ {settings.data.check_out_time.slice(0, 5)}
+                </span>
+              )}
             </Label>
             <Input id="nb-cout" name="check_out_date" type="date" required
               value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
@@ -1713,6 +1734,8 @@ function NewBookingInlineForm({
             checkOut={checkOut}
             selectedRooms={selectedRooms}
             onSelectionChange={setSelectedRooms}
+            checkInTime={settings.data?.check_in_time}
+            checkOutTime={settings.data?.check_out_time}
           />
         </div>
 

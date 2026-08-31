@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.tenant import TenantContext
-from app.domain.room_status import RoomStatus, assert_transition, is_allocatable
+from app.domain.room_status import RoomStatus, assert_transition
 from app.models.booking import Booking, BookingRoom
 from app.models.room import Room, RoomAmenity, RoomType
 from app.schemas.room import (
@@ -385,7 +385,8 @@ async def check_availability(
         }
 
         if room.id in overlaps:
-            # Room has an overlapping booking — unavailable regardless of status.
+            # Room has an active booking that overlaps the requested date window.
+            # This is the only reliable signal for date-based unavailability.
             free_from, booking_count = overlaps[room.id]
             unavailable.append(
                 RoomUnavailableItem(
@@ -396,6 +397,7 @@ async def check_availability(
                 )
             )
         elif room.status in (RoomStatus.MAINTENANCE.value, RoomStatus.OUT_OF_SERVICE.value):
+            # Physically broken — unavailable for ALL dates regardless of bookings.
             unavailable.append(
                 RoomUnavailableItem(
                     **item_data,
@@ -404,32 +406,15 @@ async def check_availability(
                     overlapping_booking_count=0,
                 )
             )
-        elif room.status in (
-            RoomStatus.OCCUPIED.value,
-            RoomStatus.RESERVED.value,
-        ):
-            # Occupied/reserved but no overlapping booking in the window → still
-            # block it since we can't freely allocate it today.
-            unavailable.append(
-                RoomUnavailableItem(
-                    **item_data,
-                    unavailable_reason="occupied",
-                    occupied_until=None,
-                    overlapping_booking_count=0,
-                )
-            )
-        elif not is_allocatable(room.status):
-            # Cleaning / inspection — will be available soon.
-            unavailable.append(
-                RoomUnavailableItem(
-                    **item_data,
-                    unavailable_reason="cleaning",
-                    occupied_until=None,
-                    overlapping_booking_count=0,
-                )
-            )
         else:
-            # Allocatable status + no overlapping booking → truly available.
+            # No overlapping booking + not physically broken = available.
+            #
+            # Rooms that are currently occupied, reserved, cleaning, or inspection
+            # are shown as available when there is NO booking conflict for the
+            # requested dates — a future booking can be created and the room will
+            # be ready by the requested check-in.  The current physical status is
+            # surfaced as `status` on the chip so staff can see it, but it does
+            # NOT prevent the booking from being created.
             available.append(RoomAvailableItem(**item_data))
 
     # Sort unavailable: "booked" rooms by earliest free date first

@@ -40,6 +40,10 @@ interface Props {
   readonly checkOut: string;
   readonly selectedRooms: string[];
   readonly onSelectionChange: (ids: string[]) => void;
+  /** Hotel's standard check-in time e.g. "14:00:00" */
+  readonly checkInTime?: string;
+  /** Hotel's standard check-out time e.g. "11:00:00" */
+  readonly checkOutTime?: string;
 }
 
 /** Format ISO date string as a human-readable short date. */
@@ -47,6 +51,15 @@ function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso + "T00:00:00");
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** Convert "14:00:00" → "2:00 PM" */
+function fmtTime(hhmm: string | undefined): string {
+  if (!hhmm) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
 /** Colour + icon for unavailable reason. */
@@ -63,6 +76,19 @@ function reasonMeta(reason: string): { label: string; colour: string } {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+/** Map room status to a small hint label + colour for the chip. */
+function statusHint(status: string): { label: string; colour: string } | null {
+  switch (status) {
+    case "occupied":          return { label: "Occupied now",  colour: "text-orange-600 bg-orange-50" };
+    case "reserved":          return { label: "Reserved",      colour: "text-blue-600   bg-blue-50"   };
+    case "cleaning_required": return { label: "Cleaning soon", colour: "text-sky-600    bg-sky-50"    };
+    case "cleaning_in_progress": return { label: "Cleaning",   colour: "text-sky-600    bg-sky-50"    };
+    case "clean_ready":       return null; // same as available — no hint needed
+    case "inspection_required": return { label: "Inspection",  colour: "text-purple-600 bg-purple-50" };
+    default:                  return null;
+  }
+}
+
 function AvailableChip({
   room,
   selected,
@@ -72,13 +98,14 @@ function AvailableChip({
   readonly selected: boolean;
   readonly onClick: () => void;
 }) {
+  const hint = statusHint(room.status);
   return (
     <button
       type="button"
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        "relative flex flex-col rounded-xl border-2 px-3 py-2.5 text-left transition-all",
+        "relative flex flex-col rounded-xl border-2 px-3 py-2.5 text-left transition-all min-w-[90px]",
         selected
           ? "border-gold-500 bg-gold-50 shadow-sm"
           : "border-border hover:border-gold-300 hover:bg-muted/40",
@@ -105,6 +132,12 @@ function AvailableChip({
         ₹{Number(room.room_type_base_price).toLocaleString("en-IN")}
         <span className="font-normal text-muted-foreground">/night</span>
       </span>
+      {/* Show current status as a small hint — room is still bookable */}
+      {hint && (
+        <span className={cn("mt-1 rounded px-1.5 py-0.5 text-[9px] font-semibold", hint.colour)}>
+          {hint.label}
+        </span>
+      )}
     </button>
   );
 }
@@ -148,6 +181,8 @@ export function RoomAvailabilityPicker({
   checkOut,
   selectedRooms,
   onSelectionChange,
+  checkInTime,
+  checkOutTime,
 }: Props) {
   const api = useApi();
   const { activeHotelId } = useAuth();
@@ -240,9 +275,17 @@ export function RoomAvailabilityPicker({
     <div className="space-y-4">
       {/* ── Available rooms ───────────────────────────────────────────────── */}
       <div>
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Available for {fmtDate(checkIn)} → {fmtDate(checkOut)}
+            Available for {fmtDate(checkIn)}
+            {checkInTime && (
+              <span className="ml-1 text-gold-600 font-bold">@ {fmtTime(checkInTime)}</span>
+            )}
+            {" → "}
+            {fmtDate(checkOut)}
+            {checkOutTime && (
+              <span className="ml-1 text-gold-600 font-bold">@ {fmtTime(checkOutTime)}</span>
+            )}
           </p>
           <span className={cn(
             "rounded-full px-2 py-0.5 text-[10px] font-bold",
