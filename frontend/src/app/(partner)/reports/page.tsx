@@ -64,11 +64,19 @@ interface RoomUtilizationOut {
   to_date: string;
 }
 
+function toLocalDate(d: Date): string {
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, "0"),
+    String(d.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
 function defaultRange() {
   const to = new Date();
   const from = new Date();
   from.setDate(to.getDate() - 30);
-  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+  return { from: toLocalDate(from), to: toLocalDate(to) };
 }
 
 function ReportsContent() {

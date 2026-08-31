@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Upload } from "lucide-react";
+import { localToday } from "@/lib/formatting";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -281,7 +282,7 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [frequency, setFrequency] = useState("monthly");
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(localToday);
   const [categoryId, setCategoryId] = useState("");
 
   const categories = useQuery({
@@ -397,7 +398,7 @@ function AddExpenseDialog({ onDone }: { onDone: () => void }) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
-  const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [expenseDate, setExpenseDate] = useState(localToday);
   const [categoryId, setCategoryId] = useState("");
   const [submitNow, setSubmitNow] = useState(true);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);

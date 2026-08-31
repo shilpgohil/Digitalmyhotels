@@ -114,7 +114,8 @@ async def room_availability(
     maintenance, cleaning, and out-of-service rooms — sorted by earliest free date
     so the UI can show the best alternative suggestions first.
     """
-    from datetime import date as _date
+    from datetime import UTC
+    from datetime import datetime as _dt
 
     from app.core.errors import ValidationAppError
 
@@ -123,7 +124,10 @@ async def room_availability(
             "Check-out date must be after check-in date",
             code="invalid_dates",
         )
-    if check_in < _date.today():
+    # Use UTC date for comparison so availability can be queried for "today"
+    # across all timezones without being rejected as "past".
+    today_utc = _dt.now(UTC).date()
+    if check_in < today_utc:
         raise ValidationAppError(
             "Check-in date cannot be in the past",
             code="checkin_date_past",

@@ -69,6 +69,7 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError, apiUpload } from "@/lib/api/client";
 import { compressDocument } from "@/lib/compress-image";
+import { localToday, localTomorrow } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import type { ListOut } from "@/types/hotel";
 import type {
@@ -1604,11 +1605,10 @@ function NewBookingInlineForm({
   const [error, setError] = useState<string | null>(null);
   const [availRefreshKey, setAvailRefreshKey] = useState(0);
 
-  // Date state — drives the availability picker
-  const [checkIn, setCheckIn] = useState(new Date().toISOString().slice(0, 10));
-  const [checkOut, setCheckOut] = useState(
-    new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
-  );
+  // Date state — drives the availability picker. Use local dates (not UTC)
+  // so the default isn't "yesterday" for users east of UTC after midnight.
+  const [checkIn, setCheckIn] = useState(localToday);
+  const [checkOut, setCheckOut] = useState(localTomorrow);
   const [adultsCount, setAdultsCount] = useState(1);
   const [childCount, setChildCount] = useState(0);
 
