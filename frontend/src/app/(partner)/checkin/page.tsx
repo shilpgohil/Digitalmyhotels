@@ -1450,50 +1450,95 @@ function CheckinForm({
       </Section>
 
       {/* ── 6. Payment Details ────────────────────────────────────────────── */}
-      <Section icon={CreditCard} title="Payment Details" subtitle="Collect advance payment at check-in">
-        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          <div className="space-y-1">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Booking Amount</Label>
-            <p className="mt-1 tabular-nums font-medium">₹{booking.total_amount}</p>
+      <Section icon={CreditCard} title="Payment Details" subtitle="Review charges and collect advance at check-in">
+        <div className="space-y-4">
+          {/* Top row: informational amounts */}
+          <div className="grid gap-4 sm:grid-cols-4">
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Booking Amount
+              </Label>
+              <p className="mt-1 tabular-nums font-medium">₹{booking.total_amount}</p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                GST
+              </Label>
+              <p className="mt-1 tabular-nums">₹{booking.tax_amount}</p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Already Paid
+                <span className="ml-1 text-[9px] font-normal text-muted-foreground/70">(from booking)</span>
+              </Label>
+              {/* Read-only — this is advance paid when booking was created */}
+              <p
+                className={cn(
+                  "mt-1 tabular-nums font-semibold",
+                  advPaid > 0 ? "text-green-600" : "text-muted-foreground",
+                )}
+              >
+                ₹{parseFloat(booking.advance_amount || "0").toFixed(2)}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Security Deposit
+              </Label>
+              <p className="mt-1 tabular-nums">₹{booking.security_deposit}</p>
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Extra Charges</Label>
-            <p className="mt-1 tabular-nums">₹{booking.tax_amount}</p>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Advance Paid (at check-in)
-            </Label>
-            <Input
-              type="number"
-              min={0}
-              step="0.01"
-              value={advanceAmount}
-              onChange={(e) => setAdvanceAmount(e.target.value)}
-              className="tabular-nums"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">GST</Label>
-            <p className="mt-1 tabular-nums">₹{booking.tax_amount}</p>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Balance Amount</Label>
-            <p className={cn("mt-1 tabular-nums font-semibold", balance > 0 ? "text-gold-600" : "text-green-600")}>
-              ₹{balance.toFixed(2)}
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Payment Mode</Label>
-            <select
-              value={paymentMode}
-              onChange={(e) => setPaymentMode(e.target.value as "cash" | "upi")}
-              className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
-              disabled={newAdvance === 0}
-            >
-              <option value="cash">Cash</option>
-              <option value="upi">UPI</option>
-            </select>
+
+          {/* Bottom row: collection inputs */}
+          <div className="rounded-xl border bg-muted/20 px-4 py-4 grid gap-4 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Collect at Check-in (₹)
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={advanceAmount}
+                onChange={(e) => setAdvanceAmount(e.target.value)}
+                className="tabular-nums"
+                placeholder="0.00"
+              />
+              <p className="text-[10px] text-muted-foreground">Enter 0 if collecting later</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Payment Mode
+              </Label>
+              <select
+                value={paymentMode}
+                onChange={(e) => setPaymentMode(e.target.value as "cash" | "upi")}
+                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                disabled={newAdvance === 0}
+              >
+                <option value="cash">Cash</option>
+                <option value="upi">UPI</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Balance After Check-in
+              </Label>
+              <p
+                className={cn(
+                  "mt-2 text-lg tabular-nums font-bold",
+                  balance > 0 ? "text-gold-600" : "text-green-600",
+                )}
+              >
+                ₹{balance.toFixed(2)}
+              </p>
+              {balance > 0 && (
+                <p className="text-[10px] text-muted-foreground">Due at checkout</p>
+              )}
+              {balance === 0 && newAdvance > 0 && (
+                <p className="text-[10px] text-green-600">Fully paid ✓</p>
+              )}
+            </div>
           </div>
         </div>
       </Section>
