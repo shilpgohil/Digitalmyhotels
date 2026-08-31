@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   Building2,
+  ChevronDown,
+  ChevronRight,
   Sparkles,
   DollarSign,
   Settings,
@@ -224,7 +226,20 @@ export function NotificationsBell() {
       queryClient.invalidateQueries({ queryKey: ["notifications", activeHotelId] }),
   });
 
-  if (!enabled) return null;
+  // ── Per-category expand/collapse state ────────────────────────────────────
+  // collapsedCategories = set of category keys the user has manually closed.
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  // expandedItems = categories where the user clicked "show more"
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+
+
+  const toggleShowMore = (cat: string) =>
+    setExpandedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat); else next.add(cat);
+      return next;
+    });
+
   const unread = notifications.data?.unread ?? 0;
   const all = notifications.data?.items ?? [];
 
@@ -240,6 +255,29 @@ export function NotificationsBell() {
     const bUnread = bItems.some((i) => !i.is_read) ? 0 : 1;
     return aUnread - bUnread;
   });
+
+  // Auto-collapse fully-read categories when data first loads.
+  useEffect(() => {
+    if (!notifications.data) return;
+    setCollapsedCategories((prev) => {
+      const next = new Set(prev);
+      Object.entries(
+        notifications.data.items.reduce<Record<string, NotificationOut[]>>((acc, n) => {
+          if (!acc[n.category]) acc[n.category] = [];
+          acc[n.category].push(n);
+          return acc;
+        }, {}),
+      ).forEach(([cat, items]) => {
+        const hasUnread = items.some((i) => !i.is_read);
+        if (!hasUnread && !prev.has(cat + ":opened")) next.add(cat);
+        if (hasUnread) next.delete(cat);
+      });
+      return next;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifications.dataUpdatedAt]);
+
+  if (!enabled) return null;
 
   return (
     <DropdownMenu>
@@ -297,34 +335,86 @@ export function NotificationsBell() {
             const cfg = CATEGORY_CONFIG[category] ?? DEFAULT_CATEGORY;
             const Icon = cfg.icon;
             const catUnread = items.filter((i) => !i.is_read).length;
+            const isCollapsed = collapsedCategories.has(category);
+            const isShowingMore = expandedItems.has(category);
+            const PREVIEW_COUNT = 4;
+            const visibleItems = isShowingMore ? items : items.slice(0, PREVIEW_COUNT);
+            const hasMore = items.length > PREVIEW_COUNT;
+
             return (
-              <div key={category}>
-                {/* Category section header */}
-                <div className="flex items-center gap-1.5 border-b px-3 py-1.5">
-                  <Icon className="size-3 text-muted-foreground" aria-hidden />
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <div key={category} className="border-b last:border-b-0">
+                {/* ── Clickable category header (accordion toggle) ─────── */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Single atomic update: toggle collapsed + track manual interaction
+                    setCollapsedCategories((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(category)) {
+                        next.delete(category);
+                        // Mark as manually opened so auto-collapse won't close it again
+                        next.add(category + ":opened");
+                      } else {
+                        next.add(category);
+                        next.delete(category + ":opened");
+                      }
+                      return next;
+                    });
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 transition-colors"
+                >
+                  <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex-1">
                     {t(cfg.labelKey)}
                   </span>
+                  {/* Unread badge */}
                   {catUnread > 0 && (
                     <span
                       className={cn(
-                        "ml-auto flex size-4 items-center justify-center rounded-full text-[9px] font-bold text-white",
+                        "flex size-4 items-center justify-center rounded-full text-[9px] font-bold text-white shrink-0",
                         cfg.dot,
                       )}
                     >
-                      {catUnread}
+                      {catUnread > 9 ? "9+" : catUnread}
                     </span>
                   )}
-                </div>
-                {/* Items in this category */}
-                {items.slice(0, 5).map((n) => (
-                  <NotifRow
-                    key={n.id}
-                    n={n}
-                    categoryLabel={t(cfg.labelKey)}
-                    onMarkRead={(id) => markOne.mutate(id)}
-                  />
-                ))}
+                  {/* Total count when collapsed */}
+                  {isCollapsed && catUnread === 0 && (
+                    <span className="text-[10px] text-muted-foreground shrink-0">
+                      {items.length}
+                    </span>
+                  )}
+                  {/* Chevron */}
+                  {isCollapsed
+                    ? <ChevronRight className="size-3.5 text-muted-foreground shrink-0" aria-hidden />
+                    : <ChevronDown className="size-3.5 text-muted-foreground shrink-0" aria-hidden />
+                  }
+                </button>
+
+                {/* ── Expandable items ─────────────────────────────────── */}
+                {!isCollapsed && (
+                  <div>
+                    {visibleItems.map((n) => (
+                      <NotifRow
+                        key={n.id}
+                        n={n}
+                        categoryLabel={t(cfg.labelKey)}
+                        onMarkRead={(id) => markOne.mutate(id)}
+                      />
+                    ))}
+                    {hasMore && (
+                      <button
+                        type="button"
+                        onClick={() => toggleShowMore(category)}
+                        className="w-full px-3 py-1.5 text-[11px] text-gold-600 font-medium hover:bg-muted/40 transition-colors text-center"
+                      >
+                        {isShowingMore
+                          ? "Show less"
+                          : `Show ${items.length - PREVIEW_COUNT} more`}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
