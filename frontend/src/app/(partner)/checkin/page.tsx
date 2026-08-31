@@ -53,6 +53,7 @@ import {
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -717,7 +718,7 @@ function AdditionalGuestEntry({
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Date of Birth</Label>
-              <Input type="date" value={form.date_of_birth} onChange={(e) => set("date_of_birth", e.target.value)} />
+              <DateInput value={form.date_of_birth ?? ""} onChange={(v) => set("date_of_birth", v)} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Pincode</Label>
@@ -1298,7 +1299,7 @@ function CheckinForm({
           </div>
             <div className="space-y-1.5">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Date of Birth</Label>
-              <Input type="date" value={pgDob} onChange={(e) => setPgDob(e.target.value)} />
+              <DateInput value={pgDob} onChange={setPgDob} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Address</Label>
@@ -1803,8 +1804,7 @@ function NewBookingInlineForm({
                 </span>
               )}
             </Label>
-            <Input id="nb-cin" name="check_in_date" type="date" required
-              value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
+            <DateInput id="nb-cin" name="check_in_date" required value={checkIn} onChange={setCheckIn} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="nb-cout" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1815,8 +1815,7 @@ function NewBookingInlineForm({
                 </span>
               )}
             </Label>
-            <Input id="nb-cout" name="check_out_date" type="date" required
-              value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
+            <DateInput id="nb-cout" name="check_out_date" required value={checkOut} onChange={setCheckOut} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="nb-adults" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">

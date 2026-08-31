@@ -8,6 +8,7 @@ import { Plus, MoreVertical, LogIn, XCircle, UserX } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { fmtApiDate } from "@/lib/formatting";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -130,19 +131,17 @@ function BookingsContent() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <Input
-              type="date"
+            <DateInput
               className="w-40"
               aria-label={t("checkinDate")}
               value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
+              onChange={setFromDate}
             />
-            <Input
-              type="date"
+            <DateInput
               className="w-40"
               aria-label={t("checkoutDate")}
               value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
+              onChange={setToDate}
             />
           </div>
           <button

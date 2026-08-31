@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -109,20 +110,18 @@ function PaymentsContent() {
         <div className="mb-4 flex flex-wrap items-end gap-3">
           <div>
             <Label>{t("fromDate")}</Label>
-            <Input
+            <DateInput
               className="mt-1"
-              type="date"
               value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
+              onChange={setFromDate}
             />
           </div>
           <div>
             <Label>{t("toDate")}</Label>
-            <Input
+            <DateInput
               className="mt-1"
-              type="date"
               value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
+              onChange={setToDate}
             />
           </div>
           {(fromDate || toDate) && (

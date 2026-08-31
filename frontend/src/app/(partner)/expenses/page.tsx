@@ -9,6 +9,7 @@ import { fmtApiDate, localToday } from "@/lib/formatting";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -350,11 +351,10 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>{t("startDate")}</Label>
-              <Input
+              <DateInput
                 className="mt-1"
-                type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={setStartDate}
               />
             </div>
             <div>
@@ -464,7 +464,7 @@ function AddExpenseDialog({ onDone }: { onDone: () => void }) {
           </div>
           <div>
             <Label>{t("expenseDate")}</Label>
-            <Input className="mt-1" type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} />
+            <DateInput className="mt-1" value={expenseDate} onChange={setExpenseDate} />
           </div>
           <div>
             <Label>{t("category")}</Label>
