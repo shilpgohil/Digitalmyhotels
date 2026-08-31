@@ -41,7 +41,8 @@ import {
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
-import type { ListOut, RoomOut } from "@/types/hotel";
+import type { ListOut } from "@/types/hotel";
+import { RoomAvailabilityPicker } from "@/components/rooms/room-availability-picker";
 import type { BookingOut } from "@/types/stay";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -312,22 +313,18 @@ function NewBookingDialog({
   const t = useTranslations("bookings");
   const tc = useTranslations("common");
   const api = useApi();
-  const { activeHotelId } = useAuth();
   const [open, setOpen] = useState(defaultOpen);
+  const handleOpenChange = (v: boolean) => { setOpen(v); onOpenChange?.(v); };
 
-  const handleOpenChange = (v: boolean) => {
-    setOpen(v);
-    onOpenChange?.(v);
-  };
   const [guest, setGuest] = useState<{ id: string; full_name: string } | null>(null);
   const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const rooms = useQuery({
-    queryKey: ["rooms", activeHotelId, "for-booking"],
-    queryFn: () => api<ListOut<RoomOut>>("/api/v1/rooms?limit=200"),
-    enabled: open && !!activeHotelId,
-  });
+  // Date state — drives the availability picker
+  const [checkIn, setCheckIn] = useState(new Date().toISOString().slice(0, 10));
+  const [checkOut, setCheckOut] = useState(
+    new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
+  );
 
   const mutation = useMutation({
     mutationFn: (form: FormData) => {
@@ -337,8 +334,8 @@ function NewBookingDialog({
         body: {
           primary_guest_id: guest?.id,
           room_ids: selectedRooms,
-          check_in_date: fs("check_in_date"),
-          check_out_date: fs("check_out_date"),
+          check_in_date: checkIn,
+          check_out_date: checkOut,
           adults: Number(fs("adults", "1")),
           children: Number(fs("children", "0")),
           discount_amount: fs("discount_amount", "0"),
@@ -358,17 +355,13 @@ function NewBookingDialog({
     onError: (e) => setError(e instanceof ApiError ? e.message : tc("error")),
   });
 
-  const allocatable = (rooms.data?.items ?? []).filter((room) =>
-    ["available", "clean_ready"].includes(room.status),
-  );
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/80">
         <Plus className="size-4" aria-hidden />
         {t("newBooking")}
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t("newBooking")}</DialogTitle>
         </DialogHeader>
@@ -383,6 +376,7 @@ function NewBookingDialog({
             mutation.mutate(new FormData(e.currentTarget));
           }}
         >
+          {/* Guest */}
           <div className="space-y-1.5">
             <Label>{t("guest")}</Label>
             <GuestPicker
@@ -391,41 +385,7 @@ function NewBookingDialog({
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label>{t("selectRooms")}</Label>
-            {rooms.isLoading && <Skeleton className="h-16 w-full" />}
-            {allocatable.length === 0 && !rooms.isLoading && (
-              <p className="text-sm text-muted-foreground">—</p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              {allocatable.map((room) => {
-                const checked = selectedRooms.includes(room.id);
-                return (
-                  <button
-                    key={room.id}
-                    type="button"
-                    aria-pressed={checked}
-                    onClick={() =>
-                      setSelectedRooms((prev) =>
-                        checked ? prev.filter((id) => id !== room.id) : [...prev, room.id],
-                      )
-                    }
-                    className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
-                      checked
-                        ? "border-gold-500 bg-gold-100 font-medium"
-                        : "hover:bg-muted"
-                    }`}
-                  >
-                    {room.room_number}
-                    <span className="ml-1.5 text-xs text-muted-foreground">
-                      {room.room_type_name}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
+          {/* Dates — placed BEFORE room picker so availability reacts to dates */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="space-y-1.5">
               <Label htmlFor="b-cin">{t("checkinDate")}</Label>
@@ -434,7 +394,8 @@ function NewBookingDialog({
                 name="check_in_date"
                 type="date"
                 required
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                value={checkIn}
+                onChange={(e) => setCheckIn(e.target.value)}
               />
             </div>
             <div className="space-y-1.5">
@@ -444,7 +405,8 @@ function NewBookingDialog({
                 name="check_out_date"
                 type="date"
                 required
-                defaultValue={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
+                value={checkOut}
+                onChange={(e) => setCheckOut(e.target.value)}
               />
             </div>
             <div className="space-y-1.5">
@@ -455,6 +417,21 @@ function NewBookingDialog({
               <Label htmlFor="b-children">{t("children")}</Label>
               <Input id="b-children" name="children" type="number" min={0} max={40} defaultValue={0} />
             </div>
+          </div>
+
+          {/* Date-aware room availability picker */}
+          <div className="space-y-1.5">
+            <Label>{t("selectRooms")}</Label>
+            <RoomAvailabilityPicker
+              checkIn={checkIn}
+              checkOut={checkOut}
+              selectedRooms={selectedRooms}
+              onSelectionChange={setSelectedRooms}
+            />
+          </div>
+
+          {/* Financial */}
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="b-discount">{t("discount")}</Label>
               <Input id="b-discount" name="discount_amount" type="number" min={0} step="0.01" defaultValue={0} />
@@ -470,15 +447,13 @@ function NewBookingDialog({
           </div>
 
           {error && (
-            <p className="text-sm text-danger" role="alert">
-              {error}
-            </p>
+            <p className="text-sm text-danger" role="alert">{error}</p>
           )}
           <DialogFooter>
             <DialogClose className="inline-flex h-8 items-center rounded-lg border border-border px-2.5 text-sm hover:bg-muted">
               {tc("cancel")}
             </DialogClose>
-            <Button type="submit" disabled={mutation.isPending}>
+            <Button type="submit" disabled={mutation.isPending || selectedRooms.length === 0}>
               {mutation.isPending ? tc("saving") : tc("save")}
             </Button>
           </DialogFooter>

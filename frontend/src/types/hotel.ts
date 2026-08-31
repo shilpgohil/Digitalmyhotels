@@ -75,12 +75,50 @@ export interface RoomOut {
   id: string;
   room_number: string;
   floor: string | null;
+  bed_type: string | null;
   status: RoomStatus;
   is_active: boolean;
   notes: string | null;
   room_type_id: string;
   room_type_name: string | null;
   amenities: string[];
+}
+
+// ── Date-aware availability ───────────────────────────────────────────────────
+
+export interface RoomAvailableItem {
+  id: string;
+  room_number: string;
+  floor: string | null;
+  bed_type: string | null;
+  status: RoomStatus;
+  is_active: boolean;
+  room_type_id: string;
+  room_type_name: string | null;
+  room_type_base_price: string;
+  amenities: string[];
+}
+
+export type UnavailableReason =
+  | "booked"
+  | "occupied"
+  | "cleaning"
+  | "maintenance"
+  | "out_of_service";
+
+export interface RoomUnavailableItem extends RoomAvailableItem {
+  unavailable_reason: UnavailableReason;
+  /** ISO date string — when this room will next be free (for booked rooms). */
+  occupied_until: string | null;
+  overlapping_booking_count: number;
+}
+
+export interface RoomAvailabilityOut {
+  check_in_date: string;
+  check_out_date: string;
+  available: RoomAvailableItem[];
+  unavailable: RoomUnavailableItem[];
+  total_rooms: number;
 }
 
 export type RoomStatus =

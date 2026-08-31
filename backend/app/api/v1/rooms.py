@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -10,6 +11,7 @@ from app.core.permissions import Permission
 from app.core.tenant import TenantContext
 from app.db.session import get_db
 from app.schemas.room import (
+    RoomAvailabilityOut,
     RoomCreate,
     RoomListOut,
     RoomOut,
@@ -97,6 +99,29 @@ async def list_rooms(
         offset=offset,
     )
     return RoomListOut(items=items, total=total)
+
+
+@router.get("/availability", response_model=RoomAvailabilityOut)
+async def room_availability(
+    check_in: date = Query(..., description="Check-in date (YYYY-MM-DD)"),
+    check_out: date = Query(..., description="Check-out date (YYYY-MM-DD)"),
+    tenant: TenantContext = Depends(require_permissions(Permission.ROOMS_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> RoomAvailabilityOut:
+    """Return rooms split into available vs unavailable for the requested date window.
+
+    Unavailable rooms include: overlapping bookings (with `occupied_until` = free date),
+    maintenance, cleaning, and out-of-service rooms — sorted by earliest free date
+    so the UI can show the best alternative suggestions first.
+    """
+    from app.core.errors import ValidationAppError
+
+    if check_out <= check_in:
+        raise ValidationAppError(
+            "Check-out date must be after check-in date",
+            code="invalid_dates",
+        )
+    return await rooms_service.check_availability(db, tenant, check_in, check_out)
 
 
 @router.get("/status-summary", response_model=RoomStatusSummaryOut)

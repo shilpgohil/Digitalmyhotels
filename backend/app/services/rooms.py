@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -8,17 +9,23 @@ from sqlalchemy.orm import selectinload
 
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.tenant import TenantContext
-from app.domain.room_status import RoomStatus, assert_transition
+from app.domain.room_status import RoomStatus, assert_transition, is_allocatable
+from app.models.booking import Booking, BookingRoom
 from app.models.room import Room, RoomAmenity, RoomType
 from app.schemas.room import (
+    RoomAvailabilityOut,
+    RoomAvailableItem,
     RoomCreate,
     RoomOut,
     RoomStatusUpdate,
     RoomTypeCreate,
     RoomTypeUpdate,
+    RoomUnavailableItem,
     RoomUpdate,
 )
 from app.services.audit import write_audit
+
+_ACTIVE_BOOKING_STATUSES = ("pending", "confirmed", "checked_in")
 
 
 def _room_out(room: Room) -> RoomOut:
@@ -307,3 +314,137 @@ async def status_summary(db: AsyncSession, tenant: TenantContext) -> dict[str, i
         .group_by(Room.status)
     )
     return {row[0]: row[1] for row in result.all()}
+
+
+# ── Date-aware availability ───────────────────────────────────────────────────
+
+
+async def check_availability(
+    db: AsyncSession,
+    tenant: TenantContext,
+    check_in: date,
+    check_out: date,
+) -> RoomAvailabilityOut:
+    """Return all rooms split into available vs unavailable for the date window.
+
+    Uses a single JOIN query to detect overlapping bookings in bulk — no N+1.
+    Unavailable rooms are sorted by earliest free date so the UI can show
+    'Room 102 free on Aug 8' before 'Room 101 free on Aug 12'.
+    """
+    hotel_id = tenant.require_hotel()
+
+    # Step 1: all active rooms (eager-load type + amenities in one go)
+    rooms_result = await db.execute(
+        select(Room)
+        .options(selectinload(Room.room_type), selectinload(Room.amenities))
+        .where(Room.hotel_id == hotel_id, Room.is_active.is_(True))
+        .order_by(Room.room_number)
+    )
+    all_rooms = list(rooms_result.scalars().all())
+
+    # Step 2: single batch query — for every room, find overlapping bookings
+    # and record the latest checkout date (= when the room will be free).
+    overlap_stmt = (
+        select(
+            BookingRoom.room_id,
+            func.max(Booking.check_out_date).label("free_from"),
+            func.count().label("booking_count"),
+        )
+        .join(Booking, Booking.id == BookingRoom.booking_id)
+        .where(
+            BookingRoom.hotel_id == hotel_id,
+            BookingRoom.is_current.is_(True),
+            Booking.status.in_(_ACTIVE_BOOKING_STATUSES),
+            # Overlap condition: [check_in, check_out) intersects [B.check_in, B.check_out)
+            Booking.check_in_date < check_out,
+            Booking.check_out_date > check_in,
+        )
+        .group_by(BookingRoom.room_id)
+    )
+    overlap_rows = (await db.execute(overlap_stmt)).all()
+    overlaps: dict[UUID, tuple[date, int]] = {
+        row.room_id: (row.free_from, row.booking_count) for row in overlap_rows
+    }
+
+    available: list[RoomAvailableItem] = []
+    unavailable: list[RoomUnavailableItem] = []
+
+    for room in all_rooms:
+        base_price = room.room_type.base_price if room.room_type else 0
+        item_data = {
+            "id": room.id,
+            "room_number": room.room_number,
+            "floor": room.floor,
+            "bed_type": room.bed_type,
+            "status": room.status,
+            "is_active": room.is_active,
+            "room_type_id": room.room_type_id,
+            "room_type_name": room.room_type.name if room.room_type else None,
+            "room_type_base_price": base_price,
+            "amenities": [a.name for a in room.amenities],
+        }
+
+        if room.id in overlaps:
+            # Room has an overlapping booking — unavailable regardless of status.
+            free_from, booking_count = overlaps[room.id]
+            unavailable.append(
+                RoomUnavailableItem(
+                    **item_data,
+                    unavailable_reason="booked",
+                    occupied_until=free_from,
+                    overlapping_booking_count=booking_count,
+                )
+            )
+        elif room.status in (RoomStatus.MAINTENANCE.value, RoomStatus.OUT_OF_SERVICE.value):
+            unavailable.append(
+                RoomUnavailableItem(
+                    **item_data,
+                    unavailable_reason=room.status,
+                    occupied_until=None,
+                    overlapping_booking_count=0,
+                )
+            )
+        elif room.status in (
+            RoomStatus.OCCUPIED.value,
+            RoomStatus.RESERVED.value,
+        ):
+            # Occupied/reserved but no overlapping booking in the window → still
+            # block it since we can't freely allocate it today.
+            unavailable.append(
+                RoomUnavailableItem(
+                    **item_data,
+                    unavailable_reason="occupied",
+                    occupied_until=None,
+                    overlapping_booking_count=0,
+                )
+            )
+        elif not is_allocatable(room.status):
+            # Cleaning / inspection — will be available soon.
+            unavailable.append(
+                RoomUnavailableItem(
+                    **item_data,
+                    unavailable_reason="cleaning",
+                    occupied_until=None,
+                    overlapping_booking_count=0,
+                )
+            )
+        else:
+            # Allocatable status + no overlapping booking → truly available.
+            available.append(RoomAvailableItem(**item_data))
+
+    # Sort unavailable: "booked" rooms by earliest free date first
+    # (best suggestions show at the top), then maintenance/oos last.
+    def _sort_key(r: RoomUnavailableItem) -> tuple[int, date]:
+        if r.occupied_until:
+            return (0, r.occupied_until)
+        return (1, date(9999, 12, 31))
+
+    unavailable.sort(key=_sort_key)
+
+    return RoomAvailabilityOut(
+        check_in_date=check_in,
+        check_out_date=check_out,
+        available=available,
+        unavailable=unavailable,
+        total_rooms=len(all_rooms),
+    )

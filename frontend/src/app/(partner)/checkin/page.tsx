@@ -64,12 +64,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { GuestPicker } from "@/components/guests/guest-picker";
+import { RoomAvailabilityPicker } from "@/components/rooms/room-availability-picker";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError, apiUpload } from "@/lib/api/client";
 import { compressDocument } from "@/lib/compress-image";
 import { cn } from "@/lib/utils";
-import type { ListOut, RoomOut } from "@/types/hotel";
+import type { ListOut } from "@/types/hotel";
 import type {
   BookingOut,
   CheckInCreateOut,
@@ -1596,19 +1597,14 @@ function NewBookingInlineForm({
   readonly onCreated: (booking: BookingOut) => void;
 }) {
   const api = useApi();
-  const { activeHotelId } = useAuth();
   const [guest, setGuest] = useState<{ id: string; full_name: string } | null>(null);
   const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const rooms = useQuery({
-    queryKey: ["rooms", activeHotelId, "for-booking-checkin"],
-    queryFn: () => api<ListOut<RoomOut>>("/api/v1/rooms?limit=200"),
-    enabled: !!activeHotelId,
-  });
-
-  const allocatable = (rooms.data?.items ?? []).filter((r) =>
-    ["available", "clean_ready"].includes(r.status),
+  // Date state — drives the availability picker
+  const [checkIn, setCheckIn] = useState(new Date().toISOString().slice(0, 10));
+  const [checkOut, setCheckOut] = useState(
+    new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
   );
 
   const mutation = useMutation({
@@ -1619,8 +1615,8 @@ function NewBookingInlineForm({
         body: {
           primary_guest_id: guest?.id,
           room_ids: selectedRooms,
-          check_in_date: fs("check_in_date"),
-          check_out_date: fs("check_out_date"),
+          check_in_date: checkIn,
+          check_out_date: checkOut,
           adults: Number(fs("adults", "1")),
           children: Number(fs("children", "0")),
           discount_amount: fs("discount_amount", "0"),
@@ -1677,60 +1673,21 @@ function NewBookingInlineForm({
           />
         </div>
 
-        {/* Room selection */}
-        <div className="space-y-1.5">
-          <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Select Rooms *
-          </Label>
-          {rooms.isLoading && <Skeleton className="h-12 w-full" />}
-          {!rooms.isLoading && allocatable.length === 0 && (
-            <p className="text-sm text-muted-foreground">No available rooms at the moment.</p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {allocatable.map((room) => {
-              const checked = selectedRooms.includes(room.id);
-              return (
-                <button
-                  key={room.id}
-                  type="button"
-                  aria-pressed={checked}
-                  onClick={() =>
-                    setSelectedRooms((prev) =>
-                      checked ? prev.filter((id) => id !== room.id) : [...prev, room.id],
-                    )
-                  }
-                  className={cn(
-                    "rounded-lg border px-3 py-1.5 text-sm transition-colors",
-                    checked
-                      ? "border-gold-500 bg-gold-100 font-semibold text-navy-900"
-                      : "border-border hover:bg-muted",
-                  )}
-                >
-                  {room.room_number}
-                  <span className="ml-1.5 text-xs text-muted-foreground">
-                    {room.room_type_name}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Dates, counts, financial */}
+        {/* Dates — placed BEFORE room picker so availability reacts to dates */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="space-y-1.5">
             <Label htmlFor="nb-cin" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Check-in Date *
             </Label>
             <Input id="nb-cin" name="check_in_date" type="date" required
-              defaultValue={new Date().toISOString().slice(0, 10)} />
+              value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="nb-cout" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Check-out Date *
             </Label>
             <Input id="nb-cout" name="check_out_date" type="date" required
-              defaultValue={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)} />
+              value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="nb-adults" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1744,6 +1701,23 @@ function NewBookingInlineForm({
             </Label>
             <Input id="nb-children" name="children" type="number" min={0} max={40} defaultValue={0} />
           </div>
+        </div>
+
+        {/* Date-aware room availability picker */}
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Select Rooms *
+          </Label>
+          <RoomAvailabilityPicker
+            checkIn={checkIn}
+            checkOut={checkOut}
+            selectedRooms={selectedRooms}
+            onSelectionChange={setSelectedRooms}
+          />
+        </div>
+
+        {/* Financial */}
+        <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="nb-discount" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Discount (₹)

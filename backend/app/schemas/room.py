@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
@@ -90,3 +91,42 @@ class RoomTypeListOut(BaseModel):
 class RoomStatusSummaryOut(BaseModel):
     total: int
     counts: dict[str, int]
+
+
+# ── Date-aware room availability ─────────────────────────────────────────────
+
+class RoomAvailableItem(BaseModel):
+    """A room that is free for the entire requested date range."""
+    id: UUID
+    room_number: str
+    floor: str | None
+    bed_type: str | None
+    status: str
+    is_active: bool
+    room_type_id: UUID
+    room_type_name: str | None
+    room_type_base_price: Decimal
+    amenities: list[str]
+
+
+class RoomUnavailableItem(RoomAvailableItem):
+    """A room that cannot be booked for the requested date range."""
+    # "booked"  — has an overlapping active booking
+    # "occupied" — currently checked-in, no future booking info yet
+    # "cleaning" — cleaning_required / cleaning_in_progress / inspection_required
+    # "maintenance" — maintenance status
+    # "out_of_service" — out_of_service status
+    unavailable_reason: str
+    # For "booked": the latest checkout date among overlapping bookings.
+    # Sorted ascending → earliest-free rooms appear first (best suggestions).
+    occupied_until: date | None
+    overlapping_booking_count: int
+
+
+class RoomAvailabilityOut(BaseModel):
+    """Response for GET /rooms/availability."""
+    check_in_date: date
+    check_out_date: date
+    available: list[RoomAvailableItem]
+    unavailable: list[RoomUnavailableItem]
+    total_rooms: int
