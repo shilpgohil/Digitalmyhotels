@@ -805,9 +805,52 @@ function CheckinForm({
     });
   };
 
-  // ── Room information ──
-  const [adults, setAdults] = useState(booking.adults);
-  const [children, setChildren] = useState(booking.children);
+  // ── Per-room occupancy — keyed by room_id so each room is independent ──
+  const [roomOccupancy, setRoomOccupancy] = useState<
+    Record<string, { adults: number; children: number }>
+  >(() => {
+    const current = booking.rooms.filter((r) => r.is_current);
+    const count = Math.max(current.length, 1);
+    // Distribute the booking's initial totals across rooms.
+    // Room 0 gets the remainder so the sum always equals booking totals.
+    return Object.fromEntries(
+      current.map((room, idx) => {
+        const baseAdults = Math.max(1, Math.floor(booking.adults / count));
+        const baseChildren = Math.max(0, Math.floor(booking.children / count));
+        const extraAdults = idx === 0 ? booking.adults - baseAdults * count : 0;
+        const extraChildren = idx === 0 ? booking.children - baseChildren * count : 0;
+        return [
+          room.room_id,
+          {
+            adults: Math.max(1, baseAdults + extraAdults),
+            children: Math.max(0, baseChildren + extraChildren),
+          },
+        ];
+      }),
+    );
+  });
+
+  const setRoomAdults = (roomId: string, delta: number) =>
+    setRoomOccupancy((prev) => ({
+      ...prev,
+      [roomId]: {
+        ...prev[roomId],
+        adults: Math.max(1, Math.min(20, (prev[roomId]?.adults ?? 1) + delta)),
+      },
+    }));
+
+  const setRoomChildren = (roomId: string, delta: number) =>
+    setRoomOccupancy((prev) => ({
+      ...prev,
+      [roomId]: {
+        ...prev[roomId],
+        children: Math.max(0, Math.min(10, (prev[roomId]?.children ?? 0) + delta)),
+      },
+    }));
+
+  // Totals for the booking PATCH (sum of all rooms)
+  const totalAdults = Object.values(roomOccupancy).reduce((s, r) => s + r.adults, 0);
+  const totalChildren = Object.values(roomOccupancy).reduce((s, r) => s + r.children, 0);
 
   // ── Special requirements ──
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
@@ -951,8 +994,8 @@ function CheckinForm({
         bookingPatch.vehicle_type = vehType || null;
         bookingPatch.parking_slot = parkingSlot || null;
       }
-      if (adults !== booking.adults) bookingPatch.adults = adults;
-      if (children !== booking.children) bookingPatch.children = children;
+      if (totalAdults !== booking.adults) bookingPatch.adults = totalAdults;
+      if (totalChildren !== booking.children) bookingPatch.children = totalChildren;
       if (Object.keys(bookingPatch).length > 0) {
         await api(`/api/v1/bookings/${booking.id}`, {
           method: "PATCH",
@@ -1314,16 +1357,20 @@ function CheckinForm({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setAdults(Math.max(1, adults - 1))}
+                    onClick={() => setRoomAdults(room.room_id, -1)}
                     className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-muted"
+                    aria-label="Remove adult"
                   >
                     <Minus className="size-3.5" aria-hidden />
                   </button>
-                  <span className="w-6 text-center tabular-nums font-semibold">{adults}</span>
+                  <span className="w-6 text-center tabular-nums font-semibold">
+                    {roomOccupancy[room.room_id]?.adults ?? 1}
+                  </span>
                   <button
                     type="button"
-                    onClick={() => setAdults(Math.min(20, adults + 1))}
+                    onClick={() => setRoomAdults(room.room_id, 1)}
                     className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-muted"
+                    aria-label="Add adult"
                   >
                     <Plus className="size-3.5" aria-hidden />
                   </button>
@@ -1334,16 +1381,20 @@ function CheckinForm({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setChildren(Math.max(0, children - 1))}
+                    onClick={() => setRoomChildren(room.room_id, -1)}
                     className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-muted"
+                    aria-label="Remove child"
                   >
                     <Minus className="size-3.5" aria-hidden />
                   </button>
-                  <span className="w-6 text-center tabular-nums font-semibold">{children}</span>
+                  <span className="w-6 text-center tabular-nums font-semibold">
+                    {roomOccupancy[room.room_id]?.children ?? 0}
+                  </span>
                   <button
                     type="button"
-                    onClick={() => setChildren(Math.min(10, children + 1))}
+                    onClick={() => setRoomChildren(room.room_id, 1)}
                     className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-muted"
+                    aria-label="Add child"
                   >
                     <Plus className="size-3.5" aria-hidden />
                   </button>
