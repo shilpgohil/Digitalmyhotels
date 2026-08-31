@@ -84,29 +84,58 @@ function parseAadhar(text: string): Partial<ParsedIdFields> & { score: number } 
   const fields: Partial<ParsedIdFields> = { id_type_detected: "Aadhar Card" };
   let score = 0;
 
-  const aadharMatch = text.match(PATTERNS.aadhar);
-  if (aadharMatch) {
-    fields.id_number = aadharMatch[0].replace(/\s/g, " ");
-    score += 0.30;
-  }
-
-  const dobMatch = text.match(PATTERNS.dob) || text.match(PATTERNS.date);
-  if (dobMatch) {
-    const normalized = normalizeDate(dobMatch[1] ?? dobMatch[0]);
-    if (normalized) { fields.date_of_birth = normalized; score += 0.20; }
-  }
-
-  const genderMatch = text.match(PATTERNS.gender);
-  if (genderMatch) {
-    fields.gender = normalizeGender(genderMatch[1]);
-    score += 0.15;
-  }
-
-  // Name: lines before the Aadhar number that look like a proper name
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  // ── Aadhar number ──────────────────────────────────────────────────────────
+  // Find the line index of the 12-digit number — this is our positional anchor.
+  let aadharLineIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (PATTERNS.aadhar.test(lines[i])) {
+      fields.id_number = lines[i].match(PATTERNS.aadhar)![0];
+      aadharLineIdx = i;
+      score += 0.30;
+      break;
+    }
+  }
+
+  // ── DOB ────────────────────────────────────────────────────────────────────
   for (const line of lines) {
+    const dobMatch = line.match(PATTERNS.dob) ?? line.match(PATTERNS.date);
+    if (dobMatch) {
+      const normalized = normalizeDate(dobMatch[1] ?? dobMatch[0]);
+      if (normalized) { fields.date_of_birth = normalized; score += 0.20; break; }
+    }
+  }
+
+  // ── Gender ─────────────────────────────────────────────────────────────────
+  let genderLineIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const gm = lines[i].match(PATTERNS.gender);
+    if (gm) {
+      fields.gender = normalizeGender(gm[1]);
+      genderLineIdx = i;
+      score += 0.15;
+      break;
+    }
+  }
+
+  // ── Name ───────────────────────────────────────────────────────────────────
+  // The name typically appears on the line just before gender, or as the first
+  // capitalised 2+ word sequence above the Aadhar number.
+  const upperBound = aadharLineIdx > 0 ? aadharLineIdx : lines.length;
+  for (let i = 0; i < upperBound; i++) {
+    const line = lines[i];
+    // Skip lines that are clearly not names
+    if (
+      PATTERNS.aadhar.test(line) ||
+      PATTERNS.dob.test(line) ||
+      PATTERNS.gender.test(line) ||
+      /GOVERNMENT|INDIA|AADHAAR|आधार|भारत/i.test(line) ||
+      line.length < 4
+    ) continue;
+
     const nm = line.match(PATTERNS.name);
-    if (nm && !line.match(PATTERNS.aadhar) && !line.match(PATTERNS.dob)) {
+    if (nm) {
       const candidate = cleanName(nm[0]);
       if (candidate.split(" ").length >= 2 && candidate.length > 4) {
         fields.name = candidate;
@@ -116,15 +145,42 @@ function parseAadhar(text: string): Partial<ParsedIdFields> & { score: number } 
     }
   }
 
-  // Address: lines after DOB / gender block
-  const textAfterDob = text.replace(/[\s\S]*(DOB|Date of Birth)[^\n]+/i, "").trim();
-  const addrLines = textAfterDob
-    .split("\n")
-    .filter((l) => l.trim().length > 5 && !/\d{4}/.test(l))
-    .slice(0, 3)
-    .join(", ")
-    .trim();
-  if (addrLines) { fields.address = addrLines; score += 0.10; }
+  // ── Address ────────────────────────────────────────────────────────────────
+  // Aadhar card layout: ... [gender line] [address line(s)] [Aadhar number]
+  // So address = lines strictly between the gender line and the Aadhar number.
+  if (genderLineIdx >= 0 && aadharLineIdx > genderLineIdx + 1) {
+    const addrCandidates = lines
+      .slice(genderLineIdx + 1, aadharLineIdx)
+      .filter((l) => {
+        if (l.length < 3) return false;
+        // Reject lines that are mostly non-printable / OCR noise
+        const wordChars = l.replace(/[^A-Za-z0-9,. ]/g, "").length;
+        const ratio = wordChars / l.length;
+        if (ratio < 0.5) return false;
+        // Reject ONLY full header/footer labels — not addresses that contain these words
+        // e.g. "GOVERNMENT OF INDIA" → reject; "Patna, Bihar, India" → keep
+        if (/^(GOVERNMENT\s+OF\s+INDIA|YOUR\s+AADHAAR|AADHAAR|आपका\s+आधार)$/i.test(l)) return false;
+        return true;
+      });
+
+    if (addrCandidates.length > 0) {
+      fields.address = addrCandidates.join(", ");
+      score += 0.10;
+    }
+  } else if (genderLineIdx < 0 && aadharLineIdx > 0) {
+    // Fallback: lines immediately above the Aadhar number
+    const addrCandidates = lines
+      .slice(Math.max(0, aadharLineIdx - 3), aadharLineIdx)
+      .filter((l) => {
+        const wordChars = l.replace(/[^A-Za-z0-9,. ]/g, "").length;
+        return l.length > 3 && wordChars / l.length > 0.5
+          && !/^(GOVERNMENT\s+OF\s+INDIA|AADHAAR)$/i.test(l);
+      });
+    if (addrCandidates.length > 0) {
+      fields.address = addrCandidates.join(", ");
+      score += 0.05;
+    }
+  }
 
   return { ...fields, score };
 }
@@ -137,11 +193,15 @@ function parsePAN(text: string): Partial<ParsedIdFields> & { score: number } {
   if (panMatch) { fields.id_number = panMatch[0]; score += 0.35; }
 
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  // Name on PAN: first proper name that isn't "INCOME TAX", "INDIA", or
+  // a father's name line. PAN usually shows "Name:" label on the same line.
   for (const line of lines) {
-    const nm = line.match(PATTERNS.name);
-    if (nm && !line.toUpperCase().includes("FATHER") && !line.toUpperCase().includes("INDIA")) {
+    if (/INCOME|TAX|DEPARTMENT|INDIA|FATHER|पिता/i.test(line)) continue;
+    const nm = line.replace(/^Name[:\s]*/i, "").match(PATTERNS.name);
+    if (nm) {
       const candidate = cleanName(nm[0]);
-      if (candidate.split(" ").length >= 2) {
+      if (candidate.split(" ").length >= 2 && candidate.length > 4) {
         fields.name = candidate;
         score += 0.30;
         break;
@@ -149,7 +209,7 @@ function parsePAN(text: string): Partial<ParsedIdFields> & { score: number } {
     }
   }
 
-  const dobMatch = text.match(PATTERNS.dob) || text.match(PATTERNS.date);
+  const dobMatch = text.match(PATTERNS.dob) ?? text.match(PATTERNS.date);
   if (dobMatch) {
     const normalized = normalizeDate(dobMatch[1] ?? dobMatch[0]);
     if (normalized) { fields.date_of_birth = normalized; score += 0.25; }
