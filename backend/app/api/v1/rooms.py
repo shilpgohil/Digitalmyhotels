@@ -114,12 +114,19 @@ async def room_availability(
     maintenance, cleaning, and out-of-service rooms — sorted by earliest free date
     so the UI can show the best alternative suggestions first.
     """
+    from datetime import date as _date
+
     from app.core.errors import ValidationAppError
 
     if check_out <= check_in:
         raise ValidationAppError(
             "Check-out date must be after check-in date",
             code="invalid_dates",
+        )
+    if check_in < _date.today():
+        raise ValidationAppError(
+            "Check-in date cannot be in the past",
+            code="checkin_date_past",
         )
     return await rooms_service.check_availability(db, tenant, check_in, check_out)
 

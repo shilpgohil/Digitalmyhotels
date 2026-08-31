@@ -317,15 +317,20 @@ function NewBookingDialog({
   const handleOpenChange = (v: boolean) => { setOpen(v); onOpenChange?.(v); };
 
   const { activeHotelId } = useAuth();
+  const queryClient = useQueryClient();
   const [guest, setGuest] = useState<{ id: string; full_name: string } | null>(null);
   const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [availRefreshKey, setAvailRefreshKey] = useState(0);
 
   // Date state — drives the availability picker
   const [checkIn, setCheckIn] = useState(new Date().toISOString().slice(0, 10));
   const [checkOut, setCheckOut] = useState(
     new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
   );
+  // Guest counts — for capacity validation in picker
+  const [adultsCount, setAdultsCount] = useState(1);
+  const [childCount, setChildCount] = useState(0);
 
   // Hotel settings — for check-in/out time display
   const settings = useQuery({
@@ -363,7 +368,16 @@ function NewBookingDialog({
       setError(null);
       onCreated();
     },
-    onError: (e) => setError(e instanceof ApiError ? e.message : tc("error")),
+    onError: (e) => {
+      const msg = e instanceof ApiError ? e.message : tc("error");
+      setError(msg);
+      // Race condition: another booking grabbed the room — re-fetch availability.
+      if (e instanceof ApiError && e.code === "double_booking") {
+        setSelectedRooms([]);
+        setAvailRefreshKey((k) => k + 1);
+        queryClient.invalidateQueries({ queryKey: ["room-availability", activeHotelId] });
+      }
+    },
   });
 
   return (
@@ -436,11 +450,27 @@ function NewBookingDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="b-adults">{t("adults")}</Label>
-              <Input id="b-adults" name="adults" type="number" min={1} max={40} defaultValue={1} />
+              <Input
+                id="b-adults"
+                name="adults"
+                type="number"
+                min={1}
+                max={40}
+                value={adultsCount}
+                onChange={(e) => setAdultsCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="b-children">{t("children")}</Label>
-              <Input id="b-children" name="children" type="number" min={0} max={40} defaultValue={0} />
+              <Input
+                id="b-children"
+                name="children"
+                type="number"
+                min={0}
+                max={40}
+                value={childCount}
+                onChange={(e) => setChildCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+              />
             </div>
           </div>
 
@@ -454,6 +484,9 @@ function NewBookingDialog({
               onSelectionChange={setSelectedRooms}
               checkInTime={settings.data?.check_in_time}
               checkOutTime={settings.data?.check_out_time}
+              adults={adultsCount}
+              guestChildren={childCount}
+              refreshKey={availRefreshKey}
             />
           </div>
 

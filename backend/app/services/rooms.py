@@ -381,6 +381,7 @@ async def check_availability(
             "room_type_id": room.room_type_id,
             "room_type_name": room.room_type.name if room.room_type else None,
             "room_type_base_price": base_price,
+            "max_occupancy": room.room_type.max_occupancy if room.room_type else 2,
             "amenities": [a.name for a in room.amenities],
         }
 

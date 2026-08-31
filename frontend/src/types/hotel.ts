@@ -96,6 +96,7 @@ export interface RoomAvailableItem {
   room_type_id: string;
   room_type_name: string | null;
   room_type_base_price: string;
+  max_occupancy: number;
   amenities: string[];
 }
 

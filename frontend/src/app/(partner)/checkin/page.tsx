@@ -1598,15 +1598,19 @@ function NewBookingInlineForm({
 }) {
   const api = useApi();
   const { activeHotelId } = useAuth();
+  const queryClient = useQueryClient();
   const [guest, setGuest] = useState<{ id: string; full_name: string } | null>(null);
   const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [availRefreshKey, setAvailRefreshKey] = useState(0);
 
   // Date state — drives the availability picker
   const [checkIn, setCheckIn] = useState(new Date().toISOString().slice(0, 10));
   const [checkOut, setCheckOut] = useState(
     new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
   );
+  const [adultsCount, setAdultsCount] = useState(1);
+  const [childCount, setChildCount] = useState(0);
 
   // Hotel settings for check-in/out time display
   const settings = useQuery({
@@ -1640,7 +1644,15 @@ function NewBookingInlineForm({
       toast.success("Booking created — starting check-in");
       onCreated(booking);
     },
-    onError: (e) => setError(e instanceof ApiError ? e.message : "Failed to create booking"),
+    onError: (e) => {
+      const msg = e instanceof ApiError ? e.message : "Failed to create booking";
+      setError(msg);
+      if (e instanceof ApiError && e.code === "double_booking") {
+        setSelectedRooms([]);
+        setAvailRefreshKey((k) => k + 1);
+        queryClient.invalidateQueries({ queryKey: ["room-availability", activeHotelId] });
+      }
+    },
   });
 
   return (
@@ -1714,13 +1726,29 @@ function NewBookingInlineForm({
             <Label htmlFor="nb-adults" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Adults
             </Label>
-            <Input id="nb-adults" name="adults" type="number" min={1} max={40} defaultValue={1} />
+            <Input
+              id="nb-adults"
+              name="adults"
+              type="number"
+              min={1}
+              max={40}
+              value={adultsCount}
+              onChange={(e) => setAdultsCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="nb-children" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Children
             </Label>
-            <Input id="nb-children" name="children" type="number" min={0} max={40} defaultValue={0} />
+            <Input
+              id="nb-children"
+              name="children"
+              type="number"
+              min={0}
+              max={40}
+              value={childCount}
+              onChange={(e) => setChildCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+            />
           </div>
         </div>
 
@@ -1736,6 +1764,9 @@ function NewBookingInlineForm({
             onSelectionChange={setSelectedRooms}
             checkInTime={settings.data?.check_in_time}
             checkOutTime={settings.data?.check_out_time}
+            adults={adultsCount}
+              guestChildren={childCount}
+            refreshKey={availRefreshKey}
           />
         </div>
 

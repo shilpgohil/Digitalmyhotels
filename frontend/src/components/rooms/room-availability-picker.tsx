@@ -44,6 +44,15 @@ interface Props {
   readonly checkInTime?: string;
   /** Hotel's standard check-out time e.g. "11:00:00" */
   readonly checkOutTime?: string;
+  /** Number of adults — used for capacity validation warning. */
+  readonly adults?: number;
+  /** Number of child guests (avoid React's reserved `children` prop name). */
+  readonly guestChildren?: number;
+  /**
+   * Increment this to force a re-fetch (e.g. after a double_booking error).
+   * The picker watches this value and calls refetch() when it changes.
+   */
+  readonly refreshKey?: number;
 }
 
 /** Format ISO date string as a human-readable short date. */
@@ -183,6 +192,9 @@ export function RoomAvailabilityPicker({
   onSelectionChange,
   checkInTime,
   checkOutTime,
+  adults = 1,
+  guestChildren: childCount = 0,
+  refreshKey = 0,
 }: Props) {
   const api = useApi();
   const { activeHotelId } = useAuth();
@@ -194,7 +206,7 @@ export function RoomAvailabilityPicker({
     checkIn < checkOut
   );
 
-  const { data, isLoading, isError } = useQuery<RoomAvailabilityOut>({
+  const { data, isLoading, isError, refetch } = useQuery<RoomAvailabilityOut>({
     queryKey: ["room-availability", activeHotelId, checkIn, checkOut],
     queryFn: () =>
       api<RoomAvailabilityOut>(
@@ -203,6 +215,25 @@ export function RoomAvailabilityPicker({
     enabled: datesValid && !!activeHotelId,
     staleTime: 30_000,
   });
+
+  // Re-fetch when parent increments refreshKey (e.g. after double_booking error).
+  useEffect(() => {
+    if (refreshKey > 0 && datesValid) void refetch();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
+
+  // ── Capacity validation ────────────────────────────────────────────────────
+  const totalGuests = adults + childCount;
+  const selectedAvailableItems = useMemo(
+    () => (data?.available ?? []).filter((r) => selectedRooms.includes(r.id)),
+    [data, selectedRooms],
+  );
+  const totalCapacity = useMemo(
+    () => selectedAvailableItems.reduce((sum, r) => sum + r.max_occupancy, 0),
+    [selectedAvailableItems],
+  );
+  const capacityWarning =
+    selectedAvailableItems.length > 0 && totalGuests > totalCapacity;
 
   // Clear selection when dates change so previously-selected rooms
   // are not silently carried over if they're now unavailable.
@@ -367,17 +398,38 @@ export function RoomAvailabilityPicker({
       {/* ── Selection summary ─────────────────────────────────────────────── */}
       {selectedRooms.length > 0 && (
         <div className="rounded-xl border border-gold-200 bg-gold-50 px-3 py-2 text-sm">
-          <span className="font-semibold text-gold-700">
-            {selectedRooms.length} room{selectedRooms.length !== 1 ? "s" : ""} selected
-          </span>
-          <span className="ml-2 text-gold-600">
-            {available
-              .filter((r) => selectedRooms.includes(r.id))
-              .map((r) => r.room_number)
-              .join(", ")}
-          </span>
+          <div className="flex items-center justify-between flex-wrap gap-1">
+            <span className="font-semibold text-gold-700">
+              {selectedRooms.length} room{selectedRooms.length !== 1 ? "s" : ""} selected
+            </span>
+            <span className="text-gold-600 text-xs">
+              {selectedAvailableItems.map((r) => r.room_number).join(", ")}
+            </span>
+            {totalCapacity > 0 && (
+              <span className="text-xs text-muted-foreground">
+                Total capacity: {totalCapacity} guest{totalCapacity !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
         </div>
       )}
+
+      {/* ── Capacity warning ──────────────────────────────────────────────── */}
+      {capacityWarning && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <span className="text-red-500 text-lg leading-none mt-0.5">⚠</span>
+          <div>
+            <p className="text-sm font-semibold text-red-700">Capacity exceeded</p>
+            <p className="text-xs text-red-600 mt-0.5">
+              Selected rooms can accommodate {totalCapacity} guest{totalCapacity !== 1 ? "s" : ""},
+              but you have {totalGuests} guest{totalGuests !== 1 ? "s" : ""} ({adults} adult{adults !== 1 ? "s" : ""}
+              {childCount > 0 ? `, ${childCount} child${childCount !== 1 ? "ren" : ""}` : ""}).
+              Consider adding more rooms or selecting a larger room type.
+            </p>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
