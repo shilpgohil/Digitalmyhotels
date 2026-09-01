@@ -155,22 +155,57 @@ async def generate_invoice(
             cgst_total += half
             sgst_total += money(charge.tax_amount - half)
 
+    # Late checkout fee — if the booking has a checkout record with a late fee,
+    # add it as a separate non-taxable line item so the invoice total matches
+    # the amount the guest was actually charged at checkout.
+    from app.models.booking import CheckOut  # local import to avoid circular
+    checkout_result = await db.execute(
+        select(CheckOut).where(
+            CheckOut.booking_id == booking.id,
+            CheckOut.hotel_id == hotel_id,
+            CheckOut.is_reversed.is_(False),
+        ).order_by(CheckOut.created_at.desc()).limit(1)
+    )
+    checkout_record = checkout_result.scalar_one_or_none()
+    late_fee = (
+        checkout_record.late_fee
+        if checkout_record and checkout_record.late_fee > 0
+        else Decimal("0.00")
+    )
+    if late_fee > 0:
+        db.add(
+            InvoiceItem(
+                hotel_id=hotel_id,
+                invoice_id=invoice.id,
+                description="Late checkout fee",
+                quantity=1,
+                rate=late_fee,
+                taxable_amount=late_fee,
+                tax_amount=Decimal("0.00"),
+                total_amount=late_fee,
+            )
+        )
+        subtotal += late_fee
+
     total = money(
         subtotal + cgst_total + sgst_total + igst_total - booking.discount_amount
     )
-    paid = booking.advance_amount
-    due = money(max(total - paid - booking.security_deposit, Decimal("0.00")))
+    # Checkout final_total includes late fee; use it as the authoritative due basis.
+    effective_total = checkout_record.final_total if checkout_record else total
+    paid_amount = booking.advance_amount
+    security = booking.security_deposit
+    due = money(max(effective_total - paid_amount - security, Decimal("0.00")))
 
     invoice.subtotal = money(subtotal)
     invoice.cgst_amount = money(cgst_total)
     invoice.sgst_amount = money(sgst_total)
     invoice.igst_amount = money(igst_total)
     invoice.total_amount = total
-    invoice.paid_amount = money(paid)
+    invoice.paid_amount = paid_amount
     invoice.due_amount = due
     if due == 0:
         invoice.status = "paid"
-    elif paid > 0:
+    elif paid_amount > 0:
         invoice.status = "partially_paid"
 
     await db.flush()

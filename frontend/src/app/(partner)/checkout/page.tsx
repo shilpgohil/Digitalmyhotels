@@ -663,11 +663,16 @@ function CheckoutContent() {
                       </div>
                     )}
                     {money(checkoutResult.refund_amount) > 0 && (
-                      <div className="flex justify-between px-4 py-2">
-                        <span className="text-muted-foreground">{tp("refundDueToGuest")}</span>
-                        <span className="font-semibold text-blue-600 tabular-nums">
-                          {fmtMoney(money(checkoutResult.refund_amount))}
-                        </span>
+                      <div className="flex flex-col gap-1 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+                        <div className="flex justify-between">
+                          <span className="font-semibold text-blue-800">{tp("refundDueToGuest")}</span>
+                          <span className="font-bold text-blue-700 tabular-nums">
+                            {fmtMoney(money(checkoutResult.refund_amount))}
+                          </span>
+                        </div>
+                        <p className="text-xs text-blue-600">
+                          Return this amount to the guest in the same payment mode used at check-in (cash / UPI).
+                        </p>
                       </div>
                     )}
                     <div className="flex justify-between px-4 py-2">

@@ -1781,6 +1781,9 @@ function CheckinForm({
   const advPaid = Number.parseFloat(booking.advance_amount) || 0;
   const newAdvance = Number.parseFloat(advanceAmount) || 0;
   const extraChargesNum = Number.parseFloat(extraCharges || "0") || 0;
+  // Note: booking.total_amount does not include GST (GST is only on the invoice).
+  // We show an *approximate* GST for the balance display only, using the
+  // hotel's configured rate. The authoritative amount is on the invoice.
   const gstAmount = Math.round((bookingTotal + extraChargesNum) * 0.05 * 100) / 100;
   const balance = Math.max(bookingTotal + extraChargesNum + gstAmount - advPaid - newAdvance, 0);
 
@@ -1923,20 +1926,10 @@ function CheckinForm({
         });
       }
 
-      // 5b. Early check-in charge (if applicable).
-      if (earlyFee > 0) {
-        await api("/api/v1/charges", {
-          method: "POST",
-          body: {
-            booking_id: booking.id,
-            category: "other",
-            description: "Early check-in fee",
-            quantity: 1,
-            rate: earlyFee.toString(),
-            apply_gst: false,
-          },
-        });
-      }
+      // NOTE: early_fee is passed directly in the CheckInRequest body above;
+      // the backend (stay.check_in) adds it to booking.total_amount and
+      // booking.due_amount. Do NOT also post a /charges for it — that would
+      // double-charge the guest.
 
       // 6. Collect advance payment if provided and confirmed by staff
       if (paymentReceived && newAdvance > 0) {
@@ -2114,9 +2107,11 @@ function CheckinForm({
             </div>
           </div>
 
-          {/* Document uploads — pre-filled from B2 for returning guests */}
+          {/* Document uploads — pre-filled from B2; key=guestId+side prevents
+              stale blob from prior session leaking into a re-opened booking. */}
           <div className="grid grid-cols-3 gap-3">
             <DocUpload
+              key={`${booking.primary_guest_id}-front`}
               guestId={booking.primary_guest_id ?? null}
               side="front"
               label={t("uploadFrontFace")}
@@ -2125,6 +2120,7 @@ function CheckinForm({
               onOcrResult={(result) => setPgOcrResult(result)}
             />
             <DocUpload
+              key={`${booking.primary_guest_id}-back`}
               guestId={booking.primary_guest_id ?? null}
               side="back"
               label={t("uploadBackFace")}
@@ -2137,6 +2133,7 @@ function CheckinForm({
               }}
             />
             <DocUpload
+              key={`${booking.primary_guest_id}-selfie`}
               guestId={booking.primary_guest_id ?? null}
               side="selfie"
               label={t("selfieCapture")}
@@ -2695,6 +2692,21 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     staleTime: 5 * 60_000,
   });
 
+  // Hotel GST settings for accurate payment breakdown.
+  const gstSettings = useQuery({
+    queryKey: ["hotel-gst", activeHotelId],
+    queryFn: () =>
+      api<{ default_cgst_rate: string; default_sgst_rate: string }>(
+        "/api/v1/hotels/me/gst",
+      ),
+    enabled: !!activeHotelId,
+    staleTime: 5 * 60_000,
+  });
+  // Total rate = CGST + SGST. Falls back to 5 if data not yet loaded.
+  const hotelGstRate =
+    Number.parseFloat(gstSettings.data?.default_cgst_rate ?? "0") +
+    Number.parseFloat(gstSettings.data?.default_sgst_rate ?? "0") || 5;
+
   // Default the time inputs from hotel settings once loaded (unless edited).
   useEffect(() => {
     const s = settings.data;
@@ -2836,7 +2848,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       .reduce((sum, r) => sum + Number.parseFloat(r.room_type_base_price) * nights, 0);
   }, [availData, selectedRooms, nights]);
   const extraChargesNumWI = Number.parseFloat(extraCharges || "0") || 0;
-  const gstAmountWI = Math.round((roomRentWalkIn + extraChargesNumWI) * 0.05 * 100) / 100;
+  const gstAmountWI = Math.round((roomRentWalkIn + extraChargesNumWI) * (hotelGstRate / 100) * 100) / 100;
   const remainingWI = Math.max(roomRentWalkIn + extraChargesNumWI + gstAmountWI - newAdvance, 0);
 
   // UPI QR code — fetched as a blob URL when UPI + amount > 0.
@@ -3328,9 +3340,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                 </div>
               </div>
 
-              {/* Document uploads — front & back trigger OCR (back → address only) */}
+              {/* Document uploads — key={guestId+side} so React remounts when
+                  guest changes, clearing stale blob previews from prior guest. */}
               <div className="grid grid-cols-3 gap-3">
                 <DocUpload
+                  key={`${guest.id}-front`}
                   guestId={guest.id}
                   side="front"
                   label={t("uploadFrontFace")}
@@ -3339,19 +3353,20 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   onOcrResult={(result) => setPgOcrResult(result)}
                 />
                 <DocUpload
+                  key={`${guest.id}-back`}
                   guestId={guest.id}
                   side="back"
                   label={t("uploadBackFace")}
                   idType={pgIdType}
                   existingDocId={pgExistingDocs.back}
                   onOcrResult={(result) => {
-                    // Back face: merge address into any existing OCR result.
                     if (result.fields.address) {
                       setPgAddress((prev) => prev || (result.fields.address ?? ""));
                     }
                   }}
                 />
                 <DocUpload
+                  key={`${guest.id}-selfie`}
                   guestId={guest.id}
                   side="selfie"
                   label={t("selfieCapture")}
@@ -3581,7 +3596,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               <p className="text-sm font-bold tabular-nums">₹{newAdvance.toFixed(2)}</p>
             </div>
             <div className="space-y-1 text-center">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">GST (5%)</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">GST ({hotelGstRate}%)</p>
               <p className="text-sm font-bold tabular-nums">₹{gstAmountWI.toFixed(2)}</p>
             </div>
             <div className="space-y-1 text-center">
