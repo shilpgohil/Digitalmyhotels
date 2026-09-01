@@ -7,14 +7,13 @@
  */
 
 import { cookies } from "next/headers";
-import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 const BACKEND = (process.env.API_PROXY_TARGET ?? "http://127.0.0.1:8001").replace(/\/$/, "");
 const COOKIE_NAME = "dmh_refresh";
 const COOKIE_PATH = "/api/v1/auth";
 
-export async function POST(_req: NextRequest): Promise<NextResponse> {
+export async function POST(): Promise<NextResponse> {
   const jar = await cookies();
   const raw = jar.get(COOKIE_NAME)?.value;
 
