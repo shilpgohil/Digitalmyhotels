@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -44,13 +45,28 @@ import type { CheckOutOut, CurrentGuestOut } from "@/types/stay";
 import type { BookingOut } from "@/types/stay";
 import type { ChargeOut, PaymentOut } from "@/types/money";
 import {
-  CHARGE_LABELS,
   activeCharges,
   computeSettlement,
   fmtMoney as fmt,
   money,
   nonDepositPayments as filterNonDepositPayments,
 } from "@/components/stay/checkout-summary";
+
+/** Charge categories with a translated label in money.category_*. */
+const KNOWN_CHARGE_CATEGORIES = [
+  "food",
+  "laundry",
+  "room_service",
+  "extra_bed",
+  "minibar",
+  "transport",
+  "restaurant",
+  "damage",
+  "other",
+] as const;
+
+/** Payment purposes with a translated label in money.purpose_*. */
+const KNOWN_PAYMENT_PURPOSES = ["advance", "stay", "deposit", "charge", "other"] as const;
 
 interface HotelQr {
   qr_available: boolean;
@@ -70,10 +86,27 @@ export function CheckoutDialog({
   readonly onClose: () => void;
   readonly onDone: () => void;
 }) {
+  const t = useTranslations("checkoutPage");
+  const ts = useTranslations("stay");
+  const tc = useTranslations("common");
+  const tm = useTranslations("money");
+  const ti = useTranslations("invoices");
   const api = useApi();
   const { activeHotelId, can } = useAuth();
   // Raw UPI ID is restricted — workers may see the QR but never the raw ID.
   const canViewUpiId = can(PERMISSIONS.hotelViewUpiId);
+
+  /** Translated label for a charge category (falls back to the raw code). */
+  const chargeLabel = (category: string) =>
+    (KNOWN_CHARGE_CATEGORIES as readonly string[]).includes(category)
+      ? tm(`category_${category}`)
+      : category;
+
+  /** Translated label for a payment purpose (falls back to the raw code). */
+  const purposeLabel = (purpose: string) =>
+    (KNOWN_PAYMENT_PURPOSES as readonly string[]).includes(purpose)
+      ? tm(`purpose_${purpose}`)
+      : purpose;
   const [step, setStep] = useState<Step>("bill");
   const [isLate, setIsLate] = useState(false);
   const [lateFee, setLateFee] = useState("0");
@@ -203,7 +236,7 @@ export function CheckoutDialog({
           purpose: "stay",
         },
       }),
-    onError: (e) => setError(e instanceof ApiError ? e.message : "Payment failed"),
+    onError: (e) => setError(e instanceof ApiError ? e.message : t("paymentFailed")),
   });
 
   const checkoutMutation = useMutation({
@@ -224,7 +257,7 @@ export function CheckoutDialog({
       setError(null);
       onDone();
     },
-    onError: (e) => setError(e instanceof ApiError ? e.message : "Checkout failed"),
+    onError: (e) => setError(e instanceof ApiError ? e.message : t("checkoutFailed")),
   });
 
   const handleCollectAndCheckout = async () => {
@@ -242,7 +275,7 @@ export function CheckoutDialog({
 
   const handleCheckoutWithDue = async () => {
     if (!dueReason.trim()) {
-      setError("A reason is required to authorize checkout with outstanding balance.");
+      setError(t("dueReasonRequired"));
       return;
     }
     setError(null);
@@ -258,9 +291,9 @@ export function CheckoutDialog({
         body: { booking_id: checkoutResult.booking_id, interstate: false },
       });
       setInvoiceId(inv.id);
-      toast.success("Invoice generated");
+      toast.success(ti("generated"));
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Invoice generation failed");
+      toast.error(e instanceof ApiError ? e.message : t("invoiceGenerationFailed"));
     } finally {
       setGeneratingInvoice(false);
     }
@@ -294,12 +327,12 @@ export function CheckoutDialog({
             {step === "success" ? (
               <>
                 <BadgeCheck className="size-5 text-green-600" aria-hidden />
-                Guest Checked Out
+                {t("guestCheckedOut")}
               </>
             ) : (
               <>
                 <IndianRupee className="size-4 text-gold-600" aria-hidden />
-                Check Out — {entry?.booking_number}
+                {ts("checkOutAction")} — {entry?.booking_number}
               </>
             )}
           </DialogTitle>
@@ -320,16 +353,19 @@ export function CheckoutDialog({
                 <div className="rounded-xl bg-navy-900 px-4 py-3 text-white">
                   <p className="font-semibold">{entry?.primary_guest_name}</p>
                   <p className="text-xs text-white/70 mt-0.5">
-                    Room {entry?.rooms.join(", ")} ·{" "}
-                    {booking
-                      ? Math.max(
-                          (new Date(booking.check_out_date).getTime() -
-                            new Date(booking.check_in_date).getTime()) /
-                            86_400_000,
-                          1,
-                        )
-                      : "—"}{" "}
-                    night(s)
+                    {t("roomNights", {
+                      rooms: entry?.rooms.join(", ") ?? "",
+                      nights: booking
+                        ? String(
+                            Math.max(
+                              (new Date(booking.check_out_date).getTime() -
+                                new Date(booking.check_in_date).getTime()) /
+                                86_400_000,
+                              1,
+                            ),
+                          )
+                        : "—",
+                    })}
                   </p>
                 </div>
 
@@ -338,7 +374,7 @@ export function CheckoutDialog({
                   {/* Room charges */}
                   {roomChargesTotal > 0 && (
                     <div className="flex items-center justify-between px-4 py-2.5 text-sm">
-                      <span className="text-muted-foreground">Room charges</span>
+                      <span className="text-muted-foreground">{t("roomCharges")}</span>
                       <span className="font-medium tabular-nums">{fmt(roomChargesTotal)}</span>
                     </div>
                   )}
@@ -347,7 +383,7 @@ export function CheckoutDialog({
                   {charges.map((c) => (
                     <div key={c.id} className="flex items-center justify-between px-4 py-2 text-sm">
                       <span className="text-muted-foreground">
-                        {CHARGE_LABELS[c.category] ?? c.category}: {c.description}
+                        {chargeLabel(c.category)}: {c.description}
                         {c.quantity > 1 && (
                           <span className="ml-1 text-xs">×{c.quantity}</span>
                         )}
@@ -359,14 +395,14 @@ export function CheckoutDialog({
                   {/* Late fee */}
                   {isLate && lateFeeNum > 0 && (
                     <div className="flex items-center justify-between px-4 py-2 text-sm text-orange-600">
-                      <span>Late checkout fee</span>
+                      <span>{ts("lateFee")}</span>
                       <span className="tabular-nums">{fmt(lateFeeNum)}</span>
                     </div>
                   )}
 
                   {/* Total */}
                   <div className="flex items-center justify-between px-4 py-3 bg-muted/30 font-semibold text-sm">
-                    <span>Total</span>
+                    <span>{t("total")}</span>
                     <span className="tabular-nums">{fmt(finalTotal)}</span>
                   </div>
 
@@ -375,7 +411,7 @@ export function CheckoutDialog({
                     <div className="px-4 py-2 space-y-1">
                       {nonDepositPayments.map((p) => (
                         <div key={p.id} className="flex items-center justify-between text-sm text-green-700">
-                          <span>Paid ({p.method.toUpperCase()}, {p.purpose})</span>
+                          <span>{t("paidWith", { method: p.method.toUpperCase(), purpose: purposeLabel(p.purpose) })}</span>
                           <span className="tabular-nums">−{fmt(money(p.amount))}</span>
                         </div>
                       ))}
@@ -385,7 +421,7 @@ export function CheckoutDialog({
                   {/* Security deposit */}
                   {secDeposit > 0 && (
                     <div className="flex items-center justify-between px-4 py-2 text-sm text-green-700">
-                      <span>Security deposit applied</span>
+                      <span>{t("securityDepositApplied")}</span>
                       <span className="tabular-nums">−{fmt(secDeposit)}</span>
                     </div>
                   )}
@@ -403,10 +439,10 @@ export function CheckoutDialog({
                   >
                     <span>
                       {balance > 0
-                        ? "Balance due from guest"
+                        ? t("balanceDueFromGuest")
                         : refundAmt > 0
-                        ? "Refund to guest"
-                        : "Fully paid ✓"}
+                        ? t("refundToGuest")
+                        : t("fullyPaid")}
                     </span>
                     <span className="tabular-nums text-base">
                       {balance > 0 ? fmt(balance) : refundAmt > 0 ? fmt(refundAmt) : "₹0.00"}
@@ -423,11 +459,11 @@ export function CheckoutDialog({
                       checked={isLate}
                       onChange={(e) => setIsLate(e.target.checked)}
                     />
-                    <span className="font-medium">Late checkout</span>
+                    <span className="font-medium">{ts("lateCheckout")}</span>
                   </label>
                   {isLate && (
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Late Checkout Fee (₹)</Label>
+                      <Label className="text-xs">{t("lateCheckoutFee")}</Label>
                       <Input
                         type="number"
                         min={0}
@@ -448,7 +484,7 @@ export function CheckoutDialog({
 
                 {/* Footer */}
                 <div className="flex items-center justify-between gap-2 pt-1">
-                  <Button variant="outline" onClick={onClose}>Cancel</Button>
+                  <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
                   <Button
                     className="bg-navy-900 text-white hover:bg-navy-900/90"
                     onClick={() => {
@@ -464,7 +500,7 @@ export function CheckoutDialog({
                     {isPending ? (
                       <Loader2 className="size-4 animate-spin mr-2" aria-hidden />
                     ) : null}
-                    {balance > 0 ? `Collect ${fmt(balance)} →` : refundAmt > 0 ? `Process Refund ${fmt(refundAmt)} →` : "Check Out"}
+                    {balance > 0 ? t("collectAmount", { amount: fmt(balance) }) : refundAmt > 0 ? t("processRefundAmount", { amount: fmt(refundAmt) }) : ts("checkOutAction")}
                   </Button>
                 </div>
               </>
@@ -481,17 +517,17 @@ export function CheckoutDialog({
               className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
             >
               <ChevronLeft className="size-4" aria-hidden />
-              Back to bill
+              {t("backToBill")}
             </button>
 
             {refundAmt > 0 ? (
               /* Refund mode */
               <div className="rounded-xl border p-4 space-y-4">
                 <p className="text-sm font-semibold text-green-700">
-                  Guest paid more than billed — issue refund of {fmt(refundAmt)}
+                  {t("refundIssueMsg", { amount: fmt(refundAmt) })}
                 </p>
                 <div className="space-y-1.5">
-                  <Label>Refund method</Label>
+                  <Label>{t("refundMethod")}</Label>
                   <div className="flex gap-2">
                     {(["cash", "upi"] as const).map((m) => (
                       <button
@@ -512,7 +548,7 @@ export function CheckoutDialog({
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Refund amount (₹)</Label>
+                  <Label>{t("refundAmountLabel")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -531,30 +567,30 @@ export function CheckoutDialog({
                   disabled={isPending}
                 >
                   {isPending ? <Loader2 className="size-4 animate-spin mr-2" aria-hidden /> : null}
-                  Check Out + Process Refund
+                  {t("checkOutProcessRefund")}
                 </Button>
               </div>
             ) : (
               /* Collection mode */
               <div className="space-y-4">
                 <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-semibold text-red-700">
-                  Balance due: {fmt(balance)}
+                  {t("balanceDue", { amount: fmt(balance) })}
                 </div>
 
                 {/* Option A: Collect now */}
                 <div className="rounded-xl border p-4 space-y-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Collect payment from guest
+                    {t("collectPaymentFromGuest")}
                   </p>
 
                   {/* Payment method buttons — all methods for record keeping */}
                   <div className="grid grid-cols-3 gap-2">
                     {([
-                      { id: "cash",          label: "Cash",        icon: BanknoteIcon },
-                      { id: "upi",           label: "UPI / QR",    icon: QrCode },
-                      { id: "card",          label: "Card",        icon: IndianRupee },
-                      { id: "bank_transfer", label: "Net Banking",  icon: IndianRupee },
-                      { id: "other",         label: "Other",       icon: IndianRupee },
+                      { id: "cash",          label: tm("cash"),         icon: BanknoteIcon },
+                      { id: "upi",           label: t("upiQrOption"),   icon: QrCode },
+                      { id: "card",          label: tm("card"),         icon: IndianRupee },
+                      { id: "bank_transfer", label: tm("bankTransfer"), icon: IndianRupee },
+                      { id: "other",         label: tm("otherMethod"),  icon: IndianRupee },
                     ] as const).map(({ id, label, icon: Icon }) => (
                       <button
                         key={id}
@@ -585,7 +621,7 @@ export function CheckoutDialog({
                         onClick={() => setShowQr(!showQr)}
                         className="text-xs text-gold-600 font-medium underline"
                       >
-                        {showQr ? "Hide QR Code" : "Show UPI QR Code"}
+                        {showQr ? t("hideQr") : t("showUpiQr")}
                       </button>
                       {showQr && (
                         <div className="flex flex-col items-center rounded-xl border bg-white p-4 gap-3 shadow-sm">
@@ -596,17 +632,17 @@ export function CheckoutDialog({
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={qrImageQuery.data}
-                                alt="UPI QR Code"
+                                alt={t("upiQrAlt")}
                                 className="h-44 w-44 rounded-lg object-contain"
                               />
                               <p className="text-sm font-semibold text-navy-900 text-center">
-                                {qrInfoQuery.data?.payment_label ?? "Scan to pay via UPI"}
+                                {qrInfoQuery.data?.payment_label ?? t("scanToPay")}
                               </p>
                               {/* UPI ID — restricted to owner/admin (canViewUpiId) */}
                               {canViewUpiId && upiConfigQuery.data?.upi_id && (
                                 <div className="flex items-center gap-2 rounded-lg border border-dashed border-gold-400 bg-gold-50 px-3 py-2">
                                   <span className="text-[10px] font-semibold text-gold-700 uppercase tracking-wide shrink-0">
-                                    UPI ID
+                                    {t("upiId")}
                                   </span>
                                   <span className="font-mono text-sm font-semibold text-navy-900 select-all">
                                     {upiConfigQuery.data.upi_id}
@@ -614,16 +650,16 @@ export function CheckoutDialog({
                                 </div>
                               )}
                               <p className="text-[11px] text-muted-foreground text-center">
-                                Ask guest to scan QR or pay to the UPI ID above
+                                {t("askScanQr")}
                               </p>
                             </>
                           ) : (
                             <div className="text-center py-4">
                               <QrCode className="size-10 text-muted-foreground/30 mx-auto mb-2" aria-hidden />
                               <p className="text-xs text-muted-foreground">
-                                UPI QR not configured.
+                                {t("qrNotConfigured")}
                                 <br />
-                                Set it up in Settings → Payments.
+                                {t("qrSetupHint")}
                               </p>
                             </div>
                           )}
@@ -635,12 +671,12 @@ export function CheckoutDialog({
                   {/* Card / Net Banking manual note */}
                   {(payMethod === "card" || payMethod === "bank_transfer" || payMethod === "other") && !allowDue && (
                     <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-700">
-                      Manual record — collect {payMethod === "card" ? "via POS/card machine" : payMethod === "bank_transfer" ? "via net banking" : "payment"} from guest and record here for your accounts.
+                      {payMethod === "card" ? t("manualRecordCard") : payMethod === "bank_transfer" ? t("manualRecordBank") : t("manualRecordOther")}
                     </div>
                   )}
 
                   <div className="space-y-1.5">
-                    <Label>Amount to collect (₹)</Label>
+                    <Label>{t("amountToCollect")}</Label>
                     <Input
                       type="number"
                       min={0}
@@ -666,16 +702,16 @@ export function CheckoutDialog({
                       }}
                     />
                     <span className="font-medium text-orange-700">
-                      Checkout with outstanding balance (corporate/later billing)
+                      {t("checkoutWithBalance")}
                     </span>
                   </label>
                   {allowDue && (
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Reason *</Label>
+                      <Label className="text-xs">{t("reasonRequired")}</Label>
                       <Input
                         value={dueReason}
                         onChange={(e) => setDueReason(e.target.value)}
-                        placeholder="e.g. Corporate billing, Guest will pay online..."
+                        placeholder={t("dueReasonPlaceholder")}
                         required
                       />
                     </div>
@@ -695,8 +731,8 @@ export function CheckoutDialog({
                 >
                   {isPending ? <Loader2 className="size-4 animate-spin mr-2" aria-hidden /> : null}
                   {allowDue
-                    ? "Check Out with Outstanding Balance"
-                    : `Collect ${fmt(parseFloat(payAmount) || 0)} & Check Out`}
+                    ? t("checkOutWithOutstanding")
+                    : t("collectAndCheckOut", { amount: fmt(parseFloat(payAmount) || 0) })}
                 </Button>
               </div>
             )}
@@ -710,7 +746,7 @@ export function CheckoutDialog({
               <BadgeCheck className="size-8 text-green-600" aria-hidden />
             </div>
             <div>
-              <p className="font-bold text-lg">Guest Checked Out</p>
+              <p className="font-bold text-lg">{t("guestCheckedOut")}</p>
               <p className="text-sm text-muted-foreground mt-0.5">
                 {entry?.primary_guest_name} · {checkoutResult.booking_number}
               </p>
@@ -719,35 +755,35 @@ export function CheckoutDialog({
             {/* Summary */}
             <div className="rounded-xl border divide-y text-left text-sm">
               <div className="flex justify-between px-4 py-2">
-                <span className="text-muted-foreground">Final total</span>
+                <span className="text-muted-foreground">{ts("finalTotal")}</span>
                 <span className="font-semibold">{fmt(money(checkoutResult.final_total))}</span>
               </div>
               <div className="flex justify-between px-4 py-2">
-                <span className="text-muted-foreground">Paid</span>
+                <span className="text-muted-foreground">{ts("paid")}</span>
                 <span className="text-green-700 font-semibold">{fmt(money(checkoutResult.paid_amount))}</span>
               </div>
               {money(checkoutResult.due_amount) > 0 && (
                 <div className="flex justify-between px-4 py-2">
-                  <span className="text-muted-foreground">Outstanding (authorized)</span>
+                  <span className="text-muted-foreground">{t("outstandingAuthorized")}</span>
                   <span className="text-orange-600 font-semibold">{fmt(money(checkoutResult.due_amount))}</span>
                 </div>
               )}
               {money(checkoutResult.refund_amount) > 0 && (
                 <div className="flex justify-between px-4 py-2">
-                  <span className="text-muted-foreground">Refund due to guest</span>
+                  <span className="text-muted-foreground">{t("refundDueToGuest")}</span>
                   <span className="text-blue-600 font-semibold">{fmt(money(checkoutResult.refund_amount))}</span>
                 </div>
               )}
               <div className="flex justify-between px-4 py-2">
-                <span className="text-muted-foreground">Room</span>
-                <span className="text-xs text-muted-foreground">Now in cleaning queue</span>
+                <span className="text-muted-foreground">{t("room")}</span>
+                <span className="text-xs text-muted-foreground">{t("nowInCleaningQueue")}</span>
               </div>
             </div>
 
             {/* Invoice generation */}
             {invoiceId ? (
               <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700 font-medium">
-                ✓ Invoice generated
+                ✓ {ti("generated")}
               </div>
             ) : (
               <button
@@ -757,7 +793,7 @@ export function CheckoutDialog({
                 className="inline-flex items-center gap-2 w-full justify-center rounded-xl border border-gold-400 px-4 py-2.5 text-sm font-semibold text-gold-700 hover:bg-gold-50 transition-colors disabled:opacity-50"
               >
                 <FileText className="size-4" aria-hidden />
-                {generatingInvoice ? "Generating…" : "Generate Invoice"}
+                {generatingInvoice ? t("generating") : ti("generate")}
               </button>
             )}
 
@@ -768,7 +804,7 @@ export function CheckoutDialog({
                 setStep("bill");
               }}
             >
-              Done
+              {t("done")}
             </Button>
           </div>
         )}

@@ -341,3 +341,62 @@ async def render_invoice_pdf(
     summary_row("Due", f"{invoice.due_amount}", bold=True)
 
     return bytes(pdf.output())
+
+
+async def email_invoice(
+    db: AsyncSession,
+    tenant: TenantContext,
+    invoice_id: UUID,
+    *,
+    correlation_id: str | None = None,
+) -> str:
+    """Email the invoice PDF to the guest. Returns the recipient address."""
+    from app.integrations.email.base import EmailAttachment, EmailMessage, get_email_backend
+    from app.models.guest import Guest
+
+    invoice = await get_invoice(db, tenant, invoice_id)
+    booking = await db.get(Booking, invoice.booking_id)
+    guest = (
+        await db.get(Guest, booking.primary_guest_id)
+        if booking and booking.primary_guest_id
+        else None
+    )
+    if guest is None or not guest.email:
+        raise ValidationAppError(
+            "Guest has no email address on file — add one to the guest profile first",
+            code="guest_no_email",
+        )
+
+    hotel = await db.get(Hotel, tenant.require_hotel())
+    hotel_name = hotel.name if hotel else "Your hotel"
+    pdf_bytes = await render_invoice_pdf(db, tenant, invoice_id)
+
+    await get_email_backend().send(
+        EmailMessage(
+            to=guest.email,
+            subject=f"Invoice {invoice.invoice_number} — {hotel_name}",
+            body_text=(
+                f"Dear {guest.full_name},\n\n"
+                f"Please find attached your invoice {invoice.invoice_number} "
+                f"for your stay at {hotel_name}.\n\n"
+                f"Total: INR {invoice.total_amount}\n\n"
+                f"Thank you for staying with us."
+            ),
+            attachments=[
+                EmailAttachment(
+                    filename=f"{invoice.invoice_number}.pdf", content=pdf_bytes
+                )
+            ],
+        )
+    )
+    await write_audit(
+        db,
+        action="invoices.emailed",
+        entity_type="invoice",
+        entity_id=invoice.id,
+        actor_id=tenant.user_id,
+        hotel_id=tenant.hotel_id,
+        after={"invoice_number": invoice.invoice_number, "to": guest.email},
+        correlation_id=correlation_id,
+    )
+    return guest.email

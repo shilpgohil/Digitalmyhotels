@@ -25,6 +25,7 @@ import {
   ScrollText,
   UtensilsCrossed,
   ReceiptText,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -126,6 +127,12 @@ const SECTIONS: NavSection[] = [
         href: "/restaurant-billing",
         labelKey: "restaurantBilling",
         icon: UtensilsCrossed,
+        permission: PERMISSIONS.financialReports,
+      },
+      {
+        href: "/gst-tax",
+        labelKey: "gstTax",
+        icon: Landmark,
         permission: PERMISSIONS.financialReports,
       },
       {

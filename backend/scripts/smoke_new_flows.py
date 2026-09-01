@@ -46,7 +46,8 @@ async def login(client: httpx.AsyncClient, email: str) -> dict:
 
 
 async def main() -> None:
-    suffix = uuid.uuid4().hex[:6]
+    # Digits-only suffix — used in phone numbers, which reject hex letters.
+    suffix = str(uuid.uuid4().int)[:6]
     today = date.today()
     async with httpx.AsyncClient(timeout=30) as client:
         h = await login(client, OWNER)

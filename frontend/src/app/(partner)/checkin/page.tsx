@@ -33,6 +33,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -89,6 +90,9 @@ import { PERMISSIONS } from "@/lib/permissions";
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
+/** Which face of an ID document (or selfie) a tile handles. */
+type DocSide = "front" | "back" | "selfie";
+
 interface ServiceItem {
   id: string;
   name: string;
@@ -101,7 +105,7 @@ interface ResolvedCoGuest {
   guest_id: string;
   full_name: string;
   /** Docs queued for upload after guest is created/resolved. */
-  docs: { side: "front" | "back" | "selfie"; file: File }[];
+  docs: { side: DocSide; file: File }[];
 }
 
 /** Editable Form C fields — all strings so inputs stay controlled. */
@@ -217,6 +221,19 @@ function readDraft(): CheckinDraft | null {
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
 
+/**
+ * Pure state-updater factory shared by both check-in forms: writes `guest`
+ * into the co-guest slot matching `key`'s position within `keys`.
+ */
+function resolveCoGuestUpdater(keys: number[], key: number, guest: ResolvedCoGuest) {
+  return (prev: ResolvedCoGuest[]): ResolvedCoGuest[] => {
+    const idx = keys.indexOf(key);
+    const next = [...prev];
+    next[idx] = guest;
+    return next;
+  };
+}
+
 /** Mask an ID number, keeping only the last 4 characters visible. */
 function maskIdValue(v: string): string {
   if (!v) return "";
@@ -244,6 +261,7 @@ function MaskedIdInput({
   readonly placeholder?: string;
   readonly trailing?: React.ReactNode;
 }) {
+  const t = useTranslations("checkin");
   const [show, setShow] = useState(false);
   const [focused, setFocused] = useState(false);
   const masked = !show && !focused;
@@ -258,8 +276,7 @@ function MaskedIdInput({
             className="size-3 rounded border-input"
             checked={show}
             onChange={(e) => setShow(e.target.checked)}
-          />
-          Show
+          />{t("show")}
         </label>
       </div>
       <div className="flex gap-2">
@@ -291,6 +308,8 @@ function InlineCameraCapture({
   readonly onCapture: (file: File) => void;
   readonly onClose: () => void;
 }) {
+  const t = useTranslations("checkin");
+  const tc = useTranslations("common");
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const onCloseRef = useRef(onClose);
@@ -319,16 +338,16 @@ function InlineCameraCapture({
         }
         setReady(true);
       } catch {
-        toast.error("Camera unavailable — use the file upload instead");
+        toast.error(t("cameraUnavailable"));
         onCloseRef.current();
       }
     })();
     return () => {
       cancelled = true;
-      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     };
-  }, []);
+  }, [t]);
 
   const capture = () => {
     const video = videoRef.current;
@@ -340,7 +359,7 @@ function InlineCameraCapture({
     canvas.toBlob(
       (blob) => {
         if (!blob) {
-          toast.error("Could not capture photo");
+          toast.error(t("captureFailed"));
           return;
         }
         onCapture(new File([blob], "selfie.jpg", { type: "image/jpeg" }));
@@ -368,14 +387,14 @@ function InlineCameraCapture({
           className="flex-1 inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-navy-900 px-2 text-xs font-semibold text-white hover:bg-navy-900/90 disabled:opacity-50"
         >
           <Camera className="size-3.5" aria-hidden />
-          Capture
+          {t("capture")}
         </button>
         <button
           type="button"
           onClick={onClose}
           className="inline-flex h-8 items-center justify-center rounded-lg border px-2 text-xs font-medium hover:bg-muted"
         >
-          Cancel
+          {tc("cancel")}
         </button>
       </div>
     </div>
@@ -390,12 +409,13 @@ function SelectedServicesList({
   readonly services: ServiceItem[];
   readonly selectedIds: string[];
 }) {
+  const t = useTranslations("checkin");
   const chosen = services.filter((s) => selectedIds.includes(s.id));
   if (chosen.length === 0) return null;
   return (
     <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
       <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        Selected special requirements
+        {t("selectedRequirements")}
       </p>
       <ul className="space-y-1">
         {chosen.map((s) => (
@@ -424,6 +444,8 @@ function ForeignGuestSection({
   readonly value: ForeignGuestFormState;
   readonly onChange: (v: ForeignGuestFormState) => void;
 }) {
+  const t = useTranslations("checkin");
+  const ts = useTranslations("stay");
   const set = (k: keyof ForeignGuestFormState, v: string) =>
     onChange({ ...value, [k]: v });
 
@@ -438,39 +460,39 @@ function ForeignGuestSection({
           checked={enabled}
           onChange={(e) => onEnabledChange(e.target.checked)}
         />
-        <span className="font-medium">Foreign guest (passport/visa details)</span>
+        <span className="font-medium">{t("foreignGuestToggle")}</span>
       </label>
 
       {enabled && (
         <div className="rounded-xl border bg-muted/10 p-4 space-y-5">
           <div className="flex items-center gap-2">
             <Globe className="size-4 text-gold-600" aria-hidden />
-            <p className="text-sm font-semibold">Foreign Guest Details (Form C)</p>
+            <p className="text-sm font-semibold">{t("foreignGuestDetails")}</p>
           </div>
 
           {/* Passport */}
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground">Passport</p>
+            <p className="text-xs font-semibold text-muted-foreground">{t("passport")}</p>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <Label className={lbl}>Passport Number *</Label>
+                <Label className={lbl}>{t("passportNumber")} *</Label>
                 <Input
                   value={value.passport_number}
                   onChange={(e) => set("passport_number", e.target.value)}
-                  placeholder="Passport number"
+                  placeholder={t("passportNumber")}
                   required
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className={lbl}>Place of Issue</Label>
+                <Label className={lbl}>{t("placeOfIssue")}</Label>
                 <Input
                   value={value.passport_place_of_issue}
                   onChange={(e) => set("passport_place_of_issue", e.target.value)}
-                  placeholder="Place of issue"
+                  placeholder={t("placeOfIssue")}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className={lbl}>Passport Expiry</Label>
+                <Label className={lbl}>{t("passportExpiry")}</Label>
                 <DateInput
                   value={value.passport_expiry}
                   onChange={(v) => set("passport_expiry", v)}
@@ -481,42 +503,42 @@ function ForeignGuestSection({
 
           {/* Visa */}
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground">Visa</p>
+            <p className="text-xs font-semibold text-muted-foreground">{t("visa")}</p>
             <div className="grid gap-3 sm:grid-cols-4">
               <div className="space-y-1.5">
-                <Label className={lbl}>Visa Number</Label>
+                <Label className={lbl}>{t("visaNumber")}</Label>
                 <Input
                   value={value.visa_number}
                   onChange={(e) => set("visa_number", e.target.value)}
-                  placeholder="Visa number"
+                  placeholder={t("visaNumber")}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className={lbl}>Visa Type</Label>
+                <Label className={lbl}>{t("visaType")}</Label>
                 <select
                   value={value.visa_type}
                   onChange={(e) => set("visa_type", e.target.value)}
                   className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                 >
-                  <option value="">— Select —</option>
-                  <option value="Tourist">Tourist</option>
-                  <option value="Business">Business</option>
-                  <option value="Medical">Medical</option>
-                  <option value="Student">Student</option>
-                  <option value="Employment">Employment</option>
-                  <option value="Other">Other</option>
+                  <option value="">{t("selectOption")}</option>
+                  <option value="Tourist">{t("visa_tourist")}</option>
+                  <option value="Business">{t("visa_business")}</option>
+                  <option value="Medical">{t("visa_medical")}</option>
+                  <option value="Student">{t("visa_student")}</option>
+                  <option value="Employment">{t("visa_employment")}</option>
+                  <option value="Other">{t("visa_other")}</option>
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label className={lbl}>Place of Issue</Label>
+                <Label className={lbl}>{t("placeOfIssue")}</Label>
                 <Input
                   value={value.visa_place_of_issue}
                   onChange={(e) => set("visa_place_of_issue", e.target.value)}
-                  placeholder="Place of issue"
+                  placeholder={t("placeOfIssue")}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className={lbl}>Visa Expiry</Label>
+                <Label className={lbl}>{t("visaExpiry")}</Label>
                 <DateInput
                   value={value.visa_expiry}
                   onChange={(v) => set("visa_expiry", v)}
@@ -527,30 +549,30 @@ function ForeignGuestSection({
 
           {/* Personal */}
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground">Personal</p>
+            <p className="text-xs font-semibold text-muted-foreground">{t("personal")}</p>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <Label className={lbl}>Place of Birth</Label>
+                <Label className={lbl}>{t("placeOfBirth")}</Label>
                 <Input
                   value={value.place_of_birth}
                   onChange={(e) => set("place_of_birth", e.target.value)}
-                  placeholder="Place of birth"
+                  placeholder={t("placeOfBirth")}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className={lbl}>Country of Birth</Label>
+                <Label className={lbl}>{t("countryOfBirth")}</Label>
                 <Input
                   value={value.country_of_birth}
                   onChange={(e) => set("country_of_birth", e.target.value)}
-                  placeholder="Country of birth"
+                  placeholder={t("countryOfBirth")}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className={lbl}>Nationality</Label>
+                <Label className={lbl}>{t("nationality")}</Label>
                 <Input
                   value={value.nationality}
                   onChange={(e) => set("nationality", e.target.value)}
-                  placeholder="Nationality"
+                  placeholder={t("nationality")}
                 />
               </div>
             </div>
@@ -558,61 +580,61 @@ function ForeignGuestSection({
 
           {/* Journey */}
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground">Journey</p>
+            <p className="text-xs font-semibold text-muted-foreground">{t("journey")}</p>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <Label className={lbl}>Arrived in India On</Label>
+                <Label className={lbl}>{t("arrivedInIndiaOn")}</Label>
                 <DateInput
                   value={value.arrived_in_india_on}
                   onChange={(v) => set("arrived_in_india_on", v)}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className={lbl}>Arrival Place</Label>
+                <Label className={lbl}>{t("arrivalPlace")}</Label>
                 <Input
                   value={value.arrival_place}
                   onChange={(e) => set("arrival_place", e.target.value)}
-                  placeholder="Port / city of arrival"
+                  placeholder={t("phArrivalPort")}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className={lbl}>Coming From (City)</Label>
+                <Label className={lbl}>{t("comingFromCity")}</Label>
                 <Input
                   value={value.coming_from_city}
                   onChange={(e) => set("coming_from_city", e.target.value)}
-                  placeholder="City"
+                  placeholder={t("phCity")}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className={lbl}>Coming From (Country)</Label>
+                <Label className={lbl}>{t("comingFromCountry")}</Label>
                 <Input
                   value={value.coming_from_country}
                   onChange={(e) => set("coming_from_country", e.target.value)}
-                  placeholder="Country"
+                  placeholder={t("phCountry")}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className={lbl}>Next Destination</Label>
+                <Label className={lbl}>{t("nextDestination")}</Label>
                 <Input
                   value={value.next_destination}
                   onChange={(e) => set("next_destination", e.target.value)}
-                  placeholder="City / place"
+                  placeholder={t("phCityPlace")}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className={lbl}>Next Destination Country</Label>
+                <Label className={lbl}>{t("nextDestinationCountry")}</Label>
                 <Input
                   value={value.next_destination_country}
                   onChange={(e) => set("next_destination_country", e.target.value)}
-                  placeholder="Country"
+                  placeholder={t("phCountry")}
                 />
               </div>
               <div className="space-y-1.5 sm:col-span-3">
-                <Label className={lbl}>Purpose of Visit</Label>
+                <Label className={lbl}>{ts("purposeOfVisit")}</Label>
                 <Input
                   value={value.purpose_of_visit}
                   onChange={(e) => set("purpose_of_visit", e.target.value)}
-                  placeholder="Purpose of visit"
+                  placeholder={ts("purposeOfVisit")}
                 />
               </div>
             </div>
@@ -687,12 +709,13 @@ function DocUpload({
   onOcrResult,
 }: {
   readonly guestId: string | null;
-  readonly side: "front" | "back" | "selfie";
+  readonly side: DocSide;
   readonly label: string;
   readonly idType?: string;
   readonly onUploaded?: () => void;
   readonly onOcrResult?: (result: import("@/lib/id-ocr").IdOcrResult) => void;
 }) {
+  const t = useTranslations("checkin");
   const { activeHotelId } = useAuth();
   const [uploaded, setUploaded] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -734,11 +757,40 @@ function DocUpload({
       onUploaded?.();
     } catch (e) {
       setPreview(null);
-      toast.error(e instanceof ApiError ? e.message : "Upload failed");
+      toast.error(e instanceof ApiError ? e.message : t("uploadFailed"));
     } finally {
       setBusy(false);
     }
   };
+
+  // Tile border/background — preview wins, then OCR-in-progress, then idle.
+  let tileStateClass: string;
+  if (preview) {
+    tileStateClass = "border-green-400 p-0 h-28";
+  } else if (ocrRunning) {
+    tileStateClass = "border-gold-400 bg-gold-50 text-gold-700 animate-pulse p-4";
+  } else {
+    tileStateClass = "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4";
+  }
+
+  // Status text — OCR running wins, then uploading; fallback differs per view.
+  let overlayStatusText: string;
+  if (ocrRunning) {
+    overlayStatusText = t("readingId");
+  } else if (busy) {
+    overlayStatusText = t("uploading");
+  } else {
+    overlayStatusText = t("uploaded");
+  }
+
+  let tileLabelText: string;
+  if (ocrRunning) {
+    tileLabelText = t("readingId");
+  } else if (busy) {
+    tileLabelText = t("uploading");
+  } else {
+    tileLabelText = label;
+  }
 
   return (
     <div className="space-y-1.5">
@@ -746,11 +798,7 @@ function DocUpload({
         className={cn(
           "relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 overflow-hidden text-center text-xs transition-colors",
           !guestId && "pointer-events-none opacity-40",
-          preview
-            ? "border-green-400 p-0 h-28"
-            : ocrRunning
-            ? "border-gold-400 bg-gold-50 text-gold-700 animate-pulse p-4"
-            : "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4",
+          tileStateClass,
         )}
       >
         {preview ? (
@@ -759,7 +807,7 @@ function DocUpload({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={preview}
-              alt={side === "selfie" ? "Selfie" : "ID document"}
+              alt={side === "selfie" ? t("selfieAlt") : t("idDocumentAlt")}
               className="h-full w-full object-cover"
             />
             {/* Status overlay */}
@@ -767,17 +815,17 @@ function DocUpload({
               "absolute bottom-0 left-0 right-0 px-2 py-1 text-[10px] font-semibold text-center",
               uploaded ? "bg-green-600/80 text-white" : "bg-gold-500/80 text-navy-900",
             )}>
-              {ocrRunning ? "Reading ID…" : busy ? "Uploading…" : "✓ Uploaded"}
+              {overlayStatusText}
             </div>
           </>
         ) : (
           <>
             <Upload className={cn("size-5", ocrRunning && "animate-spin")} aria-hidden />
             <span className="font-medium">
-              {ocrRunning ? "Reading ID…" : busy ? "Uploading…" : label}
+              {tileLabelText}
             </span>
             {ocrRunning && (
-              <span className="text-[10px] text-gold-600">Extracting details…</span>
+              <span className="text-[10px] text-gold-600">{t("extractingDetails")}</span>
             )}
           </>
         )}
@@ -799,7 +847,7 @@ function DocUpload({
           className="flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-[11px] font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors disabled:opacity-40"
         >
           <Camera className="size-3.5" aria-hidden />
-          Use camera
+          {t("useCamera")}
         </button>
       )}
       {side === "selfie" && cameraOpen && (
@@ -828,19 +876,20 @@ function AutofillBanner({
   readonly onAccept: (fields: import("@/lib/id-ocr").ParsedIdFields) => void;
   readonly onDismiss: () => void;
 }) {
+  const t = useTranslations("checkin");
   if (!result.can_autofill) {
     return (
       <div className="flex items-start gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm">
         <AlertTriangle className="size-4 shrink-0 text-orange-500 mt-0.5" aria-hidden />
         <div className="flex-1">
-          <p className="font-semibold text-orange-700">Unable to Auto-fill</p>
+          <p className="font-semibold text-orange-700">{t("unableAutofill")}</p>
           <p className="mt-0.5 text-orange-600 text-xs">{result.message}</p>
         </div>
         <button
           type="button"
           onClick={onDismiss}
           className="text-orange-400 hover:text-orange-600 text-base leading-none"
-          aria-label="Dismiss"
+          aria-label={t("dismiss")}
         >
           ×
         </button>
@@ -850,11 +899,11 @@ function AutofillBanner({
 
   const { fields } = result;
   const detectedItems = [
-    fields.name && { label: "Name", value: fields.name },
-    fields.id_number && { label: "ID Number", value: fields.id_number },
-    fields.date_of_birth && { label: "Date of Birth", value: fields.date_of_birth },
-    fields.gender && { label: "Gender", value: fields.gender },
-    fields.address && { label: "Address", value: fields.address.slice(0, 60) + (fields.address.length > 60 ? "…" : "") },
+    fields.name && { label: t("fieldName"), value: fields.name },
+    fields.id_number && { label: t("fieldIdNumber"), value: fields.id_number },
+    fields.date_of_birth && { label: t("fieldDob"), value: fields.date_of_birth },
+    fields.gender && { label: t("fieldGender"), value: fields.gender },
+    fields.address && { label: t("fieldAddress"), value: fields.address.slice(0, 60) + (fields.address.length > 60 ? "…" : "") },
   ].filter(Boolean) as { label: string; value: string }[];
 
   const pct = Math.round(result.confidence * 100);
@@ -865,17 +914,17 @@ function AutofillBanner({
         <div className="flex items-center gap-2">
           <BadgeCheck className="size-4 text-green-600" aria-hidden />
           <span className="text-sm font-semibold text-green-800">
-            ID Details Detected
+            {t("idDetected")}
           </span>
           <span className="rounded-full bg-green-200 px-2 py-0.5 text-[10px] font-bold text-green-700">
-            {pct}% confidence
+            {t("confidencePct", { pct })}
           </span>
         </div>
         <button
           type="button"
           onClick={onDismiss}
           className="text-green-400 hover:text-green-600 text-base leading-none"
-          aria-label="Dismiss"
+          aria-label={t("dismiss")}
         >
           ×
         </button>
@@ -897,14 +946,14 @@ function AutofillBanner({
           className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-green-600 px-3 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
         >
           <BadgeCheck className="size-3.5" aria-hidden />
-          Auto-fill Form
+          {t("autofillForm")}
         </button>
         <button
           type="button"
           onClick={onDismiss}
           className="inline-flex h-8 items-center px-3 text-xs font-medium text-green-700 hover:underline"
         >
-          Skip — fill manually
+          {t("skipManual")}
               </button>
             </div>
     </div>
@@ -917,10 +966,11 @@ function QueuedDocUpload({
   label,
   onQueued,
 }: {
-  readonly side: "front" | "back" | "selfie";
+  readonly side: DocSide;
   readonly label: string;
-  readonly onQueued: (side: "front" | "back" | "selfie", file: File) => void;
+  readonly onQueued: (side: DocSide, file: File) => void;
 }) {
+  const t = useTranslations("checkin");
   const [queued, setQueued] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -939,7 +989,7 @@ function QueuedDocUpload({
       setQueued(true);
     } catch {
       setPreview(null);
-      toast.error("Could not process image");
+      toast.error(t("processImageFailed"));
     }
   };
 
@@ -958,11 +1008,11 @@ function QueuedDocUpload({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={preview}
-              alt={side === "selfie" ? "Selfie" : "ID document"}
+              alt={side === "selfie" ? t("selfieAlt") : t("idDocumentAlt")}
               className="h-full w-full object-cover"
             />
             <div className="absolute bottom-0 left-0 right-0 bg-gold-500/80 px-2 py-1 text-[10px] font-semibold text-navy-900 text-center">
-              {queued ? "✓ Ready to upload" : "Processing…"}
+              {queued ? t("readyToUpload") : t("processing")}
             </div>
           </>
         ) : (
@@ -987,7 +1037,7 @@ function QueuedDocUpload({
           className="flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-[11px] font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
         >
           <Camera className="size-3.5" aria-hidden />
-          Use camera
+          {t("useCamera")}
         </button>
       )}
       {side === "selfie" && cameraOpen && (
@@ -1011,13 +1061,16 @@ function AdditionalGuestEntry({
   readonly onResolved: (guest: ResolvedCoGuest) => void;
   readonly onRemove: () => void;
 }) {
+  const t = useTranslations("checkin");
+  const tc = useTranslations("common");
+  const tg = useTranslations("guestPicker");
   const api = useApi();
   const [searchPhone, setSearchPhone] = useState("");
   const [searchResults, setSearchResults] = useState<GuestSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [resolved, setResolved] = useState<ResolvedCoGuest | null>(null);
   const [mode, setMode] = useState<"search" | "form">("search");
-  const [docs, setDocs] = useState<{ side: "front" | "back" | "selfie"; file: File }[]>([]);
+  const [docs, setDocs] = useState<{ side: DocSide; file: File }[]>([]);
   const [coOcrResult, setCoOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
 
   // New guest form state
@@ -1053,7 +1106,7 @@ function AdditionalGuestEntry({
 
   const handleSelectExisting = async (g: GuestSearchResult) => {
     try {
-      const full = await api<GuestAutofill>(`/api/v1/guests/${g.id}/autofill`);
+      const full = await api<GuestAutofill>(`/api/v1/guests/${g.id}/autofill`, { method: "POST" });
       const resolved: ResolvedCoGuest = {
         guest_id: g.id,
         full_name: full.full_name,
@@ -1063,11 +1116,11 @@ function AdditionalGuestEntry({
       onResolved(resolved);
       setSearchResults([]);
     } catch {
-      toast.error("Could not load guest details");
+      toast.error(t("guestLoadFailed"));
     }
   };
 
-  const handleQueueDoc = (side: "front" | "back" | "selfie", file: File) => {
+  const handleQueueDoc = (side: DocSide, file: File) => {
     const newDocs = docs.filter((d) => d.side !== side).concat({ side, file });
     setDocs(newDocs);
     if (resolved) {
@@ -1094,15 +1147,15 @@ function AdditionalGuestEntry({
               onRemove();
             }}
             className="text-danger hover:opacity-70"
-            aria-label="Remove guest"
+            aria-label={t("removeGuest")}
           >
             <Trash2 className="size-4" aria-hidden />
           </button>
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <QueuedDocUpload side="front" label="Upload Front ID" onQueued={handleQueueDoc} />
-          <QueuedDocUpload side="back" label="Upload Back ID" onQueued={handleQueueDoc} />
-          <QueuedDocUpload side="selfie" label="Selfie Capture" onQueued={handleQueueDoc} />
+          <QueuedDocUpload side="front" label={t("uploadFront")} onQueued={handleQueueDoc} />
+          <QueuedDocUpload side="back" label={t("uploadBack")} onQueued={handleQueueDoc} />
+          <QueuedDocUpload side="selfie" label={t("selfieCapture")} onQueued={handleQueueDoc} />
         </div>
       </div>
     );
@@ -1112,13 +1165,13 @@ function AdditionalGuestEntry({
     <div className="rounded-xl border p-4 space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Additional Guest #{idx + 1}
+          {t("additionalGuestN", { n: idx + 1 })}
         </p>
         <button
           type="button"
           onClick={onRemove}
           className="text-danger hover:opacity-70"
-          aria-label="Remove"
+          aria-label={t("remove")}
         >
           <Trash2 className="size-4" aria-hidden />
         </button>
@@ -1134,7 +1187,7 @@ function AdditionalGuestEntry({
             mode === "search" ? "bg-navy-900 text-white" : "hover:bg-muted",
           )}
         >
-          Search Existing
+          {t("searchExisting")}
         </button>
         <button
           type="button"
@@ -1144,7 +1197,7 @@ function AdditionalGuestEntry({
             mode === "form" ? "bg-navy-900 text-white" : "hover:bg-muted",
           )}
         >
-          Create New
+          {t("createNew")}
               </button>
             </div>
 
@@ -1156,14 +1209,14 @@ function AdditionalGuestEntry({
               <Input
                 value={searchPhone}
                 onChange={(e) => setSearchPhone(e.target.value)}
-                placeholder="Search by phone number"
+                placeholder={t("searchByPhone")}
                 className="pl-9"
                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleSearch())}
               />
             </div>
             <Button type="button" size="sm" onClick={handleSearch} disabled={searching}>
               <Search className="size-4" aria-hidden />
-              {searching ? "…" : "Search"}
+              {searching ? "…" : tc("search")}
                       </Button>
           </div>
           {searchResults.length > 0 && (
@@ -1178,7 +1231,7 @@ function AdditionalGuestEntry({
                     <span className="font-medium">{g.full_name}</span>
                     <span className="ml-2 text-muted-foreground">{g.phone_masked}</span>
                     {g.id_last4 && (
-                      <span className="ml-1 text-xs text-muted-foreground">ID: ••••{g.id_last4}</span>
+                      <span className="ml-1 text-xs text-muted-foreground">{t("idLast4", { last4: g.id_last4 })}</span>
                     )}
                   </button>
                 </li>
@@ -1187,9 +1240,9 @@ function AdditionalGuestEntry({
           )}
           {searchResults.length === 0 && searchPhone && !searching && (
             <p className="text-xs text-muted-foreground">
-              No match found.{" "}
+              {t("noMatchFound")}{" "}
               <button type="button" className="underline" onClick={() => setMode("form")}>
-                Create new guest
+                {t("createNewGuest")}
               </button>
             </p>
           )}
@@ -1199,25 +1252,25 @@ function AdditionalGuestEntry({
           {/* ID verification */}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">ID Type</Label>
+              <Label className="text-xs">{t("idType")}</Label>
               <select
                 value={form.id_proof_type}
                 onChange={(e) => set("id_proof_type", e.target.value)}
                 className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
-                <option value="Aadhar Card">Aadhar Card</option>
-                <option value="PAN Card">PAN Card</option>
-                <option value="Passport">Passport</option>
-                <option value="Driving License">Driving License</option>
-                <option value="Voter ID">Voter ID</option>
+                <option value="Aadhar Card">{t("idAadhar")}</option>
+                <option value="PAN Card">{t("idPan")}</option>
+                <option value="Passport">{t("idPassport")}</option>
+                <option value="Driving License">{t("idDrivingLicense")}</option>
+                <option value="Voter ID">{t("idVoter")}</option>
               </select>
             </div>
             <MaskedIdInput
-              label="ID Number"
+              label={t("fieldIdNumber")}
               labelClassName="text-xs"
               value={form.id_number ?? ""}
               onChange={(v) => set("id_number", v)}
-              placeholder="Last 4 digits minimum"
+              placeholder={t("last4Min")}
             />
         </div>
 
@@ -1225,7 +1278,7 @@ function AdditionalGuestEntry({
           <div className="grid grid-cols-3 gap-2">
             <QueuedDocUpload
               side="front"
-              label="Upload Front"
+              label={t("uploadFront")}
               onQueued={(side, file) => {
                 handleQueueDoc(side, file);
                 // Run OCR on the front face
@@ -1234,8 +1287,8 @@ function AdditionalGuestEntry({
                 );
               }}
             />
-            <QueuedDocUpload side="back" label="Upload Back" onQueued={handleQueueDoc} />
-            <QueuedDocUpload side="selfie" label="Selfie Capture" onQueued={handleQueueDoc} />
+            <QueuedDocUpload side="back" label={t("uploadBack")} onQueued={handleQueueDoc} />
+            <QueuedDocUpload side="selfie" label={t("selfieCapture")} onQueued={handleQueueDoc} />
           </div>
 
           {/* OCR autofill banner for additional guest */}
@@ -1250,7 +1303,7 @@ function AdditionalGuestEntry({
                 if (fields.address) set("address", fields.address);
                 if (fields.id_type_detected) set("id_proof_type", fields.id_type_detected);
                 setCoOcrResult(null);
-                toast.success("Guest details auto-filled from ID");
+                toast.success(t("guestAutofilled"));
               }}
               onDismiss={() => setCoOcrResult(null)}
             />
@@ -1259,41 +1312,41 @@ function AdditionalGuestEntry({
           {/* Guest details */}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Full Name *</Label>
-              <Input value={form.full_name} onChange={(e) => set("full_name", e.target.value)} placeholder="Full Name" required />
+              <Label className="text-xs">{tg("fullName")} *</Label>
+              <Input value={form.full_name} onChange={(e) => set("full_name", e.target.value)} placeholder={tg("fullName")} required />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Mobile Number *</Label>
-              <Input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="10-digit mobile" inputMode="tel" required />
+              <Label className="text-xs">{tg("phoneNumber")} *</Label>
+              <Input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder={t("mobile10")} inputMode="tel" required />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Email (optional)</Label>
+              <Label className="text-xs">{t("emailOptional")}</Label>
               <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="email@example.com" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Gender</Label>
+              <Label className="text-xs">{t("fieldGender")}</Label>
               <select
                 value={form.gender}
                 onChange={(e) => set("gender", e.target.value)}
                 className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
-                <option value="">— Select —</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
+                <option value="">{t("selectOption")}</option>
+                <option value="Male">{t("male")}</option>
+                <option value="Female">{t("female")}</option>
+                <option value="Other">{t("genderOther")}</option>
               </select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Date of Birth</Label>
+              <Label className="text-xs">{t("fieldDob")}</Label>
               <DateInput value={form.date_of_birth ?? ""} onChange={(v) => set("date_of_birth", v)} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Pincode</Label>
-              <Input value={form.postal_code} onChange={(e) => set("postal_code", e.target.value)} placeholder="Pincode" inputMode="numeric" />
+              <Label className="text-xs">{t("pincode")}</Label>
+              <Input value={form.postal_code} onChange={(e) => set("postal_code", e.target.value)} placeholder={t("pincode")} inputMode="numeric" />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-xs">Address</Label>
-              <Input value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="Address" />
+              <Label className="text-xs">{t("fieldAddress")}</Label>
+              <Input value={form.address} onChange={(e) => set("address", e.target.value)} placeholder={t("fieldAddress")} />
             </div>
           </div>
 
@@ -1315,7 +1368,7 @@ function AdditionalGuestEntry({
               onResolved(pending);
             }}
           >
-            Confirm Guest Details
+            {t("confirmGuestDetails")}
                       </Button>
         </div>
           )}
@@ -1329,13 +1382,15 @@ function CheckinSuccess({
   result,
   bookingId,
   onDone,
-  doneLabel = "Back to Check-in",
+  doneLabel,
 }: {
   readonly result: CheckInCreateOut;
   readonly bookingId: string;
   readonly onDone: () => void;
   readonly doneLabel?: string;
 }) {
+  const t = useTranslations("checkin");
+  const ti = useTranslations("invoices");
   const api = useApi();
   const [generatingInvoice, setGeneratingInvoice] = useState(false);
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
@@ -1348,9 +1403,9 @@ function CheckinSuccess({
         body: { booking_id: bookingId, interstate: false },
       });
       setInvoiceId(inv.id);
-      toast.success("Invoice generated");
+      toast.success(ti("generated"));
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Invoice generation failed");
+      toast.error(e instanceof ApiError ? e.message : t("invoiceGenerationFailed"));
     } finally {
       setGeneratingInvoice(false);
     }
@@ -1362,9 +1417,9 @@ function CheckinSuccess({
         <div className="flex size-16 items-center justify-center rounded-full bg-green-100 mx-auto">
           <BadgeCheck className="size-8 text-green-600" aria-hidden />
         </div>
-        <h2 className="text-xl font-bold text-foreground">Guest Checked In</h2>
+        <h2 className="text-xl font-bold text-foreground">{t("guestCheckedIn")}</h2>
         <div className="rounded-lg bg-muted/40 px-4 py-3">
-          <p className="text-xs text-muted-foreground mb-1">Registration Number(s)</p>
+          <p className="text-xs text-muted-foreground mb-1">{t("registrationNumbers")}</p>
           <p className="font-bold text-lg tabular-nums">
             {result.registration_numbers.join(" · ")}
           </p>
@@ -1375,7 +1430,7 @@ function CheckinSuccess({
             className="inline-flex h-9 items-center gap-2 rounded-lg bg-green-600 px-4 text-sm font-medium text-white hover:bg-green-700"
           >
             <FileText className="size-4" aria-hidden />
-            View Invoice
+            {t("viewInvoice")}
           </a>
         ) : (
           <button
@@ -1385,7 +1440,7 @@ function CheckinSuccess({
             className="inline-flex h-9 items-center gap-2 rounded-lg border border-gold-500 px-4 text-sm font-medium text-gold-700 hover:bg-gold-50 disabled:opacity-50"
           >
             <FileText className="size-4" aria-hidden />
-            {generatingInvoice ? "Generating…" : "Generate Invoice"}
+            {generatingInvoice ? t("generating") : ti("generate")}
           </button>
         )}
         <div className="flex gap-3 justify-center">
@@ -1394,7 +1449,7 @@ function CheckinSuccess({
             onClick={onDone}
             className="inline-flex h-9 items-center rounded-lg bg-navy-900 px-4 text-sm font-medium text-white hover:bg-navy-900/90"
           >
-            {doneLabel}
+            {doneLabel ?? t("backToCheckin")}
           </button>
         </div>
       </div>
@@ -1413,6 +1468,14 @@ function CheckinForm({
   readonly onBack: () => void;
   readonly onDone: () => void;
 }) {
+  const t = useTranslations("checkin");
+  const ts = useTranslations("stay");
+  const tc = useTranslations("common");
+  const tb = useTranslations("bookings");
+  const tm = useTranslations("money");
+  const tg = useTranslations("guestPicker");
+  const ti = useTranslations("invoices");
+  const tr = useTranslations("rooms");
   const api = useApi();
   const { activeHotelId } = useAuth();
   const queryClient = useQueryClient();
@@ -1427,6 +1490,36 @@ function CheckinForm({
   const [pgAddress, setPgAddress] = useState("");
   const [pgPurpose, setPgPurpose] = useState("");
   const [pgCompany, setPgCompany] = useState("");
+
+  // ── Profile autofill — advance-booking guests already have a profile; pull
+  // everything we know (gender, DOB, address, ID type) so the front desk
+  // never re-types data captured at booking time. Only fills fields that are
+  // still empty so manual edits are never overwritten.
+  useEffect(() => {
+    if (!booking.primary_guest_id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const full = await api<GuestAutofill>(
+          `/api/v1/guests/${booking.primary_guest_id}/autofill`,
+          { method: "POST" },
+        );
+        if (cancelled) return;
+        setPgName((v) => v || full.full_name);
+        setPgPhone((v) => v || full.phone);
+        setPgGender((v) => v || (full.gender ?? ""));
+        setPgDob((v) => v || (full.date_of_birth ?? ""));
+        setPgAddress((v) => v || (full.address ?? ""));
+        if (full.id_proof_type) setPgIdType((v) => (v === "Aadhar Card" ? full.id_proof_type! : v));
+      } catch {
+        // Autofill is best-effort — form stays editable either way.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booking.primary_guest_id]);
 
   // ── OCR autofill state (primary guest) ──
   const [pgOcrResult, setPgOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
@@ -1443,14 +1536,8 @@ function CheckinForm({
     setGuestKeys((prev) => prev.filter((k) => k !== key));
     setCoGuests((prev) => prev.filter((_, i) => i !== guestKeys.indexOf(key)));
   };
-  const resolveGuest = (key: number, guest: ResolvedCoGuest) => {
-    setCoGuests((prev) => {
-      const idx = guestKeys.indexOf(key);
-      const next = [...prev];
-      next[idx] = guest;
-      return next;
-    });
-  };
+  const resolveGuest = (key: number, guest: ResolvedCoGuest) =>
+    setCoGuests(resolveCoGuestUpdater(guestKeys, key, guest));
 
   // ── Per-room occupancy — keyed by room_id so each room is independent ──
   const [roomOccupancy, setRoomOccupancy] = useState<
@@ -1547,20 +1634,16 @@ function CheckinForm({
   const currentRooms = booking.rooms.filter((r) => r.is_current);
 
   // ── Computed balance ──
-  const bookingTotal = parseFloat(booking.total_amount) || 0;
-  const advPaid = parseFloat(booking.advance_amount) || 0;
-  const newAdvance = parseFloat(advanceAmount) || 0;
+  const bookingTotal = Number.parseFloat(booking.total_amount) || 0;
+  const advPaid = Number.parseFloat(booking.advance_amount) || 0;
+  const newAdvance = Number.parseFloat(advanceAmount) || 0;
   const balance = Math.max(bookingTotal - advPaid - newAdvance, 0);
 
   // ── Mutation ─────────────────────────────────────────────────────────────
   const mutation = useMutation({
     mutationFn: async () => {
       if (fgEnabled && fgForm.passport_number.trim().length < 3) {
-        throw new ApiError(
-          400,
-          "validation",
-          "Passport number (min 3 characters) is required for a foreign guest.",
-        );
+        throw new ApiError(400, "validation", t("passportRequired"));
       }
 
       // 1. Update primary guest if anything changed
@@ -1724,11 +1807,9 @@ function CheckinForm({
       queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
       queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
       queryClient.invalidateQueries({ queryKey: ["room-status-summary", activeHotelId] });
-      toast.success(
-        `✓ Checked In — Registration: ${result.registration_numbers.join(", ")}`,
-      );
+      toast.success(t("checkedInToastReg", { regs: result.registration_numbers.join(", ") }));
     },
-    onError: (e) => setError(e instanceof ApiError ? e.message : "Check-in failed"),
+    onError: (e) => setError(e instanceof ApiError ? e.message : t("checkinFailed")),
   });
 
   // ── Post-check-in success state ──────────────────────────────────────────
@@ -1738,7 +1819,7 @@ function CheckinForm({
         result={checkinResult}
         bookingId={booking.id}
         onDone={onDone}
-        doneLabel="Back to Check-in List"
+        doneLabel={t("backToCheckinList")}
       />
     );
   }
@@ -1752,73 +1833,73 @@ function CheckinForm({
         onClick={onBack}
       >
         <ArrowLeft className="size-4" aria-hidden />
-        Back to bookings list
+        {ts("backToList")}
       </button>
 
       {/* ── 1. Booking Details ─────────────────────────────────────────────── */}
-      <Section icon={ClipboardList} title="Booking Details" subtitle="Review booking information before check-in">
+      <Section icon={ClipboardList} title={ts("bookingDetailsTitle")} subtitle={ts("bookingDetailsSubtitle")}>
         <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Booking No.</Label>
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("bookingNumber")}</Label>
             <p className="mt-1 font-semibold text-foreground">{booking.booking_number}</p>
           </div>
           <div>
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Check In Date</Label>
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("checkinDate")}</Label>
             <p className="mt-1">{fmtApiDate(booking.check_in_date)}</p>
           </div>
           <div>
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Checkout Date</Label>
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("checkoutDate")}</Label>
             <p className="mt-1">{fmtApiDate(booking.check_out_date)}</p>
           </div>
           <div>
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Guest Type</Label>
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("guestTypeLabel")}</Label>
             <select
               value={pgPurpose}
               onChange={(e) => setPgPurpose(e.target.value)}
               className="mt-1 h-8 w-full rounded-lg border border-input bg-background px-2 text-sm"
             >
-              <option value="">Select</option>
-              <option value="Business">Business</option>
-              <option value="Leisure">Leisure / Tourism</option>
-              <option value="Medical">Medical</option>
-              <option value="Wedding">Wedding / Event</option>
-              <option value="Other">Other</option>
+              <option value="">{t("select")}</option>
+              <option value="Business">{t("purpose_business")}</option>
+              <option value="Leisure">{t("purpose_leisure")}</option>
+              <option value="Medical">{t("purpose_medical")}</option>
+              <option value="Wedding">{t("purpose_wedding")}</option>
+              <option value="Other">{t("purpose_other")}</option>
             </select>
           </div>
           {pgPurpose === "Business" && (
             <div className="sm:col-span-2">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Company</Label>
-              <Input className="mt-1" value={pgCompany} onChange={(e) => setPgCompany(e.target.value)} placeholder="Company name" />
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("company")}</Label>
+              <Input className="mt-1" value={pgCompany} onChange={(e) => setPgCompany(e.target.value)} placeholder={t("companyPlaceholder")} />
             </div>
           )}
         </div>
       </Section>
 
       {/* ── 2. Primary Guest Identity Verification ────────────────────────── */}
-      <Section icon={BadgeCheck} title="Primary Guest Identity Verification" subtitle="Verify guest identity documents">
+      <Section icon={BadgeCheck} title={ts("primaryGuestTitle")} subtitle={ts("primaryGuestSubtitle")}>
         <div className="space-y-5">
           {/* ID type + number */}
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">ID Type</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("idType")}</Label>
               <select
                 value={pgIdType}
                 onChange={(e) => setPgIdType(e.target.value)}
                 className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
-                <option value="Aadhar Card">Aadhar Card</option>
-                <option value="PAN Card">PAN Card</option>
-                <option value="Passport">Passport</option>
-                <option value="Driving License">Driving License</option>
-                <option value="Voter ID">Voter ID</option>
+                <option value="Aadhar Card">{t("idAadhar")}</option>
+                <option value="PAN Card">{t("idPan")}</option>
+                <option value="Passport">{t("idPassport")}</option>
+                <option value="Driving License">{t("idDrivingLicense")}</option>
+                <option value="Voter ID">{t("idVoter")}</option>
               </select>
             </div>
             <div className="sm:col-span-2">
               <MaskedIdInput
-                label={`${pgIdType.toUpperCase()} No.`}
+                label={t("idNoOf", { type: pgIdType.toUpperCase() })}
                 value={pgIdNumber}
                 onChange={setPgIdNumber}
-                placeholder={`Enter ${pgIdType} number`}
+                placeholder={t("enterIdNumber", { type: pgIdType })}
                 trailing={
                   <Button
                     type="button"
@@ -1826,10 +1907,10 @@ function CheckinForm({
                     variant="outline"
                     className="shrink-0"
                     onClick={() => {
-                      if (pgIdNumber) toast.success("ID recorded");
+                      if (pgIdNumber) toast.success(t("idRecorded"));
                     }}
                   >
-                    Submit
+                    {t("submit")}
                   </Button>
                 }
               />
@@ -1841,19 +1922,19 @@ function CheckinForm({
             <DocUpload
               guestId={booking.primary_guest_id ?? null}
               side="front"
-              label="Upload Front Face"
+              label={t("uploadFrontFace")}
               idType={pgIdType}
               onOcrResult={(result) => setPgOcrResult(result)}
             />
             <DocUpload
               guestId={booking.primary_guest_id ?? null}
               side="back"
-              label="Upload Back Face"
+              label={t("uploadBackFace")}
             />
             <DocUpload
               guestId={booking.primary_guest_id ?? null}
               side="selfie"
-              label="Selfie Capture"
+              label={t("selfieCapture")}
             />
           </div>
 
@@ -1869,7 +1950,7 @@ function CheckinForm({
                 if (fields.address) setPgAddress(fields.address);
                 if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
                 setPgOcrResult(null);
-                toast.success("Form auto-filled from ID document");
+                toast.success(t("formAutofilled"));
               }}
               onDismiss={() => setPgOcrResult(null)}
             />
@@ -1878,33 +1959,33 @@ function CheckinForm({
           {/* Guest personal details */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Full Name</Label>
-              <Input value={pgName} onChange={(e) => setPgName(e.target.value)} placeholder="Full Name" />
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tg("fullName")}</Label>
+              <Input value={pgName} onChange={(e) => setPgName(e.target.value)} placeholder={tg("fullName")} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Phone Number</Label>
-              <Input value={pgPhone} onChange={(e) => setPgPhone(e.target.value)} placeholder="Phone" inputMode="tel" />
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
+              <Input value={pgPhone} onChange={(e) => setPgPhone(e.target.value)} placeholder={t("phonePlaceholder")} inputMode="tel" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Gender</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldGender")}</Label>
               <select
                 value={pgGender}
                 onChange={(e) => setPgGender(e.target.value)}
                 className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
-                <option value="">— Select —</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
+                <option value="">{t("selectOption")}</option>
+                <option value="Male">{t("male")}</option>
+                <option value="Female">{t("female")}</option>
+                <option value="Other">{t("genderOther")}</option>
               </select>
           </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Date of Birth</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldDob")}</Label>
               <DateInput value={pgDob} onChange={setPgDob} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Address</Label>
-              <Input value={pgAddress} onChange={(e) => setPgAddress(e.target.value)} placeholder="Address" />
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>
+              <Input value={pgAddress} onChange={(e) => setPgAddress(e.target.value)} placeholder={t("fieldAddress")} />
             </div>
           </div>
 
@@ -1921,9 +2002,9 @@ function CheckinForm({
       {/* ── 3. Additional Guests ──────────────────────────────────────────── */}
       <Section
         icon={Users}
-        title="Additional Guests"
-        subtitle="Add co-guests for this booking"
-        badge={coGuests.filter(Boolean).length > 0 ? String(coGuests.filter(Boolean).length) : undefined}
+        title={t("additionalGuests")}
+        subtitle={t("addCoGuestsBooking")}
+        badge={coGuests.some(Boolean) ? String(coGuests.filter(Boolean).length) : undefined}
       >
         <div className="space-y-4">
           {guestKeys.map((key, i) => (
@@ -1940,36 +2021,36 @@ function CheckinForm({
             className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
           >
             <Plus className="size-4" aria-hidden />
-            Add Guest
+            {t("addGuest")}
                 </button>
         </div>
       </Section>
 
       {/* ── 4. Room Information ───────────────────────────────────────────── */}
-      <Section icon={BedDouble} title="Room Information" subtitle="Room assignment details">
+      <Section icon={BedDouble} title={t("roomInformation")} subtitle={t("roomAssignment")}>
         <div className="space-y-4">
           {currentRooms.map((room) => (
             <div key={room.room_id} className="grid gap-3 sm:grid-cols-4 items-end">
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Room Number</Label>
+                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tr("roomNumber")}</Label>
                 <div className="h-9 rounded-lg border bg-muted/40 px-2.5 flex items-center text-sm font-medium">
                   {room.room_number}
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Room Type</Label>
+                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tr("roomType")}</Label>
                 <div className="h-9 rounded-lg border bg-muted/40 px-2.5 flex items-center text-sm text-muted-foreground">
                   {room.room_type_name}
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Adults</Label>
+                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("adults")}</Label>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setRoomAdults(room.room_id, -1)}
                     className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-muted"
-                    aria-label="Remove adult"
+                    aria-label={t("removeAdult")}
                   >
                     <Minus className="size-3.5" aria-hidden />
                   </button>
@@ -1980,20 +2061,20 @@ function CheckinForm({
                     type="button"
                     onClick={() => setRoomAdults(room.room_id, 1)}
                     className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-muted"
-                    aria-label="Add adult"
+                    aria-label={t("addAdult")}
                   >
                     <Plus className="size-3.5" aria-hidden />
                   </button>
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Children</Label>
+                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("children")}</Label>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setRoomChildren(room.room_id, -1)}
                     className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-muted"
-                    aria-label="Remove child"
+                    aria-label={t("removeChild")}
                   >
                     <Minus className="size-3.5" aria-hidden />
                   </button>
@@ -2004,7 +2085,7 @@ function CheckinForm({
                     type="button"
                     onClick={() => setRoomChildren(room.room_id, 1)}
                     className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-muted"
-                    aria-label="Add child"
+                    aria-label={t("addChild")}
                   >
                     <Plus className="size-3.5" aria-hidden />
                   </button>
@@ -2016,7 +2097,7 @@ function CheckinForm({
       </Section>
 
       {/* ── 5. Special Requirements ───────────────────────────────────────── */}
-      <Section icon={Star} title="Special Requirements">
+      <Section icon={Star} title={ts("specialRequirements")}>
         <div className="space-y-4">
           {services.isLoading && <Skeleton className="h-10" />}
           {(services.data?.length ?? 0) > 0 && (
@@ -2035,8 +2116,7 @@ function CheckinForm({
                         : "border-border text-muted-foreground hover:border-navy-900 hover:text-navy-900",
                     )}
                   >
-                    {svc.name}
-                    <span className={cn("text-xs", active ? "opacity-80" : "opacity-60")}>
+                    {svc.name}<span className={cn("text-xs", active ? "opacity-80" : "opacity-60")}>
                       ₹{svc.price}
                     </span>
                   </button>
@@ -2050,12 +2130,12 @@ function CheckinForm({
           />
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Special Instructions
+              {t("specialInstructions")}
             </Label>
             <textarea
               value={specialInstructions}
               onChange={(e) => setSpecialInstructions(e.target.value)}
-              placeholder="Any additional instructions for the guest…"
+              placeholder={t("instructionsPlaceholder")}
               rows={3}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-gold-500/40"
             />
@@ -2064,26 +2144,26 @@ function CheckinForm({
       </Section>
 
       {/* ── 6. Payment Details ────────────────────────────────────────────── */}
-      <Section icon={CreditCard} title="Payment Details" subtitle="Review charges and collect advance at check-in">
+      <Section icon={CreditCard} title={ts("paymentDetails")} subtitle={t("paymentSubtitleBooking")}>
         <div className="space-y-4">
           {/* Top row: informational amounts */}
           <div className="grid gap-4 sm:grid-cols-4">
             <div className="space-y-1">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Booking Amount
+                {t("bookingAmount")}
               </Label>
               <p className="mt-1 tabular-nums font-medium">₹{booking.total_amount}</p>
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                GST
+                {t("gst")}
               </Label>
               <p className="mt-1 tabular-nums">₹{booking.tax_amount}</p>
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Already Paid
-                <span className="ml-1 text-[9px] font-normal text-muted-foreground/70">(from booking)</span>
+                {t("alreadyPaid")}
+                <span className="ml-1 text-[9px] font-normal text-muted-foreground/70">{t("fromBooking")}</span>
               </Label>
               {/* Read-only — this is advance paid when booking was created */}
               <p
@@ -2092,12 +2172,12 @@ function CheckinForm({
                   advPaid > 0 ? "text-green-600" : "text-muted-foreground",
                 )}
               >
-                ₹{parseFloat(booking.advance_amount || "0").toFixed(2)}
+                ₹{Number.parseFloat(booking.advance_amount || "0").toFixed(2)}
               </p>
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Security Deposit
+                {tb("securityDeposit")}
               </Label>
               <p className="mt-1 tabular-nums">₹{booking.security_deposit}</p>
             </div>
@@ -2107,7 +2187,7 @@ function CheckinForm({
           <div className="rounded-xl border bg-muted/20 px-4 py-4 grid gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Collect at Check-in (₹)
+                {t("collectAtCheckin")}
               </Label>
               <Input
                 type="number"
@@ -2118,11 +2198,11 @@ function CheckinForm({
                 className="tabular-nums"
                 placeholder="0.00"
               />
-              <p className="text-[10px] text-muted-foreground">Enter 0 if collecting later</p>
+              <p className="text-[10px] text-muted-foreground">{t("enterZeroHint")}</p>
             </div>
             <div className="space-y-1.5">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Payment Mode
+                {t("paymentMode")}
               </Label>
               <select
                 value={paymentMode}
@@ -2130,13 +2210,13 @@ function CheckinForm({
                 className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                 disabled={newAdvance === 0}
               >
-                <option value="cash">Cash</option>
-                <option value="upi">UPI</option>
+                <option value="cash">{tm("cash")}</option>
+                <option value="upi">{tm("upi")}</option>
               </select>
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Balance After Check-in
+                {t("balanceAfterCheckin")}
               </Label>
               <p
                 className={cn(
@@ -2147,10 +2227,10 @@ function CheckinForm({
                 ₹{balance.toFixed(2)}
               </p>
               {balance > 0 && (
-                <p className="text-[10px] text-muted-foreground">Due at checkout</p>
+                <p className="text-[10px] text-muted-foreground">{t("dueAtCheckout")}</p>
               )}
               {balance === 0 && newAdvance > 0 && (
-                <p className="text-[10px] text-green-600">Fully paid ✓</p>
+                <p className="text-[10px] text-green-600">{t("fullyPaid")}</p>
             )}
           </div>
           </div>
@@ -2158,58 +2238,58 @@ function CheckinForm({
       </Section>
 
       {/* ── 7. Emergency Contact ──────────────────────────────────────────── */}
-      <Section icon={AlertTriangle} title="Emergency Contact" subtitle="Optional" defaultOpen={false}>
+      <Section icon={AlertTriangle} title={t("emergencyContact")} subtitle={t("optional")} defaultOpen={false}>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Name</Label>
-            <Input value={emName} onChange={(e) => setEmName(e.target.value)} placeholder="Contact name" />
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactName")}</Label>
+            <Input value={emName} onChange={(e) => setEmName(e.target.value)} placeholder={t("contactNamePlaceholder")} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Relation</Label>
-            <Input value={emRelation} onChange={(e) => setEmRelation(e.target.value)} placeholder="e.g. Spouse" />
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactRelation")}</Label>
+            <Input value={emRelation} onChange={(e) => setEmRelation(e.target.value)} placeholder={t("relationPlaceholder")} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Phone Number</Label>
-            <Input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} placeholder="Phone" inputMode="tel" />
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
+            <Input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} placeholder={t("phonePlaceholder")} inputMode="tel" />
           </div>
         </div>
       </Section>
 
       {/* ── 8. Vehicle Details ────────────────────────────────────────────── */}
-      <Section icon={Car} title="Vehicle Details" subtitle="Optional" defaultOpen={false}>
+      <Section icon={Car} title={t("vehicleDetails")} subtitle={t("optional")} defaultOpen={false}>
         <div className="grid gap-3 sm:grid-cols-4">
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Vehicle Number</Label>
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("vehicleNumber")}</Label>
             <Input value={vehNumber} onChange={(e) => setVehNumber(e.target.value)} placeholder="MH 12 AB 1234" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Vehicle Type</Label>
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("vehicleType")}</Label>
             <select
               value={vehType}
               onChange={(e) => setVehType(e.target.value)}
               className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
             >
-              <option value="Car">Car</option>
-              <option value="Bike">Bike</option>
-              <option value="Auto">Auto / Rickshaw</option>
-              <option value="Taxi">Taxi / Cab</option>
-              <option value="Bus">Bus</option>
-              <option value="Other">Other</option>
+              <option value="Car">{t("veh_car")}</option>
+              <option value="Bike">{t("veh_bike")}</option>
+              <option value="Auto">{t("veh_auto")}</option>
+              <option value="Taxi">{t("veh_taxi")}</option>
+              <option value="Bus">{t("veh_bus")}</option>
+              <option value="Other">{t("veh_other")}</option>
             </select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Make / Name</Label>
-            <Input value={vehMake} onChange={(e) => setVehMake(e.target.value)} placeholder="e.g. Honda City" />
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("makeName")}</Label>
+            <Input value={vehMake} onChange={(e) => setVehMake(e.target.value)} placeholder={t("makePlaceholder")} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Parking Slot</Label>
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("parkingSlot")}</Label>
             <Input value={parkingSlot} onChange={(e) => setParkingSlot(e.target.value)} placeholder="A-12" />
           </div>
         </div>
       </Section>
 
       {/* ── Early check-in ────────────────────────────────────────────────── */}
-      <Section icon={LogIn} title="Early Check-in" defaultOpen={false}>
+      <Section icon={LogIn} title={ts("earlyCheckinSection")} defaultOpen={false}>
         <div className="space-y-3">
           <label className="flex items-center gap-2.5 text-sm cursor-pointer">
             <input
@@ -2218,11 +2298,11 @@ function CheckinForm({
               checked={isEarly}
               onChange={(e) => setIsEarly(e.target.checked)}
             />
-            <span className="font-medium">This is an early check-in</span>
+            <span className="font-medium">{t("earlyCheckinToggle")}</span>
           </label>
           {isEarly && (
             <div className="max-w-xs space-y-1.5">
-              <Label className="text-xs">Early Check-in Fee (₹)</Label>
+              <Label className="text-xs">{t("earlyFeeLabel")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -2245,8 +2325,7 @@ function CheckinForm({
             onChange={(e) => setTerms(e.target.checked)}
           />
           <span className="text-muted-foreground leading-relaxed">
-            Guest agrees to hotel terms and conditions, including check-in/check-out policy,
-            identity verification and property rules.
+            {ts("termsAgreement")}
           </span>
         </label>
 
@@ -2258,17 +2337,17 @@ function CheckinForm({
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Button type="button" variant="outline" onClick={onBack}>
-            Cancel
+            {tc("cancel")}
             </Button>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
               disabled
-              title="Available after check-in"
+              title={t("availableAfterCheckin")}
             >
               <FileText className="size-4" aria-hidden />
-              Generate Invoice
+              {ti("generate")}
             </Button>
             <Button
               type="button"
@@ -2277,7 +2356,7 @@ function CheckinForm({
               onClick={() => mutation.mutate()}
             >
               <LogIn className="size-4" aria-hidden />
-              {mutation.isPending ? "Checking In…" : "Check In"}
+              {mutation.isPending ? t("checkingIn") : tb("checkInAction")}
             </Button>
           </div>
         </div>
@@ -2332,6 +2411,11 @@ function CountControl({
 }
 
 function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
+  const t = useTranslations("checkin");
+  const ts = useTranslations("stay");
+  const tb = useTranslations("bookings");
+  const tm = useTranslations("money");
+  const tg = useTranslations("guestPicker");
   const api = useApi();
   const { activeHotelId } = useAuth();
   const queryClient = useQueryClient();
@@ -2387,7 +2471,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     setPgPhone(g.phone);
     // Prefill editable identity fields from the guest profile (non-fatal).
     try {
-      const full = await api<GuestAutofill>(`/api/v1/guests/${g.id}/autofill`);
+      const full = await api<GuestAutofill>(`/api/v1/guests/${g.id}/autofill`, { method: "POST" });
       setPgBaseline(full);
       setPgGender(full.gender ?? "");
       setPgDob(full.date_of_birth ?? "");
@@ -2407,14 +2491,8 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     setGuestKeys((prev) => prev.filter((k) => k !== key));
     setCoGuests((prev) => prev.filter((_, i) => i !== guestKeys.indexOf(key)));
   };
-  const resolveGuest = (key: number, g: ResolvedCoGuest) => {
-    setCoGuests((prev) => {
-      const idx = guestKeys.indexOf(key);
-      const next = [...prev];
-      next[idx] = g;
-      return next;
-    });
-  };
+  const resolveGuest = (key: number, g: ResolvedCoGuest) =>
+    setCoGuests(resolveCoGuestUpdater(guestKeys, key, g));
 
   // ── 4. Rooms + occupancy ──
   const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
@@ -2438,7 +2516,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   // ── 6. Payment (advance collection only — new booking, nothing paid yet) ──
   const [advanceAmount, setAdvanceAmount] = useState("0");
   const [paymentMode, setPaymentMode] = useState<"cash" | "upi">("cash");
-  const newAdvance = parseFloat(advanceAmount) || 0;
+  const newAdvance = Number.parseFloat(advanceAmount) || 0;
 
   // ── 7. Emergency contact + vehicle ──
   const [emName, setEmName] = useState("");
@@ -2494,9 +2572,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     };
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
-      toast.success("Draft saved — it will be offered next time you open this page");
+      toast.success(t("draftSaved"));
     } catch {
-      toast.error("Could not save draft");
+      toast.error(t("draftSaveFailed"));
     }
   };
 
@@ -2528,7 +2606,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       void handleGuestSelected(d.guest);
     }
     setDraft(null);
-    toast.success("Draft restored");
+    toast.success(t("draftRestored"));
   };
 
   const discardDraft = () => {
@@ -2545,7 +2623,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   // ── Mutation: book + check in atomically, then charges + advance payment ──
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!guest) throw new ApiError(400, "validation", "Select a guest first.");
+      if (!guest) throw new ApiError(400, "validation", t("selectGuestFirst"));
 
       // 1. Update primary guest profile if identity fields were edited.
       const patch: Record<string, string> = {};
@@ -2691,12 +2769,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
       queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
       queryClient.invalidateQueries({ queryKey: ["room-status-summary", activeHotelId] });
-      toast.success(
-        `✓ Checked In — Registration: ${result.registration_numbers.join(", ")}`,
-      );
+      toast.success(t("checkedInToastReg", { regs: result.registration_numbers.join(", ") }));
     },
     onError: (e) => {
-      setError(e instanceof ApiError ? e.message : "Check-in failed");
+      setError(e instanceof ApiError ? e.message : t("checkinFailed"));
       // Rooms got taken between selection and submit — refresh availability.
       if (e instanceof ApiError && e.code === "double_booking") {
         setSelectedRooms([]);
@@ -2713,7 +2789,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         result={checkinResult}
         bookingId={checkinResult.booking_id}
         onDone={onDone}
-        doneLabel="New Check-in"
+        doneLabel={t("newCheckin")}
       />
     );
   }
@@ -2729,10 +2805,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           <div className="flex items-center gap-2">
             <FileText className="size-4 shrink-0 text-gold-600" aria-hidden />
             <span className="text-gold-800">
-              Draft from{" "}
-              <span className="font-semibold">
-                {new Date(draft.savedAt).toLocaleString()}
-              </span>
+              {t("draftFrom", { date: new Date(draft.savedAt).toLocaleString() })}
             </span>
           </div>
           <div className="flex gap-2">
@@ -2741,14 +2814,14 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               onClick={() => restoreDraft(draft)}
               className="inline-flex h-8 items-center rounded-lg bg-navy-900 px-3 text-xs font-semibold text-white hover:bg-navy-900/90"
             >
-              Restore
+              {t("restore")}
             </button>
             <button
               type="button"
               onClick={discardDraft}
               className="inline-flex h-8 items-center rounded-lg border border-gold-400 px-3 text-xs font-medium text-gold-700 hover:bg-gold-100"
             >
-              Discard
+              {t("discard")}
             </button>
           </div>
         </div>
@@ -2757,19 +2830,19 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       {/* ── 1. Booking Details ─────────────────────────────────────────────── */}
       <Section
         icon={ClipboardList}
-        title="Booking Details"
-        subtitle="Stay dates and guest type for this walk-in"
+        title={ts("bookingDetailsTitle")}
+        subtitle={t("walkInSubtitle")}
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
             <Label htmlFor="wi-cin" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Check-in Date *
+              {tb("checkinDate")} *
             </Label>
             <DateInput id="wi-cin" required value={checkInDate} onChange={setCheckInDate} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="wi-cin-time" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Check-in Time
+              {t("checkinTime")}
             </Label>
             <input
               id="wi-cin-time"
@@ -2781,13 +2854,13 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="wi-cout" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Check-out Date *
+              {tb("checkoutDate")} *
             </Label>
             <DateInput id="wi-cout" required value={checkOutDate} onChange={setCheckOutDate} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="wi-cout-time" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Check-out Time
+              {t("checkoutTime")}
             </Label>
             <input
               id="wi-cout-time"
@@ -2799,7 +2872,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="wi-guest-type" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Guest Type
+              {t("guestTypeLabel")}
             </Label>
             <select
               id="wi-guest-type"
@@ -2807,30 +2880,30 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               onChange={(e) => setGuestType(e.target.value)}
               className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
             >
-              <option value="">Select</option>
-              <option value="business">Business</option>
-              <option value="personal">Personal</option>
-              <option value="family">Family</option>
-              <option value="group">Group</option>
-              <option value="other">Other</option>
+              <option value="">{t("select")}</option>
+              <option value="business">{t("guestType_business")}</option>
+              <option value="personal">{t("guestType_personal")}</option>
+              <option value="family">{t("guestType_family")}</option>
+              <option value="group">{t("guestType_group")}</option>
+              <option value="other">{t("guestType_other")}</option>
             </select>
           </div>
           {guestType === "business" && (
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Company</Label>
-              <Input value={pgCompany} onChange={(e) => setPgCompany(e.target.value)} placeholder="Company name" />
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("company")}</Label>
+              <Input value={pgCompany} onChange={(e) => setPgCompany(e.target.value)} placeholder={t("companyPlaceholder")} />
             </div>
           )}
           {!datesValid && (
             <p className="sm:col-span-2 lg:col-span-4 text-xs text-danger">
-              Check-out date must be after check-in date.
+              {t("datesInvalid")}
             </p>
           )}
         </div>
       </Section>
 
       {/* ── 2. Primary Guest Identity ─────────────────────────────────────── */}
-      <Section icon={BadgeCheck} title="Primary Guest Identity" subtitle="Search an existing guest or create a new one, then verify identity">
+      <Section icon={BadgeCheck} title={t("primaryGuestIdentity")} subtitle={t("primaryGuestIdentitySubtitle")}>
         <div className="space-y-5">
           <GuestPicker
             selected={guest?.id ? guest : null}
@@ -2842,25 +2915,25 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               {/* ID type + number */}
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">ID Type</Label>
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("idType")}</Label>
                   <select
                     value={pgIdType}
                     onChange={(e) => setPgIdType(e.target.value)}
                     className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                   >
-                    <option value="Aadhar Card">Aadhar Card</option>
-                    <option value="PAN Card">PAN Card</option>
-                    <option value="Passport">Passport</option>
-                    <option value="Driving License">Driving License</option>
-                    <option value="Voter ID">Voter ID</option>
+                    <option value="Aadhar Card">{t("idAadhar")}</option>
+                    <option value="PAN Card">{t("idPan")}</option>
+                    <option value="Passport">{t("idPassport")}</option>
+                    <option value="Driving License">{t("idDrivingLicense")}</option>
+                    <option value="Voter ID">{t("idVoter")}</option>
                   </select>
                 </div>
                 <div className="sm:col-span-2">
                   <MaskedIdInput
-                    label={`${pgIdType.toUpperCase()} No.`}
+                    label={t("idNoOf", { type: pgIdType.toUpperCase() })}
                     value={pgIdNumber}
                     onChange={setPgIdNumber}
-                    placeholder={`Enter ${pgIdType} number`}
+                    placeholder={t("enterIdNumber", { type: pgIdType })}
                   />
                 </div>
               </div>
@@ -2870,12 +2943,12 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                 <DocUpload
                   guestId={guest.id}
                   side="front"
-                  label="Upload Front Face"
+                  label={t("uploadFrontFace")}
                   idType={pgIdType}
                   onOcrResult={(result) => setPgOcrResult(result)}
                 />
-                <DocUpload guestId={guest.id} side="back" label="Upload Back Face" />
-                <DocUpload guestId={guest.id} side="selfie" label="Selfie Capture" />
+                <DocUpload guestId={guest.id} side="back" label={t("uploadBackFace")} />
+                <DocUpload guestId={guest.id} side="selfie" label={t("selfieCapture")} />
               </div>
 
               {/* OCR autofill banner */}
@@ -2890,7 +2963,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                     if (fields.address) setPgAddress(fields.address);
                     if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
                     setPgOcrResult(null);
-                    toast.success("Form auto-filled from ID document");
+                    toast.success(t("formAutofilled"));
                   }}
                   onDismiss={() => setPgOcrResult(null)}
                 />
@@ -2899,33 +2972,33 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               {/* Guest personal details */}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Full Name</Label>
-                  <Input value={pgName} onChange={(e) => setPgName(e.target.value)} placeholder="Full Name" />
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tg("fullName")}</Label>
+                  <Input value={pgName} onChange={(e) => setPgName(e.target.value)} placeholder={tg("fullName")} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Phone Number</Label>
-                  <Input value={pgPhone} onChange={(e) => setPgPhone(e.target.value)} placeholder="Phone" inputMode="tel" />
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
+                  <Input value={pgPhone} onChange={(e) => setPgPhone(e.target.value)} placeholder={t("phonePlaceholder")} inputMode="tel" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Gender</Label>
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldGender")}</Label>
                   <select
                     value={pgGender}
                     onChange={(e) => setPgGender(e.target.value)}
                     className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                   >
-                    <option value="">— Select —</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
+                    <option value="">{t("selectOption")}</option>
+                    <option value="Male">{t("male")}</option>
+                    <option value="Female">{t("female")}</option>
+                    <option value="Other">{t("genderOther")}</option>
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Date of Birth</Label>
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldDob")}</Label>
                   <DateInput value={pgDob} onChange={setPgDob} />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Address</Label>
-                  <Input value={pgAddress} onChange={(e) => setPgAddress(e.target.value)} placeholder="Address" />
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>
+                  <Input value={pgAddress} onChange={(e) => setPgAddress(e.target.value)} placeholder={t("fieldAddress")} />
                 </div>
               </div>
             </>
@@ -2944,9 +3017,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       {/* ── 3. Additional Guests ──────────────────────────────────────────── */}
       <Section
         icon={Users}
-        title="Additional Guests"
-        subtitle="Add co-guests for this stay"
-        badge={coGuests.filter(Boolean).length > 0 ? String(coGuests.filter(Boolean).length) : undefined}
+        title={t("additionalGuests")}
+        subtitle={t("addCoGuestsStay")}
+        badge={coGuests.some(Boolean) ? String(coGuests.filter(Boolean).length) : undefined}
       >
         <div className="space-y-4">
           {guestKeys.map((key, i) => (
@@ -2963,42 +3036,42 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
           >
             <Plus className="size-4" aria-hidden />
-            Add Guest
+            {t("addGuest")}
           </button>
         </div>
       </Section>
 
       {/* ── 4. Room Information ───────────────────────────────────────────── */}
-      <Section icon={BedDouble} title="Room Information" subtitle="Availability follows the dates in Booking Details">
+      <Section icon={BedDouble} title={t("roomInformation")} subtitle={t("roomInfoSubtitleWalkIn")}>
         <div className="space-y-4">
           <div className="flex flex-wrap gap-6">
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Adults</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("adults")}</Label>
               <CountControl
                 value={adultsCount}
                 onDelta={(d) => setAdultsCount((v) => Math.max(1, Math.min(40, v + d)))}
                 min={1}
                 max={40}
-                decLabel="Remove adult"
-                incLabel="Add adult"
+                decLabel={t("removeAdult")}
+                incLabel={t("addAdult")}
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Children</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("children")}</Label>
               <CountControl
                 value={childCount}
                 onDelta={(d) => setChildCount((v) => Math.max(0, Math.min(40, v + d)))}
                 min={0}
                 max={40}
-                decLabel="Remove child"
-                incLabel="Add child"
+                decLabel={t("removeChild")}
+                incLabel={t("addChild")}
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Select Rooms *
+              {tb("selectRooms")} *
             </Label>
             <RoomAvailabilityPicker
               checkIn={checkInDate}
@@ -3016,7 +3089,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       </Section>
 
       {/* ── 5. Special Requirements ───────────────────────────────────────── */}
-      <Section icon={Star} title="Special Requirements">
+      <Section icon={Star} title={ts("specialRequirements")}>
         <div className="space-y-4">
           {services.isLoading && <Skeleton className="h-10" />}
           {(services.data?.length ?? 0) > 0 && (
@@ -3035,8 +3108,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                         : "border-border text-muted-foreground hover:border-navy-900 hover:text-navy-900",
                     )}
                   >
-                    {svc.name}
-                    <span className={cn("text-xs", active ? "opacity-80" : "opacity-60")}>
+                    {svc.name}<span className={cn("text-xs", active ? "opacity-80" : "opacity-60")}>
                       ₹{svc.price}
                     </span>
                   </button>
@@ -3050,12 +3122,12 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           />
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Special Instructions
+              {t("specialInstructions")}
             </Label>
             <textarea
               value={specialInstructions}
               onChange={(e) => setSpecialInstructions(e.target.value)}
-              placeholder="Any additional instructions for the guest…"
+              placeholder={t("instructionsPlaceholder")}
               rows={3}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-gold-500/40"
             />
@@ -3064,11 +3136,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       </Section>
 
       {/* ── 6. Payment Details ────────────────────────────────────────────── */}
-      <Section icon={CreditCard} title="Payment Details" subtitle="Collect advance at check-in (optional)">
+      <Section icon={CreditCard} title={ts("paymentDetails")} subtitle={t("paymentSubtitleWalkIn")}>
         <div className="rounded-xl border bg-muted/20 px-4 py-4 grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Collect at Check-in (₹)
+              {t("collectAtCheckin")}
             </Label>
             <Input
               type="number"
@@ -3079,11 +3151,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               className="tabular-nums"
               placeholder="0.00"
             />
-            <p className="text-[10px] text-muted-foreground">Enter 0 if collecting later</p>
+            <p className="text-[10px] text-muted-foreground">{t("enterZeroHint")}</p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Payment Mode
+              {t("paymentMode")}
             </Label>
             <select
               value={paymentMode}
@@ -3091,59 +3163,59 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               disabled={newAdvance === 0}
             >
-              <option value="cash">Cash</option>
-              <option value="upi">UPI</option>
+              <option value="cash">{tm("cash")}</option>
+              <option value="upi">{tm("upi")}</option>
             </select>
           </div>
         </div>
       </Section>
 
       {/* ── 7. Emergency Contact ──────────────────────────────────────────── */}
-      <Section icon={AlertTriangle} title="Emergency Contact" subtitle="Optional" defaultOpen={false}>
+      <Section icon={AlertTriangle} title={t("emergencyContact")} subtitle={t("optional")} defaultOpen={false}>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Name</Label>
-            <Input value={emName} onChange={(e) => setEmName(e.target.value)} placeholder="Contact name" />
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactName")}</Label>
+            <Input value={emName} onChange={(e) => setEmName(e.target.value)} placeholder={t("contactNamePlaceholder")} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Relation</Label>
-            <Input value={emRelation} onChange={(e) => setEmRelation(e.target.value)} placeholder="e.g. Spouse" />
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactRelation")}</Label>
+            <Input value={emRelation} onChange={(e) => setEmRelation(e.target.value)} placeholder={t("relationPlaceholder")} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Phone Number</Label>
-            <Input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} placeholder="Phone" inputMode="tel" />
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
+            <Input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} placeholder={t("phonePlaceholder")} inputMode="tel" />
           </div>
         </div>
       </Section>
 
       {/* ── 8. Vehicle Details ────────────────────────────────────────────── */}
-      <Section icon={Car} title="Vehicle Details" subtitle="Optional" defaultOpen={false}>
+      <Section icon={Car} title={t("vehicleDetails")} subtitle={t("optional")} defaultOpen={false}>
         <div className="grid gap-3 sm:grid-cols-4">
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Vehicle Number</Label>
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("vehicleNumber")}</Label>
             <Input value={vehNumber} onChange={(e) => setVehNumber(e.target.value)} placeholder="MH 12 AB 1234" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Vehicle Type</Label>
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("vehicleType")}</Label>
             <select
               value={vehType}
               onChange={(e) => setVehType(e.target.value)}
               className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
             >
-              <option value="Car">Car</option>
-              <option value="Bike">Bike</option>
-              <option value="Auto">Auto / Rickshaw</option>
-              <option value="Taxi">Taxi / Cab</option>
-              <option value="Bus">Bus</option>
-              <option value="Other">Other</option>
+              <option value="Car">{t("veh_car")}</option>
+              <option value="Bike">{t("veh_bike")}</option>
+              <option value="Auto">{t("veh_auto")}</option>
+              <option value="Taxi">{t("veh_taxi")}</option>
+              <option value="Bus">{t("veh_bus")}</option>
+              <option value="Other">{t("veh_other")}</option>
             </select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Make / Name</Label>
-            <Input value={vehMake} onChange={(e) => setVehMake(e.target.value)} placeholder="e.g. Honda City" />
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("makeName")}</Label>
+            <Input value={vehMake} onChange={(e) => setVehMake(e.target.value)} placeholder={t("makePlaceholder")} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Parking Slot</Label>
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("parkingSlot")}</Label>
             <Input value={parkingSlot} onChange={(e) => setParkingSlot(e.target.value)} placeholder="A-12" />
           </div>
         </div>
@@ -3159,8 +3231,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             onChange={(e) => setTerms(e.target.checked)}
           />
           <span className="text-muted-foreground leading-relaxed">
-            Guest agrees to hotel terms and conditions, including check-in/check-out policy,
-            identity verification and property rules.
+            {ts("termsAgreement")}
           </span>
         </label>
 
@@ -3178,7 +3249,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             onClick={saveDraft}
           >
             <FileText className="size-4" aria-hidden />
-            Save Draft
+            {ts("saveDraft")}
           </Button>
           <Button
             type="button"
@@ -3186,19 +3257,19 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             className="bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
             onClick={() => {
               if (!guest) {
-                setError("Select or create a guest first.");
+                setError(t("selectOrCreateGuest"));
                 return;
               }
               if (selectedRooms.length === 0) {
-                setError("Select at least one room.");
+                setError(t("selectAtLeastOneRoom"));
                 return;
               }
               if (!datesValid) {
-                setError("Check-out date must be after check-in date.");
+                setError(t("datesInvalid"));
                 return;
               }
               if (fgEnabled && fgForm.passport_number.trim().length < 3) {
-                setError("Passport number (min 3 characters) is required for a foreign guest.");
+                setError(t("passportRequired"));
                 return;
               }
               setError(null);
@@ -3206,7 +3277,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             }}
           >
             <LogIn className="size-4" aria-hidden />
-            {mutation.isPending ? "Checking In…" : "Check In"}
+            {mutation.isPending ? t("checkingIn") : tb("checkInAction")}
           </Button>
         </div>
       </div>
@@ -3229,6 +3300,7 @@ function ArrivalsStrip({
   readonly isLoading: boolean;
   readonly onSelect: (booking: BookingOut) => void;
 }) {
+  const t = useTranslations("checkin");
   const [showAll, setShowAll] = useState(false);
 
   if (isLoading) {
@@ -3250,7 +3322,7 @@ function ArrivalsStrip({
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-muted-foreground">
-          Arriving bookings — click to check in
+          {t("arrivingBookings")}
         </h2>
         {hiddenCount > 0 && (
           <button
@@ -3258,7 +3330,7 @@ function ArrivalsStrip({
             onClick={() => setShowAll((s) => !s)}
             className="text-xs font-medium text-gold-600 hover:underline"
           >
-            {showAll ? "Show less" : `+${hiddenCount} more`}
+            {showAll ? t("showLess") : t("moreCount", { count: hiddenCount })}
           </button>
         )}
       </div>
@@ -3281,7 +3353,7 @@ function ArrivalsStrip({
               {booking.rooms
                 .filter((r) => r.is_current)
                 .map((r) => r.room_number)
-                .join(", ") || "No rooms"}
+                .join(", ") || t("noRooms")}
             </span>
             <span className="text-[10px] text-muted-foreground mt-0.5">
               {fmtApiDate(booking.check_in_date)} → {fmtApiDate(booking.check_out_date)}
@@ -3298,6 +3370,10 @@ function ArrivalsStrip({
 const CHECKIN_SESSION_KEY = "dmh.checkin.selectedBookingId";
 
 function CheckinContent() {
+  const t = useTranslations("checkin");
+  const ts = useTranslations("stay");
+  const tn = useTranslations("nav");
+  const tc = useTranslations("common");
   const api = useApi();
   const queryClient = useQueryClient();
   const { activeHotelId } = useAuth();
@@ -3352,7 +3428,7 @@ function CheckinContent() {
   if (selectedBooking) {
     return (
       <>
-        <PartnerHeader title="Guest Check-in" subtitle="Front Desk" />
+        <PartnerHeader title={ts("checkinTitle")} subtitle={tn("frontDesk")} />
         <main className="flex-1 overflow-y-auto bg-[#f5f5f0] px-4 py-6">
           <CheckinForm
             booking={selectedBooking}
@@ -3374,7 +3450,7 @@ function CheckinContent() {
   // MODE A — walk-in check-in (default) with the arrivals strip on top.
   return (
     <>
-      <PartnerHeader title="Guest Check-in" subtitle="Front Desk" />
+      <PartnerHeader title={ts("checkinTitle")} subtitle={tn("frontDesk")} />
       <main className="flex-1 overflow-y-auto bg-[#f5f5f0] px-4 py-6">
         <div className="mx-auto max-w-4xl space-y-6 pb-12">
           <ArrivalsStrip
@@ -3387,17 +3463,17 @@ function CheckinContent() {
           />
           {bookings.isError && (
             <p className="text-sm text-danger">
-              Could not load arriving bookings.{" "}
+              {t("arrivalsLoadFailed")}{" "}
               <button type="button" className="underline" onClick={() => bookings.refetch()}>
-                Retry
+                {tc("retry")}
               </button>
             </p>
           )}
 
           <div className="space-y-1">
-            <h2 className="text-sm font-semibold text-muted-foreground">Walk-in Check-in</h2>
+            <h2 className="text-sm font-semibold text-muted-foreground">{t("walkInTitle")}</h2>
             <p className="text-xs text-muted-foreground">
-              Books the room and checks the guest in — one step, one button.
+              {t("walkInDescription")}
             </p>
           </div>
           <WalkInCheckinForm

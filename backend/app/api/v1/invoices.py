@@ -24,7 +24,7 @@ def _correlation(request: Request) -> str | None:
     return getattr(request.state, "correlation_id", None)
 
 
-@router.get("", response_model=InvoiceListOut)
+@router.get("")
 async def list_invoices(
     status: str | None = Query(default=None),
     q: str | None = Query(default=None, max_length=100),
@@ -41,7 +41,7 @@ async def list_invoices(
     )
 
 
-@router.post("", response_model=InvoiceOut, status_code=201)
+@router.post("", status_code=201)
 async def generate_invoice(
     body: InvoiceGenerateRequest,
     request: Request,
@@ -58,7 +58,7 @@ async def generate_invoice(
     return InvoiceOut.model_validate(invoice)
 
 
-@router.get("/{invoice_id}", response_model=InvoiceOut)
+@router.get("/{invoice_id}")
 async def get_invoice(
     invoice_id: UUID,
     tenant: TenantContext = Depends(require_permissions(Permission.INVOICES_MANAGE)),
@@ -82,7 +82,21 @@ async def invoice_pdf(
     )
 
 
-@router.post("/{invoice_id}/cancel", response_model=InvoiceOut)
+@router.post("/{invoice_id}/email")
+async def email_invoice(
+    invoice_id: UUID,
+    request: Request,
+    tenant: TenantContext = Depends(require_permissions(Permission.INVOICES_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Email the invoice PDF to the guest's email address."""
+    to = await invoices_service.email_invoice(
+        db, tenant, invoice_id, correlation_id=_correlation(request)
+    )
+    return {"message": f"Invoice sent to {to}", "to": to}
+
+
+@router.post("/{invoice_id}/cancel")
 async def cancel_invoice(
     invoice_id: UUID,
     body: InvoiceCancelRequest,
