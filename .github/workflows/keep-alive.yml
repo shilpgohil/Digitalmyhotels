@@ -24,9 +24,9 @@ jobs:
         env:
           RENDER_URL: ${{ secrets.RENDER_BACKEND_URL }}
         run: |
+          # Fall back to the Singapore service URL when the secret isn't set.
           if [ -z "$RENDER_URL" ]; then
-            echo "RENDER_BACKEND_URL secret not set — skipping ping"
-            exit 0
+            RENDER_URL="https://digitalmyhotels-api-sg.onrender.com"
           fi
           echo "Pinging $RENDER_URL/health ..."
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$RENDER_URL/health")
