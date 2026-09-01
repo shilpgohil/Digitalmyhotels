@@ -43,6 +43,14 @@ import { cn } from "@/lib/utils";
 import type { CheckOutOut, CurrentGuestOut } from "@/types/stay";
 import type { BookingOut } from "@/types/stay";
 import type { ChargeOut, PaymentOut } from "@/types/money";
+import {
+  CHARGE_LABELS,
+  activeCharges,
+  computeSettlement,
+  fmtMoney as fmt,
+  money,
+  nonDepositPayments as filterNonDepositPayments,
+} from "@/components/stay/checkout-summary";
 
 interface HotelQr {
   qr_available: boolean;
@@ -50,26 +58,6 @@ interface HotelQr {
 }
 
 type Step = "bill" | "payment" | "success";
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-function money(v: string | number): number {
-  return typeof v === "string" ? parseFloat(v) || 0 : v;
-}
-
-function fmt(v: number): string {
-  return `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-const CHARGE_LABELS: Record<string, string> = {
-  food: "Food",
-  laundry: "Laundry",
-  room_service: "Room Service",
-  extra_bed: "Extra Bed",
-  minibar: "Minibar",
-  transport: "Transport",
-  other: "Other",
-};
 
 // ── Main component ───────────────────────────────────────────────────────────
 
@@ -189,23 +177,18 @@ export function CheckoutDialog({
   // ── Calculated bill ──────────────────────────────────────────────────────
 
   const booking = bookingQuery.data;
-  const charges = (chargesQuery.data?.items ?? []).filter((c) => !c.voided_at);
+  const charges = activeCharges(chargesQuery.data?.items);
   const payments = paymentsQuery.data?.items ?? [];
 
   const lateFeeNum = parseFloat(lateFee) || 0;
-  const finalTotal = money(booking?.total_amount ?? 0) + lateFeeNum;
-  const advancePaid = money(booking?.advance_amount ?? 0);
-  const secDeposit = money(booking?.security_deposit ?? 0);
-  const effectivePaid = advancePaid + secDeposit;
-  const balance = Math.max(finalTotal - effectivePaid, 0);
-  const refundAmt = Math.max(effectivePaid - finalTotal, 0);
-
-  // Night charge (room total = total - extra charges - tax on extra)
-  const extraChargesTotal = charges.reduce((s, c) => s + money(c.total_amount), 0);
-  const roomChargesTotal = money(booking?.total_amount ?? 0) - extraChargesTotal - lateFeeNum;
+  const { finalTotal, secDeposit, balance, refundAmt, roomChargesTotal } = computeSettlement(
+    booking,
+    charges,
+    lateFeeNum,
+  );
 
   // Non-deposit payments only
-  const nonDepositPayments = payments.filter((p) => p.purpose !== "deposit" && p.status === "completed");
+  const nonDepositPayments = filterNonDepositPayments(payments);
 
   // ── Mutations ────────────────────────────────────────────────────────────
 

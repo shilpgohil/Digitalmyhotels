@@ -37,11 +37,30 @@ export function useSubscription() {
   });
 }
 
+/** sessionStorage flag so the expired modal shows at most once per browser session. */
+const EXPIRED_MODAL_FLAG = "dmh.expiredModalShown";
+
 /** Shows the plan-expired modal once per session, plus a persistent banner. */
 export function SubscriptionGate() {
   const t = useTranslations("plan");
   const sub = useSubscription();
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.sessionStorage.getItem(EXPIRED_MODAL_FLAG) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  const dismiss = () => {
+    setDismissed(true);
+    try {
+      window.sessionStorage.setItem(EXPIRED_MODAL_FLAG, "1");
+    } catch {
+      // sessionStorage unavailable (private mode) — in-memory dismissal is enough.
+    }
+  };
 
   const status = sub.data?.status;
   const blocked = status === "expired" || status === "suspended";
@@ -70,7 +89,7 @@ export function SubscriptionGate() {
         </div>
       )}
 
-      <Dialog open={blocked && !dismissed} onOpenChange={(open) => !open && setDismissed(true)}>
+      <Dialog open={blocked && !dismissed} onOpenChange={(open) => !open && dismiss()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="items-center text-center">
             <div className="flex size-12 items-center justify-center rounded-full bg-danger-bg">
@@ -83,7 +102,7 @@ export function SubscriptionGate() {
           </p>
           <Link
             href="/plan"
-            onClick={() => setDismissed(true)}
+            onClick={dismiss}
             className={cn(
               buttonVariants(),
               "w-full bg-gold-500 text-navy-900 hover:bg-gold-400",

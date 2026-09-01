@@ -255,6 +255,17 @@ async def restaurant_billing(
     """Restaurant/food charges billed to in-house bookings, with GST breakdown."""
     hotel_id = tenant.require_hotel()
     from_date, to_date = _range(from_date, to_date)
+
+    # created_at is UTC — compare against the HOTEL's local calendar date so
+    # "today" means today in the hotel's timezone (charges after ~5:30 PM UTC
+    # belong to the next IST day).
+    from app.models.hotel import Hotel
+
+    hotel_tz = (
+        await db.execute(select(Hotel.timezone).where(Hotel.id == hotel_id))
+    ).scalar_one_or_none() or "Asia/Kolkata"
+    local_date = func.date(func.timezone(hotel_tz, HotelCharge.created_at))
+
     rows = (
         await db.execute(
             select(HotelCharge, Booking.booking_number, Guest.full_name)
@@ -264,8 +275,8 @@ async def restaurant_billing(
                 HotelCharge.hotel_id == hotel_id,
                 HotelCharge.category.in_(("restaurant", "food")),
                 HotelCharge.voided_at.is_(None),
-                func.date(HotelCharge.created_at) >= from_date,
-                func.date(HotelCharge.created_at) <= to_date,
+                local_date >= from_date,
+                local_date <= to_date,
             )
             .order_by(HotelCharge.created_at.desc())
             .limit(500)

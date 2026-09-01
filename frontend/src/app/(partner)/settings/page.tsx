@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { QrCode, Upload } from "lucide-react";
+import { KeyRound, QrCode, Upload } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -67,22 +68,31 @@ function SettingsContent() {
       <PartnerHeader title={t("title")} subtitle={tn("operations")} />
       <main className="flex-1 overflow-y-auto p-6">
         {/* Tab bar — custom implementation to avoid Base UI multi-panel rendering bug */}
-        <div className="mb-6 flex flex-wrap gap-1 rounded-lg bg-muted p-1 w-fit">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => handleTabChange(tab.key)}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                active === tab.key
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex w-fit flex-wrap gap-1 rounded-lg bg-muted p-1">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => handleTabChange(tab.key)}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  active === tab.key
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <Link
+            href="/change-password"
+            className={cn(buttonVariants({ variant: "outline" }), "gap-1.5")}
+          >
+            <KeyRound className="size-4" aria-hidden />
+            {t("resetPassword")}
+          </Link>
         </div>
 
         {/* Only the active panel is mounted — no phantom white boxes */}

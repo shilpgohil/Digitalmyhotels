@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Upload } from "lucide-react";
+import { Plus } from "lucide-react";
 import { fmtApiDate, localToday } from "@/lib/formatting";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
@@ -32,9 +32,8 @@ import {
 import { StatusBadge } from "@/components/feedback/status-badge";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
-import { ApiError, apiUpload } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/client";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
-import { compressReceipt } from "@/lib/compress-image";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { ListOut } from "@/types/hotel";
 import type { ExpenseCategoryOut, ExpenseOut, RecurringExpenseOut } from "@/types/money";
@@ -118,8 +117,11 @@ function ExpensesContent() {
               </Button>
             </>
           )}
-          {can(PERMISSIONS.expensesCreate) && <AddExpenseDialog onDone={invalidate} />}
         </div>
+
+        {/* Inline add-expense card (replaces the old dialog, per Figma) */}
+        {can(PERMISSIONS.expensesCreate) && <InlineAddExpense onDone={invalidate} />}
+
         <div className="rounded-lg border bg-card">
           {expenses.isLoading && <Skeleton className="h-48" />}
           {expenses.isError && (
@@ -395,130 +397,138 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
   );
 }
 
-function AddExpenseDialog({ onDone }: { onDone: () => void }) {
+const PAYMENT_MODES = ["cash", "upi", "card", "bank_transfer"] as const;
+
+function InlineAddExpense({ onDone }: { onDone: () => void }) {
   const t = useTranslations("expenses");
   const tc = useTranslations("common");
   const api = useApi();
   const { activeHotelId } = useAuth();
-  const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [expenseDate, setExpenseDate] = useState(localToday);
   const [categoryId, setCategoryId] = useState("");
-  const [submitNow, setSubmitNow] = useState(true);
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [receiptBusy, setReceiptBusy] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<string>("cash");
+  const [vendorId, setVendorId] = useState("");
 
   const categories = useQuery({
     queryKey: ["expense-categories", activeHotelId],
     queryFn: () => api<ExpenseCategoryOut[]>("/api/v1/expenses/categories"),
-    enabled: open && !!activeHotelId,
+    enabled: !!activeHotelId,
+  });
+
+  const vendors = useQuery({
+    queryKey: ["expense-vendors", activeHotelId],
+    queryFn: () => api<VendorOut[]>("/api/v1/expenses/vendors"),
+    enabled: !!activeHotelId,
   });
 
   const mutation = useMutation({
-    mutationFn: async () => {
-      const expense = await api<{ id: string }>("/api/v1/expenses", {
+    mutationFn: () =>
+      api<{ id: string }>("/api/v1/expenses", {
         method: "POST",
         body: {
           amount,
-          description,
+          description: description || null,
           expense_date: expenseDate,
           category_id: categoryId || null,
-          submit: submitNow,
+          vendor_id: vendorId || null,
+          payment_method: paymentMethod,
+          submit: true,
         },
-      });
-      // Upload receipt attachment if provided (with compression).
-      if (receiptFile && expense.id) {
-        setReceiptBusy(true);
-        try {
-          const compressed = await compressReceipt(receiptFile);
-          const form = new FormData();
-          form.append("file", compressed);
-          await apiUpload(`/api/v1/expenses/${expense.id}/attachment`, form, {
-            hotelId: activeHotelId ?? undefined,
-            method: "PUT",
-          });
-        } finally {
-          setReceiptBusy(false);
-        }
-      }
-      return expense;
-    },
+      }),
     onSuccess: () => {
       toast.success(t("created"));
-      setOpen(false);
-      setReceiptFile(null);
+      setAmount("");
+      setDescription("");
+      setExpenseDate(localToday());
+      setCategoryId("");
+      setPaymentMethod("cash");
+      setVendorId("");
       onDone();
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
   });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="inline-flex h-8 items-center rounded-lg bg-primary px-2.5 text-sm font-medium text-primary-foreground">
-        {t("addExpense")}
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t("addExpense")}</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-3">
-          <div>
-            <Label>{t("amount")}</Label>
-            <Input className="mt-1" value={amount} onChange={(e) => setAmount(e.target.value)} />
-          </div>
-          <div>
-            <Label>{t("expenseDate")}</Label>
-            <DateInput className="mt-1" value={expenseDate} onChange={setExpenseDate} />
-          </div>
-          <div>
-            <Label>{t("category")}</Label>
-            <select
-              className="mt-1 h-8 w-full rounded-lg border px-2.5 text-sm"
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-            >
-              <option value="">—</option>
-              {categories.data?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <Label>{t("description")}</Label>
-            <Input className="mt-1" value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={submitNow} onChange={(e) => setSubmitNow(e.target.checked)} />
-            {t("submitNow")}
-          </label>
-          {/* Receipt upload with browser-side compression */}
-          <div>
-            <Label>{t("receiptOptional")}</Label>
-            <label className="mt-1 flex cursor-pointer items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-              <Upload className="size-4" aria-hidden />
-              {receiptFile ? receiptFile.name : t("uploadReceipt")}
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp,application/pdf"
-                className="hidden"
-                onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
-              />
-            </label>
-          </div>
+    <section className="mb-4 rounded-lg border bg-card p-4">
+      <h2 className="mb-3 text-sm font-semibold">{t("addExpense")}</h2>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div>
+          <Label>{t("expenseDate")}</Label>
+          <DateInput className="mt-1" value={expenseDate} onChange={setExpenseDate} />
         </div>
-        <DialogFooter>
-          <DialogClose className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm">
-            {tc("cancel")}
-          </DialogClose>
-          <Button disabled={!amount || mutation.isPending || receiptBusy} onClick={() => mutation.mutate()}>
-            {mutation.isPending || receiptBusy ? tc("saving") : t("addExpense")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div>
+          <Label>{t("category")}</Label>
+          <select
+            className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+          >
+            <option value="">—</option>
+            {categories.data?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label>{t("description")}</Label>
+          <Input
+            className="mt-1"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label>{t("amount")}</Label>
+          <Input
+            className="mt-1"
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label>{t("paymentMode")}</Label>
+          <select
+            className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+          >
+            {PAYMENT_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {t(`mode_${mode}`)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label>{t("paidTo")}</Label>
+          <select
+            className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            value={vendorId}
+            onChange={(e) => setVendorId(e.target.value)}
+          >
+            <option value="">—</option>
+            {vendors.data?.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <Button
+        className="mt-4 w-full bg-gold-500 text-navy-900 hover:bg-gold-400"
+        disabled={!amount || mutation.isPending}
+        onClick={() => mutation.mutate()}
+      >
+        <Plus className="size-4" aria-hidden />
+        {mutation.isPending ? tc("saving") : t("addExpense")}
+      </Button>
+    </section>
   );
 }
 

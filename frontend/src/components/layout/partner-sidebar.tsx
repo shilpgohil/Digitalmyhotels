@@ -23,6 +23,8 @@ import {
   ClipboardCheck,
   ArrowLeftRight,
   ScrollText,
+  UtensilsCrossed,
+  ReceiptText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -119,6 +121,18 @@ const SECTIONS: NavSection[] = [
         labelKey: "payments",
         icon: Wallet,
         permission: PERMISSIONS.paymentsView,
+      },
+      {
+        href: "/restaurant-billing",
+        labelKey: "restaurantBilling",
+        icon: UtensilsCrossed,
+        permission: PERMISSIONS.financialReports,
+      },
+      {
+        href: "/invoice-preview",
+        labelKey: "invoicePreview",
+        icon: ReceiptText,
+        permission: PERMISSIONS.invoicesManage,
       },
       {
         href: "/invoices",

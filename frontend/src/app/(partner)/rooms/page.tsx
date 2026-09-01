@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, MoreVertical, LayoutGrid, List } from "lucide-react";
+import { Plus, MoreHorizontal, MoreVertical, LayoutGrid, List } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +52,12 @@ const GRID_FILTERS: Array<RoomStatus | "all"> = [
   "cleaning_required",
   "maintenance",
 ];
+
+/** Statuses offered from the grid-tile "..." menu (per Figma: Available / Cleaning / Maintenance). */
+const TILE_STATUSES: RoomStatus[] = ["available", "cleaning_required", "maintenance"];
+
+/** Rooms in these statuses must not be changed manually from the tile menu. */
+const LOCKED_STATUSES: RoomStatus[] = ["occupied", "reserved"];
 
 const MANUAL_STATUSES: RoomStatus[] = [
   "available",
@@ -189,31 +195,32 @@ function RoomsContent() {
                       >
                         <div className="flex w-full items-start justify-between">
                           <span className="text-lg font-semibold">{room.room_number}</span>
-                          {can(PERMISSIONS.roomsUpdateStatus) && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger
-                                className="-mr-1 -mt-1 flex size-6 items-center justify-center rounded hover:bg-muted"
-                                aria-label={t("changeStatus")}
-                              >
-                                <MoreVertical className="size-3.5" aria-hidden />
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>{t("changeStatus")}</DropdownMenuLabel>
-                                {MANUAL_STATUSES.filter((s) => s !== room.status).map(
-                                  (status) => (
-                                    <DropdownMenuItem
-                                      key={status}
-                                      onClick={() =>
-                                        statusMutation.mutate({ roomId: room.id, status })
-                                      }
-                                    >
-                                      {t(`status_${status}`)}
-                                    </DropdownMenuItem>
-                                  ),
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
+                          {can(PERMISSIONS.roomsUpdateStatus) &&
+                            !LOCKED_STATUSES.includes(room.status) && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger
+                                  className="-mr-1 -mt-1 flex size-6 items-center justify-center rounded hover:bg-muted"
+                                  aria-label={t("changeStatus")}
+                                >
+                                  <MoreHorizontal className="size-3.5" aria-hidden />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>{t("changeStatus")}</DropdownMenuLabel>
+                                  {TILE_STATUSES.filter((s) => s !== room.status).map(
+                                    (status) => (
+                                      <DropdownMenuItem
+                                        key={status}
+                                        onClick={() =>
+                                          statusMutation.mutate({ roomId: room.id, status })
+                                        }
+                                      >
+                                        {t(`status_${status}`)}
+                                      </DropdownMenuItem>
+                                    ),
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
                         </div>
                         <StatusBadge tone={ROOM_STATUS_TONE[room.status]}>
                           {t(`status_${room.status}`)}

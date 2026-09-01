@@ -137,35 +137,27 @@ function PaymentsContent() {
           )}
         </div>
 
-        {/* Summary cards */}
+        {/* Summary cards — paid/partial/pending are booking counts (the API
+            exposes counts, not amounts, for those statuses). */}
         {summary.data && (
           <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             {(
               [
-                ["totalCollected", summary.data.total_collected, "bg-navy-900 text-white"],
-                ["cash", summary.data.cash, "bg-gold-500 text-navy-900"],
-                ["upi", summary.data.upi, "bg-success text-white"],
-                ["refundsCard", summary.data.refunds, "bg-danger text-white"],
-                ["depositsCard", summary.data.deposits, "bg-info text-white"],
+                ["totalCollected", `₹${summary.data.total_collected}`, "bg-navy-900 text-white"],
+                ["paidCard", String(summary.data.paid_bookings), "bg-green-800 text-white"],
+                ["cash", `₹${summary.data.cash}`, "bg-gold-500 text-navy-900"],
+                ["upi", `₹${summary.data.upi}`, "bg-success text-white"],
+                ["partialCard", String(summary.data.partial_bookings), "bg-amber-700 text-white"],
+                ["pendingCard", String(summary.data.unpaid_bookings), "bg-danger text-white"],
               ] as const
             ).map(([key, value, className]) => (
               <div key={key} className={`rounded-lg p-4 ${className}`}>
                 <p className="text-[10px] font-semibold uppercase tracking-widest opacity-80">
                   {t(key)}
                 </p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums">₹{value}</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
               </div>
             ))}
-            <div className="rounded-lg border bg-card p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                {t("bookingStatus")}
-              </p>
-              <p className="mt-1 text-sm">
-                <span className="font-semibold text-success">{summary.data.paid_bookings}</span> {t("payment_paidShort")} ·{" "}
-                <span className="font-semibold text-warning">{summary.data.partial_bookings}</span> {t("payment_partialShort")} ·{" "}
-                <span className="font-semibold text-danger">{summary.data.unpaid_bookings}</span> {t("payment_unpaidShort")}
-              </p>
-            </div>
           </div>
         )}
 

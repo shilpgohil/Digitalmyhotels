@@ -225,7 +225,10 @@ export default function DashboardPage() {
               {can(PERMISSIONS.checkout) && (
                 <Link
                   href="/checkout"
-                  className={cn(buttonVariants(), "w-full justify-start gap-2")}
+                  className={cn(
+                    buttonVariants(),
+                    "w-full justify-start gap-2 bg-navy-900 text-white hover:bg-navy-800",
+                  )}
                 >
                   <LogOut className="size-4" aria-hidden />
                   {t("processCheckout")}
@@ -238,18 +241,6 @@ export default function DashboardPage() {
                 <BedDouble className="size-4" aria-hidden />
                 {t("viewRoomStatus")}
               </Link>
-              {can(PERMISSIONS.hotelManageTeam) && (
-                <Link
-                  href="/team"
-                  className={cn(
-                    buttonVariants({ variant: "outline" }),
-                    "w-full justify-start gap-2",
-                  )}
-                >
-                  <Users className="size-4" aria-hidden />
-                  {t("manageTeam")}
-                </Link>
-              )}
               {can(PERMISSIONS.paymentsView) && (
                 <Link
                   href="/payments"

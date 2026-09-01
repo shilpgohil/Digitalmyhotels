@@ -32,14 +32,16 @@
  *  7. POST /payments                   — if advance payment > 0
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft,
   BadgeCheck,
   BedDouble,
+  Camera,
   Car,
+  Globe,
   ChevronDown,
   ChevronUp,
   CreditCard,
@@ -76,6 +78,8 @@ import type {
   BookAndCheckInRequest,
   BookingOut,
   CheckInCreateOut,
+  CheckInRequest,
+  ForeignGuestIn,
   GuestAutofill,
   GuestCreatePayload,
   GuestSearchResult,
@@ -100,7 +104,524 @@ interface ResolvedCoGuest {
   docs: { side: "front" | "back" | "selfie"; file: File }[];
 }
 
+/** Editable Form C fields — all strings so inputs stay controlled. */
+interface ForeignGuestFormState {
+  passport_number: string;
+  passport_place_of_issue: string;
+  passport_expiry: string;
+  visa_number: string;
+  visa_type: string;
+  visa_place_of_issue: string;
+  visa_expiry: string;
+  place_of_birth: string;
+  country_of_birth: string;
+  nationality: string;
+  arrived_in_india_on: string;
+  arrival_place: string;
+  coming_from_city: string;
+  coming_from_country: string;
+  next_destination: string;
+  next_destination_country: string;
+  purpose_of_visit: string;
+}
+
+const EMPTY_FOREIGN_GUEST: ForeignGuestFormState = {
+  passport_number: "",
+  passport_place_of_issue: "",
+  passport_expiry: "",
+  visa_number: "",
+  visa_type: "",
+  visa_place_of_issue: "",
+  visa_expiry: "",
+  place_of_birth: "",
+  country_of_birth: "",
+  nationality: "",
+  arrived_in_india_on: "",
+  arrival_place: "",
+  coming_from_city: "",
+  coming_from_country: "",
+  next_destination: "",
+  next_destination_country: "",
+  purpose_of_visit: "",
+};
+
+/** Build the API foreign_guest payload from the form state (null when disabled). */
+function buildForeignGuestPayload(
+  enabled: boolean,
+  f: ForeignGuestFormState,
+): ForeignGuestIn | null {
+  if (!enabled) return null;
+  const opt = (v: string) => v.trim() || null;
+  return {
+    passport_number: f.passport_number.trim(),
+    passport_place_of_issue: opt(f.passport_place_of_issue),
+    passport_expiry: opt(f.passport_expiry),
+    visa_number: opt(f.visa_number),
+    visa_type: opt(f.visa_type),
+    visa_place_of_issue: opt(f.visa_place_of_issue),
+    visa_expiry: opt(f.visa_expiry),
+    place_of_birth: opt(f.place_of_birth),
+    country_of_birth: opt(f.country_of_birth),
+    nationality: opt(f.nationality),
+    arrived_in_india_on: opt(f.arrived_in_india_on),
+    arrival_place: opt(f.arrival_place),
+    coming_from_city: opt(f.coming_from_city),
+    coming_from_country: opt(f.coming_from_country),
+    next_destination: opt(f.next_destination),
+    next_destination_country: opt(f.next_destination_country),
+    purpose_of_visit: opt(f.purpose_of_visit),
+  };
+}
+
+// ─── Walk-in draft (localStorage) ────────────────────────────────────────────
+
+const DRAFT_KEY = "dmh.checkinDraft.v1";
+
+/** Serialized walk-in form state saved to localStorage via "Save Draft". */
+interface CheckinDraft {
+  savedAt: string;
+  checkInDate: string;
+  checkOutDate: string;
+  checkInTime: string;
+  checkOutTime: string;
+  guestType: string;
+  guest: { id: string; full_name: string; phone: string } | null;
+  selectedRooms: string[];
+  adultsCount: number;
+  childCount: number;
+  specialInstructions: string;
+  selectedServices: string[];
+  advanceAmount: string;
+  paymentMode: "cash" | "upi";
+  emName: string;
+  emRelation: string;
+  emPhone: string;
+  vehNumber: string;
+  vehType: string;
+  vehMake: string;
+  parkingSlot: string;
+  pgCompany: string;
+  foreignEnabled: boolean;
+  foreignGuest: ForeignGuestFormState;
+}
+
+function readDraft(): CheckinDraft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as CheckinDraft;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Shared helpers ──────────────────────────────────────────────────────────
+
+/** Mask an ID number, keeping only the last 4 characters visible. */
+function maskIdValue(v: string): string {
+  if (!v) return "";
+  const visible = v.slice(-4);
+  return "•".repeat(Math.max(v.length - visible.length, 0)) + visible;
+}
+
+/**
+ * ID-number field that renders masked (••••••••1234) with a "Show" checkbox
+ * beside the label. Raw value stays in parent state — only display toggles.
+ * Focusing the input reveals the raw value so it stays editable.
+ */
+function MaskedIdInput({
+  label,
+  labelClassName = "text-[11px] font-semibold uppercase tracking-wide text-muted-foreground",
+  value,
+  onChange,
+  placeholder,
+  trailing,
+}: {
+  readonly label: string;
+  readonly labelClassName?: string;
+  readonly value: string;
+  readonly onChange: (v: string) => void;
+  readonly placeholder?: string;
+  readonly trailing?: React.ReactNode;
+}) {
+  const [show, setShow] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const masked = !show && !focused;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <Label className={labelClassName}>{label}</Label>
+        <label className="flex cursor-pointer select-none items-center gap-1 text-[11px] text-muted-foreground">
+          <input
+            type="checkbox"
+            className="size-3 rounded border-input"
+            checked={show}
+            onChange={(e) => setShow(e.target.checked)}
+          />
+          Show
+        </label>
+      </div>
+      <div className="flex gap-2">
+        <Input
+          value={masked ? maskIdValue(value) : value}
+          onChange={(e) => {
+            if (!masked) onChange(e.target.value);
+          }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder={placeholder}
+          autoComplete="off"
+          className="flex-1"
+        />
+        {trailing}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Inline camera view for desktop selfie capture — opens the front camera via
+ * getUserMedia, captures a frame to canvas and returns it as a File.
+ */
+function InlineCameraCapture({
+  onCapture,
+  onClose,
+}: {
+  readonly onCapture: (file: File) => void;
+  readonly onClose: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error("unsupported");
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user" },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+        setReady(true);
+      } catch {
+        toast.error("Camera unavailable — use the file upload instead");
+        onCloseRef.current();
+      }
+    })();
+    return () => {
+      cancelled = true;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    };
+  }, []);
+
+  const capture = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          toast.error("Could not capture photo");
+          return;
+        }
+        onCapture(new File([blob], "selfie.jpg", { type: "image/jpeg" }));
+        onClose();
+      },
+      "image/jpeg",
+      0.92,
+    );
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-gold-400 bg-white p-2">
+      {/* Mirrored preview like a front camera */}
+      <video
+        ref={videoRef}
+        muted
+        playsInline
+        className="w-full rounded-md bg-black -scale-x-100"
+      />
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={capture}
+          disabled={!ready}
+          className="flex-1 inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-navy-900 px-2 text-xs font-semibold text-white hover:bg-navy-900/90 disabled:opacity-50"
+        >
+          <Camera className="size-3.5" aria-hidden />
+          Capture
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="inline-flex h-8 items-center justify-center rounded-lg border px-2 text-xs font-medium hover:bg-muted"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** "Selected special requirements" summary — shows name + ₹price per chip. */
+function SelectedServicesList({
+  services,
+  selectedIds,
+}: {
+  readonly services: ServiceItem[];
+  readonly selectedIds: string[];
+}) {
+  const chosen = services.filter((s) => selectedIds.includes(s.id));
+  if (chosen.length === 0) return null;
+  return (
+    <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
+      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Selected special requirements
+      </p>
+      <ul className="space-y-1">
+        {chosen.map((s) => (
+          <li key={s.id} className="flex items-center justify-between text-sm">
+            <span>{s.name}</span>
+            <span className="tabular-nums font-medium">₹{s.price}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Foreign Guest (Form C) — checkbox that reveals passport/visa/journey fields
+ * grouped per the FRRO Form C layout. State lives in the parent form.
+ */
+function ForeignGuestSection({
+  enabled,
+  onEnabledChange,
+  value,
+  onChange,
+}: {
+  readonly enabled: boolean;
+  readonly onEnabledChange: (v: boolean) => void;
+  readonly value: ForeignGuestFormState;
+  readonly onChange: (v: ForeignGuestFormState) => void;
+}) {
+  const set = (k: keyof ForeignGuestFormState, v: string) =>
+    onChange({ ...value, [k]: v });
+
+  const lbl = "text-[11px] font-semibold uppercase tracking-wide text-muted-foreground";
+
+  return (
+    <div className="space-y-3">
+      <label className="flex cursor-pointer items-center gap-2.5 text-sm">
+        <input
+          type="checkbox"
+          className="size-4 rounded border-input"
+          checked={enabled}
+          onChange={(e) => onEnabledChange(e.target.checked)}
+        />
+        <span className="font-medium">Foreign guest (passport/visa details)</span>
+      </label>
+
+      {enabled && (
+        <div className="rounded-xl border bg-muted/10 p-4 space-y-5">
+          <div className="flex items-center gap-2">
+            <Globe className="size-4 text-gold-600" aria-hidden />
+            <p className="text-sm font-semibold">Foreign Guest Details (Form C)</p>
+          </div>
+
+          {/* Passport */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">Passport</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label className={lbl}>Passport Number *</Label>
+                <Input
+                  value={value.passport_number}
+                  onChange={(e) => set("passport_number", e.target.value)}
+                  placeholder="Passport number"
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>Place of Issue</Label>
+                <Input
+                  value={value.passport_place_of_issue}
+                  onChange={(e) => set("passport_place_of_issue", e.target.value)}
+                  placeholder="Place of issue"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>Passport Expiry</Label>
+                <DateInput
+                  value={value.passport_expiry}
+                  onChange={(v) => set("passport_expiry", v)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Visa */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">Visa</p>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <div className="space-y-1.5">
+                <Label className={lbl}>Visa Number</Label>
+                <Input
+                  value={value.visa_number}
+                  onChange={(e) => set("visa_number", e.target.value)}
+                  placeholder="Visa number"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>Visa Type</Label>
+                <select
+                  value={value.visa_type}
+                  onChange={(e) => set("visa_type", e.target.value)}
+                  className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                >
+                  <option value="">— Select —</option>
+                  <option value="Tourist">Tourist</option>
+                  <option value="Business">Business</option>
+                  <option value="Medical">Medical</option>
+                  <option value="Student">Student</option>
+                  <option value="Employment">Employment</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>Place of Issue</Label>
+                <Input
+                  value={value.visa_place_of_issue}
+                  onChange={(e) => set("visa_place_of_issue", e.target.value)}
+                  placeholder="Place of issue"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>Visa Expiry</Label>
+                <DateInput
+                  value={value.visa_expiry}
+                  onChange={(v) => set("visa_expiry", v)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Personal */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">Personal</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label className={lbl}>Place of Birth</Label>
+                <Input
+                  value={value.place_of_birth}
+                  onChange={(e) => set("place_of_birth", e.target.value)}
+                  placeholder="Place of birth"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>Country of Birth</Label>
+                <Input
+                  value={value.country_of_birth}
+                  onChange={(e) => set("country_of_birth", e.target.value)}
+                  placeholder="Country of birth"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>Nationality</Label>
+                <Input
+                  value={value.nationality}
+                  onChange={(e) => set("nationality", e.target.value)}
+                  placeholder="Nationality"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Journey */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">Journey</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label className={lbl}>Arrived in India On</Label>
+                <DateInput
+                  value={value.arrived_in_india_on}
+                  onChange={(v) => set("arrived_in_india_on", v)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>Arrival Place</Label>
+                <Input
+                  value={value.arrival_place}
+                  onChange={(e) => set("arrival_place", e.target.value)}
+                  placeholder="Port / city of arrival"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>Coming From (City)</Label>
+                <Input
+                  value={value.coming_from_city}
+                  onChange={(e) => set("coming_from_city", e.target.value)}
+                  placeholder="City"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>Coming From (Country)</Label>
+                <Input
+                  value={value.coming_from_country}
+                  onChange={(e) => set("coming_from_country", e.target.value)}
+                  placeholder="Country"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>Next Destination</Label>
+                <Input
+                  value={value.next_destination}
+                  onChange={(e) => set("next_destination", e.target.value)}
+                  placeholder="City / place"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>Next Destination Country</Label>
+                <Input
+                  value={value.next_destination_country}
+                  onChange={(e) => set("next_destination_country", e.target.value)}
+                  placeholder="Country"
+                />
+              </div>
+              <div className="space-y-1.5 sm:col-span-3">
+                <Label className={lbl}>Purpose of Visit</Label>
+                <Input
+                  value={value.purpose_of_visit}
+                  onChange={(e) => set("purpose_of_visit", e.target.value)}
+                  placeholder="Purpose of visit"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Collapsible section wrapper. */
 function Section({
@@ -177,6 +698,7 @@ function DocUpload({
   const [busy, setBusy] = useState(false);
   const [ocrRunning, setOcrRunning] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   // Clean up blob URL when component unmounts
   useEffect(() => {
@@ -219,53 +741,74 @@ function DocUpload({
   };
 
   return (
-    <label
-      className={cn(
-        "relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 overflow-hidden text-center text-xs transition-colors",
-        !guestId && "pointer-events-none opacity-40",
-        preview
-          ? "border-green-400 p-0 h-28"
-          : ocrRunning
-          ? "border-gold-400 bg-gold-50 text-gold-700 animate-pulse p-4"
-          : "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4",
+    <div className="space-y-1.5">
+      <label
+        className={cn(
+          "relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 overflow-hidden text-center text-xs transition-colors",
+          !guestId && "pointer-events-none opacity-40",
+          preview
+            ? "border-green-400 p-0 h-28"
+            : ocrRunning
+            ? "border-gold-400 bg-gold-50 text-gold-700 animate-pulse p-4"
+            : "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4",
+        )}
+      >
+        {preview ? (
+          /* Image thumbnail fills the tile */
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={preview}
+              alt={side === "selfie" ? "Selfie" : "ID document"}
+              className="h-full w-full object-cover"
+            />
+            {/* Status overlay */}
+            <div className={cn(
+              "absolute bottom-0 left-0 right-0 px-2 py-1 text-[10px] font-semibold text-center",
+              uploaded ? "bg-green-600/80 text-white" : "bg-gold-500/80 text-navy-900",
+            )}>
+              {ocrRunning ? "Reading ID…" : busy ? "Uploading…" : "✓ Uploaded"}
+            </div>
+          </>
+        ) : (
+          <>
+            <Upload className={cn("size-5", ocrRunning && "animate-spin")} aria-hidden />
+            <span className="font-medium">
+              {ocrRunning ? "Reading ID…" : busy ? "Uploading…" : label}
+            </span>
+            {ocrRunning && (
+              <span className="text-[10px] text-gold-600">Extracting details…</span>
+            )}
+          </>
+        )}
+        <input
+          type="file"
+          // Selfie tile: any image + front camera on mobile.
+          accept={side === "selfie" ? "image/*" : "image/png,image/jpeg,image/webp"}
+          capture={side === "selfie" ? "user" : undefined}
+          className="hidden"
+          disabled={!guestId || busy}
+          onChange={(e) => onFile(e.target.files?.[0])}
+        />
+      </label>
+      {side === "selfie" && !cameraOpen && (
+        <button
+          type="button"
+          onClick={() => setCameraOpen(true)}
+          disabled={!guestId || busy}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-[11px] font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors disabled:opacity-40"
+        >
+          <Camera className="size-3.5" aria-hidden />
+          Use camera
+        </button>
       )}
-    >
-      {preview ? (
-        /* Image thumbnail fills the tile */
-        <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={preview}
-            alt="ID document"
-            className="h-full w-full object-cover"
-          />
-          {/* Status overlay */}
-          <div className={cn(
-            "absolute bottom-0 left-0 right-0 px-2 py-1 text-[10px] font-semibold text-center",
-            uploaded ? "bg-green-600/80 text-white" : "bg-gold-500/80 text-navy-900",
-          )}>
-            {ocrRunning ? "Reading ID…" : busy ? "Uploading…" : "✓ Uploaded"}
-        </div>
-        </>
-      ) : (
-        <>
-          <Upload className={cn("size-5", ocrRunning && "animate-spin")} aria-hidden />
-          <span className="font-medium">
-            {ocrRunning ? "Reading ID…" : busy ? "Uploading…" : label}
-          </span>
-          {ocrRunning && (
-            <span className="text-[10px] text-gold-600">Extracting details…</span>
-          )}
-        </>
+      {side === "selfie" && cameraOpen && (
+        <InlineCameraCapture
+          onCapture={(file) => onFile(file)}
+          onClose={() => setCameraOpen(false)}
+        />
       )}
-      <input
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        className="hidden"
-        disabled={!guestId || busy}
-        onChange={(e) => onFile(e.target.files?.[0])}
-      />
-    </label>
+    </div>
   );
 }
 
@@ -380,6 +923,7 @@ function QueuedDocUpload({
 }) {
   const [queued, setQueued] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   useEffect(() => {
     return () => { if (preview) URL.revokeObjectURL(preview); };
@@ -400,35 +944,59 @@ function QueuedDocUpload({
   };
 
   return (
-    <label
-      className={cn(
-        "relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 overflow-hidden text-center text-xs transition-colors",
-        preview
-          ? "border-gold-400 p-0 h-28"
-          : "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4",
+    <div className="space-y-1.5">
+      <label
+        className={cn(
+          "relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 overflow-hidden text-center text-xs transition-colors",
+          preview
+            ? "border-gold-400 p-0 h-28"
+            : "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4",
+        )}
+      >
+        {preview ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={preview}
+              alt={side === "selfie" ? "Selfie" : "ID document"}
+              className="h-full w-full object-cover"
+            />
+            <div className="absolute bottom-0 left-0 right-0 bg-gold-500/80 px-2 py-1 text-[10px] font-semibold text-navy-900 text-center">
+              {queued ? "✓ Ready to upload" : "Processing…"}
+            </div>
+          </>
+        ) : (
+          <>
+            <Upload className="size-5" aria-hidden />
+            <span className="font-medium">{label}</span>
+          </>
+        )}
+        <input
+          type="file"
+          // Selfie tile: any image + front camera on mobile.
+          accept={side === "selfie" ? "image/*" : "image/png,image/jpeg,image/webp"}
+          capture={side === "selfie" ? "user" : undefined}
+          className="hidden"
+          onChange={(e) => onFile(e.target.files?.[0])}
+        />
+      </label>
+      {side === "selfie" && !cameraOpen && (
+        <button
+          type="button"
+          onClick={() => setCameraOpen(true)}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-[11px] font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
+        >
+          <Camera className="size-3.5" aria-hidden />
+          Use camera
+        </button>
       )}
-    >
-      {preview ? (
-        <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview} alt="ID document" className="h-full w-full object-cover" />
-          <div className="absolute bottom-0 left-0 right-0 bg-gold-500/80 px-2 py-1 text-[10px] font-semibold text-navy-900 text-center">
-            {queued ? "✓ Ready to upload" : "Processing…"}
-          </div>
-        </>
-      ) : (
-        <>
-          <Upload className="size-5" aria-hidden />
-          <span className="font-medium">{label}</span>
-        </>
+      {side === "selfie" && cameraOpen && (
+        <InlineCameraCapture
+          onCapture={(file) => onFile(file)}
+          onClose={() => setCameraOpen(false)}
+        />
       )}
-      <input
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        className="hidden"
-        onChange={(e) => onFile(e.target.files?.[0])}
-      />
-    </label>
+    </div>
   );
 }
 
@@ -644,14 +1212,13 @@ function AdditionalGuestEntry({
                 <option value="Voter ID">Voter ID</option>
               </select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">ID Number</Label>
-              <Input
-                value={form.id_number}
-                onChange={(e) => set("id_number", e.target.value)}
-                placeholder="Last 4 digits minimum"
-              />
-            </div>
+            <MaskedIdInput
+              label="ID Number"
+              labelClassName="text-xs"
+              value={form.id_number ?? ""}
+              onChange={(v) => set("id_number", v)}
+              placeholder="Last 4 digits minimum"
+            />
         </div>
 
           {/* Doc uploads — front triggers OCR */}
@@ -957,6 +1524,10 @@ function CheckinForm({
   const [isEarly, setIsEarly] = useState(false);
   const [earlyFee, setEarlyFee] = useState("0");
 
+  // ── Foreign guest (Form C) ──
+  const [fgEnabled, setFgEnabled] = useState(false);
+  const [fgForm, setFgForm] = useState<ForeignGuestFormState>(EMPTY_FOREIGN_GUEST);
+
   // ── Terms ──
   const [terms, setTerms] = useState(false);
 
@@ -984,6 +1555,14 @@ function CheckinForm({
   // ── Mutation ─────────────────────────────────────────────────────────────
   const mutation = useMutation({
     mutationFn: async () => {
+      if (fgEnabled && fgForm.passport_number.trim().length < 3) {
+        throw new ApiError(
+          400,
+          "validation",
+          "Passport number (min 3 characters) is required for a foreign guest.",
+        );
+      }
+
       // 1. Update primary guest if anything changed
       const originalName = booking.primary_guest_name ?? "";
       if (
@@ -1082,17 +1661,19 @@ function CheckinForm({
       }
 
       // 4. Check in
+      const checkinBody: CheckInRequest = {
+        booking_id: booking.id,
+        co_guests: resolvedIds.map((id) => ({ guest_id: id })),
+        purpose_of_visit: pgPurpose.trim() || null,
+        company_name: pgCompany.trim() || null,
+        is_early: isEarly,
+        early_fee: isEarly ? earlyFee : "0",
+        terms_acknowledged: terms,
+        foreign_guest: buildForeignGuestPayload(fgEnabled, fgForm),
+      };
       const checkinOut = await api<CheckInCreateOut>("/api/v1/checkins", {
         method: "POST",
-        body: {
-          booking_id: booking.id,
-          co_guests: resolvedIds.map((id) => ({ guest_id: id })),
-          purpose_of_visit: pgPurpose.trim() || null,
-          company_name: pgCompany.trim() || null,
-          is_early: isEarly,
-          early_fee: isEarly ? earlyFee : "0",
-          terms_acknowledged: terms,
-        },
+        body: checkinBody,
       });
 
       // 5. Add service charges
@@ -1232,29 +1813,26 @@ function CheckinForm({
                 <option value="Voter ID">Voter ID</option>
               </select>
             </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {pgIdType.toUpperCase()} No.
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  value={pgIdNumber}
-                  onChange={(e) => setPgIdNumber(e.target.value)}
-                  placeholder={`Enter ${pgIdType} number`}
-                  className="flex-1"
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0"
-                  onClick={() => {
-                    if (pgIdNumber) toast.success("ID recorded");
-                  }}
-                >
-                  Submit
-                </Button>
-              </div>
+            <div className="sm:col-span-2">
+              <MaskedIdInput
+                label={`${pgIdType.toUpperCase()} No.`}
+                value={pgIdNumber}
+                onChange={setPgIdNumber}
+                placeholder={`Enter ${pgIdType} number`}
+                trailing={
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => {
+                      if (pgIdNumber) toast.success("ID recorded");
+                    }}
+                  >
+                    Submit
+                  </Button>
+                }
+              />
             </div>
           </div>
 
@@ -1329,6 +1907,14 @@ function CheckinForm({
               <Input value={pgAddress} onChange={(e) => setPgAddress(e.target.value)} placeholder="Address" />
             </div>
           </div>
+
+          {/* Foreign guest (Form C) */}
+          <ForeignGuestSection
+            enabled={fgEnabled}
+            onEnabledChange={setFgEnabled}
+            value={fgForm}
+            onChange={setFgForm}
+          />
         </div>
       </Section>
 
@@ -1458,6 +2044,10 @@ function CheckinForm({
               })}
             </div>
           )}
+          <SelectedServicesList
+            services={services.data ?? []}
+            selectedIds={selectedServices}
+          />
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Special Instructions
@@ -1674,14 +2264,6 @@ function CheckinForm({
             <Button
               type="button"
               variant="outline"
-              disabled={mutation.isPending}
-              onClick={() => toast.info("Draft saved locally")}
-            >
-              Save Draft
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
               disabled
               title="Available after check-in"
             >
@@ -1867,10 +2449,96 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const [vehMake, setVehMake] = useState("");
   const [parkingSlot, setParkingSlot] = useState("");
 
+  // ── Foreign guest (Form C) ──
+  const [fgEnabled, setFgEnabled] = useState(false);
+  const [fgForm, setFgForm] = useState<ForeignGuestFormState>(EMPTY_FOREIGN_GUEST);
+
   // ── Terms / result / error ──
   const [terms, setTerms] = useState(false);
   const [checkinResult, setCheckinResult] = useState<CheckInCreateOut | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // ── Draft (localStorage) ──
+  // Read once on mount; a non-null value shows the "Restore / Discard" banner.
+  const [draft, setDraft] = useState<CheckinDraft | null>(null);
+  useEffect(() => {
+    setDraft(readDraft());
+  }, []);
+
+  const saveDraft = () => {
+    const d: CheckinDraft = {
+      savedAt: new Date().toISOString(),
+      checkInDate,
+      checkOutDate,
+      checkInTime,
+      checkOutTime,
+      guestType,
+      guest: guest ? { id: guest.id, full_name: guest.full_name, phone: pgPhone } : null,
+      selectedRooms,
+      adultsCount,
+      childCount,
+      specialInstructions,
+      selectedServices,
+      advanceAmount,
+      paymentMode,
+      emName,
+      emRelation,
+      emPhone,
+      vehNumber,
+      vehType,
+      vehMake,
+      parkingSlot,
+      pgCompany,
+      foreignEnabled: fgEnabled,
+      foreignGuest: fgForm,
+    };
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+      toast.success("Draft saved — it will be offered next time you open this page");
+    } catch {
+      toast.error("Could not save draft");
+    }
+  };
+
+  const restoreDraft = (d: CheckinDraft) => {
+    setCheckInDate(d.checkInDate);
+    setCheckOutDate(d.checkOutDate);
+    setCheckInTime(d.checkInTime);
+    setCheckOutTime(d.checkOutTime);
+    setGuestType(d.guestType);
+    setSelectedRooms(d.selectedRooms ?? []);
+    setAdultsCount(d.adultsCount ?? 1);
+    setChildCount(d.childCount ?? 0);
+    setSpecialInstructions(d.specialInstructions ?? "");
+    setSelectedServices(d.selectedServices ?? []);
+    setAdvanceAmount(d.advanceAmount ?? "0");
+    setPaymentMode(d.paymentMode ?? "cash");
+    setEmName(d.emName ?? "");
+    setEmRelation(d.emRelation ?? "");
+    setEmPhone(d.emPhone ?? "");
+    setVehNumber(d.vehNumber ?? "");
+    setVehType(d.vehType ?? "Car");
+    setVehMake(d.vehMake ?? "");
+    setParkingSlot(d.parkingSlot ?? "");
+    setPgCompany(d.pgCompany ?? "");
+    setFgEnabled(d.foreignEnabled ?? false);
+    setFgForm(d.foreignGuest ?? EMPTY_FOREIGN_GUEST);
+    if (d.guest) {
+      // Re-select the guest (also re-fetches identity autofill, non-fatal).
+      void handleGuestSelected(d.guest);
+    }
+    setDraft(null);
+    toast.success("Draft restored");
+  };
+
+  const discardDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      // ignore
+    }
+    setDraft(null);
+  };
 
   const datesValid = !!checkInDate && !!checkOutDate && checkInDate < checkOutDate;
 
@@ -1969,6 +2637,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         company_name: guestType === "business" ? pgCompany.trim() || null : null,
         notes: null,
         terms_acknowledged: terms,
+        foreign_guest: buildForeignGuestPayload(fgEnabled, fgForm),
       };
       const checkinOut = await api<CheckInCreateOut>(
         "/api/v1/checkins/book-and-checkin",
@@ -2011,6 +2680,13 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     onSuccess: (result) => {
       setCheckinResult(result);
       setError(null);
+      // Check-in completed — the saved draft (if any) is now stale.
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        // ignore
+      }
+      setDraft(null);
       queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
       queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
       queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
@@ -2047,6 +2723,37 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
 
   return (
     <div className="space-y-4">
+      {/* ── Saved draft banner ─────────────────────────────────────────────── */}
+      {draft && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold-300 bg-gold-50 px-4 py-3 text-sm">
+          <div className="flex items-center gap-2">
+            <FileText className="size-4 shrink-0 text-gold-600" aria-hidden />
+            <span className="text-gold-800">
+              Draft from{" "}
+              <span className="font-semibold">
+                {new Date(draft.savedAt).toLocaleString()}
+              </span>
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => restoreDraft(draft)}
+              className="inline-flex h-8 items-center rounded-lg bg-navy-900 px-3 text-xs font-semibold text-white hover:bg-navy-900/90"
+            >
+              Restore
+            </button>
+            <button
+              type="button"
+              onClick={discardDraft}
+              className="inline-flex h-8 items-center rounded-lg border border-gold-400 px-3 text-xs font-medium text-gold-700 hover:bg-gold-100"
+            >
+              Discard
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── 1. Booking Details ─────────────────────────────────────────────── */}
       <Section
         icon={ClipboardList}
@@ -2148,13 +2855,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                     <option value="Voter ID">Voter ID</option>
                   </select>
                 </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {pgIdType.toUpperCase()} No.
-                  </Label>
-                  <Input
+                <div className="sm:col-span-2">
+                  <MaskedIdInput
+                    label={`${pgIdType.toUpperCase()} No.`}
                     value={pgIdNumber}
-                    onChange={(e) => setPgIdNumber(e.target.value)}
+                    onChange={setPgIdNumber}
                     placeholder={`Enter ${pgIdType} number`}
                   />
                 </div>
@@ -2225,6 +2930,14 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               </div>
             </>
           )}
+
+          {/* Foreign guest (Form C) */}
+          <ForeignGuestSection
+            enabled={fgEnabled}
+            onEnabledChange={setFgEnabled}
+            value={fgForm}
+            onChange={setFgForm}
+          />
         </div>
       </Section>
 
@@ -2331,6 +3044,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               })}
             </div>
           )}
+          <SelectedServicesList
+            services={services.data ?? []}
+            selectedIds={selectedServices}
+          />
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Special Instructions
@@ -2456,6 +3173,15 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         <div className="flex flex-wrap items-center justify-end gap-3">
           <Button
             type="button"
+            variant="outline"
+            disabled={mutation.isPending}
+            onClick={saveDraft}
+          >
+            <FileText className="size-4" aria-hidden />
+            Save Draft
+          </Button>
+          <Button
+            type="button"
             disabled={!canSubmit}
             className="bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
             onClick={() => {
@@ -2469,6 +3195,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               }
               if (!datesValid) {
                 setError("Check-out date must be after check-in date.");
+                return;
+              }
+              if (fgEnabled && fgForm.passport_number.trim().length < 3) {
+                setError("Passport number (min 3 characters) is required for a foreign guest.");
                 return;
               }
               setError(null);

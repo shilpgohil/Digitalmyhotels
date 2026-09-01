@@ -139,6 +139,30 @@ export interface BookingCreatePayload {
   parking_slot?: string | null;
 }
 
+/**
+ * Form C details for a foreign national (FRRO compliance).
+ * Mirrors backend ForeignGuestIn — dates are YYYY-MM-DD strings.
+ */
+export interface ForeignGuestIn {
+  passport_number: string;
+  passport_place_of_issue?: string | null;
+  passport_expiry?: string | null;
+  visa_number?: string | null;
+  visa_type?: string | null;
+  visa_place_of_issue?: string | null;
+  visa_expiry?: string | null;
+  place_of_birth?: string | null;
+  country_of_birth?: string | null;
+  nationality?: string | null;
+  arrived_in_india_on?: string | null;
+  arrival_place?: string | null;
+  coming_from_city?: string | null;
+  coming_from_country?: string | null;
+  next_destination?: string | null;
+  next_destination_country?: string | null;
+  purpose_of_visit?: string | null;
+}
+
 /** POST /api/v1/checkins/book-and-checkin — walk-in flow: book + check in atomically. */
 export interface BookAndCheckInRequest {
   booking: BookingCreatePayload;
@@ -148,6 +172,22 @@ export interface BookAndCheckInRequest {
   company_name?: string | null;
   notes?: string | null;
   terms_acknowledged: boolean;
+  foreign_guest?: ForeignGuestIn | null;
+}
+
+/** POST /api/v1/checkins — existing-booking check-in (mirrors backend CheckInRequest). */
+export interface CheckInRequest {
+  booking_id: string;
+  checked_in_at?: string | null;
+  expected_checkout_at?: string | null;
+  co_guests: { guest_id: string }[];
+  purpose_of_visit?: string | null;
+  company_name?: string | null;
+  is_early?: boolean;
+  early_fee?: string;
+  notes?: string | null;
+  terms_acknowledged: boolean;
+  foreign_guest?: ForeignGuestIn | null;
 }
 
 export interface CheckInCreateOut {
