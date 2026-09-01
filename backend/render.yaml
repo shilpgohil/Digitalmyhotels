@@ -18,8 +18,10 @@ services:
     region: singapore          # Closest to India; matches Neon ap-southeast-1 + B2 sg-sin-001
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    preDeployCommand: alembic upgrade head
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    # NOTE: preDeployCommand is IGNORED on the free tier — migrations must run
+    # in the start command instead (verified 2026-09-02: preDeploy silently
+    # skipped, prod DB was left behind schema head).
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
     healthCheckPath: /health
     autoDeploy: true            # Deploy automatically on every git push
 
