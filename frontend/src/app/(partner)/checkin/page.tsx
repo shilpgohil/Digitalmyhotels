@@ -1538,8 +1538,8 @@ function CheckinForm({
               )}
               {balance === 0 && newAdvance > 0 && (
                 <p className="text-[10px] text-green-600">Fully paid ✓</p>
-              )}
-            </div>
+            )}
+          </div>
           </div>
         </div>
       </Section>

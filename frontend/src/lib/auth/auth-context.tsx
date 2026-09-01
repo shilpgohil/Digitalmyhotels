@@ -52,12 +52,16 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     if (hotelId) sessionStorage.setItem(HOTEL_KEY, hotelId);
   }, []);
 
-  // Session restoration after reload: refresh cookie → access token → /me.
+  // Session restoration after reload.
   //
-  // Retries up to 5 times with exponential back-off (500 ms, 1 s, 2 s, 4 s, 8 s)
-  // = ~15.5 s total. This covers Render free-tier warm-ups (typically 5–15 s after
-  // a keep-alive ping or first hit). Only after all retries fail is status set to
-  // "unauthenticated". The keep-alive cron prevents deep cold starts (30–60 s).
+  // Fast path (most reloads): the access token is still in sessionStorage →
+  // skip refresh entirely, call /me directly.
+  //
+  // Slow path (new tab / tab-close-and-reopen / token expired):
+  // call /api/v1/auth/refresh using the HttpOnly cookie, retrying up to 5
+  // times with exponential back-off (500 ms … 8 s = ~15.5 s total) to cover
+  // Render free-tier warm-ups.  Only after all retries fail does status
+  // become "unauthenticated".
   useEffect(() => {
     let cancelled = false;
 
@@ -71,6 +75,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     };
 
     (async () => {
+      // Fast path — token already cached in sessionStorage (e.g. page F5).
       if (!getAccessToken()) {
         const ok = await tryRefresh();
         if (!ok) {
