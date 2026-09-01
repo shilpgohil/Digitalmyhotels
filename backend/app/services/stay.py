@@ -22,6 +22,7 @@ from app.models.guest import Guest, GuestRegistration
 from app.models.hotel import HotelSettings
 from app.models.room import Room
 from app.schemas.stay import (
+    BookAndCheckInRequest,
     CheckInOut,
     CheckInRequest,
     CheckOutOut,
@@ -31,7 +32,7 @@ from app.schemas.stay import (
     RoomTransferRequest,
 )
 from app.services.audit import write_audit
-from app.services.bookings import get_booking
+from app.services.bookings import create_booking, get_booking
 
 REGISTRATION_SEQ_PAD = 4
 
@@ -64,6 +65,33 @@ async def _next_registration_number(db: AsyncSession, hotel_id: UUID) -> str:
     number = f"REG-{settings.registration_next_number:0{REGISTRATION_SEQ_PAD}d}"
     settings.registration_next_number += 1
     return number
+
+
+async def book_and_check_in(
+    db: AsyncSession,
+    tenant: TenantContext,
+    body: BookAndCheckInRequest,
+    *,
+    correlation_id: str | None = None,
+) -> CheckInOut:
+    """Walk-in flow: create booking + check in atomically (one transaction).
+
+    Used by the unified Guest Check-in page — the client's flow has no
+    separate booking step for walk-ins. If check-in validation fails the
+    booking insert rolls back with it.
+    """
+    booking_out = await create_booking(db, tenant, body.booking, correlation_id=correlation_id)
+    checkin_request = CheckInRequest(
+        booking_id=booking_out.id,
+        checked_in_at=body.checked_in_at,
+        co_guests=body.co_guests,
+        purpose_of_visit=body.purpose_of_visit,
+        company_name=body.company_name,
+        notes=body.notes,
+        terms_acknowledged=body.terms_acknowledged,
+        foreign_guest=body.foreign_guest,
+    )
+    return await check_in(db, tenant, checkin_request, correlation_id=correlation_id)
 
 
 async def check_in(
@@ -146,6 +174,19 @@ async def check_in(
         )
         registration_numbers.append(reg_number)
         await db.flush()
+
+    # Form C record for foreign nationals (linked to the primary guest).
+    if body.foreign_guest is not None:
+        from app.models.guest import ForeignGuestDetail
+
+        db.add(
+            ForeignGuestDetail(
+                hotel_id=hotel_id,
+                booking_id=booking.id,
+                guest_id=booking.primary_guest_id,
+                **body.foreign_guest.model_dump(),
+            )
+        )
 
     if body.early_fee > 0:
         booking.total_amount += body.early_fee

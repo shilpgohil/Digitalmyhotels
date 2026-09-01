@@ -11,6 +11,7 @@ from app.core.tenant import TenantContext
 from app.domain.gst import money
 from app.models.booking import Booking, BookingRoom
 from app.models.expense import Expense, ExpenseCategory
+from app.models.guest import Guest
 from app.models.invoice import Invoice
 from app.models.payment import HotelCharge, Payment, Refund
 from app.models.room import Room, RoomType
@@ -21,6 +22,8 @@ from app.schemas.ops import (
     GstReportOut,
     OccupancyReportOut,
     PaymentMethodReportOut,
+    RestaurantBillingOut,
+    RestaurantBillingRowOut,
     RevenueReportOut,
     RoomUtilizationOut,
     RoomUtilizationRowOut,
@@ -243,6 +246,56 @@ async def gst_by_booking(
         total_taxable=total_taxable,
         total_gst=total_gst,
         total_amount=total_amount,
+    )
+
+
+async def restaurant_billing(
+    db: AsyncSession, tenant: TenantContext, from_date: date, to_date: date
+) -> RestaurantBillingOut:
+    """Restaurant/food charges billed to in-house bookings, with GST breakdown."""
+    hotel_id = tenant.require_hotel()
+    from_date, to_date = _range(from_date, to_date)
+    rows = (
+        await db.execute(
+            select(HotelCharge, Booking.booking_number, Guest.full_name)
+            .join(Booking, Booking.id == HotelCharge.booking_id)
+            .join(Guest, Guest.id == Booking.primary_guest_id, isouter=True)
+            .where(
+                HotelCharge.hotel_id == hotel_id,
+                HotelCharge.category.in_(("restaurant", "food")),
+                HotelCharge.voided_at.is_(None),
+                func.date(HotelCharge.created_at) >= from_date,
+                func.date(HotelCharge.created_at) <= to_date,
+            )
+            .order_by(HotelCharge.created_at.desc())
+            .limit(500)
+        )
+    ).all()
+    items: list[RestaurantBillingRowOut] = []
+    for charge, booking_number, guest_name in rows:
+        rate = (
+            money(charge.tax_amount / charge.taxable_amount * 100)
+            if charge.taxable_amount > 0
+            else Decimal("0.00")
+        )
+        items.append(
+            RestaurantBillingRowOut(
+                booking_number=booking_number,
+                guest_name=guest_name or "—",
+                taxable_value=charge.taxable_amount,
+                gst_rate=rate,
+                gst_payable=charge.tax_amount,
+                final_price=charge.total_amount,
+                charged_on=charge.created_at.date(),
+            )
+        )
+    return RestaurantBillingOut(
+        from_date=from_date,
+        to_date=to_date,
+        items=items,
+        total_amount=money(sum((i.final_price for i in items), Decimal("0.00"))),
+        total_taxable=money(sum((i.taxable_value for i in items), Decimal("0.00"))),
+        total_gst=money(sum((i.gst_payable for i in items), Decimal("0.00"))),
     )
 
 

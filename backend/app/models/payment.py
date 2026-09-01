@@ -26,8 +26,8 @@ class HotelCharge(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "hotel_charges"
     __table_args__ = (
         CheckConstraint(
-            "category IN ('food','laundry','room_service','extra_bed','minibar',"
-            "'transport','other')",
+            "category IN ('food','restaurant','laundry','room_service','extra_bed','minibar',"
+            "'transport','damage','other')",
             name="charge_category",
         ),
     )

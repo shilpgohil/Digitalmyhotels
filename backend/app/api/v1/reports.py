@@ -15,6 +15,7 @@ from app.schemas.ops import (
     GstReportOut,
     OccupancyReportOut,
     PaymentMethodReportOut,
+    RestaurantBillingOut,
     RevenueReportOut,
     RoomUtilizationOut,
 )
@@ -81,6 +82,17 @@ async def gst_by_booking(
     db: AsyncSession = Depends(get_db),
 ) -> GstByBookingOut:
     return await reports_service.gst_by_booking(db, tenant, from_date, to_date)
+
+
+@router.get("/restaurant-billing", response_model=RestaurantBillingOut)
+async def restaurant_billing(
+    from_date: date = Query(...),
+    to_date: date = Query(...),
+    tenant: TenantContext = Depends(require_permissions(Permission.FINANCIAL_REPORTS)),
+    db: AsyncSession = Depends(get_db),
+) -> RestaurantBillingOut:
+    """Restaurant/food charges with GST breakdown — client's Restaurant Billing page."""
+    return await reports_service.restaurant_billing(db, tenant, from_date, to_date)
 
 
 @router.get("/room-utilization", response_model=RoomUtilizationOut)

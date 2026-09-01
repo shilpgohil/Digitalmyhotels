@@ -76,3 +76,50 @@ class GuestRegistration(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     purpose_of_visit: Mapped[str | None] = mapped_column(String(200), nullable=True)
     company_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ForeignGuestDetail(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Form C data for foreign nationals (FRRO compliance).
+
+    One row per foreign guest per stay — captured at check-in when the
+    "foreign guest" toggle is used. Stored for records and later export.
+    """
+
+    __tablename__ = "foreign_guest_details"
+    __table_args__ = (
+        UniqueConstraint("booking_id", "guest_id", name="uq_foreign_detail_booking_guest"),
+    )
+
+    hotel_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("hotels.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    booking_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("bookings.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    guest_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("guests.id"), nullable=False, index=True
+    )
+    # Passport
+    passport_number: Mapped[str] = mapped_column(String(32), nullable=False)
+    passport_place_of_issue: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    passport_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Visa
+    visa_number: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    visa_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    visa_place_of_issue: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    visa_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Personal
+    place_of_birth: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    country_of_birth: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    nationality: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # Journey
+    arrived_in_india_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    arrival_place: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    coming_from_city: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    coming_from_country: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    next_destination: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    next_destination_country: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    purpose_of_visit: Mapped[str | None] = mapped_column(String(200), nullable=True)

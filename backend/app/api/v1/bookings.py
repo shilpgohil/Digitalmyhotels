@@ -62,6 +62,28 @@ async def get_booking(
     return await bookings_service.to_out(db, booking)
 
 
+@router.get("/{booking_id}/foreign-guests")
+async def list_foreign_guest_details(
+    booking_id: UUID,
+    tenant: TenantContext = Depends(require_permissions(Permission.BOOKINGS_VIEW)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Form C records captured at check-in for foreign nationals on this booking."""
+    from sqlalchemy import select
+
+    from app.models.guest import ForeignGuestDetail
+    from app.schemas.stay import ForeignGuestOut
+
+    booking = await bookings_service.get_booking(db, tenant, booking_id)
+    result = await db.execute(
+        select(ForeignGuestDetail).where(
+            ForeignGuestDetail.booking_id == booking.id,
+            ForeignGuestDetail.hotel_id == booking.hotel_id,
+        )
+    )
+    return [ForeignGuestOut.model_validate(r, from_attributes=True) for r in result.scalars()]
+
+
 @router.post("", response_model=BookingOut, status_code=201)
 async def create_booking(
     body: BookingCreate,

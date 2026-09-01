@@ -76,6 +76,9 @@ export interface BookingOut {
   primary_guest_phone: string | null;
   rooms: BookingRoomOut[];
   created_at: string;
+  guest_type?: string | null;
+  check_in_time?: string | null;
+  check_out_time?: string | null;
 }
 
 export type BookingStatus =
@@ -112,6 +115,39 @@ export interface GuestCreatePayload {
   date_of_birth?: string;
   id_proof_type?: string;
   id_number?: string;
+}
+
+/** Booking payload nested inside BookAndCheckInRequest (mirrors backend BookingCreate). */
+export interface BookingCreatePayload {
+  primary_guest_id: string;
+  room_ids: string[];
+  check_in_date: string;
+  check_out_date: string;
+  adults: number;
+  children: number;
+  guest_type?: string | null;
+  /** "HH:MM" */
+  check_in_time?: string | null;
+  /** "HH:MM" */
+  check_out_time?: string | null;
+  special_requests?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_relation?: string | null;
+  emergency_contact_phone?: string | null;
+  vehicle_number?: string | null;
+  vehicle_type?: string | null;
+  parking_slot?: string | null;
+}
+
+/** POST /api/v1/checkins/book-and-checkin — walk-in flow: book + check in atomically. */
+export interface BookAndCheckInRequest {
+  booking: BookingCreatePayload;
+  checked_in_at?: string | null;
+  co_guests: { guest_id: string }[];
+  purpose_of_visit?: string | null;
+  company_name?: string | null;
+  notes?: string | null;
+  terms_acknowledged: boolean;
 }
 
 export interface CheckInCreateOut {

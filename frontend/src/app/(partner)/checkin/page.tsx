@@ -1,21 +1,28 @@
 "use client";
 
 /**
- * Guest Check-in — Full-page form matching the Figma reference exactly.
+ * Guest Check-in — unified flow (client's new admin flow).
  *
- * Flow:
- *  Step 1 — Booking selection list (confirmed bookings ready for check-in).
- *  Step 2 — Full-page check-in form when a booking is selected:
- *    1. Booking Details
- *    2. Primary Guest Identity Verification (editable guest fields + ID docs)
- *    3. Additional Guests (search existing OR create new inline + doc upload)
- *    4. Room Information (adults/children +/- controls)
- *    5. Special Requirements (chips + special instructions)
- *    6. Payment Details (advance at check-in + payment mode)
- *    7. Emergency Contact
- *    8. Vehicle Details
+ * MODE A — Walk-in Check-in (DEFAULT when no booking is selected):
+ *   The check-in page IS the booking. One long form:
+ *     1. Booking Details (dates + times + guest type)
+ *     2. Primary Guest Identity (guest picker + editable fields + ID docs + OCR)
+ *     3. Additional Guests
+ *     4. Room Information (date-aware availability + adults/children counters)
+ *     5. Special Requirements / Instructions
+ *     6. Payment Details (advance collection only — new booking, nothing paid yet)
+ *     7. Emergency Contact + Vehicle Details
+ *   Single "Check In" button → POST /api/v1/checkins/book-and-checkin
+ *   (books AND checks in atomically), then charges + advance payment.
  *
- * Mutation sequence:
+ * MODE B — Existing-booking check-in (?booking=<id> deep link, or a card from
+ *   the arrivals strip): the original CheckinForm flow, unchanged — checks in
+ *   an existing confirmed booking via POST /api/v1/checkins.
+ *
+ * The arrivals strip at the top shows confirmed bookings as compact clickable
+ * cards (up to 10 with a "more" toggle); clicking one enters MODE B.
+ *
+ * MODE B mutation sequence (unchanged):
  *  1. PATCH /guests/{primary_guest_id}  — if any primary-guest field changed
  *  2. POST /guests per new additional guest
  *  3. Upload docs for primary + additional guests
@@ -51,19 +58,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { GuestPicker } from "@/components/guests/guest-picker";
 import { RoomAvailabilityPicker } from "@/components/rooms/room-availability-picker";
 import { useApi } from "@/lib/api/use-api";
@@ -74,6 +73,7 @@ import { fmtApiDate, localToday, localTomorrow } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import type { ListOut } from "@/types/hotel";
 import type {
+  BookAndCheckInRequest,
   BookingOut,
   CheckInCreateOut,
   GuestAutofill,
@@ -756,6 +756,85 @@ function AdditionalGuestEntry({
   );
 }
 
+// ─── Post-check-in success state (shared by both modes) ─────────────────────
+
+function CheckinSuccess({
+  result,
+  bookingId,
+  onDone,
+  doneLabel = "Back to Check-in",
+}: {
+  readonly result: CheckInCreateOut;
+  readonly bookingId: string;
+  readonly onDone: () => void;
+  readonly doneLabel?: string;
+}) {
+  const api = useApi();
+  const [generatingInvoice, setGeneratingInvoice] = useState(false);
+  const [invoiceId, setInvoiceId] = useState<string | null>(null);
+
+  const generateInvoice = async () => {
+    setGeneratingInvoice(true);
+    try {
+      const inv = await api<{ id: string }>("/api/v1/invoices", {
+        method: "POST",
+        body: { booking_id: bookingId, interstate: false },
+      });
+      setInvoiceId(inv.id);
+      toast.success("Invoice generated");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Invoice generation failed");
+    } finally {
+      setGeneratingInvoice(false);
+    }
+  };
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-6 py-8">
+      <div className="rounded-xl border bg-white shadow-sm p-8 text-center space-y-4">
+        <div className="flex size-16 items-center justify-center rounded-full bg-green-100 mx-auto">
+          <BadgeCheck className="size-8 text-green-600" aria-hidden />
+        </div>
+        <h2 className="text-xl font-bold text-foreground">Guest Checked In</h2>
+        <div className="rounded-lg bg-muted/40 px-4 py-3">
+          <p className="text-xs text-muted-foreground mb-1">Registration Number(s)</p>
+          <p className="font-bold text-lg tabular-nums">
+            {result.registration_numbers.join(" · ")}
+          </p>
+        </div>
+        {invoiceId ? (
+          <a
+            href={`/invoices`}
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-green-600 px-4 text-sm font-medium text-white hover:bg-green-700"
+          >
+            <FileText className="size-4" aria-hidden />
+            View Invoice
+          </a>
+        ) : (
+          <button
+            type="button"
+            onClick={generateInvoice}
+            disabled={generatingInvoice}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-gold-500 px-4 text-sm font-medium text-gold-700 hover:bg-gold-50 disabled:opacity-50"
+          >
+            <FileText className="size-4" aria-hidden />
+            {generatingInvoice ? "Generating…" : "Generate Invoice"}
+          </button>
+        )}
+        <div className="flex gap-3 justify-center">
+          <button
+            type="button"
+            onClick={onDone}
+            className="inline-flex h-9 items-center rounded-lg bg-navy-900 px-4 text-sm font-medium text-white hover:bg-navy-900/90"
+          >
+            {doneLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main check-in form ───────────────────────────────────────────────────────
 
 function CheckinForm({
@@ -883,8 +962,6 @@ function CheckinForm({
 
   // ── Post-check-in state ──
   const [checkinResult, setCheckinResult] = useState<CheckInCreateOut | null>(null);
-  const [generatingInvoice, setGeneratingInvoice] = useState(false);
-  const [invoiceId, setInvoiceId] = useState<string | null>(null);
 
   // ── Error ──
   const [error, setError] = useState<string | null>(null);
@@ -1073,69 +1150,15 @@ function CheckinForm({
     onError: (e) => setError(e instanceof ApiError ? e.message : "Check-in failed"),
   });
 
-  // ── Generate Invoice ──────────────────────────────────────────────────────
-  const generateInvoice = async () => {
-    if (!checkinResult) return;
-    setGeneratingInvoice(true);
-    try {
-      const inv = await api<{ id: string }>("/api/v1/invoices", {
-        method: "POST",
-        body: { booking_id: booking.id, interstate: false },
-      });
-      setInvoiceId(inv.id);
-      toast.success("Invoice generated");
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Invoice generation failed");
-    } finally {
-      setGeneratingInvoice(false);
-    }
-  };
-
   // ── Post-check-in success state ──────────────────────────────────────────
   if (checkinResult) {
-  return (
-      <div className="mx-auto max-w-2xl space-y-6 py-8">
-        <div className="rounded-xl border bg-white shadow-sm p-8 text-center space-y-4">
-          <div className="flex size-16 items-center justify-center rounded-full bg-green-100 mx-auto">
-            <BadgeCheck className="size-8 text-green-600" aria-hidden />
-          </div>
-          <h2 className="text-xl font-bold text-foreground">Guest Checked In</h2>
-          <div className="rounded-lg bg-muted/40 px-4 py-3">
-            <p className="text-xs text-muted-foreground mb-1">Registration Number(s)</p>
-            <p className="font-bold text-lg tabular-nums">
-              {checkinResult.registration_numbers.join(" · ")}
-            </p>
-          </div>
-          {invoiceId ? (
-            <a
-              href={`/invoices`}
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-green-600 px-4 text-sm font-medium text-white hover:bg-green-700"
-            >
-              <FileText className="size-4" aria-hidden />
-              View Invoice
-            </a>
-          ) : (
-            <button
-              type="button"
-              onClick={generateInvoice}
-              disabled={generatingInvoice}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-gold-500 px-4 text-sm font-medium text-gold-700 hover:bg-gold-50 disabled:opacity-50"
-            >
-              <FileText className="size-4" aria-hidden />
-              {generatingInvoice ? "Generating…" : "Generate Invoice"}
-            </button>
-          )}
-          <div className="flex gap-3 justify-center">
-            <button
-              type="button"
-              onClick={onDone}
-              className="inline-flex h-9 items-center rounded-lg bg-navy-900 px-4 text-sm font-medium text-white hover:bg-navy-900/90"
-            >
-              Back to Check-in List
-            </button>
-          </div>
-        </div>
-      </div>
+    return (
+      <CheckinSuccess
+        result={checkinResult}
+        bookingId={booking.id}
+        onDone={onDone}
+        doneLabel="Back to Check-in List"
+      />
     );
   }
 
@@ -1681,69 +1704,324 @@ function CheckinForm({
   );
 }
 
-// ─── Booking selection list ───────────────────────────────────────────────────
+// ─── Walk-in Check-in form (MODE A) ──────────────────────────────────────────
+// The check-in page IS the booking: one form, one "Check In" button that books
+// AND checks in atomically via POST /api/v1/checkins/book-and-checkin.
 
-// ─── Inline New Booking Form ─────────────────────────────────────────────────
-// Renders INLINE on the check-in landing page — no popup, no separate page.
-// On success it immediately transitions to the check-in form for the new booking.
-
-function NewBookingInlineForm({
-  onClose,
-  onCreated,
+/** +/- counter control used for adults/children in walk-in mode. */
+function CountControl({
+  value,
+  onDelta,
+  min,
+  max,
+  decLabel,
+  incLabel,
 }: {
-  readonly onClose: () => void;
-  readonly onCreated: (booking: BookingOut) => void;
+  readonly value: number;
+  readonly onDelta: (delta: number) => void;
+  readonly min: number;
+  readonly max: number;
+  readonly decLabel: string;
+  readonly incLabel: string;
 }) {
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => onDelta(-1)}
+        disabled={value <= min}
+        className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40"
+        aria-label={decLabel}
+      >
+        <Minus className="size-3.5" aria-hidden />
+      </button>
+      <span className="w-6 text-center tabular-nums font-semibold">{value}</span>
+      <button
+        type="button"
+        onClick={() => onDelta(1)}
+        disabled={value >= max}
+        className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40"
+        aria-label={incLabel}
+      >
+        <Plus className="size-3.5" aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const api = useApi();
   const { activeHotelId } = useAuth();
   const queryClient = useQueryClient();
-  const [guest, setGuest] = useState<{ id: string; full_name: string } | null>(null);
-  const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [availRefreshKey, setAvailRefreshKey] = useState(0);
 
-  // Date state — drives the availability picker. Use local dates (not UTC)
-  // so the default isn't "yesterday" for users east of UTC after midnight.
-  const [checkIn, setCheckIn] = useState(localToday);
-  const [checkOut, setCheckOut] = useState(localTomorrow);
-  const [adultsCount, setAdultsCount] = useState(1);
-  const [childCount, setChildCount] = useState(0);
+  // ── 1. Booking details (dates + times + guest type) ──
+  // Local dates (not UTC) so the default isn't "yesterday" east of UTC.
+  const [checkInDate, setCheckInDate] = useState(localToday);
+  const [checkOutDate, setCheckOutDate] = useState(localTomorrow);
+  const [checkInTime, setCheckInTime] = useState("");
+  const [checkOutTime, setCheckOutTime] = useState("");
+  const [guestType, setGuestType] = useState("");
 
-  // Hotel settings for check-in/out time display
+  // Hotel settings for default check-in/out times
   const settings = useQuery({
     queryKey: ["hotel-settings", activeHotelId],
-    queryFn: () => api<{ check_in_time: string; check_out_time: string }>(
-      "/api/v1/hotels/me/settings"
-    ),
+    queryFn: () =>
+      api<{ check_in_time: string; check_out_time: string }>(
+        "/api/v1/hotels/me/settings",
+      ),
     enabled: !!activeHotelId,
     staleTime: 5 * 60_000,
   });
 
+  // Default the time inputs from hotel settings once loaded (unless edited).
+  useEffect(() => {
+    const s = settings.data;
+    if (!s) return;
+    setCheckInTime((t) => t || s.check_in_time?.slice(0, 5) || "");
+    setCheckOutTime((t) => t || s.check_out_time?.slice(0, 5) || "");
+  }, [settings.data]);
+
+  // ── 2. Primary guest ──
+  const [guest, setGuest] = useState<{ id: string; full_name: string } | null>(null);
+  const [pgBaseline, setPgBaseline] = useState<GuestAutofill | null>(null);
+  const [pgName, setPgName] = useState("");
+  const [pgPhone, setPgPhone] = useState("");
+  const [pgIdType, setPgIdType] = useState("Aadhar Card");
+  const [pgIdNumber, setPgIdNumber] = useState("");
+  const [pgGender, setPgGender] = useState("");
+  const [pgDob, setPgDob] = useState("");
+  const [pgAddress, setPgAddress] = useState("");
+  const [pgCompany, setPgCompany] = useState("");
+  const [pgOcrResult, setPgOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
+
+  const handleGuestSelected = async (g: { id: string; full_name: string; phone: string }) => {
+    if (!g.id) {
+      setGuest(null);
+      setPgBaseline(null);
+      return;
+    }
+    setGuest({ id: g.id, full_name: g.full_name });
+    setPgName(g.full_name);
+    setPgPhone(g.phone);
+    // Prefill editable identity fields from the guest profile (non-fatal).
+    try {
+      const full = await api<GuestAutofill>(`/api/v1/guests/${g.id}/autofill`);
+      setPgBaseline(full);
+      setPgGender(full.gender ?? "");
+      setPgDob(full.date_of_birth ?? "");
+      setPgAddress(full.address ?? "");
+      if (full.id_proof_type) setPgIdType(full.id_proof_type);
+    } catch {
+      setPgBaseline(null);
+    }
+  };
+
+  // ── 3. Additional guests ──
+  const [coGuests, setCoGuests] = useState<ResolvedCoGuest[]>([]);
+  const [guestKeys, setGuestKeys] = useState<number[]>([]);
+
+  const addGuestEntry = () => setGuestKeys((prev) => [...prev, Date.now()]);
+  const removeGuestEntry = (key: number) => {
+    setGuestKeys((prev) => prev.filter((k) => k !== key));
+    setCoGuests((prev) => prev.filter((_, i) => i !== guestKeys.indexOf(key)));
+  };
+  const resolveGuest = (key: number, g: ResolvedCoGuest) => {
+    setCoGuests((prev) => {
+      const idx = guestKeys.indexOf(key);
+      const next = [...prev];
+      next[idx] = g;
+      return next;
+    });
+  };
+
+  // ── 4. Rooms + occupancy ──
+  const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
+  const [availRefreshKey, setAvailRefreshKey] = useState(0);
+  const [adultsCount, setAdultsCount] = useState(1);
+  const [childCount, setChildCount] = useState(0);
+
+  // ── 5. Special requirements ──
+  const services = useQuery({
+    queryKey: ["hotel-services", activeHotelId],
+    queryFn: () => api<ServiceItem[]>("/api/v1/hotels/me/services"),
+    enabled: !!activeHotelId,
+  });
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [specialInstructions, setSpecialInstructions] = useState("");
+  const toggleService = (id: string) =>
+    setSelectedServices((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
+    );
+
+  // ── 6. Payment (advance collection only — new booking, nothing paid yet) ──
+  const [advanceAmount, setAdvanceAmount] = useState("0");
+  const [paymentMode, setPaymentMode] = useState<"cash" | "upi">("cash");
+  const newAdvance = parseFloat(advanceAmount) || 0;
+
+  // ── 7. Emergency contact + vehicle ──
+  const [emName, setEmName] = useState("");
+  const [emRelation, setEmRelation] = useState("");
+  const [emPhone, setEmPhone] = useState("");
+  const [vehNumber, setVehNumber] = useState("");
+  const [vehType, setVehType] = useState("Car");
+  const [vehMake, setVehMake] = useState("");
+  const [parkingSlot, setParkingSlot] = useState("");
+
+  // ── Terms / result / error ──
+  const [terms, setTerms] = useState(false);
+  const [checkinResult, setCheckinResult] = useState<CheckInCreateOut | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const datesValid = !!checkInDate && !!checkOutDate && checkInDate < checkOutDate;
+
+  // ── Mutation: book + check in atomically, then charges + advance payment ──
   const mutation = useMutation({
-    mutationFn: (form: FormData) => {
-      const fs = (k: string, fb = "") => (form.get(k) as string | null) ?? fb;
-      return api<BookingOut>("/api/v1/bookings", {
-        method: "POST",
-        body: {
-          primary_guest_id: guest?.id,
+    mutationFn: async () => {
+      if (!guest) throw new ApiError(400, "validation", "Select a guest first.");
+
+      // 1. Update primary guest profile if identity fields were edited.
+      const patch: Record<string, string> = {};
+      if (pgName.trim() && pgName.trim() !== (pgBaseline?.full_name ?? guest.full_name))
+        patch.full_name = pgName.trim();
+      if (pgPhone.trim() && pgPhone.trim() !== (pgBaseline?.phone ?? pgPhone.trim()))
+        patch.phone = pgPhone.trim();
+      if (pgGender && pgGender !== (pgBaseline?.gender ?? "")) patch.gender = pgGender;
+      if (pgDob && pgDob !== (pgBaseline?.date_of_birth ?? "")) patch.date_of_birth = pgDob;
+      if (pgAddress && pgAddress !== (pgBaseline?.address ?? "")) patch.address = pgAddress;
+      if (pgIdNumber.trim()) {
+        patch.id_number = pgIdNumber.trim();
+        patch.id_proof_type = pgIdType;
+      }
+      if (Object.keys(patch).length > 0) {
+        await api(`/api/v1/guests/${guest.id}`, { method: "PATCH", body: patch });
+      }
+
+      // 2. Create new additional guests + upload queued docs (same as MODE B).
+      const resolvedIds: string[] = [];
+      for (const cg of coGuests.filter(Boolean)) {
+        const isNew = cg.guest_id.startsWith("__new__");
+        if (isNew) {
+          const newForm = (
+            cg as ResolvedCoGuest & { _newForm?: GuestCreatePayload }
+          )._newForm;
+          if (!newForm) continue;
+          const created = await api<{ id: string }>("/api/v1/guests", {
+            method: "POST",
+            body: {
+              full_name: newForm.full_name.trim(),
+              phone: newForm.phone.trim(),
+              email: newForm.email?.trim() || undefined,
+              address: newForm.address?.trim() || undefined,
+              postal_code: newForm.postal_code?.trim() || undefined,
+              gender: newForm.gender?.trim() || undefined,
+              date_of_birth: newForm.date_of_birth?.trim() || undefined,
+              id_proof_type: newForm.id_proof_type?.trim() || undefined,
+              id_number: newForm.id_number?.trim() || undefined,
+            },
+          });
+          for (const doc of cg.docs) {
+            const form = new FormData();
+            form.append("side", doc.side);
+            form.append("document_type", "id_proof");
+            form.append("file", doc.file);
+            await apiUpload(`/api/v1/guests/${created.id}/documents`, form, {
+              hotelId: activeHotelId ?? undefined,
+            });
+          }
+          resolvedIds.push(created.id);
+        } else {
+          for (const doc of cg.docs) {
+            const form = new FormData();
+            form.append("side", doc.side);
+            form.append("document_type", "id_proof");
+            form.append("file", doc.file);
+            await apiUpload(`/api/v1/guests/${cg.guest_id}/documents`, form, {
+              hotelId: activeHotelId ?? undefined,
+            });
+          }
+          resolvedIds.push(cg.guest_id);
+        }
+      }
+
+      // 3. Book + check in atomically.
+      const payload: BookAndCheckInRequest = {
+        booking: {
+          primary_guest_id: guest.id,
           room_ids: selectedRooms,
-          check_in_date: checkIn,
-          check_out_date: checkOut,
-          adults: Number(fs("adults", "1")),
-          children: Number(fs("children", "0")),
-          discount_amount: fs("discount_amount", "0"),
-          security_deposit: fs("security_deposit", "0"),
-          special_requests: fs("special_requests").trim() || null,
+          check_in_date: checkInDate,
+          check_out_date: checkOutDate,
+          adults: adultsCount,
+          children: childCount,
+          guest_type: guestType || null,
+          check_in_time: checkInTime || null,
+          check_out_time: checkOutTime || null,
+          special_requests: specialInstructions.trim() || null,
+          emergency_contact_name: emName.trim() || null,
+          emergency_contact_relation: emRelation.trim() || null,
+          emergency_contact_phone: emPhone.trim() || null,
+          vehicle_number: vehNumber.trim() || null,
+          vehicle_type: vehNumber.trim() ? vehType : null,
+          parking_slot: parkingSlot.trim() || null,
         },
-      });
+        checked_in_at: null,
+        co_guests: resolvedIds.map((id) => ({ guest_id: id })),
+        purpose_of_visit: null,
+        company_name: guestType === "business" ? pgCompany.trim() || null : null,
+        notes: null,
+        terms_acknowledged: terms,
+      };
+      const checkinOut = await api<CheckInCreateOut>(
+        "/api/v1/checkins/book-and-checkin",
+        { method: "POST", body: payload },
+      );
+
+      // 4. Add service charges (booking now exists).
+      const chosen = (services.data ?? []).filter((s) =>
+        selectedServices.includes(s.id),
+      );
+      for (const svc of chosen) {
+        await api("/api/v1/charges", {
+          method: "POST",
+          body: {
+            booking_id: checkinOut.booking_id,
+            category: "other",
+            description: svc.name,
+            quantity: 1,
+            rate: svc.price,
+            apply_gst: false,
+          },
+        });
+      }
+
+      // 5. Collect advance payment if provided.
+      if (newAdvance > 0) {
+        await api("/api/v1/payments", {
+          method: "POST",
+          body: {
+            booking_id: checkinOut.booking_id,
+            amount: advanceAmount,
+            method: paymentMode,
+            purpose: "advance",
+          },
+        });
+      }
+
+      return checkinOut;
     },
-    onSuccess: (booking) => {
-      toast.success("Booking created — starting check-in");
-      onCreated(booking);
+    onSuccess: (result) => {
+      setCheckinResult(result);
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
+      queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
+      queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
+      queryClient.invalidateQueries({ queryKey: ["room-status-summary", activeHotelId] });
+      toast.success(
+        `✓ Checked In — Registration: ${result.registration_numbers.join(", ")}`,
+      );
     },
     onError: (e) => {
-      const msg = e instanceof ApiError ? e.message : "Failed to create booking";
-      setError(msg);
+      setError(e instanceof ApiError ? e.message : "Check-in failed");
+      // Rooms got taken between selection and submit — refresh availability.
       if (e instanceof ApiError && e.code === "double_booking") {
         setSelectedRooms([]);
         setAvailRefreshKey((k) => k + 1);
@@ -1752,171 +2030,540 @@ function NewBookingInlineForm({
     },
   });
 
+  // ── Post-check-in success state ──
+  if (checkinResult) {
+    return (
+      <CheckinSuccess
+        result={checkinResult}
+        bookingId={checkinResult.booking_id}
+        onDone={onDone}
+        doneLabel="New Check-in"
+      />
+    );
+  }
+
+  const canSubmit =
+    !!guest && selectedRooms.length > 0 && datesValid && terms && !mutation.isPending;
+
   return (
-    <div className="rounded-xl border bg-white shadow-sm overflow-hidden mb-4">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b bg-navy-900">
-        <div className="flex items-center gap-2.5">
-          <ClipboardList className="size-4 text-gold-400" aria-hidden />
-          <h2 className="text-sm font-semibold text-white">New Booking</h2>
-          <span className="text-xs text-gold-300 opacity-80">— fills automatically for check-in</span>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-white/60 hover:text-white transition-colors text-lg leading-none"
-          aria-label="Close"
-        >
-          ×
-        </button>
-      </div>
-
-      <form
-        className="p-5 space-y-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!guest?.id || selectedRooms.length === 0) {
-            setError("Please select a guest and at least one room.");
-            return;
-          }
-          mutation.mutate(new FormData(e.currentTarget));
-        }}
+    <div className="space-y-4">
+      {/* ── 1. Booking Details ─────────────────────────────────────────────── */}
+      <Section
+        icon={ClipboardList}
+        title="Booking Details"
+        subtitle="Stay dates and guest type for this walk-in"
       >
-        {/* Guest picker */}
-            <div className="space-y-1.5">
-          <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Guest *
-          </Label>
-          <GuestPicker
-            selected={guest?.id ? guest : null}
-            onSelected={(g) => setGuest(g.id ? g : null)}
-          />
-            </div>
-
-        {/* Dates — placed BEFORE room picker so availability reacts to dates */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
-            <Label htmlFor="nb-cin" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Label htmlFor="wi-cin" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Check-in Date *
-              {settings.data?.check_in_time && (
-                <span className="ml-1 text-gold-600 font-bold normal-case">
-                  @ {settings.data.check_in_time.slice(0, 5)}
-                </span>
-              )}
             </Label>
-            <DateInput id="nb-cin" name="check_in_date" required value={checkIn} onChange={setCheckIn} />
+            <DateInput id="wi-cin" required value={checkInDate} onChange={setCheckInDate} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="nb-cout" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Label htmlFor="wi-cin-time" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Check-in Time
+            </Label>
+            <input
+              id="wi-cin-time"
+              type="time"
+              value={checkInTime}
+              onChange={(e) => setCheckInTime(e.target.value)}
+              className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="wi-cout" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Check-out Date *
-              {settings.data?.check_out_time && (
-                <span className="ml-1 text-gold-600 font-bold normal-case">
-                  @ {settings.data.check_out_time.slice(0, 5)}
-                </span>
-              )}
             </Label>
-            <DateInput id="nb-cout" name="check_out_date" required value={checkOut} onChange={setCheckOut} />
+            <DateInput id="wi-cout" required value={checkOutDate} onChange={setCheckOutDate} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="nb-adults" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Adults
+            <Label htmlFor="wi-cout-time" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Check-out Time
             </Label>
-            <Input
-              id="nb-adults"
-              name="adults"
-              type="number"
-              min={1}
-              max={40}
-              value={adultsCount}
-              onChange={(e) => setAdultsCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+            <input
+              id="wi-cout-time"
+              type="time"
+              value={checkOutTime}
+              onChange={(e) => setCheckOutTime(e.target.value)}
+              className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="nb-children" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Children
+            <Label htmlFor="wi-guest-type" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Guest Type
             </Label>
-            <Input
-              id="nb-children"
-              name="children"
-              type="number"
-              min={0}
-              max={40}
-              value={childCount}
-              onChange={(e) => setChildCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
-            />
+            <select
+              id="wi-guest-type"
+              value={guestType}
+              onChange={(e) => setGuestType(e.target.value)}
+              className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+            >
+              <option value="">Select</option>
+              <option value="business">Business</option>
+              <option value="personal">Personal</option>
+              <option value="family">Family</option>
+              <option value="group">Group</option>
+              <option value="other">Other</option>
+            </select>
           </div>
-        </div>
-
-        {/* Date-aware room availability picker */}
-          <div className="space-y-1.5">
-          <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Select Rooms *
-          </Label>
-          <RoomAvailabilityPicker
-            checkIn={checkIn}
-            checkOut={checkOut}
-            selectedRooms={selectedRooms}
-            onSelectionChange={setSelectedRooms}
-            checkInTime={settings.data?.check_in_time}
-            checkOutTime={settings.data?.check_out_time}
-            adults={adultsCount}
-              guestChildren={childCount}
-            refreshKey={availRefreshKey}
-          />
-        </div>
-
-        {/* Financial */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="nb-discount" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Discount (₹)
-            </Label>
-            <Input id="nb-discount" name="discount_amount" type="number" min={0} step="0.01" defaultValue={0} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="nb-deposit" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Security Deposit (₹)
-            </Label>
-            <Input id="nb-deposit" name="security_deposit" type="number" min={0} step="0.01" defaultValue={0} />
-          </div>
-          <div className="col-span-2 space-y-1.5">
-            <Label htmlFor="nb-requests" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Special Requests
-            </Label>
-            <Input id="nb-requests" name="special_requests" placeholder="Optional" />
-          </div>
-          </div>
-
-          {error && (
-          <p className="rounded-lg bg-danger-bg border border-danger/30 px-3 py-2 text-sm text-danger" role="alert">
-              {error}
+          {guestType === "business" && (
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Company</Label>
+              <Input value={pgCompany} onChange={(e) => setPgCompany(e.target.value)} placeholder="Company name" />
+            </div>
+          )}
+          {!datesValid && (
+            <p className="sm:col-span-2 lg:col-span-4 text-xs text-danger">
+              Check-out date must be after check-in date.
             </p>
           )}
+        </div>
+      </Section>
 
-        {/* Actions */}
-        <div className="flex items-center justify-between pt-1">
+      {/* ── 2. Primary Guest Identity ─────────────────────────────────────── */}
+      <Section icon={BadgeCheck} title="Primary Guest Identity" subtitle="Search an existing guest or create a new one, then verify identity">
+        <div className="space-y-5">
+          <GuestPicker
+            selected={guest?.id ? guest : null}
+            onSelected={handleGuestSelected}
+          />
+
+          {guest && (
+            <>
+              {/* ID type + number */}
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">ID Type</Label>
+                  <select
+                    value={pgIdType}
+                    onChange={(e) => setPgIdType(e.target.value)}
+                    className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                  >
+                    <option value="Aadhar Card">Aadhar Card</option>
+                    <option value="PAN Card">PAN Card</option>
+                    <option value="Passport">Passport</option>
+                    <option value="Driving License">Driving License</option>
+                    <option value="Voter ID">Voter ID</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {pgIdType.toUpperCase()} No.
+                  </Label>
+                  <Input
+                    value={pgIdNumber}
+                    onChange={(e) => setPgIdNumber(e.target.value)}
+                    placeholder={`Enter ${pgIdType} number`}
+                  />
+                </div>
+              </div>
+
+              {/* Document uploads — front face triggers OCR */}
+              <div className="grid grid-cols-3 gap-3">
+                <DocUpload
+                  guestId={guest.id}
+                  side="front"
+                  label="Upload Front Face"
+                  idType={pgIdType}
+                  onOcrResult={(result) => setPgOcrResult(result)}
+                />
+                <DocUpload guestId={guest.id} side="back" label="Upload Back Face" />
+                <DocUpload guestId={guest.id} side="selfie" label="Selfie Capture" />
+              </div>
+
+              {/* OCR autofill banner */}
+              {pgOcrResult && (
+                <AutofillBanner
+                  result={pgOcrResult}
+                  onAccept={(fields) => {
+                    if (fields.name) setPgName(fields.name);
+                    if (fields.id_number) setPgIdNumber(fields.id_number);
+                    if (fields.gender) setPgGender(fields.gender);
+                    if (fields.date_of_birth) setPgDob(fields.date_of_birth);
+                    if (fields.address) setPgAddress(fields.address);
+                    if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
+                    setPgOcrResult(null);
+                    toast.success("Form auto-filled from ID document");
+                  }}
+                  onDismiss={() => setPgOcrResult(null)}
+                />
+              )}
+
+              {/* Guest personal details */}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Full Name</Label>
+                  <Input value={pgName} onChange={(e) => setPgName(e.target.value)} placeholder="Full Name" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Phone Number</Label>
+                  <Input value={pgPhone} onChange={(e) => setPgPhone(e.target.value)} placeholder="Phone" inputMode="tel" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Gender</Label>
+                  <select
+                    value={pgGender}
+                    onChange={(e) => setPgGender(e.target.value)}
+                    className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                  >
+                    <option value="">— Select —</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Date of Birth</Label>
+                  <DateInput value={pgDob} onChange={setPgDob} />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Address</Label>
+                  <Input value={pgAddress} onChange={(e) => setPgAddress(e.target.value)} placeholder="Address" />
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </Section>
+
+      {/* ── 3. Additional Guests ──────────────────────────────────────────── */}
+      <Section
+        icon={Users}
+        title="Additional Guests"
+        subtitle="Add co-guests for this stay"
+        badge={coGuests.filter(Boolean).length > 0 ? String(coGuests.filter(Boolean).length) : undefined}
+      >
+        <div className="space-y-4">
+          {guestKeys.map((key, i) => (
+            <AdditionalGuestEntry
+              key={key}
+              idx={i}
+              onResolved={(g) => resolveGuest(key, g)}
+              onRemove={() => removeGuestEntry(key)}
+            />
+          ))}
           <button
             type="button"
-            onClick={onClose}
-            className="inline-flex h-9 items-center rounded-lg border border-border px-3 text-sm hover:bg-muted transition-colors"
+            onClick={addGuestEntry}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
           >
-            Cancel
+            <Plus className="size-4" aria-hidden />
+            Add Guest
           </button>
+        </div>
+      </Section>
+
+      {/* ── 4. Room Information ───────────────────────────────────────────── */}
+      <Section icon={BedDouble} title="Room Information" subtitle="Availability follows the dates in Booking Details">
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-6">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Adults</Label>
+              <CountControl
+                value={adultsCount}
+                onDelta={(d) => setAdultsCount((v) => Math.max(1, Math.min(40, v + d)))}
+                min={1}
+                max={40}
+                decLabel="Remove adult"
+                incLabel="Add adult"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Children</Label>
+              <CountControl
+                value={childCount}
+                onDelta={(d) => setChildCount((v) => Math.max(0, Math.min(40, v + d)))}
+                min={0}
+                max={40}
+                decLabel="Remove child"
+                incLabel="Add child"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Select Rooms *
+            </Label>
+            <RoomAvailabilityPicker
+              checkIn={checkInDate}
+              checkOut={checkOutDate}
+              selectedRooms={selectedRooms}
+              onSelectionChange={setSelectedRooms}
+              checkInTime={settings.data?.check_in_time}
+              checkOutTime={settings.data?.check_out_time}
+              adults={adultsCount}
+              guestChildren={childCount}
+              refreshKey={availRefreshKey}
+            />
+          </div>
+        </div>
+      </Section>
+
+      {/* ── 5. Special Requirements ───────────────────────────────────────── */}
+      <Section icon={Star} title="Special Requirements">
+        <div className="space-y-4">
+          {services.isLoading && <Skeleton className="h-10" />}
+          {(services.data?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {services.data?.map((svc) => {
+                const active = selectedServices.includes(svc.id);
+                return (
+                  <button
+                    key={svc.id}
+                    type="button"
+                    onClick={() => toggleService(svc.id)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
+                      active
+                        ? "border-navy-900 bg-navy-900 text-white font-medium"
+                        : "border-border text-muted-foreground hover:border-navy-900 hover:text-navy-900",
+                    )}
+                  >
+                    {svc.name}
+                    <span className={cn("text-xs", active ? "opacity-80" : "opacity-60")}>
+                      ₹{svc.price}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Special Instructions
+            </Label>
+            <textarea
+              value={specialInstructions}
+              onChange={(e) => setSpecialInstructions(e.target.value)}
+              placeholder="Any additional instructions for the guest…"
+              rows={3}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-gold-500/40"
+            />
+          </div>
+        </div>
+      </Section>
+
+      {/* ── 6. Payment Details ────────────────────────────────────────────── */}
+      <Section icon={CreditCard} title="Payment Details" subtitle="Collect advance at check-in (optional)">
+        <div className="rounded-xl border bg-muted/20 px-4 py-4 grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Collect at Check-in (₹)
+            </Label>
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={advanceAmount}
+              onChange={(e) => setAdvanceAmount(e.target.value)}
+              className="tabular-nums"
+              placeholder="0.00"
+            />
+            <p className="text-[10px] text-muted-foreground">Enter 0 if collecting later</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Payment Mode
+            </Label>
+            <select
+              value={paymentMode}
+              onChange={(e) => setPaymentMode(e.target.value as "cash" | "upi")}
+              className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+              disabled={newAdvance === 0}
+            >
+              <option value="cash">Cash</option>
+              <option value="upi">UPI</option>
+            </select>
+          </div>
+        </div>
+      </Section>
+
+      {/* ── 7. Emergency Contact ──────────────────────────────────────────── */}
+      <Section icon={AlertTriangle} title="Emergency Contact" subtitle="Optional" defaultOpen={false}>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Name</Label>
+            <Input value={emName} onChange={(e) => setEmName(e.target.value)} placeholder="Contact name" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Relation</Label>
+            <Input value={emRelation} onChange={(e) => setEmRelation(e.target.value)} placeholder="e.g. Spouse" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Phone Number</Label>
+            <Input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} placeholder="Phone" inputMode="tel" />
+          </div>
+        </div>
+      </Section>
+
+      {/* ── 8. Vehicle Details ────────────────────────────────────────────── */}
+      <Section icon={Car} title="Vehicle Details" subtitle="Optional" defaultOpen={false}>
+        <div className="grid gap-3 sm:grid-cols-4">
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Vehicle Number</Label>
+            <Input value={vehNumber} onChange={(e) => setVehNumber(e.target.value)} placeholder="MH 12 AB 1234" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Vehicle Type</Label>
+            <select
+              value={vehType}
+              onChange={(e) => setVehType(e.target.value)}
+              className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+            >
+              <option value="Car">Car</option>
+              <option value="Bike">Bike</option>
+              <option value="Auto">Auto / Rickshaw</option>
+              <option value="Taxi">Taxi / Cab</option>
+              <option value="Bus">Bus</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Make / Name</Label>
+            <Input value={vehMake} onChange={(e) => setVehMake(e.target.value)} placeholder="e.g. Honda City" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Parking Slot</Label>
+            <Input value={parkingSlot} onChange={(e) => setParkingSlot(e.target.value)} placeholder="A-12" />
+          </div>
+        </div>
+      </Section>
+
+      {/* ── Footer: Terms + Check In ──────────────────────────────────────── */}
+      <div className="rounded-xl border bg-white shadow-sm px-5 py-4 space-y-4">
+        <label className="flex items-start gap-2.5 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-0.5 size-4 rounded border-input shrink-0"
+            checked={terms}
+            onChange={(e) => setTerms(e.target.checked)}
+          />
+          <span className="text-muted-foreground leading-relaxed">
+            Guest agrees to hotel terms and conditions, including check-in/check-out policy,
+            identity verification and property rules.
+          </span>
+        </label>
+
+        {error && (
+          <p className="rounded-lg bg-danger-bg border border-danger/30 px-3 py-2 text-sm text-danger" role="alert">
+            {error}
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <Button
-            type="submit"
-            disabled={mutation.isPending || !guest?.id || selectedRooms.length === 0}
+            type="button"
+            disabled={!canSubmit}
             className="bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
+            onClick={() => {
+              if (!guest) {
+                setError("Select or create a guest first.");
+                return;
+              }
+              if (selectedRooms.length === 0) {
+                setError("Select at least one room.");
+                return;
+              }
+              if (!datesValid) {
+                setError("Check-out date must be after check-in date.");
+                return;
+              }
+              setError(null);
+              mutation.mutate();
+            }}
           >
             <LogIn className="size-4" aria-hidden />
-            {mutation.isPending ? "Creating…" : "Create Booking & Check In"}
-            </Button>
+            {mutation.isPending ? "Checking In…" : "Check In"}
+          </Button>
         </div>
-        </form>
+      </div>
     </div>
   );
 }
 
-// ─── Booking selection list ───────────────────────────────────────────────────
+// ─── Arrivals strip ──────────────────────────────────────────────────────────
+// Compact clickable cards for confirmed bookings arriving — clicking one enters
+// MODE B (existing-booking check-in). Hidden when there are none.
+
+const ARRIVALS_VISIBLE = 10;
+
+function ArrivalsStrip({
+  bookings,
+  isLoading,
+  onSelect,
+}: {
+  readonly bookings: BookingOut[];
+  readonly isLoading: boolean;
+  readonly onSelect: (booking: BookingOut) => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+
+  if (isLoading) {
+    return (
+      <div className="flex gap-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-20 w-48 rounded-xl" />
+        ))}
+      </div>
+    );
+  }
+
+  if (bookings.length === 0) return null;
+
+  const visible = showAll ? bookings : bookings.slice(0, ARRIVALS_VISIBLE);
+  const hiddenCount = bookings.length - ARRIVALS_VISIBLE;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-muted-foreground">
+          Arriving bookings — click to check in
+        </h2>
+        {hiddenCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowAll((s) => !s)}
+            className="text-xs font-medium text-gold-600 hover:underline"
+          >
+            {showAll ? "Show less" : `+${hiddenCount} more`}
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {visible.map((booking) => (
+          <button
+            key={booking.id}
+            type="button"
+            onClick={() => onSelect(booking)}
+            className="flex min-w-[180px] flex-col rounded-xl border-2 border-border bg-white px-3 py-2.5 text-left shadow-sm transition-all hover:border-gold-400 hover:bg-gold-50"
+          >
+            <span className="flex items-center gap-1.5">
+              <LogIn className="size-3.5 text-gold-600 shrink-0" aria-hidden />
+              <span className="text-xs font-bold tabular-nums">{booking.booking_number}</span>
+            </span>
+            <span className="mt-0.5 text-sm font-semibold truncate max-w-[200px]">
+              {booking.primary_guest_name ?? "—"}
+            </span>
+            <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+              {booking.rooms
+                .filter((r) => r.is_current)
+                .map((r) => r.room_number)
+                .join(", ") || "No rooms"}
+            </span>
+            <span className="text-[10px] text-muted-foreground mt-0.5">
+              {fmtApiDate(booking.check_in_date)} → {fmtApiDate(booking.check_out_date)}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Page content ─────────────────────────────────────────────────────────────
 
 const CHECKIN_SESSION_KEY = "dmh.checkin.selectedBookingId";
 
@@ -1925,34 +2572,35 @@ function CheckinContent() {
   const queryClient = useQueryClient();
   const { activeHotelId } = useAuth();
   const [selectedBooking, setSelectedBooking] = useState<BookingOut | null>(null);
-  // Auto-open the inline booking form when navigated here with ?new=1
-  const [newBookingOpen, setNewBookingOpen] = useState(() => {
-    if (typeof window !== "undefined") {
-      return new URLSearchParams(window.location.search).get("new") === "1";
-    }
-    return false;
+  // Remount key to reset the walk-in form after a completed check-in.
+  const [walkInKey, setWalkInKey] = useState(0);
+  const [pendingBookingId, setPendingBookingId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    // ?booking=<id> lets other pages (e.g. Advance Bookings) deep-link into
+    // the check-in form for a specific booking.
+    const fromUrl = new URLSearchParams(window.location.search).get("booking");
+    return fromUrl ?? sessionStorage.getItem(CHECKIN_SESSION_KEY);
   });
-  const [pendingBookingId, setPendingBookingId] = useState<string | null>(() =>
-    typeof window !== "undefined" ? sessionStorage.getItem(CHECKIN_SESSION_KEY) : null,
-  );
 
-  // Clean ?new=1 from URL after reading it (prevents re-opening on back navigation).
+  // Clean ?new=1 / ?booking= from URL after reading them (prevents re-opening
+  // on back navigation). ?new=1 is a legacy link — walk-in mode is now the
+  // default view, so the param is simply ignored.
   useEffect(() => {
-    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new") === "1") {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") === "1" || params.get("booking")) {
       const url = new URL(window.location.href);
       url.searchParams.delete("new");
+      url.searchParams.delete("booking");
       window.history.replaceState({}, "", url.toString());
     }
   }, []); // run once on mount
-  const [page, setPage] = useState(0);
-  const PAGE_SIZE = 50;
 
+  // Confirmed bookings arriving — rendered as the compact arrivals strip.
   const bookings = useQuery({
-    queryKey: ["bookings", activeHotelId, "confirmed", page],
+    queryKey: ["bookings", activeHotelId, "confirmed", 0],
     queryFn: () =>
-      api<ListOut<BookingOut>>(
-        `/api/v1/bookings?status=confirmed&limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`,
-      ),
+      api<ListOut<BookingOut>>(`/api/v1/bookings?status=confirmed&limit=50&offset=0`),
     enabled: !!activeHotelId,
   });
 
@@ -1993,131 +2641,43 @@ function CheckinContent() {
     );
   }
 
+  // MODE A — walk-in check-in (default) with the arrivals strip on top.
   return (
     <>
       <PartnerHeader title="Guest Check-in" subtitle="Front Desk" />
-      <main className="flex-1 overflow-y-auto p-6">
-        {/* ── Inline New Booking Form — expands on the same page, no popup ── */}
-        {newBookingOpen && (
-          <NewBookingInlineForm
-            onClose={() => setNewBookingOpen(false)}
-            onCreated={(booking) => {
-              setNewBookingOpen(false);
-              // Jump straight into the check-in form for the newly created booking
+      <main className="flex-1 overflow-y-auto bg-[#f5f5f0] px-4 py-6">
+        <div className="mx-auto max-w-4xl space-y-6 pb-12">
+          <ArrivalsStrip
+            bookings={bookings.data?.items ?? []}
+            isLoading={bookings.isLoading}
+            onSelect={(booking) => {
               sessionStorage.setItem(CHECKIN_SESSION_KEY, booking.id);
               setSelectedBooking(booking);
-              queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
             }}
           />
-        )}
-
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-muted-foreground">
-            {newBookingOpen ? "New Booking" : "Bookings ready for check-in"}
-          </h2>
-          {!newBookingOpen && (
-            <button
-              type="button"
-              onClick={() => setNewBookingOpen(true)}
-              className={cn(buttonVariants({ variant: "outline" }))}
-            >
-              <Plus className="size-4" aria-hidden />
-              New Booking
-            </button>
-          )}
-        </div>
-
-        <div className="rounded-xl border bg-white shadow-sm">
-          {bookings.isLoading && (
-            <div className="space-y-2 p-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
-            </div>
-          )}
           {bookings.isError && (
-            <div className="p-8 text-center text-sm text-danger">
-              Failed to load.{" "}
+            <p className="text-sm text-danger">
+              Could not load arriving bookings.{" "}
               <button type="button" className="underline" onClick={() => bookings.refetch()}>
                 Retry
               </button>
-            </div>
-          )}
-          {bookings.data && bookings.data.items.length === 0 && page === 0 && (
-            <p className="p-10 text-center text-sm text-muted-foreground">
-              No confirmed bookings ready for check-in.
             </p>
           )}
-          {bookings.data && bookings.data.items.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-navy-900 hover:bg-navy-900">
-                  <TableHead className="text-white">Booking No.</TableHead>
-                  <TableHead className="text-white">Guest</TableHead>
-                  <TableHead className="text-white">Rooms</TableHead>
-                  <TableHead className="text-white">Dates</TableHead>
-                  <TableHead className="text-white">Total</TableHead>
-                  <TableHead className="text-white">Due</TableHead>
-                  <TableHead className="text-right text-white">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {bookings.data.items.map((booking) => (
-                  <TableRow key={booking.id}>
-                    <TableCell className="font-medium">{booking.booking_number}</TableCell>
-                    <TableCell>{booking.primary_guest_name ?? "—"}</TableCell>
-                    <TableCell>
-                      {booking.rooms
-                        .filter((r) => r.is_current)
-                        .map((r) => r.room_number)
-                        .join(", ")}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground text-xs">
-                      {fmtApiDate(booking.check_in_date)} → {fmtApiDate(booking.check_out_date)}
-                    </TableCell>
-                    <TableCell className="tabular-nums">₹{booking.total_amount}</TableCell>
-                    <TableCell className="tabular-nums font-medium">₹{booking.due_amount}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        className="bg-gold-500 text-navy-900 hover:bg-gold-400"
-                        onClick={() => {
-                          sessionStorage.setItem(CHECKIN_SESSION_KEY, booking.id);
-                          setSelectedBooking(booking);
-                        }}
-                      >
-                        <LogIn className="size-4" aria-hidden />
-                        Check In
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
 
-        {bookings.data && bookings.data.total > PAGE_SIZE && (
-          <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
-            <span>
-              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, bookings.data.total)} of{" "}
-              {bookings.data.total}
-            </span>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
-                Previous
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={(page + 1) * PAGE_SIZE >= bookings.data.total}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next
-              </Button>
-            </div>
+          <div className="space-y-1">
+            <h2 className="text-sm font-semibold text-muted-foreground">Walk-in Check-in</h2>
+            <p className="text-xs text-muted-foreground">
+              Books the room and checks the guest in — one step, one button.
+            </p>
           </div>
-        )}
+          <WalkInCheckinForm
+            key={walkInKey}
+            onDone={() => {
+              invalidate();
+              setWalkInKey((k) => k + 1);
+            }}
+          />
+        </div>
       </main>
     </>
   );

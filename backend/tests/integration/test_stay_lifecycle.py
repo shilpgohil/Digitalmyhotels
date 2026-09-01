@@ -229,3 +229,79 @@ async def test_housekeeping_cannot_manage_bookings(
     hk_headers = await _headers(client, hotel_a, role="housekeeping")
     resp = await client.get("/api/v1/bookings", headers=hk_headers)
     assert resp.status_code == 403
+
+
+async def test_book_and_checkin_atomic_walk_in(
+    client: AsyncClient, hotel_a: HotelFixture
+) -> None:
+    """Unified walk-in flow: one call creates booking + checks the guest in."""
+    headers = await _headers(client, hotel_a)
+    room_ids = await _setup_rooms(client, headers, count=1)
+    guest_id = await _make_guest(client, headers, "9866666666")
+
+    resp = await client.post(
+        "/api/v1/checkins/book-and-checkin",
+        json={
+            "booking": {
+                "primary_guest_id": guest_id,
+                "room_ids": room_ids,
+                "check_in_date": str(TODAY),
+                "check_out_date": str(TODAY + timedelta(days=1)),
+                "adults": 2,
+                "guest_type": "business",
+                "check_in_time": "14:00",
+                "check_out_time": "11:00",
+            },
+            "purpose_of_visit": "Business trip",
+            "terms_acknowledged": True,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    out = resp.json()
+    assert out["registration_numbers"], "registration number must be issued"
+
+    # Booking exists, is checked_in, and carries the new fields.
+    booking = await client.get(f"/api/v1/bookings/{out['booking_id']}", headers=headers)
+    assert booking.status_code == 200
+    body = booking.json()
+    assert body["status"] == "checked_in"
+    assert body["guest_type"] == "business"
+    assert body["check_in_time"] == "14:00"
+
+    # Room is occupied immediately.
+    rooms = await client.get("/api/v1/rooms?limit=200", headers=headers)
+    room_status = {r["id"]: r["status"] for r in rooms.json()["items"]}
+    assert room_status[room_ids[0]] == "occupied"
+
+
+async def test_book_and_checkin_rolls_back_booking_on_checkin_failure(
+    client: AsyncClient, hotel_a: HotelFixture
+) -> None:
+    """If check-in fails, the booking must not survive (atomicity)."""
+    headers = await _headers(client, hotel_a)
+    room_ids = await _setup_rooms(client, headers, count=1)
+    guest_id = await _make_guest(client, headers, "9877777777")
+
+    before = await client.get("/api/v1/bookings?limit=100", headers=headers)
+    count_before = before.json()["total"]
+
+    # co_guests with a non-existent guest id makes check-in raise after the
+    # booking insert — the whole transaction must roll back.
+    resp = await client.post(
+        "/api/v1/checkins/book-and-checkin",
+        json={
+            "booking": {
+                "primary_guest_id": guest_id,
+                "room_ids": room_ids,
+                "check_in_date": str(TODAY),
+                "check_out_date": str(TODAY + timedelta(days=1)),
+            },
+            "co_guests": [{"guest_id": "00000000-0000-0000-0000-000000000000"}],
+        },
+        headers=headers,
+    )
+    assert resp.status_code in (404, 422), resp.text
+
+    after = await client.get("/api/v1/bookings?limit=100", headers=headers)
+    assert after.json()["total"] == count_before, "booking must have rolled back"

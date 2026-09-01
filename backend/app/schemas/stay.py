@@ -4,11 +4,39 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.booking import BookingCreate
+
 
 class CoGuestIn(BaseModel):
     guest_id: UUID
     purpose_of_visit: str | None = Field(default=None, max_length=200)
     company_name: str | None = Field(default=None, max_length=200)
+
+
+class ForeignGuestIn(BaseModel):
+    """Form C fields for a foreign national (FRRO compliance)."""
+
+    passport_number: str = Field(min_length=3, max_length=32)
+    passport_place_of_issue: str | None = Field(default=None, max_length=120)
+    passport_expiry: date | None = None
+    visa_number: str | None = Field(default=None, max_length=40)
+    visa_type: str | None = Field(default=None, max_length=40)
+    visa_place_of_issue: str | None = Field(default=None, max_length=120)
+    visa_expiry: date | None = None
+    place_of_birth: str | None = Field(default=None, max_length=120)
+    country_of_birth: str | None = Field(default=None, max_length=120)
+    nationality: str | None = Field(default=None, max_length=120)
+    arrived_in_india_on: date | None = None
+    arrival_place: str | None = Field(default=None, max_length=120)
+    coming_from_city: str | None = Field(default=None, max_length=120)
+    coming_from_country: str | None = Field(default=None, max_length=120)
+    next_destination: str | None = Field(default=None, max_length=120)
+    next_destination_country: str | None = Field(default=None, max_length=120)
+    purpose_of_visit: str | None = Field(default=None, max_length=200)
+
+
+class ForeignGuestOut(ForeignGuestIn):
+    guest_id: UUID
 
 
 class CheckInRequest(BaseModel):
@@ -23,6 +51,8 @@ class CheckInRequest(BaseModel):
     notes: str | None = Field(default=None, max_length=2000)
     # Digital acknowledgement of hotel terms (SRS §8).
     terms_acknowledged: bool = False
+    # Form C data when the primary guest is a foreign national.
+    foreign_guest: ForeignGuestIn | None = None
 
 
 class CheckInOut(BaseModel):
@@ -34,6 +64,23 @@ class CheckInOut(BaseModel):
     is_early: bool
     early_fee: Decimal
     registration_numbers: list[str]
+
+
+class BookAndCheckInRequest(BaseModel):
+    """Walk-in flow: create the booking and check the guest in atomically.
+
+    Both operations run in one request/transaction — if check-in validation
+    fails, the booking creation rolls back too (no orphan bookings).
+    """
+
+    booking: BookingCreate
+    checked_in_at: datetime | None = None
+    co_guests: list[CoGuestIn] = Field(default_factory=list, max_length=20)
+    purpose_of_visit: str | None = Field(default=None, max_length=200)
+    company_name: str | None = Field(default=None, max_length=200)
+    notes: str | None = Field(default=None, max_length=2000)
+    terms_acknowledged: bool = False
+    foreign_guest: ForeignGuestIn | None = None
 
 
 class CurrentGuestOut(BaseModel):

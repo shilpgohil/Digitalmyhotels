@@ -12,7 +12,7 @@ class ORMModel(BaseModel):
 class ChargeCreate(BaseModel):
     booking_id: UUID
     category: str = Field(
-        pattern="^(food|laundry|room_service|extra_bed|minibar|transport|other)$"
+        pattern="^(food|restaurant|laundry|room_service|extra_bed|minibar|transport|damage|other)$"
     )
     description: str = Field(min_length=2, max_length=255)
     quantity: int = Field(default=1, ge=1, le=999)

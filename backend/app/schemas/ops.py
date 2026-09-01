@@ -175,6 +175,25 @@ class GstByBookingOut(BaseModel):
     total_amount: Decimal
 
 
+class RestaurantBillingRowOut(BaseModel):
+    booking_number: str
+    guest_name: str
+    taxable_value: Decimal
+    gst_rate: Decimal          # percent, e.g. 5.00
+    gst_payable: Decimal
+    final_price: Decimal
+    charged_on: date
+
+
+class RestaurantBillingOut(BaseModel):
+    from_date: date
+    to_date: date
+    items: list[RestaurantBillingRowOut]
+    total_amount: Decimal
+    total_taxable: Decimal
+    total_gst: Decimal
+
+
 class RoomUtilizationRowOut(BaseModel):
     room_number: str
     room_type_name: str

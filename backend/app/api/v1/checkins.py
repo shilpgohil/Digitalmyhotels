@@ -8,6 +8,7 @@ from app.core.permissions import Permission
 from app.core.tenant import TenantContext
 from app.db.session import get_db
 from app.schemas.stay import (
+    BookAndCheckInRequest,
     CheckInOut,
     CheckInRequest,
     CurrentGuestsListOut,
@@ -31,6 +32,21 @@ async def check_in(
     db: AsyncSession = Depends(get_db),
 ) -> CheckInOut:
     return await stay_service.check_in(
+        db, tenant, body, correlation_id=_correlation(request)
+    )
+
+
+@router.post("/checkins/book-and-checkin", response_model=CheckInOut, status_code=201)
+async def book_and_check_in(
+    body: BookAndCheckInRequest,
+    request: Request,
+    tenant: TenantContext = Depends(
+        require_permissions(Permission.BOOKINGS_MANAGE, Permission.CHECKIN)
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> CheckInOut:
+    """Unified walk-in flow: booking + check-in in one atomic transaction."""
+    return await stay_service.book_and_check_in(
         db, tenant, body, correlation_id=_correlation(request)
     )
 

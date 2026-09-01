@@ -48,10 +48,15 @@ class Booking(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("guests.id"), nullable=True
     )
     source: Mapped[str] = mapped_column(String(64), default="walk_in", nullable=False)
+    # Guest type per client requirement: business / personal / family / group / other
+    guest_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False, index=True)
     payment_status: Mapped[str] = mapped_column(String(32), default="unpaid", nullable=False)
     check_in_date: Mapped[date] = mapped_column(Date, nullable=False)
     check_out_date: Mapped[date] = mapped_column(Date, nullable=False)
+    # Per-booking times (HH:MM) — fall back to hotel defaults when null.
+    check_in_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    check_out_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
     adults: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     children: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     room_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)

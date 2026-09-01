@@ -23,8 +23,11 @@ class BookingOut(ORMModel):
     status: str
     payment_status: str
     source: str
+    guest_type: str | None = None
     check_in_date: date
     check_out_date: date
+    check_in_time: str | None = None
+    check_out_time: str | None = None
     adults: int
     children: int
     room_count: int
@@ -56,6 +59,9 @@ class BookingCreate(BaseModel):
     adults: int = Field(default=1, ge=1, le=40)
     children: int = Field(default=0, ge=0, le=40)
     source: str = Field(default="walk_in", max_length=64)
+    guest_type: str | None = Field(default=None, max_length=32)
+    check_in_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    check_out_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
     special_requests: str | None = Field(default=None, max_length=2000)
     discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
     security_deposit: Decimal = Field(default=Decimal("0.00"), ge=0)
