@@ -71,6 +71,7 @@ import { RoomAvailabilityPicker } from "@/components/rooms/room-availability-pic
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError, apiUpload } from "@/lib/api/client";
+import { getAccessToken } from "@/lib/auth/session";
 import { compressDocument } from "@/lib/compress-image";
 import { fmtApiDate, localToday, localTomorrow } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
@@ -699,12 +700,19 @@ function Section({
   );
 }
 
-/** Document upload tile — shows image preview after upload + optional OCR on front face. */
+/** Document upload tile — shows image preview after upload + optional OCR.
+ *
+ *  • Front face  → full OCR (name, DOB, gender, ID number, address)
+ *  • Back face   → address-only OCR (Aadhar address lives on the back)
+ *  • existingDocId → on mount, fetches the previously-stored image from B2
+ *    so returning guests never have empty tiles (staff can still re-upload).
+ */
 function DocUpload({
   guestId,
   side,
   label,
   idType,
+  existingDocId,
   onUploaded,
   onOcrResult,
 }: {
@@ -712,6 +720,8 @@ function DocUpload({
   readonly side: DocSide;
   readonly label: string;
   readonly idType?: string;
+  /** Existing document ID — pre-fills the tile from B2 on mount. */
+  readonly existingDocId?: string | null;
   readonly onUploaded?: () => void;
   readonly onOcrResult?: (result: import("@/lib/id-ocr").IdOcrResult) => void;
 }) {
@@ -728,6 +738,30 @@ function DocUpload({
     return () => { if (preview) URL.revokeObjectURL(preview); };
   }, [preview]);
 
+  // Pre-fill tile from Backblaze when a returning guest has existing documents.
+  useEffect(() => {
+    if (!existingDocId || !guestId || preview) return;
+    let cancelled = false;
+    setBusy(true);
+    const url = `/api/v1/guests/${guestId}/documents/${existingDocId}/file`;
+    const token = getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (activeHotelId) headers["X-Hotel-Id"] = activeHotelId;
+    fetch(url, { headers, credentials: "include" })
+      .then((r) => (r.ok ? r.blob() : Promise.reject(r.status)))
+      .then((blob) => {
+        if (!cancelled) {
+          setPreview(URL.createObjectURL(blob));
+          setUploaded(true);
+        }
+      })
+      .catch(() => { /* silent — tile stays empty so staff can upload */ })
+      .finally(() => { if (!cancelled) setBusy(false); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingDocId, guestId]);
+
   const onFile = async (file: File | undefined) => {
     if (!file || !guestId) return;
     setBusy(true);
@@ -737,12 +771,27 @@ function DocUpload({
     try {
       const compressed = await compressDocument(file);
 
-      // Run OCR on front face in parallel with upload
-      if (side === "front" && onOcrResult) {
+      // Run OCR in parallel with upload.
+      // Front → full extraction (name, DOB, gender, ID number, address).
+      // Back  → address-only (Aadhar address lives on the back face; we only
+      //          surface it if the callback is wired by the parent).
+      if ((side === "front" || side === "back") && onOcrResult) {
         setOcrRunning(true);
         const { parseIdDocument } = await import("@/lib/id-ocr");
         parseIdDocument(compressed, idType ?? "Aadhar Card")
-          .then(onOcrResult)
+          .then((result) => {
+            if (side === "back") {
+              // Back face: surface address field only — don't overwrite
+              // name/DOB/gender already captured from the front.
+              const addressOnly = {
+                ...result,
+                fields: { address: result.fields.address },
+              };
+              onOcrResult(addressOnly);
+            } else {
+              onOcrResult(result);
+            }
+          })
           .finally(() => setOcrRunning(false));
       }
 
@@ -1491,28 +1540,49 @@ function CheckinForm({
   const [pgPurpose, setPgPurpose] = useState("");
   const [pgCompany, setPgCompany] = useState("");
 
+  // Existing doc IDs so DocUpload tiles pre-fill from B2 on mount.
+  const [pgExistingDocs, setPgExistingDocs] = useState<
+    Partial<Record<DocSide, string>>
+  >({});
+
   // ── Profile autofill — advance-booking guests already have a profile; pull
-  // everything we know (gender, DOB, address, ID type) so the front desk
-  // never re-types data captured at booking time. Only fills fields that are
-  // still empty so manual edits are never overwritten.
+  // everything we know (gender, DOB, address, ID type) AND existing document
+  // images from Backblaze so the front desk never re-types or re-uploads
+  // data captured at booking time.
   useEffect(() => {
     if (!booking.primary_guest_id) return;
     let cancelled = false;
     (async () => {
-      try {
-        const full = await api<GuestAutofill>(
+      const [autofillResult, docsResult] = await Promise.allSettled([
+        api<GuestAutofill>(
           `/api/v1/guests/${booking.primary_guest_id}/autofill`,
           { method: "POST" },
-        );
-        if (cancelled) return;
+        ),
+        api<{ id: string; side: string | null }[]>(
+          `/api/v1/guests/${booking.primary_guest_id}/documents`,
+        ),
+      ]);
+
+      if (cancelled) return;
+
+      if (autofillResult.status === "fulfilled") {
+        const full = autofillResult.value;
         setPgName((v) => v || full.full_name);
         setPgPhone((v) => v || full.phone);
         setPgGender((v) => v || (full.gender ?? ""));
         setPgDob((v) => v || (full.date_of_birth ?? ""));
         setPgAddress((v) => v || (full.address ?? ""));
         if (full.id_proof_type) setPgIdType((v) => (v === "Aadhar Card" ? full.id_proof_type! : v));
-      } catch {
-        // Autofill is best-effort — form stays editable either way.
+      }
+
+      if (docsResult.status === "fulfilled") {
+        const docs: Partial<Record<DocSide, string>> = {};
+        for (const d of docsResult.value) {
+          if (d.side === "front" || d.side === "back" || d.side === "selfie") {
+            docs[d.side] = d.id;
+          }
+        }
+        setPgExistingDocs(docs);
       }
     })();
     return () => {
@@ -1917,24 +1987,33 @@ function CheckinForm({
             </div>
           </div>
 
-          {/* Document uploads */}
+          {/* Document uploads — pre-filled from B2 for returning guests */}
           <div className="grid grid-cols-3 gap-3">
             <DocUpload
               guestId={booking.primary_guest_id ?? null}
               side="front"
               label={t("uploadFrontFace")}
               idType={pgIdType}
+              existingDocId={pgExistingDocs.front}
               onOcrResult={(result) => setPgOcrResult(result)}
             />
             <DocUpload
               guestId={booking.primary_guest_id ?? null}
               side="back"
               label={t("uploadBackFace")}
+              idType={pgIdType}
+              existingDocId={pgExistingDocs.back}
+              onOcrResult={(result) => {
+                if (result.fields.address) {
+                  setPgAddress((prev) => prev || (result.fields.address ?? ""));
+                }
+              }}
             />
             <DocUpload
               guestId={booking.primary_guest_id ?? null}
               side="selfie"
               label={t("selfieCapture")}
+              existingDocId={pgExistingDocs.selfie}
             />
           </div>
 
@@ -2460,25 +2539,50 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const [pgCompany, setPgCompany] = useState("");
   const [pgOcrResult, setPgOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
 
+  // Existing doc IDs for the selected returning guest — keyed by side.
+  // DocUpload uses these to pre-fill tiles from B2.
+  const [pgExistingDocs, setPgExistingDocs] = useState<
+    Partial<Record<DocSide, string>>
+  >({});
+
   const handleGuestSelected = async (g: { id: string; full_name: string; phone: string }) => {
     if (!g.id) {
       setGuest(null);
       setPgBaseline(null);
+      setPgExistingDocs({});
       return;
     }
     setGuest({ id: g.id, full_name: g.full_name });
     setPgName(g.full_name);
     setPgPhone(g.phone);
-    // Prefill editable identity fields from the guest profile (non-fatal).
-    try {
-      const full = await api<GuestAutofill>(`/api/v1/guests/${g.id}/autofill`, { method: "POST" });
+    setPgExistingDocs({});
+
+    // Parallel fetch: text profile + existing document list.
+    const [autofillResult, docsResult] = await Promise.allSettled([
+      api<GuestAutofill>(`/api/v1/guests/${g.id}/autofill`, { method: "POST" }),
+      api<{ id: string; side: string | null }[]>(`/api/v1/guests/${g.id}/documents`),
+    ]);
+
+    if (autofillResult.status === "fulfilled") {
+      const full = autofillResult.value;
       setPgBaseline(full);
       setPgGender(full.gender ?? "");
       setPgDob(full.date_of_birth ?? "");
       setPgAddress(full.address ?? "");
       if (full.id_proof_type) setPgIdType(full.id_proof_type);
-    } catch {
+    } else {
       setPgBaseline(null);
+    }
+
+    if (docsResult.status === "fulfilled") {
+      // Pick the most recent document per side.
+      const docs: Partial<Record<DocSide, string>> = {};
+      for (const d of docsResult.value) {
+        if (d.side === "front" || d.side === "back" || d.side === "selfie") {
+          docs[d.side] = d.id; // later entries overwrite — list is newest-first
+        }
+      }
+      setPgExistingDocs(docs);
     }
   };
 
@@ -2938,17 +3042,35 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                 </div>
               </div>
 
-              {/* Document uploads — front face triggers OCR */}
+              {/* Document uploads — front & back trigger OCR (back → address only) */}
               <div className="grid grid-cols-3 gap-3">
                 <DocUpload
                   guestId={guest.id}
                   side="front"
                   label={t("uploadFrontFace")}
                   idType={pgIdType}
+                  existingDocId={pgExistingDocs.front}
                   onOcrResult={(result) => setPgOcrResult(result)}
                 />
-                <DocUpload guestId={guest.id} side="back" label={t("uploadBackFace")} />
-                <DocUpload guestId={guest.id} side="selfie" label={t("selfieCapture")} />
+                <DocUpload
+                  guestId={guest.id}
+                  side="back"
+                  label={t("uploadBackFace")}
+                  idType={pgIdType}
+                  existingDocId={pgExistingDocs.back}
+                  onOcrResult={(result) => {
+                    // Back face: merge address into any existing OCR result.
+                    if (result.fields.address) {
+                      setPgAddress((prev) => prev || (result.fields.address ?? ""));
+                    }
+                  }}
+                />
+                <DocUpload
+                  guestId={guest.id}
+                  side="selfie"
+                  label={t("selfieCapture")}
+                  existingDocId={pgExistingDocs.selfie}
+                />
               </div>
 
               {/* OCR autofill banner */}
