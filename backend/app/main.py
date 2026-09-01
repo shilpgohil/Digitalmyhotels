@@ -71,6 +71,32 @@ def create_app() -> FastAPI:
     async def health() -> dict[str, str]:
         return {"status": "ok", "service": settings.app_name}
 
+    @app.get("/health/db")
+    async def health_db() -> dict[str, float | str]:
+        """Diagnostic: measures DB session checkout + query time server-side.
+
+        checkout_ms ≈ connection acquisition (pool reuse should make this ~0–5 ms;
+        a fresh Neon connection costs 1000–3000 ms on this CPU tier).
+        query_ms ≈ pure round-trip for SELECT 1 (same-region should be 1–5 ms).
+        """
+        import time
+
+        from sqlalchemy import text
+
+        from app.db.session import AsyncSessionLocal
+
+        t0 = time.perf_counter()
+        async with AsyncSessionLocal() as session:
+            await session.connection()          # force pool checkout now
+            t1 = time.perf_counter()
+            await session.execute(text("SELECT 1"))
+            t2 = time.perf_counter()
+        return {
+            "status": "ok",
+            "checkout_ms": round((t1 - t0) * 1000, 1),
+            "query_ms": round((t2 - t1) * 1000, 1),
+        }
+
     app.include_router(api_router, prefix=settings.api_v1_prefix)
     return app
 
