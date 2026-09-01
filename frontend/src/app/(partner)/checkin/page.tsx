@@ -64,6 +64,7 @@ import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
+import { TimeInput } from "@/components/ui/time-input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GuestPicker } from "@/components/guests/guest-picker";
@@ -2024,10 +2025,9 @@ function CheckinForm({
             </div>
             <div className="space-y-1.5">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("checkinTime")}</Label>
-              <input
-                type="time"
+              <TimeInput
                 value={checkInTime}
-                onChange={(e) => setCheckInTime(e.target.value)}
+                onChange={setCheckInTime}
                 className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               />
             </div>
@@ -3237,11 +3237,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             <Label htmlFor="wi-cin-time" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               {t("checkinTime")}
             </Label>
-            <input
+            <TimeInput
               id="wi-cin-time"
-              type="time"
               value={checkInTime}
-              onChange={(e) => setCheckInTime(e.target.value)}
+              onChange={setCheckInTime}
               className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
             />
           </div>
@@ -3255,11 +3254,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             <Label htmlFor="wi-cout-time" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               {t("checkoutTime")}
             </Label>
-            <input
+            <TimeInput
               id="wi-cout-time"
-              type="time"
               value={checkOutTime}
-              onChange={(e) => setCheckOutTime(e.target.value)}
+              onChange={setCheckOutTime}
               className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
             />
           </div>

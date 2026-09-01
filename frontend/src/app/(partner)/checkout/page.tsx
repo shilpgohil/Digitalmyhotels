@@ -33,6 +33,7 @@ import {
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TimeInput } from "@/components/ui/time-input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -765,11 +766,10 @@ function CheckoutContent() {
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="co-actual-checkout-time">Actual Checkout Time</Label>
-                        <Input
+                        <TimeInput
                           id="co-actual-checkout-time"
-                          type="time"
                           value={actualCheckoutTime}
-                          onChange={(e) => setActualCheckoutTime(e.target.value)}
+                          onChange={setActualCheckoutTime}
                           disabled={isPending}
                         />
                       </div>

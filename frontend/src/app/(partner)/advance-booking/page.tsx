@@ -33,6 +33,7 @@ import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
+import { TimeInput } from "@/components/ui/time-input";
 import { Label } from "@/components/ui/label";
 import { GuestPicker } from "@/components/guests/guest-picker";
 import { RoomAvailabilityPicker } from "@/components/rooms/room-availability-picker";
@@ -326,11 +327,10 @@ function AdvanceBookingContent() {
                     </span>
                   )}
                 </Label>
-                <Input
+                <TimeInput
                   id="ab-cin-time"
-                  type="time"
                   value={checkInTime}
-                  onChange={(e) => setCheckInTime(e.target.value)}
+                  onChange={setCheckInTime}
                 />
               </div>
               <div className="space-y-1.5">
@@ -348,11 +348,10 @@ function AdvanceBookingContent() {
                     </span>
                   )}
                 </Label>
-                <Input
+                <TimeInput
                   id="ab-cout-time"
-                  type="time"
                   value={checkOutTime}
-                  onChange={(e) => setCheckOutTime(e.target.value)}
+                  onChange={setCheckOutTime}
                 />
               </div>
               <div className="space-y-1.5">

@@ -10,6 +10,7 @@ import { KeyRound, QrCode, Upload } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TimeInput } from "@/components/ui/time-input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -330,11 +331,21 @@ function PoliciesForm() {
   const readOnly = !can(PERMISSIONS.hotelManageSettings);
   const { onSaved, onError } = useSaveToast();
 
+  const [cinTime, setCinTime] = useState("");
+  const [coutTime, setCoutTime] = useState("");
+
   const settings = useQuery({
     queryKey: ["hotel-settings", activeHotelId],
     queryFn: () => api<HotelSettingsOut>("/api/v1/hotels/me/settings"),
     enabled: !!activeHotelId,
   });
+
+  useEffect(() => {
+    if (settings.data) {
+      setCinTime(settings.data.check_in_time.slice(0, 5));
+      setCoutTime(settings.data.check_out_time.slice(0, 5));
+    }
+  }, [settings.data]);
 
   const mutation = useMutation({
     mutationFn: (form: FormData) => {
@@ -377,24 +388,21 @@ function PoliciesForm() {
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="s-cin">{t("checkinTime")}</Label>
-          {/* type="time" renders a 24-hr picker on all major browsers */}
-          <Input
+          <TimeInput
             id="s-cin"
             name="check_in_time"
-            type="time"
-            step="1800"
-            defaultValue={data.check_in_time.slice(0, 5)}
+            value={cinTime}
+            onChange={setCinTime}
             disabled={readOnly}
           />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="s-cout">{t("checkoutTime")}</Label>
-          <Input
+          <TimeInput
             id="s-cout"
             name="check_out_time"
-            type="time"
-            step="1800"
-            defaultValue={data.check_out_time.slice(0, 5)}
+            value={coutTime}
+            onChange={setCoutTime}
             disabled={readOnly}
           />
         </div>
