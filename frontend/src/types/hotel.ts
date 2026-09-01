@@ -30,6 +30,8 @@ export interface HotelSettingsOut {
   currency: string;
   early_checkin_grace_minutes: number;
   late_checkout_grace_minutes: number;
+  early_checkin_fee_per_hour: string;
+  late_checkout_fee_per_hour: string;
   access_mode: "full" | "checkin_only";
 }
 

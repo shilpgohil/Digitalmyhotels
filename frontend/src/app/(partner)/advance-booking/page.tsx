@@ -15,7 +15,7 @@
  *  2. POST /api/v1/payments  — if advance amount > 0 (purpose: "advance")
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -38,7 +38,8 @@ import { GuestPicker } from "@/components/guests/guest-picker";
 import { RoomAvailabilityPicker } from "@/components/rooms/room-availability-picker";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
-import { ApiError } from "@/lib/api/client";
+import { ApiError, API_BASE } from "@/lib/api/client";
+import { getAccessToken } from "@/lib/auth/session";
 import { localToday, localTomorrow } from "@/lib/formatting";
 import type { BookingOut } from "@/types/stay";
 import { RequirePermission } from "@/components/auth/require-permission";
@@ -56,7 +57,7 @@ const PAYMENT_MODES = [
   { value: "cash", label: "Cash" },
   { value: "upi", label: "UPI" },
   { value: "card", label: "Card" },
-  { value: "bank_transfer", label: "Bank Transfer" },
+  { value: "bank_transfer", label: "Net Banking" },
   { value: "other", label: "Other" },
 ];
 
@@ -158,6 +159,72 @@ function AdvanceBookingContent() {
   // ── 5. Payment ──
   const [advanceAmount, setAdvanceAmount] = useState("0");
   const [paymentMode, setPaymentMode] = useState("cash");
+  const [paymentCollected, setPaymentCollected] = useState(false);
+
+  // ── UPI QR ──
+  const [qrObjectUrl, setQrObjectUrl] = useState<string | null>(null);
+  const [qrNotConfigured, setQrNotConfigured] = useState(false);
+  const [qrLoading, setQrLoading] = useState(false);
+
+  useEffect(() => {
+    if (paymentMode !== "upi") {
+      setQrObjectUrl(null);
+      setQrNotConfigured(false);
+      return;
+    }
+
+    let cancelled = false;
+    let currentUrl: string | null = null;
+
+    const fetchQr = async () => {
+      setQrLoading(true);
+      try {
+        const token = getAccessToken();
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+        if (activeHotelId) headers["X-Hotel-Id"] = activeHotelId;
+
+        const response = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr`, {
+          headers,
+          credentials: "include",
+        });
+
+        if (cancelled) return;
+
+        if (response.status === 404) {
+          setQrNotConfigured(true);
+          setQrLoading(false);
+          return;
+        }
+
+        if (!response.ok) {
+          setQrLoading(false);
+          return;
+        }
+
+        const blob = await response.blob();
+        if (cancelled) return;
+
+        currentUrl = URL.createObjectURL(blob);
+        setQrObjectUrl(currentUrl);
+        setQrNotConfigured(false);
+      } catch {
+        // Silently fail — QR is optional
+      } finally {
+        if (!cancelled) setQrLoading(false);
+      }
+    };
+
+    fetchQr();
+
+    return () => {
+      cancelled = true;
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+      setQrObjectUrl(null);
+      setQrNotConfigured(false);
+      setQrLoading(false);
+    };
+  }, [paymentMode, activeHotelId]);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -189,9 +256,9 @@ function AdvanceBookingContent() {
         },
       });
 
-      // 2. Collect advance payment if provided
+      // 2. Collect advance payment only if explicitly collected from guest
       const advance = parseFloat(advanceAmount) || 0;
-      if (advance > 0) {
+      if (advance > 0 && paymentCollected) {
         await api("/api/v1/payments", {
           method: "POST",
           body: {
@@ -351,41 +418,83 @@ function AdvanceBookingContent() {
 
           {/* ── 5. Payment ─────────────────────────────────────────────── */}
           <Card icon={CreditCard} title="Payment" subtitle="Collect an optional advance now">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="ab-advance" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Advance Amount (₹)
-                </Label>
-                <Input
-                  id="ab-advance"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={advanceAmount}
-                  onChange={(e) => setAdvanceAmount(e.target.value)}
-                  className="tabular-nums"
-                  placeholder="0.00"
-                />
-                <p className="text-[10px] text-muted-foreground">Enter 0 if collecting later</p>
+            <div className="space-y-4">
+              {/* Amount + mode row */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="ab-advance" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Advance Amount (₹)
+                  </Label>
+                  <Input
+                    id="ab-advance"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={advanceAmount}
+                    onChange={(e) => setAdvanceAmount(e.target.value)}
+                    className="tabular-nums"
+                    placeholder="0.00"
+                  />
+                  <p className="text-[10px] text-muted-foreground">Enter 0 if collecting later</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ab-mode" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Payment Mode
+                  </Label>
+                  <select
+                    id="ab-mode"
+                    value={paymentMode}
+                    onChange={(e) => setPaymentMode(e.target.value)}
+                    className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                    disabled={(parseFloat(advanceAmount) || 0) === 0}
+                  >
+                    {PAYMENT_MODES.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="ab-mode" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Payment Mode
-                </Label>
-                <select
-                  id="ab-mode"
-                  value={paymentMode}
-                  onChange={(e) => setPaymentMode(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
-                  disabled={(parseFloat(advanceAmount) || 0) === 0}
-                >
-                  {PAYMENT_MODES.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+
+              {/* UPI QR — shown only when UPI is selected and amount > 0 */}
+              {paymentMode === "upi" && (parseFloat(advanceAmount) || 0) > 0 && (
+                <div className="rounded-lg border border-border bg-muted/30 p-4 flex flex-col items-center gap-2">
+                  {qrNotConfigured ? (
+                    <p className="text-sm text-muted-foreground">UPI QR not configured</p>
+                  ) : qrLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading QR…</p>
+                  ) : qrObjectUrl ? (
+                    <>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Scan to Pay via UPI
+                      </p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={qrObjectUrl}
+                        alt="UPI payment QR code"
+                        className="h-48 w-48 rounded-lg object-contain"
+                      />
+                    </>
+                  ) : null}
+                </div>
+              )}
+
+              {/* Payment collected checkbox — shown when amount > 0 */}
+              {(parseFloat(advanceAmount) || 0) > 0 && (
+                <label className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-border bg-white px-4 py-3 hover:bg-muted/30">
+                  <input
+                    type="checkbox"
+                    id="ab-collected"
+                    checked={paymentCollected}
+                    onChange={(e) => setPaymentCollected(e.target.checked)}
+                    className="size-4 rounded accent-gold-500"
+                  />
+                  <span className="text-sm font-medium text-foreground">
+                    Payment collected from guest ✓
+                  </span>
+                </label>
+              )}
             </div>
           </Card>
 

@@ -344,6 +344,8 @@ function PoliciesForm() {
         body: {
           check_in_time: fs("check_in_time"),
           check_out_time: fs("check_out_time"),
+          early_checkin_fee_per_hour: fs("early_checkin_fee_per_hour") || "0",
+          late_checkout_fee_per_hour: fs("late_checkout_fee_per_hour") || "0",
           invoice_prefix: fs("invoice_prefix").trim(),
           booking_prefix: fs("booking_prefix").trim(),
           tax_inclusive_pricing: form.get("tax_inclusive_pricing") === "on",
@@ -393,6 +395,30 @@ function PoliciesForm() {
             type="time"
             step="1800"
             defaultValue={data.check_out_time.slice(0, 5)}
+            disabled={readOnly}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="s-early-fee">Early Check-in Fee / hour (₹)</Label>
+          <Input
+            id="s-early-fee"
+            name="early_checkin_fee_per_hour"
+            type="number"
+            min={0}
+            step="1"
+            defaultValue={data.early_checkin_fee_per_hour}
+            disabled={readOnly}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="s-late-fee">Late Checkout Fee / hour (₹)</Label>
+          <Input
+            id="s-late-fee"
+            name="late_checkout_fee_per_hour"
+            type="number"
+            min={0}
+            step="1"
+            defaultValue={data.late_checkout_fee_per_hour}
             disabled={readOnly}
           />
         </div>

@@ -74,6 +74,8 @@ class HotelSettingsOut(ORMModel):
     currency: str
     early_checkin_grace_minutes: int
     late_checkout_grace_minutes: int
+    early_checkin_fee_per_hour: Decimal = Decimal("0.00")
+    late_checkout_fee_per_hour: Decimal = Decimal("0.00")
     access_mode: str = "full"
 
 
@@ -87,6 +89,8 @@ class HotelSettingsUpdate(BaseModel):
     tax_inclusive_pricing: bool | None = None
     early_checkin_grace_minutes: int | None = Field(default=None, ge=0, le=720)
     late_checkout_grace_minutes: int | None = Field(default=None, ge=0, le=720)
+    early_checkin_fee_per_hour: Decimal | None = Field(default=None, ge=0)
+    late_checkout_fee_per_hour: Decimal | None = Field(default=None, ge=0)
 
 
 class GstSettingsOut(ORMModel):

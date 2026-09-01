@@ -14,7 +14,7 @@
  * POST /invoices + GET /invoices/{id}/pdf, GET /hotels/me/payment-qr/image.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -49,7 +49,7 @@ import {
   fmtMoney,
   money,
 } from "@/components/stay/checkout-summary";
-import type { ListOut, HotelOut } from "@/types/hotel";
+import type { ListOut, HotelOut, HotelSettingsOut } from "@/types/hotel";
 import type { BookingOut, CheckOutOut, CurrentGuestOut } from "@/types/stay";
 import type { ChargeOut, PaymentOut } from "@/types/money";
 
@@ -94,6 +94,30 @@ function waPhone(raw: string): string {
   return `91${digits.slice(-10)}`;
 }
 
+/**
+ * Calculate the late-checkout fee based on the actual vs standard checkout time.
+ * @param chosenTime    "HH:MM"  — the actual checkout time entered by staff.
+ * @param standardTime  "HH:MM" or "HH:MM:SS" — hotel's standard checkout time.
+ * @param graceMinutes  Minutes after standard time before billing starts.
+ * @param ratePerHour   Fee charged per billable hour (rounded up).
+ */
+function calcLateCheckoutFee(
+  chosenTime: string,
+  standardTime: string,
+  graceMinutes: number,
+  ratePerHour: number,
+): { fee: number; lateHours: number } {
+  const [ch, cm] = chosenTime.split(":").map(Number);
+  const [sh, sm] = standardTime.split(":").map(Number);
+  const chosenMins = ch * 60 + cm;
+  const standardMins = sh * 60 + sm;
+  if (chosenMins <= standardMins) return { fee: 0, lateHours: 0 };
+  const lateMins = chosenMins - standardMins;
+  if (lateMins <= graceMinutes) return { fee: 0, lateHours: 0 };
+  const billableHours = Math.ceil((lateMins - graceMinutes) / 60);
+  return { fee: billableHours * ratePerHour, lateHours: billableHours };
+}
+
 function CheckoutContent() {
   const t = useTranslations("stay");
   const tn = useTranslations("nav");
@@ -113,8 +137,7 @@ function CheckoutContent() {
   const [entry, setEntry] = useState<CurrentGuestOut | null>(null);
 
   // ── Form state ─────────────────────────────────────────────────────────
-  const [lateHours, setLateHours] = useState("0");
-  const [lateFee, setLateFee] = useState("0");
+  const [actualCheckoutTime, setActualCheckoutTime] = useState("");
   const [extras, setExtras] = useState<Record<ExtraChargeKey, string>>({
     restaurant: "",
     damage: "",
@@ -129,8 +152,7 @@ function CheckoutContent() {
   const [invoiceBusy, setInvoiceBusy] = useState(false);
 
   const resetForm = () => {
-    setLateHours("0");
-    setLateFee("0");
+    setActualCheckoutTime(settingsQuery.data?.check_out_time?.slice(0, 5) ?? "");
     setExtras({ restaurant: "", damage: "", other: "" });
     setPayStatus("paid");
     setPayMethod("cash");
@@ -180,6 +202,22 @@ function CheckoutContent() {
     staleTime: 300_000,
   });
 
+  const settingsQuery = useQuery({
+    queryKey: ["hotel-settings", activeHotelId],
+    queryFn: () => api<HotelSettingsOut>("/api/v1/hotels/me/settings"),
+    enabled: !!activeHotelId,
+    staleTime: 300_000,
+  });
+
+  // When a booking is loaded and settings arrive (race-safe), default the
+  // actual checkout time to the hotel's standard checkout time.
+  useEffect(() => {
+    if (entry && settingsQuery.data?.check_out_time && !actualCheckoutTime) {
+      setActualCheckoutTime(settingsQuery.data.check_out_time.slice(0, 5));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsQuery.data?.check_out_time, entry?.booking_id]);
+
   const showQr = payMethod === "upi" && !!entry;
 
   const qrInfoQuery = useQuery({
@@ -224,8 +262,21 @@ function CheckoutContent() {
 
   const booking = bookingQuery.data;
   const charges = activeCharges(chargesQuery.data?.items);
-  const lateHoursNum = Number.parseFloat(lateHours) || 0;
-  const lateFeeNum = lateHoursNum > 0 ? Number.parseFloat(lateFee) || 0 : 0;
+
+  // Auto-calculate late-checkout fee from the chosen time vs. hotel standard.
+  const lateCalc = useMemo(
+    () =>
+      calcLateCheckoutFee(
+        actualCheckoutTime,
+        settingsQuery.data?.check_out_time ?? "12:00",
+        settingsQuery.data?.late_checkout_grace_minutes ?? 0,
+        Number.parseFloat(settingsQuery.data?.late_checkout_fee_per_hour ?? "0") || 0,
+      ),
+    [actualCheckoutTime, settingsQuery.data],
+  );
+  const lateHoursNum = lateCalc.lateHours;
+  const lateFeeNum = lateCalc.fee;
+
   const settlement = computeSettlement(booking, charges, lateFeeNum);
 
   // Extras entered locally — not on the booking until POSTed at checkout.
@@ -397,18 +448,68 @@ function CheckoutContent() {
     a.remove();
   };
 
-  const openWhatsApp = () => {
+  /** Fetch invoice PDF and return as a Blob (without creating an object URL). */
+  const fetchInvoicePdfBlob = async (id: string): Promise<Blob | null> => {
+    const token = getAccessToken();
+    const res = await fetch(`${API_BASE}/api/v1/invoices/${id}/pdf`, {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : "",
+        "X-Hotel-Id": activeHotelId ?? "",
+      },
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    return res.blob();
+  };
+
+  const openWhatsApp = async () => {
     const phone = booking?.primary_guest_phone;
     if (!phone) {
       toast.error(tp("noGuestPhone"));
       return;
     }
     const total = checkoutResult ? money(checkoutResult.final_total) : grandTotal;
+    const hotelName = hotelQuery.data?.name ?? tp("waHotelFallback");
     const text = [
-      tp("waThanks", { hotel: hotelQuery.data?.name ?? tp("waHotelFallback") }),
+      tp("waThanks", { hotel: hotelName }),
       `${tp("booking")}: ${entry?.booking_number}`,
       `${tp("grandTotal")}: ${fmtMoney(total)}`,
     ].join("\n");
+
+    // On mobile: try Web Share API with the PDF file attached.
+    // Navigator.share with files is supported on Android Chrome + iOS Safari.
+    // On desktop (where file-sharing via WhatsApp URL is impossible anyway)
+    // we fall back to the text-only wa.me link.
+    const id = invoiceId ?? (done ? await ensureInvoice() : null);
+    if (id && typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        setInvoiceBusy(true);
+        const blob = await fetchInvoicePdfBlob(id);
+        if (blob) {
+          const file = new File(
+            [blob],
+            `invoice-${entry?.booking_number ?? id}.pdf`,
+            { type: "application/pdf" },
+          );
+          if (navigator.canShare?.({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: `${hotelName} — Invoice`,
+              text,
+            });
+            return; // successfully shared via native sheet
+          }
+        }
+      } catch (e) {
+        // AbortError = user dismissed the share sheet — don't fall through.
+        if (e instanceof Error && e.name === "AbortError") return;
+        // Any other error: fall through to URL link below.
+      } finally {
+        setInvoiceBusy(false);
+      }
+    }
+
+    // Fallback: open wa.me with text-only (desktop / unsupported browsers).
     window.open(
       `https://wa.me/${waPhone(phone)}?text=${encodeURIComponent(text)}`,
       "_blank",
@@ -658,31 +759,19 @@ function CheckoutContent() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="co-late-hours">{tp("lateCheckoutHours")}</Label>
+                        <Label htmlFor="co-actual-checkout-time">Actual Checkout Time</Label>
                         <Input
-                          id="co-late-hours"
-                          type="number"
-                          min={0}
-                          step="1"
-                          value={lateHours}
-                          onChange={(e) => setLateHours(e.target.value)}
-                          className="tabular-nums"
+                          id="co-actual-checkout-time"
+                          type="time"
+                          value={actualCheckoutTime}
+                          onChange={(e) => setActualCheckoutTime(e.target.value)}
                           disabled={isPending}
                         />
                       </div>
-                      {lateHoursNum > 0 && (
-                        <div className="space-y-1.5">
-                          <Label htmlFor="co-late-fee">{tp("lateCheckoutFee")}</Label>
-                          <Input
-                            id="co-late-fee"
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            value={lateFee}
-                            onChange={(e) => setLateFee(e.target.value)}
-                            className="tabular-nums"
-                            disabled={isPending}
-                          />
+                      {lateFeeNum > 0 && (
+                        <div className="col-span-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+                          Late checkout by {lateHoursNum} hr{lateHoursNum !== 1 ? "s" : ""} —{" "}
+                          ₹{lateFeeNum.toFixed(2)} late fee added
                         </div>
                       )}
                     </div>
@@ -901,8 +990,8 @@ function CheckoutContent() {
                       <Button
                         variant="outline"
                         className="w-full text-green-700 hover:text-green-800"
-                        onClick={openWhatsApp}
-                        disabled={!booking?.primary_guest_phone}
+                        onClick={() => void openWhatsApp()}
+                        disabled={!booking?.primary_guest_phone || invoiceBusy}
                       >
                         <MessageCircle className="mr-2 size-4" aria-hidden />
                         WhatsApp

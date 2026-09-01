@@ -462,7 +462,9 @@
     "advancePaid": "Advance Paid",
     "totalDue": "Total Due",
     "waInvoice": "Invoice",
-    "waTotalDue": "Total Due"
+    "waTotalDue": "Total Due",
+    "preparingPdf": "Preparing PDF…",
+    "shareFailed": "Could not prepare PDF for sharing"
   },
   "expenses": {
     "title": "Hotel Expenses",
@@ -974,6 +976,7 @@
     "fieldDob": "Date of Birth",
     "fieldGender": "Gender",
     "fieldAddress": "Address",
+    "fieldPincode": "Pincode",
     "idDetected": "ID Details Detected",
     "confidencePct": "{pct}% confidence",
     "autofillForm": "Auto-fill Form",

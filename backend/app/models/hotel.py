@@ -70,6 +70,14 @@ class HotelSettings(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     currency: Mapped[str] = mapped_column(String(8), default="INR", nullable=False)
     early_checkin_grace_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
     late_checkout_grace_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    # Per-hour rates for early check-in and late checkout fees.
+    # 0.00 means "hotel does not charge for this" — fee auto-calc is skipped.
+    early_checkin_fee_per_hour: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), default=Decimal("0.00"), nullable=False
+    )
+    late_checkout_fee_per_hour: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), default=Decimal("0.00"), nullable=False
+    )
     # "full" = all features; "checkin_only" = restrict to check-in/out (no expenses).
     access_mode: Mapped[str] = mapped_column(String(32), default="full", nullable=False)
 

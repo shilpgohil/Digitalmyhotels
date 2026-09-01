@@ -32,7 +32,7 @@
  *  7. POST /payments                   — if advance payment > 0
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -70,7 +70,7 @@ import { GuestPicker } from "@/components/guests/guest-picker";
 import { RoomAvailabilityPicker } from "@/components/rooms/room-availability-picker";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
-import { ApiError, apiUpload } from "@/lib/api/client";
+import { API_BASE, ApiError, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { compressDocument } from "@/lib/compress-image";
 import { fmtApiDate, localToday, localTomorrow } from "@/lib/formatting";
@@ -197,7 +197,7 @@ interface CheckinDraft {
   specialInstructions: string;
   selectedServices: string[];
   advanceAmount: string;
-  paymentMode: "cash" | "upi";
+  paymentMode: "cash" | "upi" | "card" | "bank_transfer" | "other";
   emName: string;
   emRelation: string;
   emPhone: string;
@@ -233,6 +233,28 @@ function resolveCoGuestUpdater(keys: number[], key: number, guest: ResolvedCoGue
     next[idx] = guest;
     return next;
   };
+}
+
+/**
+ * Pure helper — computes early check-in fee based on chosen vs standard time.
+ * Returns 0 when on-time, within grace, or if rate is 0.
+ */
+function calcEarlyCheckinFee(
+  chosenTime: string,       // "HH:MM"
+  standardTime: string,     // "HH:MM" or "HH:MM:SS"
+  graceMinutes: number,
+  ratePerHour: number,
+): number {
+  const [ch, cm] = chosenTime.split(":").map(Number);
+  const [sh, sm] = standardTime.split(":").map(Number);
+  if ([ch, cm, sh, sm].some((n) => !Number.isFinite(n))) return 0;
+  const chosenMins = ch * 60 + cm;
+  const standardMins = sh * 60 + sm;
+  if (chosenMins >= standardMins) return 0;
+  const earlyMins = standardMins - chosenMins;
+  if (earlyMins <= graceMinutes) return 0;
+  const billableHours = Math.ceil((earlyMins - graceMinutes) / 60);
+  return billableHours * ratePerHour;
 }
 
 /** Mask an ID number, keeping only the last 4 characters visible. */
@@ -1521,7 +1543,6 @@ function CheckinForm({
   const ts = useTranslations("stay");
   const tc = useTranslations("common");
   const tb = useTranslations("bookings");
-  const tm = useTranslations("money");
   const tg = useTranslations("guestPicker");
   const ti = useTranslations("invoices");
   const tr = useTranslations("rooms");
@@ -1537,6 +1558,7 @@ function CheckinForm({
   const [pgGender, setPgGender] = useState("");
   const [pgDob, setPgDob] = useState("");
   const [pgAddress, setPgAddress] = useState("");
+  const [pgPostalCode, setPgPostalCode] = useState("");
   const [pgPurpose, setPgPurpose] = useState("");
   const [pgCompany, setPgCompany] = useState("");
 
@@ -1572,6 +1594,7 @@ function CheckinForm({
         setPgGender((v) => v || (full.gender ?? ""));
         setPgDob((v) => v || (full.date_of_birth ?? ""));
         setPgAddress((v) => v || (full.address ?? ""));
+        setPgPostalCode((v) => v || (full.postal_code ?? ""));
         if (full.id_proof_type) setPgIdType((v) => (v === "Aadhar Card" ? full.id_proof_type! : v));
       }
 
@@ -1666,7 +1689,9 @@ function CheckinForm({
 
   // ── Payment details ──
   const [advanceAmount, setAdvanceAmount] = useState("0");
-  const [paymentMode, setPaymentMode] = useState<"cash" | "upi">("cash");
+  const [extraCharges, setExtraCharges] = useState("0");
+  const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card" | "bank_transfer" | "other">("cash");
+  const [paymentReceived, setPaymentReceived] = useState(false);
 
   // ── Emergency + vehicle ──
   const [emName, setEmName] = useState(booking.emergency_contact_name ?? "");
@@ -1677,9 +1702,9 @@ function CheckinForm({
   const [vehMake, setVehMake] = useState("");
   const [parkingSlot, setParkingSlot] = useState(booking.parking_slot ?? "");
 
-  // ── Early check-in ──
-  const [isEarly, setIsEarly] = useState(false);
-  const [earlyFee, setEarlyFee] = useState("0");
+  // ── Early check-in (auto-computed from check-in time) ──
+  const [checkInTime, setCheckInTime] = useState(booking.check_in_time?.slice(0, 5) ?? "");
+  const [earlyFee, setEarlyFee] = useState(0);
 
   // ── Foreign guest (Form C) ──
   const [fgEnabled, setFgEnabled] = useState(false);
@@ -1701,13 +1726,63 @@ function CheckinForm({
     enabled: !!activeHotelId,
   });
 
+  // ── Hotel settings (for early check-in fee calculation) ──
+  const checkinSettings = useQuery({
+    queryKey: ["hotel-settings", activeHotelId],
+    queryFn: () =>
+      api<{
+        check_in_time: string;
+        check_out_time: string;
+        early_checkin_fee_per_hour?: string;
+        early_checkin_grace_minutes?: number;
+      }>("/api/v1/hotels/me/settings"),
+    enabled: !!activeHotelId,
+    staleTime: 5 * 60_000,
+  });
+
+  // Auto early check-in fee — recomputed whenever check-in time changes.
+  useEffect(() => {
+    const s = checkinSettings.data;
+    if (!s || !checkInTime) { setEarlyFee(0); return; }
+    const rate = Number.parseFloat(s.early_checkin_fee_per_hour ?? "0");
+    if (rate <= 0) { setEarlyFee(0); return; }
+    const grace = s.early_checkin_grace_minutes ?? 0;
+    const standardTime = s.check_in_time?.slice(0, 5) ?? "";
+    if (!standardTime) { setEarlyFee(0); return; }
+    setEarlyFee(calcEarlyCheckinFee(checkInTime, standardTime, grace, rate));
+  }, [checkInTime, checkinSettings.data]);
+
+  // UPI QR code — fetched as a blob URL when mode is UPI.
+  const advanceAmountNum = Number.parseFloat(advanceAmount) || 0;
+  const showQrCheckin = paymentMode === "upi" && advanceAmountNum > 0;
+  const qrImageQueryCheckin = useQuery({
+    queryKey: ["hotel-qr-png", activeHotelId],
+    queryFn: async () => {
+      const token = getAccessToken();
+      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image`, {
+        headers: {
+          Authorization: `Bearer ${token ?? ""}`,
+          "X-Hotel-Id": activeHotelId ?? "",
+        },
+        credentials: "include",
+      });
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      return URL.createObjectURL(blob);
+    },
+    enabled: showQrCheckin && !!activeHotelId,
+    staleTime: 300_000,
+  });
+
   const currentRooms = booking.rooms.filter((r) => r.is_current);
 
   // ── Computed balance ──
   const bookingTotal = Number.parseFloat(booking.total_amount) || 0;
   const advPaid = Number.parseFloat(booking.advance_amount) || 0;
   const newAdvance = Number.parseFloat(advanceAmount) || 0;
-  const balance = Math.max(bookingTotal - advPaid - newAdvance, 0);
+  const extraChargesNum = Number.parseFloat(extraCharges || "0") || 0;
+  const gstAmount = Math.round((bookingTotal + extraChargesNum) * 0.05 * 100) / 100;
+  const balance = Math.max(bookingTotal + extraChargesNum + gstAmount - advPaid - newAdvance, 0);
 
   // ── Mutation ─────────────────────────────────────────────────────────────
   const mutation = useMutation({
@@ -1733,6 +1808,7 @@ function CheckinForm({
         if (pgGender) body.gender = pgGender;
         if (pgDob) body.date_of_birth = pgDob;
         if (pgAddress) body.address = pgAddress;
+        if (pgPostalCode) body.postal_code = pgPostalCode;
         if (pgIdType) body.id_proof_type = pgIdType;
         if (pgIdNumber) body.id_number = pgIdNumber;
         if (Object.keys(body).length > 0) {
@@ -1819,8 +1895,8 @@ function CheckinForm({
         co_guests: resolvedIds.map((id) => ({ guest_id: id })),
         purpose_of_visit: pgPurpose.trim() || null,
         company_name: pgCompany.trim() || null,
-        is_early: isEarly,
-        early_fee: isEarly ? earlyFee : "0",
+        is_early: earlyFee > 0,
+        early_fee: earlyFee.toString(),
         terms_acknowledged: terms,
         foreign_guest: buildForeignGuestPayload(fgEnabled, fgForm),
       };
@@ -1847,8 +1923,23 @@ function CheckinForm({
         });
       }
 
-      // 6. Collect advance payment if provided
-      if (newAdvance > 0) {
+      // 5b. Early check-in charge (if applicable).
+      if (earlyFee > 0) {
+        await api("/api/v1/charges", {
+          method: "POST",
+          body: {
+            booking_id: booking.id,
+            category: "other",
+            description: "Early check-in fee",
+            quantity: 1,
+            rate: earlyFee.toString(),
+            apply_gst: false,
+          },
+        });
+      }
+
+      // 6. Collect advance payment if provided and confirmed by staff
+      if (paymentReceived && newAdvance > 0) {
         await api("/api/v1/payments", {
           method: "POST",
           body: {
@@ -1865,6 +1956,22 @@ function CheckinForm({
         await api(`/api/v1/bookings/${booking.id}`, {
           method: "PATCH",
           body: { special_requests: specialInstructions.trim() },
+        });
+      }
+
+      // 8. Extra charges entered at check-in.
+      const ecNum = Number.parseFloat(extraCharges) || 0;
+      if (ecNum > 0) {
+        await api("/api/v1/charges", {
+          method: "POST",
+          body: {
+            booking_id: booking.id,
+            category: "other",
+            description: "Additional charges at check-in",
+            quantity: 1,
+            rate: extraCharges,
+            apply_gst: false,
+          },
         });
       }
 
@@ -1908,40 +2015,60 @@ function CheckinForm({
 
       {/* ── 1. Booking Details ─────────────────────────────────────────────── */}
       <Section icon={ClipboardList} title={ts("bookingDetailsTitle")} subtitle={ts("bookingDetailsSubtitle")}>
-        <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("bookingNumber")}</Label>
-            <p className="mt-1 font-semibold text-foreground">{booking.booking_number}</p>
-          </div>
-          <div>
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("checkinDate")}</Label>
-            <p className="mt-1">{fmtApiDate(booking.check_in_date)}</p>
-          </div>
-          <div>
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("checkoutDate")}</Label>
-            <p className="mt-1">{fmtApiDate(booking.check_out_date)}</p>
-          </div>
-          <div>
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("guestTypeLabel")}</Label>
-            <select
-              value={pgPurpose}
-              onChange={(e) => setPgPurpose(e.target.value)}
-              className="mt-1 h-8 w-full rounded-lg border border-input bg-background px-2 text-sm"
-            >
-              <option value="">{t("select")}</option>
-              <option value="Business">{t("purpose_business")}</option>
-              <option value="Leisure">{t("purpose_leisure")}</option>
-              <option value="Medical">{t("purpose_medical")}</option>
-              <option value="Wedding">{t("purpose_wedding")}</option>
-              <option value="Other">{t("purpose_other")}</option>
-            </select>
-          </div>
-          {pgPurpose === "Business" && (
-            <div className="sm:col-span-2">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("company")}</Label>
-              <Input className="mt-1" value={pgCompany} onChange={(e) => setPgCompany(e.target.value)} placeholder={t("companyPlaceholder")} />
+        <div className="space-y-3">
+          <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("bookingNumber")}</Label>
+              <p className="mt-1 font-semibold text-foreground">{booking.booking_number}</p>
             </div>
-          )}
+            <div>
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("checkinDate")}</Label>
+              <p className="mt-1">{fmtApiDate(booking.check_in_date)}</p>
+            </div>
+            <div>
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("checkoutDate")}</Label>
+              <p className="mt-1">{fmtApiDate(booking.check_out_date)}</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("checkinTime")}</Label>
+              <input
+                type="time"
+                value={checkInTime}
+                onChange={(e) => setCheckInTime(e.target.value)}
+                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("guestTypeLabel")}</Label>
+              <select
+                value={pgPurpose}
+                onChange={(e) => setPgPurpose(e.target.value)}
+                className="mt-1 h-8 w-full rounded-lg border border-input bg-background px-2 text-sm"
+              >
+                <option value="">{t("select")}</option>
+                <option value="Business">{t("purpose_business")}</option>
+                <option value="Leisure">{t("purpose_leisure")}</option>
+                <option value="Medical">{t("purpose_medical")}</option>
+                <option value="Wedding">{t("purpose_wedding")}</option>
+                <option value="Other">{t("purpose_other")}</option>
+              </select>
+            </div>
+            {pgPurpose === "Business" && (
+              <div className="sm:col-span-2">
+                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("company")}</Label>
+                <Input className="mt-1" value={pgCompany} onChange={(e) => setPgCompany(e.target.value)} placeholder={t("companyPlaceholder")} />
+              </div>
+            )}
+          </div>
+          {earlyFee > 0 && (() => {
+            const rate = Number.parseFloat(checkinSettings.data?.early_checkin_fee_per_hour ?? "1") || 1;
+            const hrs = Math.max(1, Math.round(earlyFee / rate));
+            return (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Early check-in by {hrs} hr{hrs !== 1 ? "s" : ""} — ₹{earlyFee} fee will be added to the bill
+              </div>
+            );
+          })()}
         </div>
       </Section>
 
@@ -2065,6 +2192,16 @@ function CheckinForm({
             <div className="space-y-1.5 sm:col-span-2">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>
               <Input value={pgAddress} onChange={(e) => setPgAddress(e.target.value)} placeholder={t("fieldAddress")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldPincode")}</Label>
+              <Input
+                value={pgPostalCode}
+                onChange={(e) => setPgPostalCode(e.target.value)}
+                placeholder={t("fieldPincode")}
+                inputMode="numeric"
+                maxLength={6}
+              />
             </div>
           </div>
 
@@ -2263,55 +2400,118 @@ function CheckinForm({
           </div>
 
           {/* Bottom row: collection inputs */}
-          <div className="rounded-xl border bg-muted/20 px-4 py-4 grid gap-4 sm:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("collectAtCheckin")}
-              </Label>
-              <Input
-                type="number"
-                min={0}
-                step="0.01"
-                value={advanceAmount}
-                onChange={(e) => setAdvanceAmount(e.target.value)}
-                className="tabular-nums"
-                placeholder="0.00"
-              />
-              <p className="text-[10px] text-muted-foreground">{t("enterZeroHint")}</p>
+          <div className="rounded-xl border bg-muted/20 px-4 py-4 space-y-4">
+            {/* Payment summary breakdown */}
+            <div className="grid grid-cols-5 gap-2 rounded-lg border bg-background px-3 py-3">
+              <div className="space-y-1 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Room Rent</p>
+                <p className="text-sm font-bold tabular-nums">₹{bookingTotal.toFixed(2)}</p>
+              </div>
+              <div className="space-y-1 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Extra Charges</p>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={extraCharges}
+                  onChange={(e) => setExtraCharges(e.target.value)}
+                  className="h-7 text-center text-sm tabular-nums px-1"
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-1 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Advance Paid</p>
+                <p className="text-sm font-bold tabular-nums">₹{advPaid.toFixed(2)}</p>
+              </div>
+              <div className="space-y-1 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">GST (5%)</p>
+                <p className="text-sm font-bold tabular-nums">₹{gstAmount.toFixed(2)}</p>
+              </div>
+              <div className="space-y-1 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
+                <p className={cn("text-sm font-bold tabular-nums", balance > 0 ? "text-gold-600" : "text-green-600")}>₹{balance.toFixed(2)}</p>
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("paymentMode")}
-              </Label>
-              <select
-                value={paymentMode}
-                onChange={(e) => setPaymentMode(e.target.value as "cash" | "upi")}
-                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
-                disabled={newAdvance === 0}
-              >
-                <option value="cash">{tm("cash")}</option>
-                <option value="upi">{tm("upi")}</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("balanceAfterCheckin")}
-              </Label>
-              <p
-                className={cn(
-                  "mt-2 text-lg tabular-nums font-bold",
-                  balance > 0 ? "text-gold-600" : "text-green-600",
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t("collectAtCheckin")}
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={advanceAmount}
+                  onChange={(e) => setAdvanceAmount(e.target.value)}
+                  className="tabular-nums"
+                  placeholder="0.00"
+                />
+                <p className="text-[10px] text-muted-foreground">{t("enterZeroHint")}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t("paymentMode")}
+                </Label>
+                <select
+                  value={paymentMode}
+                  onChange={(e) => setPaymentMode(e.target.value as "cash" | "upi" | "card" | "bank_transfer" | "other")}
+                  className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                  disabled={newAdvance === 0}
+                >
+                  <option value="cash">Cash</option>
+                  <option value="upi">UPI</option>
+                  <option value="card">Card</option>
+                  <option value="bank_transfer">Net Banking</option>
+                  <option value="other">Other</option>
+                </select>
+                {showQrCheckin && (
+                  <div className="mt-2">
+                    {qrImageQueryCheckin.data ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={qrImageQueryCheckin.data}
+                        alt="UPI QR code"
+                        className="h-36 w-36 rounded-lg object-contain border"
+                      />
+                    ) : qrImageQueryCheckin.isLoading ? (
+                      <Skeleton className="h-36 w-36 rounded-lg" />
+                    ) : null}
+                  </div>
                 )}
-              >
-                ₹{balance.toFixed(2)}
-              </p>
-              {balance > 0 && (
-                <p className="text-[10px] text-muted-foreground">{t("dueAtCheckout")}</p>
-              )}
-              {balance === 0 && newAdvance > 0 && (
-                <p className="text-[10px] text-green-600">{t("fullyPaid")}</p>
-            )}
-          </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t("balanceAfterCheckin")}
+                </Label>
+                <p
+                  className={cn(
+                    "mt-2 text-lg tabular-nums font-bold",
+                    balance > 0 ? "text-gold-600" : "text-green-600",
+                  )}
+                >
+                  ₹{balance.toFixed(2)}
+                </p>
+                {balance > 0 && (
+                  <p className="text-[10px] text-muted-foreground">{t("dueAtCheckout")}</p>
+                )}
+                {balance === 0 && newAdvance > 0 && (
+                  <p className="text-[10px] text-green-600">{t("fullyPaid")}</p>
+                )}
+              </div>
+            </div>
+            {/* Payment received confirmation */}
+            <label className="flex cursor-pointer items-center gap-2.5 text-sm">
+              <input
+                type="checkbox"
+                className="size-4 rounded border-input"
+                checked={paymentReceived}
+                onChange={(e) => setPaymentReceived(e.target.checked)}
+                disabled={newAdvance === 0}
+              />
+              <span className={newAdvance === 0 ? "text-muted-foreground" : "font-medium"}>
+                Payment collected from guest
+              </span>
+            </label>
           </div>
         </div>
       </Section>
@@ -2367,32 +2567,7 @@ function CheckinForm({
         </div>
       </Section>
 
-      {/* ── Early check-in ────────────────────────────────────────────────── */}
-      <Section icon={LogIn} title={ts("earlyCheckinSection")} defaultOpen={false}>
-        <div className="space-y-3">
-          <label className="flex items-center gap-2.5 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              className="size-4 rounded border-input"
-              checked={isEarly}
-              onChange={(e) => setIsEarly(e.target.checked)}
-            />
-            <span className="font-medium">{t("earlyCheckinToggle")}</span>
-          </label>
-          {isEarly && (
-            <div className="max-w-xs space-y-1.5">
-              <Label className="text-xs">{t("earlyFeeLabel")}</Label>
-              <Input
-                type="number"
-                min={0}
-                step="0.01"
-                value={earlyFee}
-                onChange={(e) => setEarlyFee(e.target.value)}
-              />
-            </div>
-          )}
-          </div>
-      </Section>
+      {/* Early check-in fee is now auto-computed and shown in the Booking Details banner above. */}
 
       {/* ── Footer: Terms + Actions ───────────────────────────────────────── */}
       <div className="rounded-xl border bg-white shadow-sm px-5 py-4 space-y-4">
@@ -2493,7 +2668,6 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const t = useTranslations("checkin");
   const ts = useTranslations("stay");
   const tb = useTranslations("bookings");
-  const tm = useTranslations("money");
   const tg = useTranslations("guestPicker");
   const api = useApi();
   const { activeHotelId } = useAuth();
@@ -2507,13 +2681,16 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const [checkOutTime, setCheckOutTime] = useState("");
   const [guestType, setGuestType] = useState("");
 
-  // Hotel settings for default check-in/out times
+  // Hotel settings for default check-in/out times + early check-in fee
   const settings = useQuery({
     queryKey: ["hotel-settings", activeHotelId],
     queryFn: () =>
-      api<{ check_in_time: string; check_out_time: string }>(
-        "/api/v1/hotels/me/settings",
-      ),
+      api<{
+        check_in_time: string;
+        check_out_time: string;
+        early_checkin_fee_per_hour?: string;
+        early_checkin_grace_minutes?: number;
+      }>("/api/v1/hotels/me/settings"),
     enabled: !!activeHotelId,
     staleTime: 5 * 60_000,
   });
@@ -2526,6 +2703,18 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     setCheckOutTime((t) => t || s.check_out_time?.slice(0, 5) || "");
   }, [settings.data]);
 
+  // Auto early check-in fee — recomputed whenever check-in time changes.
+  useEffect(() => {
+    const s = settings.data;
+    if (!s || !checkInTime) { setEarlyFee(0); return; }
+    const rate = Number.parseFloat(s.early_checkin_fee_per_hour ?? "0");
+    if (rate <= 0) { setEarlyFee(0); return; }
+    const grace = s.early_checkin_grace_minutes ?? 0;
+    const standardTime = s.check_in_time?.slice(0, 5) ?? "";
+    if (!standardTime) { setEarlyFee(0); return; }
+    setEarlyFee(calcEarlyCheckinFee(checkInTime, standardTime, grace, rate));
+  }, [checkInTime, settings.data]);
+
   // ── 2. Primary guest ──
   const [guest, setGuest] = useState<{ id: string; full_name: string } | null>(null);
   const [pgBaseline, setPgBaseline] = useState<GuestAutofill | null>(null);
@@ -2536,6 +2725,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const [pgGender, setPgGender] = useState("");
   const [pgDob, setPgDob] = useState("");
   const [pgAddress, setPgAddress] = useState("");
+  const [pgPostalCode, setPgPostalCode] = useState("");
   const [pgCompany, setPgCompany] = useState("");
   const [pgOcrResult, setPgOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
 
@@ -2569,6 +2759,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       setPgGender(full.gender ?? "");
       setPgDob(full.date_of_birth ?? "");
       setPgAddress(full.address ?? "");
+      setPgPostalCode(full.postal_code ?? "");
       if (full.id_proof_type) setPgIdType(full.id_proof_type);
     } else {
       setPgBaseline(null);
@@ -2619,8 +2810,55 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
 
   // ── 6. Payment (advance collection only — new booking, nothing paid yet) ──
   const [advanceAmount, setAdvanceAmount] = useState("0");
-  const [paymentMode, setPaymentMode] = useState<"cash" | "upi">("cash");
+  const [extraCharges, setExtraCharges] = useState("0");
+  const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card" | "bank_transfer" | "other">("cash");
+  const [paymentReceived, setPaymentReceived] = useState(false);
+  const [earlyFee, setEarlyFee] = useState(0);
   const newAdvance = Number.parseFloat(advanceAmount) || 0;
+
+  // ── Room rent: read the room availability cache (same queryKey as the picker)
+  // to get base_price per selected room, then multiply by number of nights.
+  const availData = queryClient.getQueryData<import("@/types/hotel").RoomAvailabilityOut>([
+    "room-availability",
+    activeHotelId,
+    checkInDate,
+    checkOutDate,
+  ]);
+  const nights = useMemo(() => {
+    if (!checkInDate || !checkOutDate) return 1;
+    const d = (new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / 86_400_000;
+    return Math.max(Math.ceil(d), 1);
+  }, [checkInDate, checkOutDate]);
+  const roomRentWalkIn = useMemo(() => {
+    if (!availData?.available || selectedRooms.length === 0) return 0;
+    return availData.available
+      .filter((r) => selectedRooms.includes(r.id))
+      .reduce((sum, r) => sum + Number.parseFloat(r.room_type_base_price) * nights, 0);
+  }, [availData, selectedRooms, nights]);
+  const extraChargesNumWI = Number.parseFloat(extraCharges || "0") || 0;
+  const gstAmountWI = Math.round((roomRentWalkIn + extraChargesNumWI) * 0.05 * 100) / 100;
+  const remainingWI = Math.max(roomRentWalkIn + extraChargesNumWI + gstAmountWI - newAdvance, 0);
+
+  // UPI QR code — fetched as a blob URL when UPI + amount > 0.
+  const showQr = paymentMode === "upi" && newAdvance > 0;
+  const qrImageQuery = useQuery({
+    queryKey: ["hotel-qr-png", activeHotelId],
+    queryFn: async () => {
+      const token = getAccessToken();
+      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image`, {
+        headers: {
+          Authorization: `Bearer ${token ?? ""}`,
+          "X-Hotel-Id": activeHotelId ?? "",
+        },
+        credentials: "include",
+      });
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      return URL.createObjectURL(blob);
+    },
+    enabled: showQr && !!activeHotelId,
+    staleTime: 300_000,
+  });
 
   // ── 7. Emergency contact + vehicle ──
   const [emName, setEmName] = useState("");
@@ -2738,6 +2976,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       if (pgGender && pgGender !== (pgBaseline?.gender ?? "")) patch.gender = pgGender;
       if (pgDob && pgDob !== (pgBaseline?.date_of_birth ?? "")) patch.date_of_birth = pgDob;
       if (pgAddress && pgAddress !== (pgBaseline?.address ?? "")) patch.address = pgAddress;
+      if (pgPostalCode && pgPostalCode !== (pgBaseline?.postal_code ?? "")) patch.postal_code = pgPostalCode;
       if (pgIdNumber.trim()) {
         patch.id_number = pgIdNumber.trim();
         patch.id_proof_type = pgIdType;
@@ -2823,7 +3062,14 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       };
       const checkinOut = await api<CheckInCreateOut>(
         "/api/v1/checkins/book-and-checkin",
-        { method: "POST", body: payload },
+        {
+          method: "POST",
+          body: {
+            ...payload,
+            is_early: earlyFee > 0,
+            early_fee: earlyFee > 0 ? earlyFee.toString() : "0",
+          },
+        },
       );
 
       // 4. Add service charges (booking now exists).
@@ -2844,8 +3090,23 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         });
       }
 
-      // 5. Collect advance payment if provided.
-      if (newAdvance > 0) {
+      // 4b. Early check-in charge (if applicable).
+      if (earlyFee > 0) {
+        await api("/api/v1/charges", {
+          method: "POST",
+          body: {
+            booking_id: checkinOut.booking_id,
+            category: "other",
+            description: "Early check-in fee",
+            quantity: 1,
+            rate: earlyFee.toString(),
+            apply_gst: false,
+          },
+        });
+      }
+
+      // 5. Collect advance payment if provided AND confirmed by staff.
+      if (paymentReceived && newAdvance > 0) {
         await api("/api/v1/payments", {
           method: "POST",
           body: {
@@ -2853,6 +3114,22 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             amount: advanceAmount,
             method: paymentMode,
             purpose: "advance",
+          },
+        });
+      }
+
+      // 6. Extra charges entered at check-in.
+      const ecNumWI = Number.parseFloat(extraCharges) || 0;
+      if (ecNumWI > 0) {
+        await api("/api/v1/charges", {
+          method: "POST",
+          body: {
+            booking_id: checkinOut.booking_id,
+            category: "other",
+            description: "Additional charges at check-in",
+            quantity: 1,
+            rate: extraCharges,
+            apply_gst: false,
           },
         });
       }
@@ -3004,6 +3281,15 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             </p>
           )}
         </div>
+        {earlyFee > 0 && (() => {
+          const rate = Number.parseFloat(settings.data?.early_checkin_fee_per_hour ?? "1") || 1;
+          const hrs = Math.max(1, Math.round(earlyFee / rate));
+          return (
+            <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Early check-in by {hrs} hr{hrs !== 1 ? "s" : ""} — ₹{earlyFee} fee will be added to the bill
+            </div>
+          );
+        })()}
       </Section>
 
       {/* ── 2. Primary Guest Identity ─────────────────────────────────────── */}
@@ -3121,6 +3407,16 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>
                   <Input value={pgAddress} onChange={(e) => setPgAddress(e.target.value)} placeholder={t("fieldAddress")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldPincode")}</Label>
+                  <Input
+                    value={pgPostalCode}
+                    onChange={(e) => setPgPostalCode(e.target.value)}
+                    placeholder={t("fieldPincode")}
+                    inputMode="numeric"
+                    maxLength={6}
+                  />
                 </div>
               </div>
             </>
@@ -3259,36 +3555,101 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
 
       {/* ── 6. Payment Details ────────────────────────────────────────────── */}
       <Section icon={CreditCard} title={ts("paymentDetails")} subtitle={t("paymentSubtitleWalkIn")}>
-        <div className="rounded-xl border bg-muted/20 px-4 py-4 grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {t("collectAtCheckin")}
-            </Label>
-            <Input
-              type="number"
-              min={0}
-              step="0.01"
-              value={advanceAmount}
-              onChange={(e) => setAdvanceAmount(e.target.value)}
-              className="tabular-nums"
-              placeholder="0.00"
-            />
-            <p className="text-[10px] text-muted-foreground">{t("enterZeroHint")}</p>
+        <div className="rounded-xl border bg-muted/20 px-4 py-4 space-y-4">
+          {/* Payment summary breakdown */}
+          <div className="grid grid-cols-5 gap-2 rounded-lg border bg-background px-3 py-3">
+            <div className="space-y-1 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Room Rent</p>
+              <p className={cn("text-sm font-bold tabular-nums", roomRentWalkIn === 0 ? "text-muted-foreground" : "")}>
+                {roomRentWalkIn === 0 ? "—" : `₹${roomRentWalkIn.toFixed(2)}`}
+              </p>
+            </div>
+            <div className="space-y-1 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Extra Charges</p>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={extraCharges}
+                onChange={(e) => setExtraCharges(e.target.value)}
+                className="h-7 text-center text-sm tabular-nums px-1"
+                placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-1 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Advance Paid</p>
+              <p className="text-sm font-bold tabular-nums">₹{newAdvance.toFixed(2)}</p>
+            </div>
+            <div className="space-y-1 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">GST (5%)</p>
+              <p className="text-sm font-bold tabular-nums">₹{gstAmountWI.toFixed(2)}</p>
+            </div>
+            <div className="space-y-1 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
+              <p className={cn("text-sm font-bold tabular-nums", remainingWI > 0 ? "text-gold-600" : "text-green-600")}>₹{remainingWI.toFixed(2)}</p>
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {t("paymentMode")}
-            </Label>
-            <select
-              value={paymentMode}
-              onChange={(e) => setPaymentMode(e.target.value as "cash" | "upi")}
-              className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("collectAtCheckin")}
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={advanceAmount}
+                onChange={(e) => setAdvanceAmount(e.target.value)}
+                className="tabular-nums"
+                placeholder="0.00"
+              />
+              <p className="text-[10px] text-muted-foreground">{t("enterZeroHint")}</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("paymentMode")}
+              </Label>
+              <select
+                value={paymentMode}
+                onChange={(e) => setPaymentMode(e.target.value as "cash" | "upi" | "card" | "bank_transfer" | "other")}
+                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                disabled={newAdvance === 0}
+              >
+                <option value="cash">Cash</option>
+                <option value="upi">UPI</option>
+                <option value="card">Card</option>
+                <option value="bank_transfer">Net Banking</option>
+                <option value="other">Other</option>
+              </select>
+              {showQr && (
+                <div className="mt-2">
+                  {qrImageQuery.data ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={qrImageQuery.data}
+                      alt="UPI QR code"
+                      className="h-36 w-36 rounded-lg object-contain border"
+                    />
+                  ) : qrImageQuery.isLoading ? (
+                    <Skeleton className="h-36 w-36 rounded-lg" />
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </div>
+          {/* Payment received confirmation */}
+          <label className="flex cursor-pointer items-center gap-2.5 text-sm">
+            <input
+              type="checkbox"
+              className="size-4 rounded border-input"
+              checked={paymentReceived}
+              onChange={(e) => setPaymentReceived(e.target.checked)}
               disabled={newAdvance === 0}
-            >
-              <option value="cash">{tm("cash")}</option>
-              <option value="upi">{tm("upi")}</option>
-            </select>
-          </div>
+            />
+            <span className={newAdvance === 0 ? "text-muted-foreground" : "font-medium"}>
+              Payment collected from guest
+            </span>
+          </label>
         </div>
       </Section>
 

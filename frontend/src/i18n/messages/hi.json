@@ -518,7 +518,9 @@
     "advancePaid": "अग्रिम भुगतान",
     "totalDue": "कुल बकाया",
     "waInvoice": "चालान",
-    "waTotalDue": "कुल बकाया"
+    "waTotalDue": "कुल बकाया",
+    "preparingPdf": "PDF तैयार हो रहा है…",
+    "shareFailed": "PDF शेयर के लिए तैयार नहीं हो सका"
   },
   "expenses": {
     "title": "होटल खर्च",
@@ -974,6 +976,7 @@
     "fieldDob": "जन्म तिथि",
     "fieldGender": "लिंग",
     "fieldAddress": "पता",
+    "fieldPincode": "पिनकोड",
     "idDetected": "पहचान विवरण मिले",
     "confidencePct": "{pct}% विश्वसनीयता",
     "autofillForm": "फ़ॉर्म स्वतः भरें",

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { MessageCircle, Printer } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
+import { API_BASE } from "@/lib/api/client";
+import { getAccessToken } from "@/lib/auth/session";
 import { fmtApiDate } from "@/lib/formatting";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { GstSettingsOut, HotelOut, ListOut } from "@/types/hotel";
@@ -88,13 +91,51 @@ function InvoicePreviewContent() {
     : "";
 
   const guestPhone = booking.data?.primary_guest_phone ?? null;
+  const [sharingPdf, setSharingPdf] = useState(false);
 
-  const whatsappHref =
-    invoice && guestPhone
-      ? `https://wa.me/${waPhone(guestPhone)}?text=${encodeURIComponent(
-          `${hotel.data?.name ?? ""} — ${t("waInvoice")} ${invoice.invoice_number} — ${t("waTotalDue")} ₹${invoice.due_amount}`,
-        )}`
-      : null;
+  const shareInvoiceWhatsApp = async () => {
+    if (!invoice || !guestPhone) return;
+    const hotelName = hotel.data?.name ?? "";
+    const text = `${hotelName} — ${t("waInvoice")} ${invoice.invoice_number} — ${t("waTotalDue")} ₹${invoice.due_amount}`;
+
+    // Mobile: try Web Share API with the PDF file attached.
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        setSharingPdf(true);
+        const token = getAccessToken();
+        const res = await fetch(`${API_BASE}/api/v1/invoices/${invoice.id}/pdf`, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+            "X-Hotel-Id": activeHotelId ?? "",
+          },
+          credentials: "include",
+        });
+        if (res.ok) {
+          const blob = await res.blob();
+          const file = new File([blob], `${invoice.invoice_number}.pdf`, {
+            type: "application/pdf",
+          });
+          if (navigator.canShare?.({ files: [file] })) {
+            await navigator.share({ files: [file], title: `${hotelName} Invoice`, text });
+            return;
+          }
+        }
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") return;
+        // Fall through to URL on any error.
+        toast.error(t("shareFailed"));
+      } finally {
+        setSharingPdf(false);
+      }
+    }
+
+    // Desktop fallback: text-only wa.me link.
+    window.open(
+      `https://wa.me/${waPhone(guestPhone)}?text=${encodeURIComponent(text)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
 
   return (
     <>
@@ -138,16 +179,16 @@ function InvoicePreviewContent() {
                 <Printer className="size-4" aria-hidden />
                 {t("print")}
               </Button>
-              {whatsappHref && (
-                <a
-                  href={whatsappHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/80"
+              {invoice && guestPhone && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  disabled={sharingPdf}
+                  onClick={() => void shareInvoiceWhatsApp()}
                 >
                   <MessageCircle className="size-4" aria-hidden />
-                  {t("whatsapp")}
-                </a>
+                  {sharingPdf ? t("preparingPdf") : t("whatsapp")}
+                </Button>
               )}
             </div>
           )}
