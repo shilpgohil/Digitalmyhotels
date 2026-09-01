@@ -156,7 +156,12 @@ function NotificationsContent() {
               ))}
             </div>
           )}
-          {!notifications.isLoading && items.length === 0 && (
+          {notifications.isError && (
+            <p className="m-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {tc("error")}
+            </p>
+          )}
+          {!notifications.isLoading && !notifications.isError && items.length === 0 && (
             <p className="p-8 text-center text-sm text-muted-foreground">{t("empty")}</p>
           )}
           {items.map((n) => {

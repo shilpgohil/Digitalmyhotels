@@ -383,6 +383,11 @@ function CollectDialog({ bookingId, onDone }: { bookingId: string; onDone: () =>
               <option value="bank_transfer">{t("bankTransfer")}</option>
               <option value="other">{t("otherMethod")}</option>
             </select>
+            {method !== "cash" && method !== "upi" && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Manual record only — collected outside the app
+              </p>
+            )}
           </div>
           <div>
             <Label>{t("purpose")}</Label>

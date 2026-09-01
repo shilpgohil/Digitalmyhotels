@@ -43,7 +43,10 @@ def _now() -> datetime:
 async def _current_rooms_locked(db: AsyncSession, booking: Booking) -> list[Room]:
     room_ids = [br.room_id for br in booking.rooms if br.is_current]
     result = await db.execute(
-        select(Room).where(Room.id.in_(room_ids)).order_by(Room.id).with_for_update()
+        select(Room)
+        .where(Room.id.in_(room_ids), Room.hotel_id == booking.hotel_id)
+        .order_by(Room.id)
+        .with_for_update()
     )
     return list(result.scalars().all())
 

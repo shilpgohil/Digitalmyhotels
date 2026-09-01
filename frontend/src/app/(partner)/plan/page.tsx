@@ -59,6 +59,12 @@ function PlanContent() {
             <p className="mt-2 text-sm text-muted-foreground">{t("chooseSubtitle")}</p>
           </div>
 
+          {sub.isError && (
+            <p className="mx-auto mt-6 max-w-md rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {tc("error")}
+            </p>
+          )}
+
           {sub.data && (
             <div className="mx-auto mt-6 flex max-w-md items-center justify-between rounded-lg border bg-card px-4 py-3">
               <div>
@@ -79,6 +85,18 @@ function PlanContent() {
                 <Skeleton key={i} className="h-64 rounded-lg" />
               ))}
             </div>
+          )}
+
+          {plans.isError && (
+            <p className="mt-8 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {tc("error")}
+            </p>
+          )}
+
+          {plans.data && plans.data.filter((p) => p.is_active).length === 0 && (
+            <p className="mt-8 py-6 text-center text-sm text-muted-foreground">
+              No plans available right now.
+            </p>
           )}
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -122,7 +122,9 @@ async def void_charge(
         raise ValidationAppError("Charge is already voided", code="already_voided")
 
     booking_result = await db.execute(
-        select(Booking).where(Booking.id == charge.booking_id)
+        select(Booking).where(
+            Booking.id == charge.booking_id, Booking.hotel_id == hotel_id
+        )
     )
     booking = booking_result.scalar_one()
 

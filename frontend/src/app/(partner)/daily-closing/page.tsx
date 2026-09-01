@@ -72,6 +72,16 @@ function DailyClosingContent() {
       <PartnerHeader title={t("closingTitle")} subtitle={tn("operations")} />
       <main className="flex-1 overflow-y-auto p-6">
         {today.isLoading && <Skeleton className="h-48" />}
+        {(today.isError || history.isError) && (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {tc("error")}
+          </p>
+        )}
+        {!today.isLoading && !today.isError && !row && (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            No closing record for today yet.
+          </p>
+        )}
         {row && (
           <section className="rounded-lg border bg-card p-5">
             <div className="mb-4 flex items-center justify-between">

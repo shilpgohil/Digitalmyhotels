@@ -1,5 +1,15 @@
 # Progress — DigitalMyHotels
 
+## Production deployment (2026-09-01/02) — LIVE
+- Frontend: Vercel (digitalmyhotels.vercel.app), functions region sin1, root vercel.json builds frontend/ subdir. NEXT_PUBLIC_API_URL empty; API_PROXY_TARGET = SG backend.
+- Backend: Render free tier SINGAPORE (digitalmyhotels-api-sg.onrender.com, srv-dabgrve10ojc73a9uj8g). Old Oregon service suspended — it was the latency root cause (351 ms/query cross-Pacific → 3.6 ms after move).
+- DB: Neon ap-southeast-1 pooler URL; persistent pool (3+2, recycle 240, pre_ping, statement_cache_size=0).
+- Storage: Backblaze B2 "Digitialmyhotels" us-east-005 with scoped app key (master key doesn't work with S3 API — was the upload-failure root cause). boto3 via asyncio.to_thread.
+- Auth in prod: Next.js API routes own the refresh cookie (login/refresh/logout) because Next rewrites drop Cookie headers intermittently; access token + /me cached in sessionStorage for instant reload.
+- Keep-alive: GitHub Actions every 10 min → /health. GZip middleware on backend. /health/db returns pool timings.
+- Feature work since 2026-08-24: DD/MM/YYYY DateInput component everywhere; inline new-booking on /checkin (?new=1); date-aware RoomAvailabilityPicker (GET /rooms/availability); 3-step checkout dialog (itemized bill, cash/UPI + QR + UPI-ID for authorized roles, refund, invoice prompt); client-side Tesseract.js OCR autofill for Aadhar/PAN/Passport/DL/VoterID; expandable notification categories; registration-number row-lock + unique constraint; refund over-collection guard; payments summary conditional aggregation.
+- Verification 2026-09-02: 108/108 tests, ruff, mypy, tsc, eslint all green. Security audits run (frontend + backend) — UPI-ID checkout gate fixed, secondary-query hotel_id filters added.
+
 ## Phase status
 | Phase | Scope | Status |
 |---|---|---|

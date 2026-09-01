@@ -80,6 +80,16 @@ function ShiftHandoverContent() {
           </div>
         </section>
         {items.isLoading && <Skeleton className="h-32" />}
+        {items.isError && (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {tc("error")}
+          </p>
+        )}
+        {items.data && items.data.length === 0 && (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            No handovers yet.
+          </p>
+        )}
         <ul className="space-y-2">
           {items.data?.map((h) => (
             <li key={h.id} className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">

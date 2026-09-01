@@ -383,7 +383,9 @@ async def _release_rooms(db: AsyncSession, booking: Booking) -> None:
     if not room_ids:
         return
     result = await db.execute(
-        select(Room).where(Room.id.in_(room_ids)).with_for_update()
+        select(Room)
+        .where(Room.id.in_(room_ids), Room.hotel_id == booking.hotel_id)
+        .with_for_update()
     )
     for room in result.scalars().all():
         if room.status == RoomStatus.RESERVED.value:

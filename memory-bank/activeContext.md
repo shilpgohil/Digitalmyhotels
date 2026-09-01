@@ -1,6 +1,17 @@
 # Active Context — DigitalMyHotels
 
-## Current focus (polish tier complete, 2026-08-15 night)
+## Current focus (production live + full verification, 2026-09-02)
+- PRODUCTION IS LIVE: frontend https://digitalmyhotels.vercel.app (Vercel), backend https://digitalmyhotels-api-sg.onrender.com (Render free, SINGAPORE region), Neon Postgres ap-southeast-1 (pooler URL), Backblaze B2 bucket "Digitialmyhotels" (us-east-005 — account-fixed region).
+- LATENCY ROOT CAUSE (measured, fixed): original Render service was in OREGON while Neon is Singapore → every DB roundtrip 351 ms; recreated service in Singapore via Render API → SELECT 1 now 3.6 ms, login 3.4 s → ~150 ms. Old Oregon service (srv-da9hg71f2nfc73fj7m90) suspended; new SG service id srv-dabgrve10ojc73a9uj8g. Diagnostic endpoint: GET /health/db returns {checkout_ms, query_ms}.
+- DB pool: persistent pool in production (pool_size 3, max_overflow 2, pool_recycle 240, pre_ping) + connect_args statement_cache_size=0 (Neon PgBouncer transaction mode). NullPool was tried and REVERTED — fresh Neon conn costs 1–3 s on 0.1 vCPU (SCRAM/TLS crypto).
+- AUTH/refresh-logout fix (three layers): (1) access token + cached /me response in sessionStorage → instant restore on F5, no API call; (2) Next.js API routes at src/app/api/v1/auth/{login,refresh,logout}/route.ts handle the dmh_refresh cookie SERVER-SIDE (Next rewrites do NOT reliably forward Cookie headers — measured 17/18 refreshes arriving cookieless); routes re-issue the cookie for the frontend domain (first-party, SameSite=lax); (3) refreshAccessToken() always uses a RELATIVE url.
+- Vercel: NEXT_PUBLIC_API_URL must stay EMPTY (proxy via API_PROXY_TARGET, server-side). Root vercel.json builds from frontend/ (GitHub integration root dir is "."), functions region sin1. CLI deploys from frontend/ dir also work.
+- B2 storage fix: Render had the MASTER key (unsupported by S3 API → "Malformed Access Key Id", all uploads broken). Created scoped app key "digitalmyhotels-api-s3" via B2 native API, verified put/get/delete, updated Render env. boto3 calls wrapped in asyncio.to_thread (were blocking the event loop).
+- Keep-alive cron every 10 min (fallback URL hardcoded to SG service; RENDER_BACKEND_URL secret optional).
+- Verification pass 2026-09-02: ruff+mypy clean, 108/108 backend tests, tsc+eslint clean. Audits: UPI-ID leak in checkout dialog fixed (canViewUpiId gate); tenant-isolation hardening on secondary queries (stay._current_rooms_locked, bookings._release_rooms, charges void booking lookup, invoices existing lookup); payments page card/bank/other marked "manual record only".
+- Known gaps (accepted/backlog): checkin page + checkout dialog have hardcoded English (i18n backlog); B2 in US East adds ~250 ms to image ops (account region fixed); dashboard has no per-page permission (all roles may view, by design).
+
+## Previous focus (polish tier complete, 2026-08-15 night)
 - Verification pass: 71 backend tests, ruff/mypy, tsc/eslint/build, en/hi parity 582=582 keys, all `t()` usages resolve (checker at `scripts/check_i18n_usage.py`), live health+login smoke green.
 - Product tour shipped: driver.js, permission-aware bilingual steps, auto-start on first login (localStorage `dmh.tourDone.v1`), replay via header help button, anchors via `data-tour` attributes (sidebar, status cards, in-house table, quick actions, nav items, bell, locale, upgrade CTA).
 - Polish tier: current-guests View drawer + printable registration card (window.print), rooms grid view w/ status filter chips + table toggle, bookings date-range filters (backend from/to on list), global header search (debounced bookings+guests), super-admin dashboard expired/recent tables. Dark mode intentionally skipped per product owner.

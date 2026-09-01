@@ -91,6 +91,11 @@ function HousekeepingContent() {
         <section className="rounded-lg border bg-card p-4">
           <h2 className="mb-3 text-sm font-semibold">{t("tasks")}</h2>
           {tasks.isLoading && <Skeleton className="h-32" />}
+          {tasks.isError && (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {tc("error")}
+            </p>
+          )}
           {tasks.data?.length === 0 && (
             <p className="text-sm text-muted-foreground">{t("noTasks")}</p>
           )}

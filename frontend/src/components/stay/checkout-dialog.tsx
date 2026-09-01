@@ -37,6 +37,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
+import { PERMISSIONS } from "@/lib/permissions";
 import { getAccessToken } from "@/lib/auth/session";
 import { cn } from "@/lib/utils";
 import type { CheckOutOut, CurrentGuestOut } from "@/types/stay";
@@ -82,7 +83,9 @@ export function CheckoutDialog({
   readonly onDone: () => void;
 }) {
   const api = useApi();
-  const { activeHotelId } = useAuth();
+  const { activeHotelId, can } = useAuth();
+  // Raw UPI ID is restricted — workers may see the QR but never the raw ID.
+  const canViewUpiId = can(PERMISSIONS.hotelViewUpiId);
   const [step, setStep] = useState<Step>("bill");
   const [isLate, setIsLate] = useState(false);
   const [lateFee, setLateFee] = useState("0");
@@ -156,7 +159,8 @@ export function CheckoutDialog({
       api<{ upi_id: string | null; config_version: number; has_logo: boolean; qr_version: number }>(
         "/api/v1/hotels/me/payment-config",
       ),
-    enabled: showQr && !!activeHotelId,
+    // Only fetch for roles allowed to see the raw UPI ID — workers see QR only.
+    enabled: showQr && !!activeHotelId && canViewUpiId,
     staleTime: 300_000,
   });
 
@@ -615,8 +619,8 @@ export function CheckoutDialog({
                               <p className="text-sm font-semibold text-navy-900 text-center">
                                 {qrInfoQuery.data?.payment_label ?? "Scan to pay via UPI"}
                               </p>
-                              {/* UPI ID — visible to authorized staff */}
-                              {upiConfigQuery.data?.upi_id && (
+                              {/* UPI ID — restricted to owner/admin (canViewUpiId) */}
+                              {canViewUpiId && upiConfigQuery.data?.upi_id && (
                                 <div className="flex items-center gap-2 rounded-lg border border-dashed border-gold-400 bg-gold-50 px-3 py-2">
                                   <span className="text-[10px] font-semibold text-gold-700 uppercase tracking-wide shrink-0">
                                     UPI ID

@@ -93,6 +93,11 @@ function InvoicesContent() {
         </div>
         <div className="rounded-lg border bg-card">
           {invoices.isLoading && <Skeleton className="h-48" />}
+          {invoices.isError && (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {tc("error")}
+            </p>
+          )}
           {invoices.data?.items.length === 0 && (
             <p className="p-6 text-sm text-muted-foreground">{t("noInvoices")}</p>
           )}

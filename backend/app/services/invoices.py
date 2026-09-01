@@ -57,6 +57,7 @@ async def generate_invoice(
     existing = await db.execute(
         select(Invoice).where(
             Invoice.booking_id == booking.id,
+            Invoice.hotel_id == booking.hotel_id,
             Invoice.status.notin_(("cancelled",)),
         )
     )
