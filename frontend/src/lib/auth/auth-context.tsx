@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { apiFetch, refreshAccessToken } from "@/lib/api/client";
-import { clearSession, getAccessToken, setAccessToken } from "@/lib/auth/session";
+import { clearSession, getAccessToken, getCachedUser, setCachedUser, setAccessToken } from "@/lib/auth/session";
 import type { MeResponse, MembershipOut, TokenResponse, UserOut } from "@/types/auth";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
@@ -75,17 +75,31 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     };
 
     (async () => {
-      // Fast path — token already cached in sessionStorage (e.g. page F5).
-      if (!getAccessToken()) {
+      // ── Fastest path: token + user both in sessionStorage (normal page F5) ──
+      // Skip the /me round-trip entirely — no loading spinner, instant restore.
+      const cachedToken = getAccessToken();
+      const cachedMe = getCachedUser<MeResponse>();
+      if (cachedToken && cachedMe) {
+        if (!cancelled) applySession(cachedMe);
+        return;
+      }
+
+      // ── Need a fresh token (new tab, tab closed, token expired) ──
+      if (!cachedToken) {
         const ok = await tryRefresh();
         if (!ok) {
           if (!cancelled) setStatus("unauthenticated");
           return;
         }
       }
+
+      // ── Call /me to load user profile ──
       try {
         const me = await apiFetch<MeResponse>("/api/v1/auth/me");
-        if (!cancelled) applySession(me);
+        if (!cancelled) {
+          setCachedUser(me);   // cache for next refresh
+          applySession(me);
+        }
       } catch {
         if (!cancelled) {
           clearSession();
@@ -107,6 +121,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
       });
       setAccessToken(data.access_token);
       const me = await apiFetch<MeResponse>("/api/v1/auth/me");
+      setCachedUser(me);   // cache so next F5 is instant
       applySession(me);
       return data.user;
     },
