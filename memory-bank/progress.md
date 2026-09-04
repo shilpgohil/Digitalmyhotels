@@ -1,5 +1,21 @@
 # Progress — DigitalMyHotels
 
+## Client-feedback master fix plan (2026-09-04) — COMPLETE & DEPLOYED
+- All phases of memory-bank/MASTER_FIX_PLAN.md shipped in 6 commits (9c4ca86..2ae9ccf) and verified
+  live on Render (deploy c166f66) + Vercel. Suite: 125 backend tests, tsc/eslint/build clean,
+  i18n en=hi=1122 keys, smoke script 24/24.
+- Money: whole-rupee everywhere; one settlement engine (checkout==invoice); atomic check-in;
+  refunds ledgered; payment status recomputed on every due change (deposit included).
+- Bookings: day-use/hourly (hourly_rate + migrations 83ac59174f62, 95c1dcc60bfe), rate overrides,
+  check-in/out times on all listings, DateTimePicker component, editable service chips.
+- Ops: Edit-stay + Overdue badge + CHECKOUT_OVERDUE 15-min notification sweep (fire-once);
+  Completed Bookings ID-document drawer; expense filters/receipts; rooms status-menu parity +
+  friendly errors + stale-housekeeping auto-cancel; vendor GSTIN/PAN validation; payments
+  Correct/Refund UI; Aadhaar back-face OCR (strict pincode gate); mobile nav + hotel switcher;
+  deep-link cleanup (client remap + backend templates).
+- Outstanding (external only): RESEND_API_KEY; client calls on nav consolidation + hour-level
+  day-use conflicts.
+
 ## Production deployment (2026-09-01/02) — LIVE
 - Frontend: Vercel (digitalmyhotels.vercel.app), functions region sin1, root vercel.json builds frontend/ subdir. NEXT_PUBLIC_API_URL empty; API_PROXY_TARGET = SG backend.
 - Backend: Render free tier SINGAPORE (digitalmyhotels-api-sg.onrender.com, srv-dabgrve10ojc73a9uj8g). Old Oregon service suspended — it was the latency root cause (351 ms/query cross-Pacific → 3.6 ms after move).

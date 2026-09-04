@@ -1,6 +1,32 @@
 # Active Context — DigitalMyHotels
 
-## Current focus (client updated-figma restructure, 2026-09-02 night — UNCOMMITTED, awaiting user go)
+## Current focus (MASTER FIX PLAN COMPLETE + DEPLOYED, 2026-09-04 night)
+- ALL PHASES of memory-bank/MASTER_FIX_PLAN.md are done and LIVE in production (commits 9c4ca86 →
+  2ae9ccf on master; Render deploy c166f66 confirmed live via API). See that file's Progress section
+  for the full per-phase record — it is the authoritative status document.
+- Headline systems shipped this session: whole-rupee money (money() ROUND_HALF_UP + fmtINR
+  everywhere); settle_booking_amounts() single source for due/payment_status; compute_settlement()
+  + GET /checkouts/{id}/preview (checkout == invoice by construction; checkout page shows server
+  numbers); atomic check-in (charges+advance inside the txn, both modes); day-use/hourly bookings
+  (room_types.hourly_rate, ceil-hours pricing, day blocks calendar date everywhere); rate_overrides
+  (staff-edited rents → BookingRoom.rate → totals/ledger/invoice/audit); DateTimePicker rollout;
+  date+time in ALL listings; Current Guests Edit-stay + Overdue badge; Completed Bookings ID-doc
+  drawer (GET /bookings/{id}/guests); expenses filters+receipts; rooms menu parity + friendly
+  transition errors + stale-task auto-cancel; vendor GSTIN/PAN validators; payments Correct/Refund
+  actions; Aadhaar BACK-face OCR parser (pincode gate, preprocessing, never autofills garbage);
+  mobile nav drawer + hotel switcher; deep-link remap + backend templates fixed; check-in error
+  scroll/reasons; CHECKOUT_OVERDUE notification sweep (15-min in-process loop, fire-once via
+  bookings.overdue_notified_at, tz-aware, alert-only).
+- Verified at wrap-up: backend 125/125 tests, ruff+mypy clean; frontend tsc+eslint+prod build clean;
+  i18n parity en=hi=1122; smoke_new_flows.py 24/24 against live local stack; production health OK
+  (SELECT 1 ≈ 5.6 ms same-region).
+- ONLY EXTERNAL INPUTS REMAIN: RESEND_API_KEY on Render (activates invoice email); client decisions
+  on nav consolidation and hour-level day-use conflicts (both flagged; v1 = date-granular).
+- Known accepted limitations: check-in draft does not restore co-guests/document files (documented);
+  Sonar cognitive-complexity warnings on checkin submit handlers deferred (regression risk);
+  B2 in US East adds ~250 ms to image ops (account region fixed).
+
+## Previous focus (client updated-figma restructure, 2026-09-02 night — since committed/deployed)
 - CLIENT PIVOT: no separate Bookings section. New IA: Guest Check-in (unified walk-in form = booking+checkin in ONE atomic action), Advance Booking (form page for future stays), Advance Bookings (list, arrivals check-in via /checkin?booking=id), Completed Bookings (history). /bookings redirects to /advance-bookings.
 - Backend added: POST /checkins/book-and-checkin (transactional, rollback-tested); bookings.guest_type + check_in_time/check_out_time (migration 8a8183198d71); foreign_guest_details Form C table (3098be9b9d72) accepted via foreign_guest on both checkin endpoints + GET /bookings/{id}/foreign-guests; restaurant+damage charge categories (2bb039a3a637); GET /reports/restaurant-billing.
 - Frontend added: unified check-in page (walk-in default mode + arrivals strip + ?booking= deep link; NewBookingInlineForm/?new=1 removed); priced service chips w/ selected list; MaskedIdInput (aadhaar show toggle); selfie camera capture (getUserMedia + capture="user"); walk-in Save Draft (localStorage dmh.checkinDraft.v1, restore banner); Form C section both modes; checkout page = full-page 2-column settlement layout (dialog engine reused via components/stay/checkout-summary.ts; dialog untouched); restaurant-billing + invoice-preview pages + nav; dashboard 4 quick actions + expired modal sessionStorage dmh.expiredModalShown; payments 6 figma stat cards (paid/partial/pending are COUNTS — API has no amounts); expenses inline add form (dialog removed, receipt upload dropped with it); room grid tile "..." status menu (hidden for occupied/reserved).
