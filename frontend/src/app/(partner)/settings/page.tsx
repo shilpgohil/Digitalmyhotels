@@ -621,8 +621,12 @@ function UpiConfigPanel() {
 
   const logoMutation = useMutation({
     mutationFn: async (file: File) => {
+      // Client-side compression before upload (Phase 0.4: every image upload
+      // site compresses — logos don't need more than 800px JPEG).
+      const { compressLogo } = await import("@/lib/compress-image");
+      const upload = await compressLogo(file).catch(() => file);
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", upload);
       const headers: Record<string, string> = {};
       const token = getAccessToken();
       if (token) headers.Authorization = `Bearer ${token}`;

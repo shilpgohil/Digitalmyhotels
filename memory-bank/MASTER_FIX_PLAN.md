@@ -35,12 +35,21 @@
   separately); strict gate (valid pincode + ≥60% word chars else "enter manually" warning);
   2x-upscale/grayscale/contrast preprocessing on back faces; wired in all 3 doc-upload sites;
   GuestPicker new-guest button flow done too.
-- Backend suite: 117 passed. Frontend: tsc+eslint+prod build clean.
-- NEXT (Phase 5 remainder): mobile nav drawer + responsive grids, hotel switcher, stale /bookings
-  deep links, errors scroll-into-view + disabled-CheckIn reason, walk-in QR message, WhatsApp gating,
-  draft completeness, payments stat-card labels, i18n parity sweep. Then Phase 6: smoke script
-  extension (day-use, refund, rate override, overdue), full deploy verify, memory bank update.
-  Phase 0.4 image-compression audit still open.
+- ✅ Phase 5 COMPLETE: mobile nav drawer (hamburger + Sheet, shared nav items) + hotel switcher
+  (multi-membership, clears query caches) + Team nav link; stale /bookings deep links remapped at
+  render AND backend templates fixed at source (created/confirmed → /advance-bookings?q=,
+  cancelled/noshow → /completed-bookings?q=); errors scroll-into-view + disabled Check In shows
+  first unmet reason (span-wrapper so disabled clicks still explain); walk-in UPI "QR not
+  configured" info box; WhatsApp gated on checkout completion + invoice; payments count cards
+  labeled "bookings" (ICU plural); responsive payment/doc grids (grid-cols-2 sm:*).
+- ✅ Phase 0.4 CLOSED: image-compression audit — checkin docs (direct+queued) 1600px/q0.88,
+  expense receipts 1200px/q0.82 (PDF skip), hotel logo NOW compressed 800px/q0.85; OCR on originals.
+- ✅ Phase 6 smoke script EXTENDED + run locally: 24/24 (day-use pricing/blocking, rate override,
+  settlement preview coherence, vendor GSTIN rejection, atomic flows, Form C, reports, checkout).
+- i18n parity: en=hi=1122 keys, zero drift. Backend suite: 117 passed. Frontend: tsc+eslint+build clean.
+- REMAINING: overdue notification event (server-side scheduled — needs a cron/scheduler decision),
+  pending external inputs (Resend API key; client decisions on nav consolidation + hour-level
+  day-use conflicts). Deploy verify after each push. Memory bank final update at wrap-up.
 
 Sources: 21 client screenshots + WhatsApp notes (`main documents/client changes and bugs/`),
 three internal audits (check-in flows, money surfaces, cross-cutting UX), and user decisions.

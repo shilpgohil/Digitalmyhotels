@@ -1,4 +1,4 @@
-"""Notification event dispatcher.
+﻿"""Notification event dispatcher.
 
 Single place that maps every hotel lifecycle event to a coloured, deep-linked
 notification visible to the whole hotel team.
@@ -75,25 +75,25 @@ _TEMPLATES: dict[NE, dict] = {
         "category": "front_desk",
         "title": "New booking created",
         "body": "Booking {booking_number} for {guest_name} — {check_in_date} to {check_out_date}",
-        "deep_link": "/bookings?q={booking_number}",
+        "deep_link": "/advance-bookings?q={booking_number}",
     },
     NE.BOOKING_CONFIRMED: {
         "category": "front_desk",
         "title": "Booking confirmed",
         "body": "{booking_number} ({guest_name}) confirmed. Check-in: {check_in_date}",
-        "deep_link": "/bookings?q={booking_number}",
+        "deep_link": "/advance-bookings?q={booking_number}",
     },
     NE.BOOKING_CANCELLED: {
         "category": "front_desk",
         "title": "Booking cancelled",
         "body": "{booking_number} ({guest_name}) cancelled. Reason: {reason}",
-        "deep_link": "/bookings?q={booking_number}",
+        "deep_link": "/completed-bookings?q={booking_number}",
     },
     NE.BOOKING_NOSHOW: {
         "category": "front_desk",
         "title": "No-show recorded",
         "body": "{booking_number} ({guest_name}) marked as no-show.",
-        "deep_link": "/bookings?q={booking_number}",
+        "deep_link": "/completed-bookings?q={booking_number}",
     },
     NE.CHECKIN_COMPLETED: {
         "category": "front_desk",

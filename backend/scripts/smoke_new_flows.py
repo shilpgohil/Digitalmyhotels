@@ -1,4 +1,4 @@
-"""End-to-end smoke test for the client updated-figma flows (local stack).
+﻿"""End-to-end smoke test for the client updated-figma flows (local stack).
 
 Exercises against http://127.0.0.1:8001 with the seeded demo hotel:
   1. Walk-in atomic book-and-checkin with guest_type/times + Form C foreign guest
@@ -229,6 +229,118 @@ async def main() -> None:
                 print(f"  SKIP housekeeping role checks ({exc})")
         else:
             print("  SKIP housekeeping role checks (no housekeeping member seeded)")
+
+        # ── Phase 2/3 additions ────────────────────────────────────────────
+
+        # 8. Day-use booking with hourly pricing.
+        du_rt = await client.post(
+            f"{BASE}/api/v1/rooms/types",
+            json={
+                "code": f"DU{suffix[:3].upper()}",
+                "name": f"Smoke DayUse {suffix}",
+                "base_price": "2000.00",
+                "hourly_rate": "250.00",
+            },
+            headers=h,
+        )
+        check("day-use room type w/ hourly rate", du_rt.status_code == 201, du_rt.text[:200])
+        du_room = await client.post(
+            f"{BASE}/api/v1/rooms",
+            json={"room_number": f"D{suffix[:4]}", "room_type_id": du_rt.json()["id"]},
+            headers=h,
+        )
+        check("day-use room", du_room.status_code == 201, du_room.text[:200])
+        du_guest = await client.post(
+            f"{BASE}/api/v1/guests",
+            json={"full_name": "Smoke DayUse Guest", "phone": f"97{str(uuid.uuid4().int)[:8]}"},
+            headers=h,
+        )
+        check("day-use guest", du_guest.status_code == 201, du_guest.text[:200])
+        du = await client.post(
+            f"{BASE}/api/v1/bookings",
+            json={
+                "primary_guest_id": du_guest.json()["id"],
+                "room_ids": [du_room.json()["id"]],
+                "check_in_date": str(today),
+                "check_out_date": str(today),
+                "check_in_time": "10:00",
+                "check_out_time": "14:30",
+            },
+            headers=h,
+        )
+        check("day-use booking created", du.status_code == 201, du.text[:300])
+        if du.status_code == 201:
+            # 4.5 hrs → 5 billable hrs × 250 = 1250
+            check(
+                "day-use hourly price (5h x 250 = 1250)",
+                float(du.json()["total_amount"]) == 1250.0,
+                du.json()["total_amount"],
+            )
+            # Same-day second booking on the same room must conflict.
+            du2 = await client.post(
+                f"{BASE}/api/v1/bookings",
+                json={
+                    "primary_guest_id": du_guest.json()["id"],
+                    "room_ids": [du_room.json()["id"]],
+                    "check_in_date": str(today),
+                    "check_out_date": str(today + timedelta(days=1)),
+                },
+                headers=h,
+            )
+            check("day-use blocks the calendar day", du2.status_code == 409, str(du2.status_code))
+
+        # 9. Rate override flows into totals.
+        ro_guest = await client.post(
+            f"{BASE}/api/v1/guests",
+            json={"full_name": "Smoke Override Guest", "phone": f"96{str(uuid.uuid4().int)[:8]}"},
+            headers=h,
+        )
+        ro = await client.post(
+            f"{BASE}/api/v1/bookings",
+            json={
+                "primary_guest_id": ro_guest.json()["id"],
+                "room_ids": [room_id],
+                "check_in_date": str(today + timedelta(days=20)),
+                "check_out_date": str(today + timedelta(days=21)),
+                "rate_overrides": [{"room_id": room_id, "rate": "1200"}],
+            },
+            headers=h,
+        )
+        check("rate-override booking", ro.status_code == 201, ro.text[:300])
+        if ro.status_code == 201:
+            check(
+                "override rate used (1 night x 1200)",
+                float(ro.json()["total_amount"]) == 1200.0,
+                ro.json()["total_amount"],
+            )
+
+        # 10. Settlement preview matches checkout math shape.
+        if du.status_code == 201:
+            prev = await client.get(
+                f"{BASE}/api/v1/checkouts/{du.json()['id']}/preview",
+                headers=h,
+            )
+            check("settlement preview", prev.status_code == 200, prev.text[:200])
+            if prev.status_code == 200:
+                p = prev.json()
+                check(
+                    "preview totals coherent (due = total - paid)",
+                    float(p["due"])
+                    == max(float(p["final_total"]) - float(p["effective_paid"]), 0.0),
+                    str(p),
+                )
+
+        # 11. Vendor GSTIN validation rejects garbage with a clear message.
+        bad_vendor = await client.post(
+            f"{BASE}/api/v1/expenses/vendors",
+            json={"name": "Smoke Vendor", "gstin": "NOTAGSTIN123456"},
+            headers=h,
+        )
+        check(
+            "vendor bad GSTIN rejected (422)",
+            bad_vendor.status_code == 422,
+            bad_vendor.text[:200],
+        )
 
     print(f"\n{'=' * 50}\n{len(PASSED)} passed, {len(FAILED)} failed")
     if FAILED:

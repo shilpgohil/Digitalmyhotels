@@ -1343,7 +1343,7 @@ function AdditionalGuestEntry({
             <Trash2 className="size-4" aria-hidden />
           </button>
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <QueuedDocUpload side="front" label={t("uploadFront")} onQueued={handleQueueDoc} />
           <QueuedDocUpload side="back" label={t("uploadBack")} onQueued={handleQueueDoc} />
           <QueuedDocUpload side="selfie" label={t("selfieCapture")} onQueued={handleQueueDoc} />
@@ -1471,7 +1471,7 @@ function AdditionalGuestEntry({
         </div>
 
           {/* Doc uploads — front triggers OCR */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <QueuedDocUpload
               side="front"
               label={t("uploadFront")}
@@ -1881,6 +1881,10 @@ function CheckinForm({
   // ── Error ──
   const [error, setError] = useState<string | null>(null);
 
+  // ── Section refs — scroll the first invalid section into view on submit ──
+  const identitySectionRefB = useRef<HTMLDivElement | null>(null);
+  const termsSectionRefB = useRef<HTMLDivElement | null>(null);
+
   // ── Hotel services ──
   const services = useQuery({
     queryKey: ["hotel-services", activeHotelId],
@@ -2228,6 +2232,7 @@ function CheckinForm({
       </Section>
 
       {/* ── 2. Primary Guest Identity Verification ────────────────────────── */}
+      <div ref={identitySectionRefB}>
       <Section icon={BadgeCheck} title={ts("primaryGuestTitle")} subtitle={ts("primaryGuestSubtitle")}>
         <div className="space-y-5">
           {/* ID type + number */}
@@ -2271,7 +2276,7 @@ function CheckinForm({
 
           {/* Document uploads — pre-filled from B2; key=guestId+side prevents
               stale blob from prior session leaking into a re-opened booking. */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <DocUpload
               key={`${booking.primary_guest_id}-front`}
               guestId={booking.primary_guest_id ?? null}
@@ -2379,6 +2384,7 @@ function CheckinForm({
           />
         </div>
       </Section>
+      </div>
 
       {/* ── 3. Additional Guests ──────────────────────────────────────────── */}
       <Section
@@ -2555,7 +2561,7 @@ function CheckinForm({
           {/* Bottom row: collection inputs */}
           <div className="rounded-xl border bg-muted/20 px-4 py-4 space-y-4">
             {/* Payment summary breakdown */}
-            <div className="grid grid-cols-5 gap-2 rounded-lg border bg-background px-3 py-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 rounded-lg border bg-background px-3 py-3">
               <div className="space-y-1 text-center">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Room Rent</p>
                 <p className="text-sm font-bold tabular-nums">{fmtINR(bookingTotal)}</p>
@@ -2628,7 +2634,12 @@ function CheckinForm({
                       />
                     ) : qrImageQueryCheckin.isLoading ? (
                       <Skeleton className="h-36 w-36 rounded-lg" />
-                    ) : null}
+                    ) : (
+                      // Fetched but no image (404 / not configured / error).
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                        {t("qrNotConfiguredInfo")}
+                      </div>
+                    )}
             </div>
                 )}
           </div>
@@ -2739,7 +2750,7 @@ function CheckinForm({
       {/* Early check-in fee is now auto-computed and shown in the Booking Details banner above. */}
 
       {/* ── Footer: Terms + Actions ───────────────────────────────────────── */}
-      <div className="rounded-xl border bg-white shadow-sm px-5 py-4 space-y-4">
+      <div ref={termsSectionRefB} className="rounded-xl border bg-white shadow-sm px-5 py-4 space-y-4">
         <label className="flex items-start gap-2.5 text-sm cursor-pointer">
           <input
             type="checkbox"
@@ -2772,17 +2783,46 @@ function CheckinForm({
               <FileText className="size-4" aria-hidden />
               {ti("generate")}
             </Button>
-            <Button
-              type="button"
-              disabled={mutation.isPending || !terms}
-              className="bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
-              onClick={() => mutation.mutate()}
+            {/* Wrapper catches clicks while the Button is disabled
+                (disabled:pointer-events-none) and scrolls to the unmet
+                requirement. */}
+            <span
+              onClick={() => {
+                if (!terms && !mutation.isPending) {
+                  setError(t("requireTerms"));
+                  termsSectionRefB.current?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                  });
+                }
+              }}
             >
-              <LogIn className="size-4" aria-hidden />
-              {mutation.isPending ? t("checkingIn") : tb("checkInAction")}
-            </Button>
+              <Button
+                type="button"
+                disabled={mutation.isPending || !terms}
+                className="bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
+                onClick={() => {
+                  if (fgEnabled && fgForm.passport_number.trim().length < 3) {
+                    setError(t("passportRequired"));
+                    identitySectionRefB.current?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "center",
+                    });
+                    return;
+                  }
+                  setError(null);
+                  mutation.mutate();
+                }}
+              >
+                <LogIn className="size-4" aria-hidden />
+                {mutation.isPending ? t("checkingIn") : tb("checkInAction")}
+              </Button>
+            </span>
           </div>
         </div>
+        {!terms && !mutation.isPending && (
+          <p className="text-right text-xs text-muted-foreground">{t("requireTerms")}</p>
+        )}
       </div>
     </div>
   );
@@ -3118,6 +3158,12 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const [checkinResult, setCheckinResult] = useState<CheckInCreateOut | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // ── Section refs — scroll the first invalid section into view on submit ──
+  const datesSectionRef = useRef<HTMLDivElement | null>(null);
+  const guestSectionRef = useRef<HTMLDivElement | null>(null);
+  const roomsSectionRef = useRef<HTMLDivElement | null>(null);
+  const termsSectionRef = useRef<HTMLDivElement | null>(null);
+
   // ── Draft (localStorage) ──
   // Read once on mount; a non-null value shows the "Restore / Discard" banner.
   const [draft, setDraft] = useState<CheckinDraft | null>(null);
@@ -3406,6 +3452,53 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const canSubmit =
     !!guest && selectedRooms.length > 0 && datesValid && terms && !mutation.isPending;
 
+  // First unmet requirement — shown under the disabled Check In button and
+  // used to scroll the relevant section into view on an attempted submit.
+  const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
+    ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+  const submitHint = !guest
+    ? t("requireGuest")
+    : selectedRooms.length === 0
+      ? t("requireRooms")
+      : !datesValid
+        ? t("requireDates")
+        : !terms
+          ? t("requireTerms")
+          : null;
+
+  /** Validate in section order, set the error, scroll to the failing section. */
+  const validateAndSubmit = () => {
+    if (mutation.isPending) return;
+    if (!guest) {
+      setError(t("selectOrCreateGuest"));
+      scrollToSection(guestSectionRef);
+      return;
+    }
+    if (selectedRooms.length === 0) {
+      setError(t("selectAtLeastOneRoom"));
+      scrollToSection(roomsSectionRef);
+      return;
+    }
+    if (!datesValid) {
+      setError(isSameDay ? t("sameDayTimesInvalid") : t("datesInvalid"));
+      scrollToSection(datesSectionRef);
+      return;
+    }
+    if (fgEnabled && fgForm.passport_number.trim().length < 3) {
+      setError(t("passportRequired"));
+      scrollToSection(guestSectionRef);
+      return;
+    }
+    if (!terms) {
+      setError(t("requireTerms"));
+      scrollToSection(termsSectionRef);
+      return;
+    }
+    setError(null);
+    mutation.mutate();
+  };
+
   return (
     <div className="space-y-4">
       {/* ── Saved draft banner ─────────────────────────────────────────────── */}
@@ -3437,6 +3530,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       )}
 
       {/* ── 1. Booking Details ─────────────────────────────────────────────── */}
+      <div ref={datesSectionRef}>
       <Section
         icon={ClipboardList}
         title={ts("bookingDetailsTitle")}
@@ -3519,8 +3613,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           );
         })()}
       </Section>
+      </div>
 
       {/* ── 2. Primary Guest Identity ─────────────────────────────────────── */}
+      <div ref={guestSectionRef}>
       <Section icon={BadgeCheck} title={t("primaryGuestIdentity")} subtitle={t("primaryGuestIdentitySubtitle")}>
         <div className="space-y-5">
           <GuestPicker
@@ -3558,7 +3654,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
 
               {/* Document uploads — key={guestId+side} so React remounts when
                   guest changes, clearing stale blob previews from prior guest. */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <DocUpload
                   key={`${guest.id}-front`}
                   guestId={guest.id}
@@ -3668,6 +3764,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           />
         </div>
       </Section>
+      </div>
 
       {/* ── 3. Additional Guests ──────────────────────────────────────────── */}
       <Section
@@ -3697,6 +3794,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       </Section>
 
       {/* ── 4. Room Information ───────────────────────────────────────────── */}
+      <div ref={roomsSectionRef}>
       <Section icon={BedDouble} title={t("roomInformation")} subtitle={t("roomInfoSubtitleWalkIn")}>
         <div className="space-y-4">
           <div className="flex flex-wrap gap-6">
@@ -3783,6 +3881,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           )}
         </div>
       </Section>
+      </div>
 
       {/* ── 5. Special Requirements ───────────────────────────────────────── */}
       <Section icon={Star} title={ts("specialRequirements")}>
@@ -3823,7 +3922,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       <Section icon={CreditCard} title={ts("paymentDetails")} subtitle={t("paymentSubtitleWalkIn")}>
         <div className="rounded-xl border bg-muted/20 px-4 py-4 space-y-4">
           {/* Payment summary breakdown */}
-          <div className="grid grid-cols-5 gap-2 rounded-lg border bg-background px-3 py-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 rounded-lg border bg-background px-3 py-3">
             <div className="space-y-1 text-center">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Room Rent</p>
               <p className={cn("text-sm font-bold tabular-nums", roomRentWalkIn === 0 ? "text-muted-foreground" : "")}>
@@ -3898,7 +3997,12 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                     />
                   ) : qrImageQuery.isLoading ? (
                     <Skeleton className="h-36 w-36 rounded-lg" />
-                  ) : null}
+                  ) : (
+                    // Fetched but no image (404 / not configured / error).
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                      {t("qrNotConfiguredInfo")}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -3987,7 +4091,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       </Section>
 
       {/* ── Footer: Terms + Check In ──────────────────────────────────────── */}
-      <div className="rounded-xl border bg-white shadow-sm px-5 py-4 space-y-4">
+      <div ref={termsSectionRef} className="rounded-xl border bg-white shadow-sm px-5 py-4 space-y-4">
         <label className="flex items-start gap-2.5 text-sm cursor-pointer">
           <input
             type="checkbox"
@@ -4016,35 +4120,28 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             <FileText className="size-4" aria-hidden />
             {ts("saveDraft")}
             </Button>
-          <Button
-            type="button"
-            disabled={!canSubmit}
-            className="bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
+          {/* Wrapper catches clicks while the Button is disabled
+              (disabled:pointer-events-none) and scrolls to the first
+              invalid section. */}
+          <span
             onClick={() => {
-              if (!guest) {
-                setError(t("selectOrCreateGuest"));
-                return;
-              }
-              if (selectedRooms.length === 0) {
-                setError(t("selectAtLeastOneRoom"));
-                return;
-              }
-              if (!datesValid) {
-                setError(isSameDay ? t("sameDayTimesInvalid") : t("datesInvalid"));
-                return;
-              }
-              if (fgEnabled && fgForm.passport_number.trim().length < 3) {
-                setError(t("passportRequired"));
-                return;
-              }
-              setError(null);
-              mutation.mutate();
+              if (!canSubmit) validateAndSubmit();
             }}
           >
-            <LogIn className="size-4" aria-hidden />
-            {mutation.isPending ? t("checkingIn") : tb("checkInAction")}
-          </Button>
+            <Button
+              type="button"
+              disabled={!canSubmit}
+              className="bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
+              onClick={validateAndSubmit}
+            >
+              <LogIn className="size-4" aria-hidden />
+              {mutation.isPending ? t("checkingIn") : tb("checkInAction")}
+            </Button>
+          </span>
         </div>
+        {submitHint && !mutation.isPending && (
+          <p className="text-right text-xs text-muted-foreground">{submitHint}</p>
+        )}
       </div>
     </div>
   );

@@ -100,7 +100,9 @@ export function GlobalSearch() {
                   key={b.id}
                   type="button"
                   className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted"
-                  onClick={() => go("/bookings")}
+                  onClick={() =>
+                    go(`/advance-bookings?q=${encodeURIComponent(b.booking_number)}`)
+                  }
                 >
                   <CalendarRange className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="font-medium">{b.booking_number}</span>

@@ -549,12 +549,16 @@ function CheckoutContent() {
       `${tp("grandTotal")}: ${fmtMoney(total)}`,
     ].join("\n");
 
+    // Sharing requires a completed checkout AND an invoice (generated on
+    // demand if needed) — the button is also gated on `done` below.
+    const id = invoiceId ?? (done ? await ensureInvoice() : null);
+    if (!id) return;
+
     // On mobile: try Web Share API with the PDF file attached.
     // Navigator.share with files is supported on Android Chrome + iOS Safari.
     // On desktop (where file-sharing via WhatsApp URL is impossible anyway)
     // we fall back to the text-only wa.me link.
-    const id = invoiceId ?? (done ? await ensureInvoice() : null);
-    if (id && typeof navigator !== "undefined" && "share" in navigator) {
+    if (typeof navigator !== "undefined" && "share" in navigator) {
       try {
         setInvoiceBusy(true);
         const blob = await fetchInvoicePdfBlob(id);
@@ -1120,11 +1124,16 @@ function CheckoutContent() {
                         variant="outline"
                         className="w-full text-green-700 hover:text-green-800"
                         onClick={() => void openWhatsApp()}
-                        disabled={!booking?.primary_guest_phone || invoiceBusy}
+                        disabled={!done || !booking?.primary_guest_phone || invoiceBusy}
                       >
                         <MessageCircle className="mr-2 size-4" aria-hidden />
                         WhatsApp
                       </Button>
+                      {!done && (
+                        <p className="text-center text-xs text-muted-foreground">
+                          {tp("completeCheckoutToShare")}
+                        </p>
+                      )}
                     </div>
                   </>
                 )}

@@ -148,20 +148,27 @@ function PaymentsContent() {
         {summary.data && (
           <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             {(
+              // 4th element: booking count for status cards (the API exposes
+              // booking counts — not amounts or payment counts — for these).
               [
-                ["totalCollected", fmtINR(summary.data.total_collected), "bg-navy-900 text-white"],
-                ["paidCard", String(summary.data.paid_bookings), "bg-green-800 text-white"],
-                ["cash", fmtINR(summary.data.cash), "bg-gold-500 text-navy-900"],
-                ["upi", fmtINR(summary.data.upi), "bg-success text-white"],
-                ["partialCard", String(summary.data.partial_bookings), "bg-amber-700 text-white"],
-                ["pendingCard", String(summary.data.unpaid_bookings), "bg-danger text-white"],
+                ["totalCollected", fmtINR(summary.data.total_collected), "bg-navy-900 text-white", null],
+                ["paidCard", String(summary.data.paid_bookings), "bg-green-800 text-white", summary.data.paid_bookings],
+                ["cash", fmtINR(summary.data.cash), "bg-gold-500 text-navy-900", null],
+                ["upi", fmtINR(summary.data.upi), "bg-success text-white", null],
+                ["partialCard", String(summary.data.partial_bookings), "bg-amber-700 text-white", summary.data.partial_bookings],
+                ["pendingCard", String(summary.data.unpaid_bookings), "bg-danger text-white", summary.data.unpaid_bookings],
               ] as const
-            ).map(([key, value, className]) => (
+            ).map(([key, value, className, bookingCount]) => (
               <div key={key} className={`rounded-lg p-4 ${className}`}>
                 <p className="text-[10px] font-semibold uppercase tracking-widest opacity-80">
                   {t(key)}
                 </p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+                {bookingCount !== null && (
+                  <p className="text-[10px] font-medium opacity-80">
+                    {t("bookingsCountLabel", { count: bookingCount })}
+                  </p>
+                )}
               </div>
             ))}
           </div>

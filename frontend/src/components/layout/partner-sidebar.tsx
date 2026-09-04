@@ -18,6 +18,7 @@ import {
   Sparkles,
   BarChart3,
   Settings,
+  UserCog,
   UserRound,
   Bell,
   ClipboardCheck,
@@ -183,6 +184,12 @@ const SECTIONS: NavSection[] = [
         permission: PERMISSIONS.auditView,
       },
       {
+        href: "/team",
+        labelKey: "team",
+        icon: UserCog,
+        permission: PERMISSIONS.hotelManageTeam,
+      },
+      {
         href: "/settings",
         labelKey: "settings",
         icon: Settings,
@@ -192,9 +199,80 @@ const SECTIONS: NavSection[] = [
   },
 ];
 
-export function PartnerSidebar() {
+/**
+ * Shared navigation sections — rendered by both the desktop sidebar and the
+ * mobile drawer so active-route highlighting and permission gating stay in
+ * sync. `onNavigate` lets the mobile drawer close itself on item click.
+ */
+export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void }) {
   const t = useTranslations("nav");
   const pathname = usePathname();
+  const { can } = useAuth();
+
+  return (
+    <nav className="flex-1 overflow-y-auto px-3 pb-4" aria-label="Main">
+      {SECTIONS.map((section) => {
+        const visible = section.items.filter(
+          (item) => !item.permission || can(item.permission),
+        );
+        if (visible.length === 0) return null;
+        return (
+          <div key={section.labelKey} className="mt-4 first:mt-0">
+            <p className="px-2 pb-1 text-[10px] font-semibold tracking-widest uppercase opacity-60">
+              {t(section.labelKey)}
+            </p>
+            <ul className="space-y-0.5">
+              {visible.map((item) => {
+                const active =
+                  pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const Icon = item.icon;
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      data-tour={`nav-${item.href.replace("/", "")}`}
+                      aria-current={active ? "page" : undefined}
+                      onClick={onNavigate}
+                      className={cn(
+                        "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
+                        active
+                          ? "bg-sidebar-primary font-medium text-sidebar-primary-foreground"
+                          : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                      )}
+                    >
+                      <Icon className="size-4 shrink-0" aria-hidden />
+                      <span className="truncate">{t(item.labelKey)}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** Brand block shared by the desktop sidebar and the mobile drawer header. */
+export function PartnerBrand() {
+  return (
+    <div className="flex items-center gap-3 px-5 py-5">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-gold-500 font-display text-sm font-bold text-navy-900">
+        DM
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-white">DigitalMyHotels</p>
+        <p className="truncate text-[10px] tracking-widest uppercase">
+          Front Desk Suite
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export function PartnerSidebar() {
+  const t = useTranslations("nav");
   const { user, can } = useAuth();
 
   return (
@@ -203,59 +281,10 @@ export function PartnerSidebar() {
       data-tour="sidebar"
     >
       {/* Brand */}
-      <div className="flex items-center gap-3 px-5 py-5">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-gold-500 font-display text-sm font-bold text-navy-900">
-          DM
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">DigitalMyHotels</p>
-          <p className="truncate text-[10px] tracking-widest uppercase">
-            Front Desk Suite
-          </p>
-        </div>
-      </div>
+      <PartnerBrand />
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 pb-4" aria-label="Main">
-        {SECTIONS.map((section) => {
-          const visible = section.items.filter(
-            (item) => !item.permission || can(item.permission),
-          );
-          if (visible.length === 0) return null;
-          return (
-            <div key={section.labelKey} className="mt-4 first:mt-0">
-              <p className="px-2 pb-1 text-[10px] font-semibold tracking-widest uppercase opacity-60">
-                {t(section.labelKey)}
-              </p>
-              <ul className="space-y-0.5">
-                {visible.map((item) => {
-                  const active =
-                    pathname === item.href || pathname.startsWith(`${item.href}/`);
-                  const Icon = item.icon;
-                  return (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        data-tour={`nav-${item.href.replace("/", "")}`}
-                        aria-current={active ? "page" : undefined}
-                        className={cn(
-                          "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
-                          active
-                            ? "bg-sidebar-primary font-medium text-sidebar-primary-foreground"
-                            : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                        )}
-                      >
-                        <Icon className="size-4 shrink-0" aria-hidden />
-                        <span className="truncate">{t(item.labelKey)}</span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          );
-        })}
-      </nav>
+      <PartnerNav />
 
       {/* Upgrade plan CTA */}
       {can(PERMISSIONS.hotelManageSettings) && (

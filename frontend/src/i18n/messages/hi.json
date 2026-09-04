@@ -86,7 +86,10 @@
     "team": "टीम सदस्य",
     "auditLogs": "ऑडिट लॉग",
     "upgradePlan": "योजना अपग्रेड करें",
-    "loggedInAs": "लॉग इन:"
+    "loggedInAs": "लॉग इन:",
+    "openMenu": "मेन्यू खोलें",
+    "switchHotel": "होटल बदलें",
+    "hotel": "होटल"
   },
   "dashboard": {
     "totalRooms": "कुल कमरे",
@@ -432,6 +435,7 @@
     "paidCard": "भुगतान पूर्ण",
     "partialCard": "आंशिक",
     "pendingCard": "बकाया",
+    "bookingsCountLabel": "{count, plural, one {बुकिंग} other {बुकिंग}}",
     "refundsCard": "वापसी",
     "depositsCard": "जमा",
     "bookingStatus": "बुकिंग भुगतान स्थिति",
@@ -930,6 +934,7 @@
     "paymentFailed": "भुगतान विफल",
     "dueReasonRequired": "बकाया राशि के साथ चेक-आउट करने के लिए कारण आवश्यक है।",
     "noGuestPhone": "अतिथि का फ़ोन नंबर उपलब्ध नहीं है",
+    "completeCheckoutToShare": "साझा करने के लिए पहले चेक-आउट पूरा करें",
     "emailFailed": "इनवॉइस ईमेल नहीं भेजा जा सका",
     "waThanks": "{hotel} में ठहरने के लिए धन्यवाद!",
     "waHotelFallback": "हमारे होटल",
@@ -1161,6 +1166,11 @@
     "rateOverrideHint": "इस बुकिंग के लिए डिफ़ॉल्ट दर बदलने हेतु दर संपादित करें।",
     "serviceAmountLabel": "{name} की राशि (₹)",
     "vehicleTypeName": "वाहन प्रकार का नाम",
-    "vehicleTypeNamePlaceholder": "जैसे ट्रक"
+    "vehicleTypeNamePlaceholder": "जैसे ट्रक",
+    "requireGuest": "जारी रखने के लिए अतिथि चुनें",
+    "requireRooms": "कम से कम एक कमरा चुनें",
+    "requireDates": "चेक-इन/चेक-आउट समय ठीक करें",
+    "requireTerms": "जारी रखने के लिए नियम व शर्तें स्वीकार करें",
+    "qrNotConfiguredInfo": "UPI QR कॉन्फ़िगर नहीं है — इसे सेटिंग्स → भुगतान में जोड़ें।"
   }
 }

@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { CircleHelp, LogOut } from "lucide-react";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { Building2, Check, ChevronsUpDown, CircleHelp, LogOut, Menu } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,7 +13,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
+import { apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/auth-context";
+import type { HotelOut } from "@/types/hotel";
+import { PartnerBrand, PartnerNav } from "@/components/layout/partner-sidebar";
 import { LocaleSwitcher } from "@/components/layout/locale-switcher";
 import { NotificationsBell } from "@/components/layout/notifications-bell";
 import { GlobalSearch } from "@/components/layout/global-search";
@@ -24,6 +31,110 @@ function initials(name: string | undefined): string {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
+}
+
+/**
+ * Compact hotel select shown only when the user belongs to MORE than one
+ * hotel. Switching updates the auth context (drives the X-Hotel-Id header
+ * app-wide) and clears the react-query cache, since the context itself does
+ * not invalidate queries on switch.
+ */
+function HotelSwitcher({ className }: { readonly className?: string }) {
+  const t = useTranslations("nav");
+  const { memberships, activeHotelId, setActiveHotelId } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Memberships only carry hotel_id — fetch each hotel's name via the
+  // per-request X-Hotel-Id override. Only enabled for multi-hotel users.
+  const hotelQueries = useQueries({
+    queries: memberships.map((m) => ({
+      queryKey: ["hotel-switcher-name", m.hotel_id],
+      queryFn: () =>
+        apiFetch<HotelOut>("/api/v1/hotels/me", { hotelId: m.hotel_id }),
+      staleTime: 300_000,
+      enabled: memberships.length > 1,
+    })),
+  });
+
+  if (memberships.length <= 1) return null;
+
+  const nameOf = (hotelId: string): string => {
+    const idx = memberships.findIndex((m) => m.hotel_id === hotelId);
+    return hotelQueries[idx]?.data?.name ?? `${t("hotel")} ${idx + 1}`;
+  };
+
+  const switchTo = (hotelId: string) => {
+    if (hotelId === activeHotelId) return;
+    setActiveHotelId(hotelId);
+    // The context only persists the id — drop all cached data so every
+    // screen refetches under the new X-Hotel-Id.
+    queryClient.clear();
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={cn(
+          "flex h-9 items-center gap-2 rounded-md border px-2.5 text-sm",
+          className,
+        )}
+        aria-label={t("switchHotel")}
+        title={t("switchHotel")}
+      >
+        <Building2 className="size-4 shrink-0 opacity-70" aria-hidden />
+        <span className="max-w-36 truncate">
+          {activeHotelId ? nameOf(activeHotelId) : t("switchHotel")}
+        </span>
+        <ChevronsUpDown className="size-3 shrink-0 opacity-60" aria-hidden />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuLabel>{t("switchHotel")}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {memberships.map((m) => (
+          <DropdownMenuItem key={m.hotel_id} onClick={() => switchTo(m.hotel_id)}>
+            <span className="flex-1 truncate">{nameOf(m.hotel_id)}</span>
+            {m.hotel_id === activeHotelId && (
+              <Check className="size-4 shrink-0" aria-hidden />
+            )}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** Hamburger + slide-in drawer with the same nav as the desktop sidebar. */
+function MobileNavDrawer() {
+  const t = useTranslations("nav");
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex size-9 shrink-0 items-center justify-center rounded-md border text-muted-foreground hover:text-foreground lg:hidden"
+        aria-label={t("openMenu")}
+        title={t("openMenu")}
+      >
+        <Menu className="size-5" aria-hidden />
+      </button>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent
+          side="left"
+          className="w-72 gap-0 bg-sidebar p-0 text-sidebar-foreground"
+          aria-label={t("openMenu")}
+        >
+          <SheetTitle className="sr-only">{t("openMenu")}</SheetTitle>
+          <PartnerBrand />
+          <div className="px-3 pb-1">
+            <HotelSwitcher className="w-full border-sidebar-border" />
+          </div>
+          <PartnerNav onNavigate={() => setOpen(false)} />
+        </SheetContent>
+      </Sheet>
+    </>
+  );
 }
 
 export function PartnerHeader({ title, subtitle }: { title: string; subtitle?: string }) {
@@ -41,7 +152,8 @@ export function PartnerHeader({ title, subtitle }: { title: string; subtitle?: s
   };
 
   return (
-    <header className="flex items-center justify-between gap-4 border-b bg-card px-6 py-4">
+    <header className="flex items-center justify-between gap-4 border-b bg-card px-4 py-4 lg:px-6">
+      <MobileNavDrawer />
       <div className="min-w-0">
         {subtitle && (
           <p className="text-[10px] font-semibold tracking-widest text-gold-600 uppercase">
@@ -52,6 +164,7 @@ export function PartnerHeader({ title, subtitle }: { title: string; subtitle?: s
       </div>
       <GlobalSearch />
       <div className="flex shrink-0 items-center gap-3">
+        <HotelSwitcher className="hidden lg:flex" />
         <button
           type="button"
           onClick={startTourInPlace}

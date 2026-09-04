@@ -103,7 +103,10 @@ const DEFAULT_CATEGORY = CATEGORY_CONFIG.front_desk;
 // ---------------------------------------------------------------------------
 
 const DEEP_LINK_PERMISSION: [RegExp, string][] = [
+  [/^\/advance-bookings/, PERMISSIONS.bookingsView],
+  [/^\/completed-bookings/, PERMISSIONS.bookingsView],
   [/^\/bookings/, PERMISSIONS.bookingsView],
+  [/^\/checkin/, PERMISSIONS.checkin],
   [/^\/current-guests/, PERMISSIONS.guestsView],
   [/^\/housekeeping/, PERMISSIONS.housekeepingManage],
   [/^\/payments/, PERMISSIONS.paymentsView],
@@ -116,18 +119,41 @@ const DEEP_LINK_PERMISSION: [RegExp, string][] = [
   [/^\/plan/, PERMISSIONS.hotelView],
 ];
 
+/**
+ * Rewrites legacy "/bookings..." deep links (which may still be stored on the
+ * backend) to the current routes at render time:
+ * - check-in/arrival intent with a booking id → `/checkin?booking=<id>`
+ * - anything else → `/advance-bookings` (preserving a `?q=` param if present)
+ */
+function remapLegacyDeepLink(link: string, notifType?: string): string {
+  if (!/^\/bookings(?:[/?#]|$)/.test(link)) return link;
+
+  const queryIndex = link.indexOf("?");
+  const params = new URLSearchParams(queryIndex >= 0 ? link.slice(queryIndex + 1) : "");
+  const bookingId = params.get("booking") ?? params.get("booking_id");
+  const isCheckinIntent = notifType ? /check_?in|arrival/i.test(notifType) : false;
+
+  if (bookingId && isCheckinIntent) {
+    return `/checkin?booking=${encodeURIComponent(bookingId)}`;
+  }
+
+  const q = params.get("q");
+  return q ? `/advance-bookings?q=${encodeURIComponent(q)}` : "/advance-bookings";
+}
+
 function useDeepLink() {
   const { can } = useAuth();
 
   return useCallback(
-    (link: string | null) => {
+    (link: string | null, notifType?: string) => {
       if (!link) return null;
-      const required = DEEP_LINK_PERMISSION.find(([re]) => re.test(link))?.[1];
+      const resolved = remapLegacyDeepLink(link, notifType);
+      const required = DEEP_LINK_PERMISSION.find(([re]) => re.test(resolved))?.[1];
       if (required && !can(required)) {
         // User can read the notification but not navigate to that page.
         return null;
       }
-      return link;
+      return resolved;
     },
     [can],
   );
@@ -151,7 +177,7 @@ function NotifRow({
   const resolveLink = useDeepLink();
   const cfg = CATEGORY_CONFIG[n.category] ?? DEFAULT_CATEGORY;
   const Icon = cfg.icon;
-  const link = resolveLink(n.deep_link);
+  const link = resolveLink(n.deep_link, n.type);
 
   const handleClick = () => {
     if (!n.is_read) onMarkRead(n.id);

@@ -86,7 +86,10 @@
     "team": "Team Members",
     "auditLogs": "Audit Logs",
     "upgradePlan": "Upgrade Plan",
-    "loggedInAs": "Logged in as"
+    "loggedInAs": "Logged in as",
+    "openMenu": "Open menu",
+    "switchHotel": "Switch hotel",
+    "hotel": "Hotel"
   },
   "dashboard": {
     "totalRooms": "Total Rooms",
@@ -376,6 +379,7 @@
     "paidCard": "Paid",
     "partialCard": "Partial",
     "pendingCard": "Pending",
+    "bookingsCountLabel": "{count, plural, one {booking} other {bookings}}",
     "refundsCard": "Refunds",
     "depositsCard": "Deposits",
     "bookingStatus": "Booking Payment Status",
@@ -930,6 +934,7 @@
     "paymentFailed": "Payment failed",
     "dueReasonRequired": "A reason is required to check out with an outstanding balance.",
     "noGuestPhone": "Guest phone number not available",
+    "completeCheckoutToShare": "Complete checkout to share",
     "emailFailed": "Could not send the invoice email",
     "waThanks": "Thank you for staying at {hotel}!",
     "waHotelFallback": "our hotel",
@@ -1161,6 +1166,11 @@
     "rateOverrideHint": "Edit a rate to override the default for this booking.",
     "serviceAmountLabel": "Amount for {name} (₹)",
     "vehicleTypeName": "Vehicle type name",
-    "vehicleTypeNamePlaceholder": "e.g. Truck"
+    "vehicleTypeNamePlaceholder": "e.g. Truck",
+    "requireGuest": "Select a guest to continue",
+    "requireRooms": "Select at least one room",
+    "requireDates": "Fix the check-in/check-out times",
+    "requireTerms": "Acknowledge terms to continue",
+    "qrNotConfiguredInfo": "UPI QR not configured — add it in Settings → Payments."
   }
 }
