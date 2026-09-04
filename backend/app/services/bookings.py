@@ -187,6 +187,11 @@ async def create_booking(
     )
     rooms_with_types = list(room_result.scalars().all())
 
+    # Staff-edited rates take precedence over room-type pricing (client
+    # requirement: front desk can adjust room rent at booking time). The
+    # override is per-night for overnight stays, whole-stay for day use.
+    overrides = {o.room_id: money(o.rate) for o in body.rate_overrides}
+
     def _stay_rate(room: Room) -> Decimal:
         """Rate stored on BookingRoom = full price of the stay for that room.
 
@@ -195,6 +200,8 @@ async def create_booking(
         the room type has no hourly rate configured (nights == 1 for day use,
         so the stored rate IS the stay total in that case).
         """
+        if room.id in overrides:
+            return overrides[room.id]
         if is_day_use:
             rt = room.room_type
             if rt.hourly_rate and rt.hourly_rate > 0:
@@ -289,6 +296,17 @@ async def create_booking(
             "rooms": [r.room_number for r in rooms_with_types],
             "check_in": str(body.check_in_date),
             "check_out": str(body.check_out_date),
+            **(
+                {
+                    "rate_overrides": {
+                        r.room_number: str(overrides[r.id])
+                        for r in rooms_with_types
+                        if r.id in overrides
+                    }
+                }
+                if overrides
+                else {}
+            ),
         },
         correlation_id=correlation_id,
     )

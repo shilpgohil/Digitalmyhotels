@@ -51,9 +51,17 @@ class BookingOut(ORMModel):
     created_at: datetime
 
 
+class RoomRateOverride(BaseModel):
+    """Staff-edited room rate (per night; for day-use it's the whole stay)."""
+
+    room_id: UUID
+    rate: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
+
+
 class BookingCreate(BaseModel):
     primary_guest_id: UUID
     room_ids: list[UUID] = Field(min_length=1, max_length=10)
+    rate_overrides: list[RoomRateOverride] = Field(default_factory=list, max_length=10)
     check_in_date: date
     check_out_date: date
     adults: int = Field(default=1, ge=1, le=40)
@@ -91,12 +99,20 @@ class BookingCreate(BaseModel):
                 )
         # The service layer will enforce no-past guard so the schema allows today
         # (edge case: booking created at midnight right before check-in).
+        if self.rate_overrides:
+            override_ids = {o.room_id for o in self.rate_overrides}
+            if not override_ids.issubset(set(self.room_ids)):
+                raise ValueError("rate_overrides may only reference rooms in room_ids")
+            if len(override_ids) != len(self.rate_overrides):
+                raise ValueError("Duplicate room in rate_overrides")
         return self
 
 
 class BookingUpdate(BaseModel):
     check_in_date: date | None = None
     check_out_date: date | None = None
+    check_in_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    check_out_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
     adults: int | None = Field(default=None, ge=1, le=40)
     children: int | None = Field(default=None, ge=0, le=40)
     special_requests: str | None = Field(default=None, max_length=2000)

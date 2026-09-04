@@ -224,7 +224,8 @@
     "searchByLast4": "Last 4 digits of ID",
     "searchAction": "Search Guest",
     "autofill": "Auto-fill",
-    "noMatch": "No matching guest. Fill in the details to create a new guest.",
+    "noMatch": "No matching guest found.",
+    "createNewGuest": "Create new guest",
     "guestSelected": "Guest selected",
     "newGuest": "New Guest",
     "fullName": "Full Name",
@@ -1114,6 +1115,18 @@
     "noRooms": "No rooms",
     "arrivalsLoadFailed": "Could not load arriving bookings.",
     "walkInTitle": "Walk-in Check-in",
-    "walkInDescription": "Books the room and checks the guest in — one step, one button."
+    "walkInDescription": "Books the room and checks the guest in — one step, one button.",
+    "checkinDateTime": "Check-in Date & Time",
+    "checkoutDateTime": "Check-out Date & Time",
+    "dayUseBadge": "Day use — {hrs} hrs",
+    "sameDayTimesInvalid": "For a same-day (day use) stay, set both times — check-out time must be after check-in time.",
+    "roomRatesTitle": "Room Rates (editable)",
+    "ratePerNight": "Rate per night (₹)",
+    "rateDayUseTotal": "Day-use total (₹)",
+    "rateForRoom": "Rate for room {room}",
+    "rateOverrideHint": "Edit a rate to override the default for this booking.",
+    "serviceAmountLabel": "Amount for {name} (₹)",
+    "vehicleTypeName": "Vehicle type name",
+    "vehicleTypeNamePlaceholder": "e.g. Truck"
   }
 }

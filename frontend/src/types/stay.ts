@@ -97,7 +97,10 @@ export interface CurrentGuestOut {
   rooms: string[];
   checked_in_at: string;
   expected_checkout_at: string | null;
+  check_in_date: string;
   check_out_date: string;
+  check_in_time: string | null;
+  check_out_time: string | null;
   payment_status: string;
   due_amount: string;
   guest_count: number;
@@ -117,10 +120,17 @@ export interface GuestCreatePayload {
   id_number?: string;
 }
 
+/** Staff-edited room rate — per night, or whole stay for day use. */
+export interface RoomRateOverride {
+  room_id: string;
+  rate: string;
+}
+
 /** Booking payload nested inside BookAndCheckInRequest (mirrors backend BookingCreate). */
 export interface BookingCreatePayload {
   primary_guest_id: string;
   room_ids: string[];
+  rate_overrides?: RoomRateOverride[];
   check_in_date: string;
   check_out_date: string;
   adults: number;
@@ -205,6 +215,8 @@ export interface CheckInRequest {
   foreign_guest?: ForeignGuestIn | null;
   charges?: CheckInChargeIn[];
   advance_payment?: CheckInAdvancePaymentIn | null;
+  /** Staff correction of expected checkout time ("HH:MM"), stored on the booking. */
+  check_out_time?: string | null;
 }
 
 export interface CheckInCreateOut {

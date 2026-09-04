@@ -42,6 +42,7 @@ import {
   BedDouble,
   Camera,
   Car,
+  Clock,
   Globe,
   ChevronDown,
   ChevronUp,
@@ -54,6 +55,7 @@ import {
   Search,
   Trash2,
   Upload,
+  UserPlus,
   Users,
   AlertTriangle,
   ClipboardList,
@@ -64,6 +66,7 @@ import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { TimeInput } from "@/components/ui/time-input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -76,7 +79,7 @@ import { getAccessToken } from "@/lib/auth/session";
 import { compressDocument } from "@/lib/compress-image";
 import { fmtApiDate, fmtINR, localToday, localTomorrow } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
-import type { ListOut } from "@/types/hotel";
+import type { ListOut, RoomAvailableItem } from "@/types/hotel";
 import type {
   BookAndCheckInRequest,
   BookingOut,
@@ -87,6 +90,7 @@ import type {
   GuestAutofill,
   GuestCreatePayload,
   GuestSearchResult,
+  RoomRateOverride,
 } from "@/types/stay";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -205,6 +209,8 @@ interface CheckinDraft {
   emPhone: string;
   vehNumber: string;
   vehType: string;
+  /** Free-text vehicle type name when vehType is "Other". */
+  vehTypeOther?: string;
   vehMake: string;
   parkingSlot: string;
   pgCompany: string;
@@ -257,6 +263,41 @@ function calcEarlyCheckinFee(
   if (earlyMins <= graceMinutes) return 0;
   const billableHours = Math.ceil((earlyMins - graceMinutes) / 60);
   return billableHours * ratePerHour;
+}
+
+/** Fixed values of the vehicle-type select (i18n only changes the labels). */
+const VEHICLE_TYPE_OPTIONS = ["Car", "Bike", "Auto", "Taxi", "Bus", "Other"];
+
+/** "HH:MM" → minutes since midnight; NaN when malformed. */
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return Number.NaN;
+  return h * 60 + m;
+}
+
+/**
+ * Resolve the vehicle_type value sent to the API: the select value as-is,
+ * or — when "Other" is chosen — the staff-entered type name (max 40 chars).
+ */
+function effectiveVehicleType(vehType: string, otherName: string): string {
+  if (vehType !== "Other") return vehType;
+  return otherName.trim().slice(0, 40) || "Other";
+}
+
+/**
+ * Amount charged for a selected service chip — the staff-edited amount when
+ * present and a valid non-negative number, else the service's fixed price.
+ */
+function serviceChargeAmount(
+  svc: ServiceItem,
+  amounts: Record<string, string>,
+): string {
+  const edited = amounts[svc.id]?.trim();
+  if (edited) {
+    const parsed = Number.parseFloat(edited);
+    if (Number.isFinite(parsed) && parsed >= 0) return edited;
+  }
+  return svc.price;
 }
 
 /** Mask an ID number, keeping only the last 4 characters visible. */
@@ -426,13 +467,17 @@ function InlineCameraCapture({
   );
 }
 
-/** "Selected special requirements" summary — shows name + ₹price per chip. */
+/** "Selected special requirements" summary — shows name + ₹amount per chip
+ *  (staff-edited amount when present, else the service's fixed price). */
 function SelectedServicesList({
   services,
   selectedIds,
+  amounts,
 }: {
   readonly services: ServiceItem[];
   readonly selectedIds: string[];
+  /** Staff-edited amounts keyed by service id. */
+  readonly amounts?: Record<string, string>;
 }) {
   const t = useTranslations("checkin");
   const chosen = services.filter((s) => selectedIds.includes(s.id));
@@ -446,10 +491,70 @@ function SelectedServicesList({
         {chosen.map((s) => (
           <li key={s.id} className="flex items-center justify-between text-sm">
             <span>{s.name}</span>
-            <span className="tabular-nums font-medium">{fmtINR(s.price)}</span>
+            <span className="tabular-nums font-medium">
+              {fmtINR(serviceChargeAmount(s, amounts ?? {}))}
+            </span>
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/**
+ * Service chips row with per-chip editable amount — when a chip is selected a
+ * small numeric input appears next to it, prefilled with the service price;
+ * edits flow into the atomic `charges` array at submit time.
+ */
+function ServiceChips({
+  services,
+  selectedIds,
+  onToggle,
+  amounts,
+  onAmountChange,
+}: {
+  readonly services: ServiceItem[];
+  readonly selectedIds: string[];
+  readonly onToggle: (id: string) => void;
+  readonly amounts: Record<string, string>;
+  readonly onAmountChange: (id: string, amount: string) => void;
+}) {
+  const t = useTranslations("checkin");
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {services.map((svc) => {
+        const active = selectedIds.includes(svc.id);
+        return (
+          <div key={svc.id} className="inline-flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => onToggle(svc.id)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
+                active
+                  ? "border-navy-900 bg-navy-900 text-white font-medium"
+                  : "border-border text-muted-foreground hover:border-navy-900 hover:text-navy-900",
+              )}
+            >
+              {svc.name}
+              {!active && (
+                <span className="text-xs opacity-60">{fmtINR(svc.price)}</span>
+              )}
+            </button>
+            {active && (
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={amounts[svc.id] ?? svc.price}
+                onChange={(e) => onAmountChange(svc.id, e.target.value)}
+                aria-label={t("serviceAmountLabel", { name: svc.name })}
+                className="h-8 w-24 text-right text-sm tabular-nums"
+              />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1319,12 +1424,17 @@ function AdditionalGuestEntry({
             </ul>
           )}
           {searchResults.length === 0 && searchPhone && !searching && (
-            <p className="text-xs text-muted-foreground">
-              {t("noMatchFound")}{" "}
-              <button type="button" className="underline" onClick={() => setMode("form")}>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <p className="text-xs text-muted-foreground">{t("noMatchFound")}</p>
+              <button
+                type="button"
+                onClick={() => setMode("form")}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-gold-500 px-3 text-xs font-semibold text-navy-900 hover:bg-gold-400 transition-colors"
+              >
+                <UserPlus className="size-3.5" aria-hidden />
                 {t("createNewGuest")}
               </button>
-            </p>
+            </div>
           )}
         </div>
       ) : (
@@ -1690,6 +1800,7 @@ function CheckinForm({
 
   // ── Special requirements ──
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [serviceAmounts, setServiceAmounts] = useState<Record<string, string>>({});
   const [specialInstructions, setSpecialInstructions] = useState("");
   const toggleService = (id: string) =>
     setSelectedServices((prev) =>
@@ -1707,13 +1818,27 @@ function CheckinForm({
   const [emRelation, setEmRelation] = useState(booking.emergency_contact_relation ?? "");
   const [emPhone, setEmPhone] = useState(booking.emergency_contact_phone ?? "");
   const [vehNumber, setVehNumber] = useState(booking.vehicle_number ?? "");
-  const [vehType, setVehType] = useState(booking.vehicle_type ?? "Car");
+  // A stored vehicle_type outside the fixed options means "Other" was chosen
+  // with a custom name — re-open as Other + prefill the name input.
+  const knownVehType =
+    !booking.vehicle_type || VEHICLE_TYPE_OPTIONS.includes(booking.vehicle_type);
+  const [vehType, setVehType] = useState(
+    knownVehType ? (booking.vehicle_type ?? "Car") : "Other",
+  );
+  const [vehTypeOther, setVehTypeOther] = useState(
+    knownVehType ? "" : (booking.vehicle_type ?? ""),
+  );
   const [vehMake, setVehMake] = useState("");
   const [parkingSlot, setParkingSlot] = useState(booking.parking_slot ?? "");
 
   // ── Early check-in (auto-computed from check-in time) ──
   const [checkInTime, setCheckInTime] = useState(booking.check_in_time?.slice(0, 5) ?? "");
   const [earlyFee, setEarlyFee] = useState(0);
+
+  // ── Expected checkout time — staff correction sent as check_out_time ──
+  const [checkOutTime, setCheckOutTime] = useState(
+    booking.check_out_time?.slice(0, 5) ?? "",
+  );
 
   // ── Foreign guest (Form C) ──
   const [fgEnabled, setFgEnabled] = useState(false);
@@ -1907,7 +2032,7 @@ function CheckinForm({
       }
       if (vehNumber || vehType !== "Car" || parkingSlot) {
         bookingPatch.vehicle_number = vehNumber || null;
-        bookingPatch.vehicle_type = vehType || null;
+        bookingPatch.vehicle_type = effectiveVehicleType(vehType, vehTypeOther) || null;
         bookingPatch.parking_slot = parkingSlot || null;
       }
       if (totalAdults !== booking.adults) bookingPatch.adults = totalAdults;
@@ -1930,7 +2055,7 @@ function CheckinForm({
       );
       const chargesList: CheckInChargeIn[] = chosen.map((svc) => ({
         description: svc.name,
-        amount: svc.price,
+        amount: serviceChargeAmount(svc, serviceAmounts),
         category: "other",
       }));
       const ecNum = Number.parseFloat(extraCharges) || 0;
@@ -1948,6 +2073,7 @@ function CheckinForm({
         company_name: pgCompany.trim() || null,
         is_early: earlyFee > 0,
         early_fee: earlyFee.toString(),
+        check_out_time: checkOutTime || null,
         terms_acknowledged: terms,
         foreign_guest: buildForeignGuestPayload(fgEnabled, fgForm),
         charges: chargesList,
@@ -2028,6 +2154,14 @@ function CheckinForm({
               <TimeInput
                 value={checkInTime}
                 onChange={setCheckInTime}
+                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("checkoutTime")}</Label>
+              <TimeInput
+                value={checkOutTime}
+                onChange={setCheckOutTime}
                 className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               />
             </div>
@@ -2314,32 +2448,20 @@ function CheckinForm({
         <div className="space-y-4">
           {services.isLoading && <Skeleton className="h-10" />}
           {(services.data?.length ?? 0) > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {services.data?.map((svc) => {
-                const active = selectedServices.includes(svc.id);
-                return (
-                  <button
-                    key={svc.id}
-                type="button"
-                    onClick={() => toggleService(svc.id)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
-                      active
-                        ? "border-navy-900 bg-navy-900 text-white font-medium"
-                        : "border-border text-muted-foreground hover:border-navy-900 hover:text-navy-900",
-                    )}
-                  >
-                    {svc.name}<span className={cn("text-xs", active ? "opacity-80" : "opacity-60")}>
-                      {fmtINR(svc.price)}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            <ServiceChips
+              services={services.data ?? []}
+              selectedIds={selectedServices}
+              onToggle={toggleService}
+              amounts={serviceAmounts}
+              onAmountChange={(id, amount) =>
+                setServiceAmounts((prev) => ({ ...prev, [id]: amount }))
+              }
+            />
           )}
           <SelectedServicesList
             services={services.data ?? []}
             selectedIds={selectedServices}
+            amounts={serviceAmounts}
           />
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -2558,6 +2680,17 @@ function CheckinForm({
               <option value="Other">{t("veh_other")}</option>
             </select>
           </div>
+          {vehType === "Other" && (
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("vehicleTypeName")}</Label>
+              <Input
+                value={vehTypeOther}
+                onChange={(e) => setVehTypeOther(e.target.value)}
+                placeholder={t("vehicleTypeNamePlaceholder")}
+                maxLength={40}
+              />
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("makeName")}</Label>
             <Input value={vehMake} onChange={(e) => setVehMake(e.target.value)} placeholder={t("makePlaceholder")} />
@@ -2811,6 +2944,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const [availRefreshKey, setAvailRefreshKey] = useState(0);
   const [adultsCount, setAdultsCount] = useState(1);
   const [childCount, setChildCount] = useState(0);
+  // Staff-edited room rates keyed by room_id (per night, or whole stay for
+  // day use). Only edits that differ from the computed default are sent as
+  // rate_overrides in the booking payload.
+  const [rateEdits, setRateEdits] = useState<Record<string, string>>({});
 
   // ── 5. Special requirements ──
   const services = useQuery({
@@ -2819,6 +2956,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     enabled: !!activeHotelId,
   });
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [serviceAmounts, setServiceAmounts] = useState<Record<string, string>>({});
   const [specialInstructions, setSpecialInstructions] = useState("");
   const toggleService = (id: string) =>
     setSelectedServices((prev) =>
@@ -2833,8 +2971,25 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const [earlyFee, setEarlyFee] = useState(0);
   const newAdvance = Number.parseFloat(advanceAmount) || 0;
 
+  // ── Day use (same-day stay) — valid when both times are set and check-out
+  // is after check-in; billed as ceil(hours) × room_type hourly rate (fallback:
+  // full-night base price when the room type has no hourly rate).
+  const isSameDay =
+    !!checkInDate && !!checkOutDate && checkInDate === checkOutDate;
+  const sameDayValid =
+    isSameDay &&
+    !!checkInTime &&
+    !!checkOutTime &&
+    Number.isFinite(timeToMinutes(checkInTime)) &&
+    Number.isFinite(timeToMinutes(checkOutTime)) &&
+    timeToMinutes(checkOutTime) > timeToMinutes(checkInTime);
+  const dayUseHours = sameDayValid
+    ? Math.ceil((timeToMinutes(checkOutTime) - timeToMinutes(checkInTime)) / 60)
+    : 0;
+
   // ── Room rent: read the room availability cache (same queryKey as the picker)
-  // to get base_price per selected room, then multiply by number of nights.
+  // to get rates per selected room. Overnight = per-night rate × nights;
+  // day use = hourly rate × hours (or base price when no hourly rate).
   const availData = queryClient.getQueryData<import("@/types/hotel").RoomAvailabilityOut>([
     "room-availability",
     activeHotelId,
@@ -2846,12 +3001,42 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     const d = (new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / 86_400_000;
     return Math.max(Math.ceil(d), 1);
   }, [checkInDate, checkOutDate]);
+  const selectedAvailRooms = useMemo(
+    () =>
+      (availData?.available ?? []).filter((r) => selectedRooms.includes(r.id)),
+    [availData, selectedRooms],
+  );
+  /** Default rate for a room: base price per night, or day-use total. */
+  const defaultRoomRate = (r: RoomAvailableItem): number => {
+    const base = Number.parseFloat(r.room_type_base_price) || 0;
+    if (!isSameDay) return base;
+    const hourly =
+      r.room_type_hourly_rate != null
+        ? Number.parseFloat(r.room_type_hourly_rate)
+        : Number.NaN;
+    return Number.isFinite(hourly) && hourly > 0 && dayUseHours > 0
+      ? hourly * dayUseHours
+      : base;
+  };
+  /** Rate actually used: the staff edit when valid, else the default. */
+  const effectiveRoomRate = (r: RoomAvailableItem): number => {
+    const edited = rateEdits[r.id]?.trim();
+    if (edited) {
+      const parsed = Number.parseFloat(edited);
+      if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+    }
+    return defaultRoomRate(r);
+  };
   const roomRentWalkIn = useMemo(() => {
-    if (!availData?.available || selectedRooms.length === 0) return 0;
-    return availData.available
-      .filter((r) => selectedRooms.includes(r.id))
-      .reduce((sum, r) => sum + Number.parseFloat(r.room_type_base_price) * nights, 0);
-  }, [availData, selectedRooms, nights]);
+    if (selectedAvailRooms.length === 0) return 0;
+    // Day-use rates are whole-stay totals; overnight rates are per night.
+    const factor = isSameDay ? 1 : nights;
+    return selectedAvailRooms.reduce(
+      (sum, r) => sum + effectiveRoomRate(r) * factor,
+      0,
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAvailRooms, nights, isSameDay, dayUseHours, rateEdits]);
   const extraChargesNumWI = Number.parseFloat(extraCharges || "0") || 0;
   const gstAmountWI = Math.round((roomRentWalkIn + extraChargesNumWI) * (hotelGstRate / 100) * 100) / 100;
   // Only subtract the advance when staff confirmed it was actually collected —
@@ -2886,6 +3071,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const [emPhone, setEmPhone] = useState("");
   const [vehNumber, setVehNumber] = useState("");
   const [vehType, setVehType] = useState("Car");
+  const [vehTypeOther, setVehTypeOther] = useState("");
   const [vehMake, setVehMake] = useState("");
   const [parkingSlot, setParkingSlot] = useState("");
 
@@ -2926,6 +3112,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       emPhone,
       vehNumber,
       vehType,
+      vehTypeOther,
       vehMake,
       parkingSlot,
       pgCompany,
@@ -2958,6 +3145,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     setEmPhone(d.emPhone ?? "");
     setVehNumber(d.vehNumber ?? "");
     setVehType(d.vehType ?? "Car");
+    setVehTypeOther(d.vehTypeOther ?? "");
     setVehMake(d.vehMake ?? "");
     setParkingSlot(d.parkingSlot ?? "");
     setPgCompany(d.pgCompany ?? "");
@@ -2980,7 +3168,12 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     setDraft(null);
   };
 
-  const datesValid = !!checkInDate && !!checkOutDate && checkInDate < checkOutDate;
+  // Same-day is allowed as a day-use stay when both times are set and
+  // check-out time is after check-in time.
+  const datesValid =
+    !!checkInDate &&
+    !!checkOutDate &&
+    (checkInDate < checkOutDate || sameDayValid);
 
   // ── Mutation: book + check in atomically, then charges + advance payment ──
   const mutation = useMutation({
@@ -3060,7 +3253,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       );
       const chargesList: CheckInChargeIn[] = chosen.map((svc) => ({
         description: svc.name,
-        amount: svc.price,
+        amount: serviceChargeAmount(svc, serviceAmounts),
         category: "other",
       }));
       if (earlyFee > 0) {
@@ -3078,10 +3271,25 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           category: "other",
         });
       }
+      // Only rates actually edited away from the computed default are sent.
+      const rateOverrides: RoomRateOverride[] = selectedAvailRooms
+        .filter((r) => {
+          const edited = rateEdits[r.id]?.trim();
+          if (!edited) return false;
+          const parsed = Number.parseFloat(edited);
+          return (
+            Number.isFinite(parsed) &&
+            parsed >= 0 &&
+            parsed !== defaultRoomRate(r)
+          );
+        })
+        .map((r) => ({ room_id: r.id, rate: rateEdits[r.id].trim() }));
+
       const payload: BookAndCheckInRequest = {
         booking: {
           primary_guest_id: guest.id,
           room_ids: selectedRooms,
+          rate_overrides: rateOverrides.length > 0 ? rateOverrides : undefined,
           check_in_date: checkInDate,
           check_out_date: checkOutDate,
           adults: adultsCount,
@@ -3094,7 +3302,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           emergency_contact_relation: emRelation.trim() || null,
           emergency_contact_phone: emPhone.trim() || null,
           vehicle_number: vehNumber.trim() || null,
-          vehicle_type: vehNumber.trim() ? vehType : null,
+          vehicle_type: vehNumber.trim()
+            ? effectiveVehicleType(vehType, vehTypeOther)
+            : null,
           parking_slot: parkingSlot.trim() || null,
         },
         checked_in_at: null,
@@ -3199,40 +3409,42 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         subtitle={t("walkInSubtitle")}
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 lg:col-span-2">
             <Label htmlFor="wi-cin" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {tb("checkinDate")} *
+              {t("checkinDateTime")} *
             </Label>
-            <DateInput id="wi-cin" required value={checkInDate} onChange={setCheckInDate} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="wi-cin-time" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {t("checkinTime")}
-            </Label>
-            <TimeInput
-              id="wi-cin-time"
-              value={checkInTime}
-              onChange={setCheckInTime}
-              className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+            <DateTimePicker
+              id="wi-cin"
+              required
+              dateValue={checkInDate}
+              timeValue={checkInTime}
+              onDateChange={setCheckInDate}
+              onTimeChange={setCheckInTime}
+              min={localToday()}
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 lg:col-span-2">
             <Label htmlFor="wi-cout" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {tb("checkoutDate")} *
+              {t("checkoutDateTime")} *
             </Label>
-            <DateInput id="wi-cout" required value={checkOutDate} onChange={setCheckOutDate} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="wi-cout-time" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {t("checkoutTime")}
-            </Label>
-            <TimeInput
-              id="wi-cout-time"
-              value={checkOutTime}
-              onChange={setCheckOutTime}
-              className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+            <DateTimePicker
+              id="wi-cout"
+              required
+              dateValue={checkOutDate}
+              timeValue={checkOutTime}
+              onDateChange={setCheckOutDate}
+              onTimeChange={setCheckOutTime}
+              min={checkInDate || localToday()}
             />
           </div>
+          {isSameDay && sameDayValid && (
+            <div className="sm:col-span-2 lg:col-span-4">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                <Clock className="size-3.5" aria-hidden />
+                {t("dayUseBadge", { hrs: dayUseHours })}
+              </span>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="wi-guest-type" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               {t("guestTypeLabel")}
@@ -3259,7 +3471,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           )}
           {!datesValid && (
             <p className="sm:col-span-2 lg:col-span-4 text-xs text-danger">
-              {t("datesInvalid")}
+              {isSameDay ? t("sameDayTimesInvalid") : t("datesInvalid")}
             </p>
           )}
         </div>
@@ -3481,13 +3693,54 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               checkOut={checkOutDate}
               selectedRooms={selectedRooms}
               onSelectionChange={setSelectedRooms}
-              checkInTime={settings.data?.check_in_time}
-              checkOutTime={settings.data?.check_out_time}
+              checkInTime={checkInTime || settings.data?.check_in_time}
+              checkOutTime={checkOutTime || settings.data?.check_out_time}
               adults={adultsCount}
               guestChildren={childCount}
               refreshKey={availRefreshKey}
             />
           </div>
+
+          {/* Editable per-room rates for the selected rooms — prefilled with
+              the computed default (base price per night, or day-use total). */}
+          {selectedAvailRooms.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("roomRatesTitle")}
+              </Label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {selectedAvailRooms.map((r) => (
+                  <div
+                    key={r.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <span className="block text-sm font-semibold">
+                        {r.room_number}
+                      </span>
+                      <span className="block text-[10px] text-muted-foreground">
+                        {isSameDay ? t("rateDayUseTotal") : t("ratePerNight")}
+                      </span>
+                    </div>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={rateEdits[r.id] ?? String(defaultRoomRate(r))}
+                      onChange={(e) =>
+                        setRateEdits((prev) => ({ ...prev, [r.id]: e.target.value }))
+                      }
+                      aria-label={t("rateForRoom", { room: r.room_number })}
+                      className="h-8 w-28 shrink-0 text-right text-sm tabular-nums"
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {t("rateOverrideHint")}
+              </p>
+            </div>
+          )}
         </div>
       </Section>
 
@@ -3496,32 +3749,20 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         <div className="space-y-4">
           {services.isLoading && <Skeleton className="h-10" />}
           {(services.data?.length ?? 0) > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {services.data?.map((svc) => {
-                const active = selectedServices.includes(svc.id);
-                return (
-                  <button
-                    key={svc.id}
-                    type="button"
-                    onClick={() => toggleService(svc.id)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
-                      active
-                        ? "border-navy-900 bg-navy-900 text-white font-medium"
-                        : "border-border text-muted-foreground hover:border-navy-900 hover:text-navy-900",
-                    )}
-                  >
-                    {svc.name}<span className={cn("text-xs", active ? "opacity-80" : "opacity-60")}>
-                      {fmtINR(svc.price)}
-                    </span>
-                  </button>
-                );
-              })}
-          </div>
+            <ServiceChips
+              services={services.data ?? []}
+              selectedIds={selectedServices}
+              onToggle={toggleService}
+              amounts={serviceAmounts}
+              onAmountChange={(id, amount) =>
+                setServiceAmounts((prev) => ({ ...prev, [id]: amount }))
+              }
+            />
           )}
           <SelectedServicesList
             services={services.data ?? []}
             selectedIds={selectedServices}
+            amounts={serviceAmounts}
           />
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -3683,6 +3924,17 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               <option value="Other">{t("veh_other")}</option>
             </select>
           </div>
+          {vehType === "Other" && (
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("vehicleTypeName")}</Label>
+              <Input
+                value={vehTypeOther}
+                onChange={(e) => setVehTypeOther(e.target.value)}
+                placeholder={t("vehicleTypeNamePlaceholder")}
+                maxLength={40}
+              />
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("makeName")}</Label>
             <Input value={vehMake} onChange={(e) => setVehMake(e.target.value)} placeholder={t("makePlaceholder")} />
@@ -3738,7 +3990,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                 return;
               }
               if (!datesValid) {
-                setError(t("datesInvalid"));
+                setError(isSameDay ? t("sameDayTimesInvalid") : t("datesInvalid"));
                 return;
               }
               if (fgEnabled && fgForm.passport_number.trim().length < 3) {
@@ -3829,7 +4081,10 @@ function ArrivalsStrip({
                 .join(", ") || t("noRooms")}
             </span>
             <span className="text-[10px] text-muted-foreground mt-0.5">
-              {fmtApiDate(booking.check_in_date)} → {fmtApiDate(booking.check_out_date)}
+              {fmtApiDate(booking.check_in_date)}
+              {booking.check_in_time ? `, ${booking.check_in_time}` : ""} →{" "}
+              {fmtApiDate(booking.check_out_date)}
+              {booking.check_out_time ? `, ${booking.check_out_time}` : ""}
             </span>
           </button>
         ))}

@@ -41,7 +41,9 @@ export function GuestPicker({ onSelected, selected }: GuestPickerProps) {
     },
     onSuccess: (data) => {
       setResults(data.items);
-      setShowCreate(data.items.length === 0);
+      // Client-requested flow: no auto-expand — show a "Create new guest"
+      // button on empty results and open the form only when clicked.
+      setShowCreate(false);
       // Capture the phone at search time so it correctly pre-fills the new guest form.
       setSearchedPhone(phone);
     },
@@ -162,10 +164,23 @@ export function GuestPicker({ onSelected, selected }: GuestPickerProps) {
       )}
 
       {results && results.length === 0 && (
-        <p className="text-sm text-muted-foreground">{t("noMatch")}</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-muted-foreground">{t("noMatch")}</p>
+          {!showCreate && (
+            <Button
+              type="button"
+              size="sm"
+              className="bg-gold-500 text-navy-900 hover:bg-gold-600"
+              onClick={() => setShowCreate(true)}
+            >
+              <UserPlus className="size-4" aria-hidden />
+              {t("createNewGuest")}
+            </Button>
+          )}
+        </div>
       )}
 
-      {(showCreate || results?.length === 0) && (
+      {showCreate && (
         <div className="space-y-3 border-t pt-3">
           <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase text-muted-foreground">
             <UserPlus className="size-3.5" aria-hidden />

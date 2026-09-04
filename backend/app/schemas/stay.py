@@ -93,6 +93,9 @@ class CheckInRequest(BaseModel):
     # or an unrecorded payment.
     charges: list[CheckinChargeIn] = Field(default_factory=list, max_length=20)
     advance_payment: CheckinPaymentIn | None = None
+    # Staff may set/correct the expected checkout time at check-in (client:
+    # "Missing Check-out Time field"). Stored on the booking.
+    check_out_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
 
 
 class CheckInOut(BaseModel):
@@ -133,7 +136,10 @@ class CurrentGuestOut(BaseModel):
     rooms: list[str]
     checked_in_at: datetime
     expected_checkout_at: datetime | None
+    check_in_date: date
     check_out_date: date
+    check_in_time: str | None = None
+    check_out_time: str | None = None
     payment_status: str
     due_amount: Decimal
     guest_count: int

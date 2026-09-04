@@ -13,9 +13,20 @@
   validation, ceil(hours)×hourly pricing w/ night fallback, day-use blocks calendar day in ALL
   overlap checks + availability endpoint, invoice "Day use (HH:MM–HH:MM)" lines, 5 tests.
   Rooms page has hourly-rate column+input. REMAINING: check-in/booking form same-day support+badges.
-- Backend suite: 116 passed. Frontend: tsc+eslint+prod build clean.
-- NEXT: Phase 3 (DateTimePicker rollout, new-guest button flow, editable rates, Mode B checkout
-  time, remove availability header, vehicle Other field), then Phases 4–6.
+- ✅ Phase 2 FRONTEND COMPLETE: day-use in check-in walk-in + advance-booking forms (same-day
+  validation, "Day use — N hrs" pill, hourly pricing), picker same-day mode w/ ₹X/hr hints.
+- ✅ Phase 3 COMPLETE: DateTimePicker rolled into check-in + advance-booking; date+time in all
+  listings (advance/completed/current-guests incl. print + day-use single-date format; arrivals
+  strip; CurrentGuestOut now carries check_in_date + both times); new-guest BUTTON flow (GuestPicker
+  + additional guests); editable room rates → rate_overrides (backend flows to BookingRoom.rate →
+  totals/ledger/invoice/audit); editable service-chip amounts; Mode B check-out time (CheckInRequest
+  .check_out_time → booking); "Available for …" header removed; vehicle Other → named field.
+  BookingUpdate also accepts check_in_time/check_out_time (Phase 4 prep).
+- Backend suite: 117 passed. Frontend: tsc+eslint+prod build clean.
+- NEXT: Phase 4 (Current Guests edit action + overdue badge, Completed Bookings view drawer w/ ID
+  images, Expenses filters + receipts, Rooms status-menu parity + friendly errors, Vendor GSTIN
+  validation, Payments actions UI), then Phase 5 (mobile nav, Aadhaar back OCR parser, deep links,
+  i18n parity) and Phase 6 (smoke extension, deploy verify). Phase 0.4 image-compression audit open.
 
 Sources: 21 client screenshots + WhatsApp notes (`main documents/client changes and bugs/`),
 three internal audits (check-in flows, money surfaces, cross-cutting UX), and user decisions.

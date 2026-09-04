@@ -35,6 +35,11 @@ type QuickRange = "all" | "today" | "last5" | "month" | "year";
 
 const PAGE_SIZE = 50;
 
+/** `DD/MM/YYYY` plus `, HH:MM` when a time is present (no dangling comma). */
+function fmtApiDateTime(date: string, time?: string | null): string {
+  return time ? `${fmtApiDate(date)}, ${time}` : fmtApiDate(date);
+}
+
 /** Format a Date as local YYYY-MM-DD (avoids UTC off-by-one). */
 function toLocalIso(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -243,7 +248,8 @@ function CompletedBookingsContent() {
                       {booking.rooms.map((r) => r.room_number).join(", ")}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {fmtApiDate(booking.check_in_date)} → {fmtApiDate(booking.check_out_date)}
+                      {fmtApiDateTime(booking.check_in_date, booking.check_in_time)} →{" "}
+                      {fmtApiDateTime(booking.check_out_date, booking.check_out_time)}
                     </TableCell>
                     <TableCell className="tabular-nums">{fmtINR(booking.total_amount)}</TableCell>
                     <TableCell>

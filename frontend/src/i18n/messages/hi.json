@@ -224,7 +224,8 @@
     "searchByLast4": "आईडी के अंतिम 4 अंक",
     "searchAction": "अतिथि खोजें",
     "autofill": "ऑटो-फ़िल",
-    "noMatch": "कोई मेल नहीं मिला। नया अतिथि बनाने के लिए विवरण भरें।",
+    "noMatch": "कोई मेल खाता अतिथि नहीं मिला।",
+    "createNewGuest": "नया अतिथि बनाएं",
     "guestSelected": "अतिथि चुना गया",
     "newGuest": "नया अतिथि",
     "fullName": "पूरा नाम",
@@ -1114,6 +1115,18 @@
     "noRooms": "कोई कमरा नहीं",
     "arrivalsLoadFailed": "आने वाली बुकिंग लोड नहीं हो सकी।",
     "walkInTitle": "वॉक-इन चेक-इन",
-    "walkInDescription": "कमरा बुक करता है और अतिथि को चेक-इन करता है — एक ही चरण में।"
+    "walkInDescription": "कमरा बुक करता है और अतिथि को चेक-इन करता है — एक ही चरण में।",
+    "checkinDateTime": "चेक-इन तिथि व समय",
+    "checkoutDateTime": "चेक-आउट तिथि व समय",
+    "dayUseBadge": "डे यूज़ — {hrs} घंटे",
+    "sameDayTimesInvalid": "उसी दिन (डे यूज़) ठहराव के लिए दोनों समय भरें — चेक-आउट समय चेक-इन समय के बाद होना चाहिए।",
+    "roomRatesTitle": "कमरे की दरें (संपादन योग्य)",
+    "ratePerNight": "प्रति रात दर (₹)",
+    "rateDayUseTotal": "डे यूज़ कुल राशि (₹)",
+    "rateForRoom": "कमरा {room} की दर",
+    "rateOverrideHint": "इस बुकिंग के लिए डिफ़ॉल्ट दर बदलने हेतु दर संपादित करें।",
+    "serviceAmountLabel": "{name} की राशि (₹)",
+    "vehicleTypeName": "वाहन प्रकार का नाम",
+    "vehicleTypeNamePlaceholder": "जैसे ट्रक"
   }
 }

@@ -63,15 +63,6 @@ function fmtDate(iso: string | null | undefined): string {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
-/** Convert "14:00:00" → "2:00 PM" */
-function fmtTime(hhmm: string | undefined): string {
-  if (!hhmm) return "";
-  const [h, m] = hhmm.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
-}
-
 /** Colour + icon for unavailable reason. */
 function reasonMeta(reason: string): { label: string; colour: string } {
   switch (reason) {
@@ -103,12 +94,18 @@ function AvailableChip({
   room,
   selected,
   onClick,
+  dayUse,
 }: {
   readonly room: RoomAvailableItem;
   readonly selected: boolean;
   readonly onClick: () => void;
+  /** Same-day (day-use) booking — show hourly rate when the room has one. */
+  readonly dayUse: boolean;
 }) {
   const hint = statusHint(room.status);
+  // Same-day (day-use) bookings are charged hourly when the room type has an
+  // hourly rate; otherwise the backend falls back to the nightly base price.
+  const hourlyRate = dayUse ? room.room_type_hourly_rate : null;
   return (
     <button
       type="button"
@@ -139,8 +136,17 @@ function AvailableChip({
         </span>
       )}
       <span className="mt-1 text-xs font-semibold text-navy-900">
-        {fmtINR(room.room_type_base_price)}
-        <span className="font-normal text-muted-foreground">/night</span>
+        {hourlyRate != null ? (
+          <>
+            {fmtINR(hourlyRate)}
+            <span className="font-normal text-muted-foreground">/hr</span>
+          </>
+        ) : (
+          <>
+            {fmtINR(room.room_type_base_price)}
+            <span className="font-normal text-muted-foreground">/night</span>
+          </>
+        )}
       </span>
       {/* Show current status as a small hint — room is still bookable */}
       {hint && (
@@ -191,8 +197,6 @@ export function RoomAvailabilityPicker({
   checkOut,
   selectedRooms,
   onSelectionChange,
-  checkInTime,
-  checkOutTime,
   adults = 1,
   guestChildren: childCount = 0,
   refreshKey = 0,
@@ -201,11 +205,13 @@ export function RoomAvailabilityPicker({
   const { activeHotelId } = useAuth();
   const [showUnavailable, setShowUnavailable] = useState(false);
 
+  // Same-day (check-in === check-out) is a valid day-use booking.
   const datesValid = !!(
     checkIn &&
     checkOut &&
-    checkIn < checkOut
+    checkIn <= checkOut
   );
+  const dayUse = datesValid && checkIn === checkOut;
 
   const { data, isLoading, isError, refetch } = useQuery<RoomAvailabilityOut>({
     queryKey: ["room-availability", activeHotelId, checkIn, checkOut],
@@ -307,18 +313,7 @@ export function RoomAvailabilityPicker({
     <div className="space-y-4">
       {/* ── Available rooms ───────────────────────────────────────────────── */}
       <div>
-        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Available for {fmtDate(checkIn)}
-            {checkInTime && (
-              <span className="ml-1 text-gold-600 font-bold">@ {fmtTime(checkInTime)}</span>
-            )}
-            {" → "}
-            {fmtDate(checkOut)}
-            {checkOutTime && (
-              <span className="ml-1 text-gold-600 font-bold">@ {fmtTime(checkOutTime)}</span>
-            )}
-          </p>
+        <div className="flex items-center justify-end mb-2 flex-wrap gap-2">
           <span className={cn(
             "rounded-full px-2 py-0.5 text-[10px] font-bold",
             available.length > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600",
@@ -344,6 +339,7 @@ export function RoomAvailabilityPicker({
                 room={room}
                 selected={selectedRooms.includes(room.id)}
                 onClick={() => toggleRoom(room.id)}
+                dayUse={dayUse}
               />
             ))}
           </div>

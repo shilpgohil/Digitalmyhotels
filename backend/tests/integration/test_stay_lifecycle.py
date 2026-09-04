@@ -276,6 +276,41 @@ async def test_book_and_checkin_atomic_walk_in(
     assert room_status[room_ids[0]] == "occupied"
 
 
+async def test_booking_rate_override_flows_to_totals(
+    client: AsyncClient, hotel_a: HotelFixture
+) -> None:
+    """Staff-edited room rent replaces the room-type price everywhere."""
+    headers = await _headers(client, hotel_a)
+    room_ids = await _setup_rooms(client, headers, count=1)
+    guest_id = await _make_guest(client, headers, "9888777662")
+
+    booking = await _make_booking(
+        client,
+        headers,
+        guest_id,
+        room_ids,
+        rate_overrides=[{"room_id": room_ids[0], "rate": "1500"}],
+    )
+    # 2 nights × overridden 1500 (base price is 2000).
+    assert Decimal(booking["total_amount"]) == 3000
+
+    # Override must reference a booked room.
+    bad = await client.post(
+        "/api/v1/bookings",
+        json={
+            "primary_guest_id": guest_id,
+            "room_ids": room_ids,
+            "check_in_date": str(TODAY + timedelta(days=30)),
+            "check_out_date": str(TODAY + timedelta(days=31)),
+            "rate_overrides": [
+                {"room_id": "00000000-0000-0000-0000-000000000001", "rate": "100"}
+            ],
+        },
+        headers=headers,
+    )
+    assert bad.status_code == 422
+
+
 async def test_book_and_checkin_atomic_payment_and_charges(
     client: AsyncClient, hotel_a: HotelFixture
 ) -> None:

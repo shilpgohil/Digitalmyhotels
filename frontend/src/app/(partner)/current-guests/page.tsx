@@ -43,6 +43,18 @@ import type { ListOut, RoomOut } from "@/types/hotel";
 import type { BookingOut, CurrentGuestOut } from "@/types/stay";
 import { RequirePermission } from "@/components/auth/require-permission";
 
+/** `DD/MM/YYYY` plus `, HH:MM` when a time is present (no dangling comma). */
+function fmtApiDateTime(date: string, time?: string | null): string {
+  return time ? `${fmtApiDate(date)}, ${time}` : fmtApiDate(date);
+}
+
+/** Day use (same check-in/out date) with both times known. */
+function isDayUseWithTimes(b: BookingOut): boolean {
+  return (
+    b.check_in_date === b.check_out_date && !!b.check_in_time && !!b.check_out_time
+  );
+}
+
 function CurrentGuestsContent() {
   const t = useTranslations("stay");
   const tb = useTranslations("bookings");
@@ -149,6 +161,7 @@ function CurrentGuestsContent() {
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground text-xs">
                       {fmtDate(entry.check_out_date)}
+                      {entry.check_out_time ? `, ${entry.check_out_time}` : ""}
                     </TableCell>
                     <TableCell>
                       <PaymentStatusBadge status={entry.payment_status} />
@@ -246,8 +259,12 @@ function StayDetailDialog({
       <table>
         <tr><td>${tb("guest")}</td><td>${b.primary_guest_name ?? ""}</td></tr>
         <tr><td>${tb("roomsCol")}</td><td>${rooms}</td></tr>
-        <tr><td>${tb("checkinDate")}</td><td>${fmtApiDate(b.check_in_date)}</td></tr>
-        <tr><td>${tb("checkoutDate")}</td><td>${fmtApiDate(b.check_out_date)}</td></tr>
+        ${
+          isDayUseWithTimes(b)
+            ? `<tr><td>${tb("dates")}</td><td>${fmtApiDate(b.check_in_date)}, ${b.check_in_time} – ${b.check_out_time}</td></tr>`
+            : `<tr><td>${tb("checkinDate")}</td><td>${fmtApiDateTime(b.check_in_date, b.check_in_time)}</td></tr>
+        <tr><td>${tb("checkoutDate")}</td><td>${fmtApiDateTime(b.check_out_date, b.check_out_time)}</td></tr>`
+        }
         <tr><td>${tb("adults")} / ${tb("children")}</td><td>${b.adults} / ${b.children}</td></tr>
         <tr><td>${tb("total")}</td><td>${fmtINR(b.total_amount)}</td></tr>
         <tr><td>${tb("due")}</td><td>${fmtINR(b.due_amount)}</td></tr>
@@ -281,8 +298,23 @@ function StayDetailDialog({
                 .map((r) => r.room_number)
                 .join(", ")}
             />
-            <Detail label={tb("checkinDate")} value={fmtApiDate(b.check_in_date)} />
-            <Detail label={tb("checkoutDate")} value={fmtApiDate(b.check_out_date)} />
+            {isDayUseWithTimes(b) ? (
+              <Detail
+                label={tb("dates")}
+                value={`${fmtApiDate(b.check_in_date)}, ${b.check_in_time} – ${b.check_out_time}`}
+              />
+            ) : (
+              <>
+                <Detail
+                  label={tb("checkinDate")}
+                  value={fmtApiDateTime(b.check_in_date, b.check_in_time)}
+                />
+                <Detail
+                  label={tb("checkoutDate")}
+                  value={fmtApiDateTime(b.check_out_date, b.check_out_time)}
+                />
+              </>
+            )}
             <Detail label={`${tb("adults")} / ${tb("children")}`} value={`${b.adults} / ${b.children}`} />
             <Detail label={tb("payment")} value={b.payment_status} />
             <Detail label={tb("total")} value={fmtINR(b.total_amount)} />

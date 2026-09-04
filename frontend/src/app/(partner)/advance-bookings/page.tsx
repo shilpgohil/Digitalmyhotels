@@ -41,6 +41,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 type StatusFilter = "all" | "pending" | "confirmed";
 
+/** `DD/MM/YYYY` plus `, HH:MM` when a time is present (no dangling comma). */
+function fmtApiDateTime(date: string, time?: string | null): string {
+  return time ? `${fmtApiDate(date)}, ${time}` : fmtApiDate(date);
+}
+
 function AdvanceBookingsContent() {
   const t = useTranslations("bookings");
   const tn = useTranslations("nav");
@@ -275,7 +280,8 @@ function AdvanceBookingsContent() {
                         .join(", ")}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {fmtApiDate(booking.check_in_date)} → {fmtApiDate(booking.check_out_date)}
+                      {fmtApiDateTime(booking.check_in_date, booking.check_in_time)} →{" "}
+                      {fmtApiDateTime(booking.check_out_date, booking.check_out_time)}
                     </TableCell>
                     <TableCell className="tabular-nums">{fmtINR(booking.total_amount)}</TableCell>
                     <TableCell>

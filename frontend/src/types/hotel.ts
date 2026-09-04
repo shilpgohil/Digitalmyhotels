@@ -99,6 +99,7 @@ export interface RoomAvailableItem {
   room_type_id: string;
   room_type_name: string | null;
   room_type_base_price: string;
+  room_type_hourly_rate: string | null;
   max_occupancy: number;
   amenities: string[];
 }

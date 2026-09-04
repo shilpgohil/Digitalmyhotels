@@ -109,6 +109,7 @@ class RoomAvailableItem(BaseModel):
     room_type_id: UUID
     room_type_name: str | None
     room_type_base_price: Decimal
+    room_type_hourly_rate: Decimal | None = None
     max_occupancy: int
     amenities: list[str]
 

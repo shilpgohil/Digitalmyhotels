@@ -128,6 +128,10 @@ async def check_in(
         assert_transition(room.status, RoomStatus.OCCUPIED)
         room.status = RoomStatus.OCCUPIED.value
 
+    # Staff may set/correct the expected checkout time at check-in.
+    if body.check_out_time:
+        booking.check_out_time = body.check_out_time
+
     checkin = CheckIn(
         hotel_id=hotel_id,
         booking_id=booking.id,
@@ -386,7 +390,10 @@ async def list_current_guests(
                 rooms=room_nums,
                 checked_in_at=checkin.checked_in_at if checkin else booking.created_at,
                 expected_checkout_at=checkin.expected_checkout_at if checkin else None,
+                check_in_date=booking.check_in_date,
                 check_out_date=booking.check_out_date,
+                check_in_time=booking.check_in_time,
+                check_out_time=booking.check_out_time,
                 payment_status=booking.payment_status,
                 due_amount=booking.due_amount,
                 guest_count=max(reg_counts.get(booking.id, 0), 1),

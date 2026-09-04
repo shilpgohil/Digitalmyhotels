@@ -15,14 +15,16 @@
  *  2. POST /api/v1/payments  — if advance amount > 0 (purpose: "advance")
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   BedDouble,
   CalendarPlus,
   ClipboardList,
+  Clock,
   CreditCard,
   FileText,
   Minus,
@@ -32,8 +34,7 @@ import {
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DateInput } from "@/components/ui/date-input";
-import { TimeInput } from "@/components/ui/time-input";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Label } from "@/components/ui/label";
 import { GuestPicker } from "@/components/guests/guest-picker";
 import { RoomAvailabilityPicker } from "@/components/rooms/room-availability-picker";
@@ -42,7 +43,8 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError, API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { localToday, localTomorrow } from "@/lib/formatting";
-import type { BookingOut } from "@/types/stay";
+import type { BookingOut, RoomRateOverride } from "@/types/stay";
+import type { RoomAvailabilityOut, RoomAvailableItem } from "@/types/hotel";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
 
@@ -53,6 +55,13 @@ const GUEST_TYPES = [
   { value: "group", label: "Group" },
   { value: "other", label: "Other" },
 ];
+
+/** "HH:MM" → minutes since midnight; NaN when malformed. */
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return Number.NaN;
+  return h * 60 + m;
+}
 
 const PAYMENT_MODES = [
   { value: "cash", label: "Cash" },
@@ -137,6 +146,8 @@ function AdvanceBookingContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { activeHotelId } = useAuth();
+  // Shared strings with the check-in page (date/time labels, day use, rates).
+  const t = useTranslations("checkin");
 
   // ── 1. Booking details ──
   const [checkIn, setCheckIn] = useState(localToday);
@@ -153,6 +164,10 @@ function AdvanceBookingContent() {
   const [adults, setAdults] = useState(1);
   const [children, setChildren] = useState(0);
   const [availRefreshKey, setAvailRefreshKey] = useState(0);
+  // Staff-edited room rates keyed by room_id (per night, or whole stay for
+  // day use). Only edits that differ from the computed default are sent as
+  // rate_overrides in the booking payload.
+  const [rateEdits, setRateEdits] = useState<Record<string, string>>({});
 
   // ── 4. Special instructions ──
   const [specialInstructions, setSpecialInstructions] = useState("");
@@ -238,14 +253,75 @@ function AdvanceBookingContent() {
     staleTime: 5 * 60_000,
   });
 
+  // ── Day use (same-day stay) — valid when both times are set and check-out
+  // is after check-in; billed as ceil(hours) × room_type hourly rate
+  // (fallback: full-night base price when the room type has no hourly rate).
+  const isSameDay = !!checkIn && !!checkOut && checkIn === checkOut;
+  const sameDayValid =
+    isSameDay &&
+    !!checkInTime &&
+    !!checkOutTime &&
+    Number.isFinite(timeToMinutes(checkInTime)) &&
+    Number.isFinite(timeToMinutes(checkOutTime)) &&
+    timeToMinutes(checkOutTime) > timeToMinutes(checkInTime);
+  const dayUseHours = sameDayValid
+    ? Math.ceil((timeToMinutes(checkOutTime) - timeToMinutes(checkInTime)) / 60)
+    : 0;
+
+  // Same-day is allowed as a day-use stay when both times are set and
+  // check-out time is after check-in time.
+  const datesValid =
+    !!checkIn && !!checkOut && (checkIn < checkOut || sameDayValid);
+
+  // ── Room rates: read the room availability cache (same queryKey as the
+  // picker) to get rates for the selected rooms.
+  const availData = queryClient.getQueryData<RoomAvailabilityOut>([
+    "room-availability",
+    activeHotelId,
+    checkIn,
+    checkOut,
+  ]);
+  const selectedAvailRooms = useMemo(
+    () =>
+      (availData?.available ?? []).filter((r) => selectedRooms.includes(r.id)),
+    [availData, selectedRooms],
+  );
+  /** Default rate for a room: base price per night, or day-use total. */
+  const defaultRoomRate = (r: RoomAvailableItem): number => {
+    const base = Number.parseFloat(r.room_type_base_price) || 0;
+    if (!isSameDay) return base;
+    const hourly =
+      r.room_type_hourly_rate != null
+        ? Number.parseFloat(r.room_type_hourly_rate)
+        : Number.NaN;
+    return Number.isFinite(hourly) && hourly > 0 && dayUseHours > 0
+      ? hourly * dayUseHours
+      : base;
+  };
+
   const mutation = useMutation({
     mutationFn: async () => {
+      // Only rates actually edited away from the computed default are sent.
+      const rateOverrides: RoomRateOverride[] = selectedAvailRooms
+        .filter((r) => {
+          const edited = rateEdits[r.id]?.trim();
+          if (!edited) return false;
+          const parsed = Number.parseFloat(edited);
+          return (
+            Number.isFinite(parsed) &&
+            parsed >= 0 &&
+            parsed !== defaultRoomRate(r)
+          );
+        })
+        .map((r) => ({ room_id: r.id, rate: rateEdits[r.id].trim() }));
+
       // 1. Create the booking
       const booking = await api<BookingOut>("/api/v1/bookings", {
         method: "POST",
         body: {
           primary_guest_id: guest?.id,
           room_ids: selectedRooms,
+          rate_overrides: rateOverrides.length > 0 ? rateOverrides : undefined,
           check_in_date: checkIn,
           check_out_date: checkOut,
           check_in_time: checkInTime || null,
@@ -291,7 +367,8 @@ function AdvanceBookingContent() {
     },
   });
 
-  const canSubmit = !!guest?.id && selectedRooms.length > 0 && !mutation.isPending;
+  const canSubmit =
+    !!guest?.id && selectedRooms.length > 0 && datesValid && !mutation.isPending;
 
   return (
     <>
@@ -305,6 +382,10 @@ function AdvanceBookingContent() {
               setError("Please select a guest and at least one room.");
               return;
             }
+            if (!datesValid) {
+              setError(t("sameDayTimesInvalid"));
+              return;
+            }
             setError(null);
             mutation.mutate();
           }}
@@ -312,48 +393,42 @@ function AdvanceBookingContent() {
           {/* ── 1. Booking Details ─────────────────────────────────────── */}
           <Card icon={ClipboardList} title="Booking Details" subtitle="Stay dates and guest type">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 lg:col-span-2">
                 <Label htmlFor="ab-cin" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Check-in Date *
+                  {t("checkinDateTime")} *
                 </Label>
-                <DateInput id="ab-cin" required value={checkIn} onChange={setCheckIn} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="ab-cin-time" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Check-in Time
-                  {settings.data?.check_in_time && (
-                    <span className="ml-1 text-gold-600 font-bold normal-case">
-                      (default {settings.data.check_in_time.slice(0, 5)})
-                    </span>
-                  )}
-                </Label>
-                <TimeInput
-                  id="ab-cin-time"
-                  value={checkInTime}
-                  onChange={setCheckInTime}
+                <DateTimePicker
+                  id="ab-cin"
+                  required
+                  dateValue={checkIn}
+                  timeValue={checkInTime}
+                  onDateChange={setCheckIn}
+                  onTimeChange={setCheckInTime}
+                  min={localToday()}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 lg:col-span-2">
                 <Label htmlFor="ab-cout" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Check-out Date *
+                  {t("checkoutDateTime")} *
                 </Label>
-                <DateInput id="ab-cout" required value={checkOut} onChange={setCheckOut} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="ab-cout-time" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Check-out Time
-                  {settings.data?.check_out_time && (
-                    <span className="ml-1 text-gold-600 font-bold normal-case">
-                      (default {settings.data.check_out_time.slice(0, 5)})
-                    </span>
-                  )}
-                </Label>
-                <TimeInput
-                  id="ab-cout-time"
-                  value={checkOutTime}
-                  onChange={setCheckOutTime}
+                <DateTimePicker
+                  id="ab-cout"
+                  required
+                  dateValue={checkOut}
+                  timeValue={checkOutTime}
+                  onDateChange={setCheckOut}
+                  onTimeChange={setCheckOutTime}
+                  min={checkIn || localToday()}
                 />
               </div>
+              {isSameDay && sameDayValid && (
+                <div className="sm:col-span-2 lg:col-span-4">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                    <Clock className="size-3.5" aria-hidden />
+                    {t("dayUseBadge", { hrs: dayUseHours })}
+                  </span>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label htmlFor="ab-guest-type" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   Guest Type
@@ -401,6 +476,48 @@ function AdvanceBookingContent() {
                 guestChildren={children}
                 refreshKey={availRefreshKey}
               />
+
+              {/* Editable per-room rates for the selected rooms — prefilled
+                  with the computed default (base price per night, or day-use
+                  total). */}
+              {selectedAvailRooms.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t("roomRatesTitle")}
+                  </Label>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {selectedAvailRooms.map((r) => (
+                      <div
+                        key={r.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <span className="block text-sm font-semibold">
+                            {r.room_number}
+                          </span>
+                          <span className="block text-[10px] text-muted-foreground">
+                            {isSameDay ? t("rateDayUseTotal") : t("ratePerNight")}
+                          </span>
+                        </div>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={rateEdits[r.id] ?? String(defaultRoomRate(r))}
+                          onChange={(e) =>
+                            setRateEdits((prev) => ({ ...prev, [r.id]: e.target.value }))
+                          }
+                          aria-label={t("rateForRoom", { room: r.room_number })}
+                          className="h-8 w-28 shrink-0 text-right text-sm tabular-nums"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    {t("rateOverrideHint")}
+                  </p>
+                </div>
+              )}
             </div>
           </Card>
 
