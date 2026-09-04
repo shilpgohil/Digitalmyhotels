@@ -1,5 +1,22 @@
 # Master Fix Plan — Client Feedback + Internal Audit (2026-09-04)
 
+## Progress (updated 2026-09-04 evening — commit 9c4ca86, deployed)
+
+- ✅ Phase 0 COMPLETE: whole-rupee rounding (backend money() + frontend fmtINR across 24 files),
+  DateTimePicker component built (not yet wired — Phase 3), cursor:pointer, keep-alive fixed.
+  0.4 image-compression audit still open.
+- ✅ Phase 1 COMPLETE: settle_booking_amounts everywhere; refund ledger at checkout;
+  compute_settlement() + GET /checkouts/{id}/preview (checkout==invoice by construction);
+  atomic check-in (charges+advance inside txn, both modes, frontend wired); Remaining honesty;
+  Mode B GST from hotel rate. CheckoutDialog retired — current-guests deep-links /checkout?booking=.
+- ✅ Phase 2 BACKEND COMPLETE: room_types.hourly_rate (+migration 83ac59174f62), same-day-with-times
+  validation, ceil(hours)×hourly pricing w/ night fallback, day-use blocks calendar day in ALL
+  overlap checks + availability endpoint, invoice "Day use (HH:MM–HH:MM)" lines, 5 tests.
+  Rooms page has hourly-rate column+input. REMAINING: check-in/booking form same-day support+badges.
+- Backend suite: 116 passed. Frontend: tsc+eslint+prod build clean.
+- NEXT: Phase 3 (DateTimePicker rollout, new-guest button flow, editable rates, Mode B checkout
+  time, remove availability header, vehicle Other field), then Phases 4–6.
+
 Sources: 21 client screenshots + WhatsApp notes (`main documents/client changes and bugs/`),
 three internal audits (check-in flows, money surfaces, cross-cutting UX), and user decisions.
 
