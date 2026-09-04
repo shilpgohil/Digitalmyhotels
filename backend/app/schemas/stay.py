@@ -39,6 +39,41 @@ class ForeignGuestOut(ForeignGuestIn):
     guest_id: UUID
 
 
+class SettlementPreviewOut(BaseModel):
+    """Bill preview — identical math to the actual checkout."""
+
+    room_subtotal: Decimal
+    gst_amount: Decimal
+    charges_total: Decimal
+    late_fee: Decimal
+    discount: Decimal
+    final_total: Decimal
+    advance_paid: Decimal
+    security_deposit: Decimal
+    effective_paid: Decimal
+    due: Decimal
+    refund: Decimal
+
+
+class CheckinPaymentIn(BaseModel):
+    """Advance collected at the desk during check-in (only sent when the
+    staff ticks "Payment collected")."""
+
+    amount: Decimal = Field(gt=0)
+    method: str = Field(pattern="^(cash|upi|card|bank_transfer|other)$")
+
+
+class CheckinChargeIn(BaseModel):
+    """Charge applied at check-in time (service chips, extra charges)."""
+
+    description: str = Field(min_length=2, max_length=255)
+    amount: Decimal = Field(gt=0)
+    category: str = Field(
+        default="other",
+        pattern="^(food|restaurant|laundry|room_service|extra_bed|minibar|transport|damage|other)$",
+    )
+
+
 class CheckInRequest(BaseModel):
     booking_id: UUID
     checked_in_at: datetime | None = None
@@ -53,6 +88,11 @@ class CheckInRequest(BaseModel):
     terms_acknowledged: bool = False
     # Form C data when the primary guest is a foreign national.
     foreign_guest: ForeignGuestIn | None = None
+    # Atomic extras — applied inside the SAME transaction as the check-in so a
+    # network failure can never leave a guest checked in with missing charges
+    # or an unrecorded payment.
+    charges: list[CheckinChargeIn] = Field(default_factory=list, max_length=20)
+    advance_payment: CheckinPaymentIn | None = None
 
 
 class CheckInOut(BaseModel):
@@ -81,6 +121,8 @@ class BookAndCheckInRequest(BaseModel):
     notes: str | None = Field(default=None, max_length=2000)
     terms_acknowledged: bool = False
     foreign_guest: ForeignGuestIn | None = None
+    charges: list[CheckinChargeIn] = Field(default_factory=list, max_length=20)
+    advance_payment: CheckinPaymentIn | None = None
 
 
 class CurrentGuestOut(BaseModel):

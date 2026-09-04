@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/feedback/status-badge";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
+import { fmtINR } from "@/lib/formatting";
 import type { ShiftHandoverOut } from "@/types/money";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -95,7 +96,7 @@ function ShiftHandoverContent() {
             <li key={h.id} className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
               <div className="text-sm">
                 <p>
-                  {t("openingCash")} ₹{h.opening_cash} → {t("closingCash")} ₹{h.closing_cash}
+                  {t("openingCash")} {fmtINR(h.opening_cash)} → {t("closingCash")} {fmtINR(h.closing_cash)}
                 </p>
                 <StatusBadge tone={h.confirmed ? "success" : "warning"}>
                   {h.confirmed ? t("confirmed") : t("pending")}

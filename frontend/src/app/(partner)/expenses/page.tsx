@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
-import { fmtApiDate, localToday } from "@/lib/formatting";
+import { fmtApiDate, fmtINR, localToday } from "@/lib/formatting";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -147,7 +147,7 @@ function ExpensesContent() {
                 {expenses.data.items.map((ex) => (
                   <TableRow key={ex.id}>
                     <TableCell>{fmtApiDate(ex.expense_date)}</TableCell>
-                    <TableCell className="tabular-nums">₹{ex.amount}</TableCell>
+                    <TableCell className="tabular-nums">{fmtINR(ex.amount)}</TableCell>
                     <TableCell>{ex.description ?? "—"}</TableCell>
                     <TableCell>
                       <StatusBadge tone={TONE[ex.status] ?? "neutral"}>

@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api/client";
-import { fmtDate } from "@/lib/formatting";
+import { fmtDate, fmtINR } from "@/lib/formatting";
 import type { HotelAdminOut, PlatformDashboardOut } from "@/types/money";
 import { RenewDialog } from "@/components/admin/renew-dialog";
 
@@ -52,7 +52,7 @@ function fmtRevenue(v: number | string): string {
   const n = typeof v === "string" ? parseFloat(v) : v;
   if (n >= 100000) return `₹${(n / 100000).toFixed(2).replace(/\.?0+$/, "")}L`;
   if (n >= 1000)   return `₹${(n / 1000).toFixed(1).replace(/\.?0+$/, "")}K`;
-  return `₹${n.toFixed(0)}`;
+  return fmtINR(n);
 }
 
 export default function AdminDashboardPage() {

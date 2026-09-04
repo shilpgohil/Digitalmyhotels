@@ -29,6 +29,7 @@ import {
 import { StatusBadge } from "@/components/feedback/status-badge";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
+import { fmtINR } from "@/lib/formatting";
 import { API_BASE, ApiError } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import type { ListOut } from "@/types/hotel";
@@ -118,8 +119,8 @@ function InvoicesContent() {
                   <TableRow key={inv.id}>
                     <TableCell className="font-medium">{inv.invoice_number}</TableCell>
                     <TableCell>{inv.guest_name}</TableCell>
-                    <TableCell className="tabular-nums">₹{inv.total_amount}</TableCell>
-                    <TableCell className="tabular-nums">₹{inv.due_amount}</TableCell>
+                    <TableCell className="tabular-nums">{fmtINR(inv.total_amount)}</TableCell>
+                    <TableCell className="tabular-nums">{fmtINR(inv.due_amount)}</TableCell>
                     <TableCell>
                       <StatusBadge tone={inv.status === "cancelled" ? "danger" : "info"}>
                         {t(`status_${inv.status}`)}

@@ -15,7 +15,7 @@ from app.models.payment import HotelCharge
 from app.repositories.hotels import get_or_create_gst_settings
 from app.schemas.payment import ChargeCreate
 from app.services.audit import write_audit
-from app.services.bookings import get_booking
+from app.services.bookings import get_booking, settle_booking_amounts
 from app.services.ledger import append_entry
 
 
@@ -71,7 +71,9 @@ async def add_charge(
 
     booking.total_amount = money(booking.total_amount + total)
     booking.tax_amount = money(booking.tax_amount + tax)
-    booking.due_amount = money(booking.due_amount + total)
+    # Recompute due AND payment status — a paid booking that gains a charge
+    # must flip back to "partial" (client bug: PAID badge with ₹200 due).
+    settle_booking_amounts(booking)
 
     await append_entry(
         db,
@@ -131,7 +133,7 @@ async def void_charge(
     charge.voided_at = datetime.now(UTC)
     booking.total_amount = money(booking.total_amount - charge.total_amount)
     booking.tax_amount = money(booking.tax_amount - charge.tax_amount)
-    booking.due_amount = money(booking.due_amount - charge.total_amount)
+    settle_booking_amounts(booking)
 
     await append_entry(
         db,

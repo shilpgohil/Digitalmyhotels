@@ -69,6 +69,7 @@ export interface RoomTypeOut {
   description: string | null;
   base_price: string;
   extra_guest_price: string;
+  hourly_rate: string | null;
   max_occupancy: number;
   is_active: boolean;
 }

@@ -32,6 +32,7 @@ import { RequirePermission } from "@/components/auth/require-permission";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
+import { fmtINR } from "@/lib/formatting";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { ListOut } from "@/types/hotel";
 import type { BookingOut } from "@/types/stay";
@@ -143,10 +144,10 @@ function PaymentsContent() {
           <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             {(
               [
-                ["totalCollected", `₹${summary.data.total_collected}`, "bg-navy-900 text-white"],
+                ["totalCollected", fmtINR(summary.data.total_collected), "bg-navy-900 text-white"],
                 ["paidCard", String(summary.data.paid_bookings), "bg-green-800 text-white"],
-                ["cash", `₹${summary.data.cash}`, "bg-gold-500 text-navy-900"],
-                ["upi", `₹${summary.data.upi}`, "bg-success text-white"],
+                ["cash", fmtINR(summary.data.cash), "bg-gold-500 text-navy-900"],
+                ["upi", fmtINR(summary.data.upi), "bg-success text-white"],
                 ["partialCard", String(summary.data.partial_bookings), "bg-amber-700 text-white"],
                 ["pendingCard", String(summary.data.unpaid_bookings), "bg-danger text-white"],
               ] as const
@@ -212,7 +213,7 @@ function PaymentsContent() {
               <TableBody>
                 {payments.data.items.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell className="tabular-nums">₹{p.amount}</TableCell>
+                    <TableCell className="tabular-nums">{fmtINR(p.amount)}</TableCell>
                     <TableCell>{t(p.method)}</TableCell>
                     <TableCell>{t(`purpose_${p.purpose}`)}</TableCell>
                     <TableCell>{p.reference ?? "—"}</TableCell>
@@ -238,7 +239,7 @@ function PaymentsContent() {
                     {c.description} × {c.quantity}
                     {c.voided_at ? " (void)" : ""}
                   </span>
-                  <span className="tabular-nums">₹{c.total_amount}</span>
+                  <span className="tabular-nums">{fmtINR(c.total_amount)}</span>
                 </li>
               ))}
             </ul>
@@ -267,10 +268,10 @@ function PaymentsContent() {
                     <TableRow key={b.id}>
                       <TableCell className="font-medium">{b.booking_number}</TableCell>
                       <TableCell>{b.primary_guest_name ?? "—"}</TableCell>
-                      <TableCell className="tabular-nums">₹{b.total_amount}</TableCell>
-                      <TableCell className="tabular-nums">₹{b.tax_amount}</TableCell>
-                      <TableCell className="tabular-nums">₹{b.advance_amount}</TableCell>
-                      <TableCell className="tabular-nums font-medium">₹{b.due_amount}</TableCell>
+                      <TableCell className="tabular-nums">{fmtINR(b.total_amount)}</TableCell>
+                      <TableCell className="tabular-nums">{fmtINR(b.tax_amount)}</TableCell>
+                      <TableCell className="tabular-nums">{fmtINR(b.advance_amount)}</TableCell>
+                      <TableCell className="tabular-nums font-medium">{fmtINR(b.due_amount)}</TableCell>
                       <TableCell>
                         <StatusBadge
                           tone={
@@ -297,7 +298,7 @@ function PaymentsContent() {
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold">{t("ledger")}</h2>
               <p className="text-sm">
-                {t("balance")}: <span className="tabular-nums font-semibold">₹{ledger.data.balance}</span>
+                {t("balance")}: <span className="tabular-nums font-semibold">{fmtINR(ledger.data.balance)}</span>
               </p>
             </div>
             <ul className="space-y-1 text-sm">
@@ -306,7 +307,7 @@ function PaymentsContent() {
                   <span>
                     {e.entry_type === "debit" ? t("debit") : t("credit")} · {e.description}
                   </span>
-                  <span className="tabular-nums">₹{e.amount}</span>
+                  <span className="tabular-nums">{fmtINR(e.amount)}</span>
                 </li>
               ))}
             </ul>

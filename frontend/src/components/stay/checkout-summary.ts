@@ -15,9 +15,11 @@ export function money(v: string | number | null | undefined): number {
   return typeof v === "string" ? parseFloat(v) || 0 : v;
 }
 
-/** Format a number as Indian-locale currency, e.g. `₹1,234.50`. */
+/** Format a number as whole-rupee Indian-locale currency, e.g. `₹1,235`.
+ *  Matches backend ROUND_HALF_UP whole-rupee rounding (₹200.50 → ₹201). */
 export function fmtMoney(v: number): string {
-  return `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (!Number.isFinite(v)) return "₹0";
+  return `₹${Math.round(v).toLocaleString("en-IN")}`;
 }
 
 /** Human labels for extra-charge categories. */

@@ -84,8 +84,8 @@ async def test_charge_payment_ledger_flow(
         headers=headers,
     )
     assert charge.status_code == 201, charge.text
-    assert charge.json()["tax_amount"] == "60.00"
-    assert charge.json()["total_amount"] == "560.00"
+    assert Decimal(charge.json()["tax_amount"]) == 60
+    assert Decimal(charge.json()["total_amount"]) == 560
 
     # Collect a partial cash payment of 1500.
     payment = await client.post(
@@ -97,18 +97,18 @@ async def test_charge_payment_ledger_flow(
 
     detail = await client.get(f"/api/v1/bookings/{booking_id}", headers=headers)
     body = detail.json()
-    assert body["total_amount"] == "2560.00"
-    assert body["advance_amount"] == "1500.00"
-    assert body["due_amount"] == "1060.00"
+    assert Decimal(body["total_amount"]) == 2560
+    assert Decimal(body["advance_amount"]) == 1500
+    assert Decimal(body["due_amount"]) == 1060
     assert body["payment_status"] == "partial"
 
     # Ledger: debit 2000 (rooms), debit 560 (charge), credit 1500 → balance 1060.
     ledger = await client.get(f"/api/v1/payments/ledger/{booking_id}", headers=headers)
     assert ledger.status_code == 200
-    assert ledger.json()["balance"] == "1060.00"
+    assert Decimal(ledger.json()["balance"]) == 1060
     entries = ledger.json()["items"]
     assert [e["entry_type"] for e in entries] == ["debit", "debit", "credit"]
-    assert entries[-1]["balance_after"] == "1060.00"
+    assert Decimal(entries[-1]["balance_after"]) == 1060
 
     # Correct the payment 1500 → 1200: original marked corrected, new record.
     correction = await client.post(
@@ -120,8 +120,8 @@ async def test_charge_payment_ledger_flow(
     assert correction.json()["corrects_payment_id"] == payment.json()["id"]
 
     detail = await client.get(f"/api/v1/bookings/{booking_id}", headers=headers)
-    assert detail.json()["advance_amount"] == "1200.00"
-    assert detail.json()["due_amount"] == "1360.00"
+    assert Decimal(detail.json()["advance_amount"]) == 1200
+    assert Decimal(detail.json()["due_amount"]) == 1360
 
     # Refund 200.
     refund = await client.post(
@@ -136,7 +136,7 @@ async def test_charge_payment_ledger_flow(
     )
     assert refund.status_code == 201, refund.text
     detail = await client.get(f"/api/v1/bookings/{booking_id}", headers=headers)
-    assert detail.json()["advance_amount"] == "1000.00"
+    assert Decimal(detail.json()["advance_amount"]) == 1000
 
     # Void the charge — booking totals shrink, ledger credit appended.
     void = await client.post(
@@ -144,7 +144,7 @@ async def test_charge_payment_ledger_flow(
     )
     assert void.status_code == 200, void.text
     detail = await client.get(f"/api/v1/bookings/{booking_id}", headers=headers)
-    assert detail.json()["total_amount"] == "2000.00"
+    assert Decimal(detail.json()["total_amount"]) == 2000
 
 
 async def test_invoice_generation_and_cancel(
@@ -166,10 +166,10 @@ async def test_invoice_generation_and_cancel(
     assert invoice.status_code == 201, invoice.text
     body = invoice.json()
     # 2 nights x 1000 = 2000 taxable + 12% GST = 2240
-    assert body["subtotal"] == "2000.00"
-    assert body["cgst_amount"] == "120.00"
-    assert body["sgst_amount"] == "120.00"
-    assert body["total_amount"] == "2240.00"
+    assert Decimal(body["subtotal"]) == 2000
+    assert Decimal(body["cgst_amount"]) == 120
+    assert Decimal(body["sgst_amount"]) == 120
+    assert Decimal(body["total_amount"]) == 2240
     assert body["status"] == "generated"
     assert len(body["items"]) == 1
 

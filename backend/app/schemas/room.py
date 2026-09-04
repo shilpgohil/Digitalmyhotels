@@ -16,6 +16,7 @@ class RoomTypeOut(ORMModel):
     description: str | None
     base_price: Decimal
     extra_guest_price: Decimal
+    hourly_rate: Decimal | None
     max_occupancy: int
     is_active: bool
 
@@ -26,6 +27,7 @@ class RoomTypeCreate(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     base_price: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
     extra_guest_price: Decimal = Field(default=Decimal("0.00"), ge=0)
+    hourly_rate: Decimal | None = Field(default=None, ge=0, le=Decimal("9999999999.99"))
     max_occupancy: int = Field(default=2, ge=1, le=20)
 
 
@@ -34,6 +36,7 @@ class RoomTypeUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     base_price: Decimal | None = Field(default=None, ge=0)
     extra_guest_price: Decimal | None = Field(default=None, ge=0)
+    hourly_rate: Decimal | None = Field(default=None, ge=0)
     max_occupancy: int | None = Field(default=None, ge=1, le=20)
     is_active: bool | None = None
 

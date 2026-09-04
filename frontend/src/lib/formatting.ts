@@ -102,6 +102,14 @@ export function fmtTime(iso: string | null | undefined): string {
   }
 }
 
+/** Format a monetary value as whole rupees with Indian digit grouping.
+ *  Client requirement: whole-rupee amounts platform-wide (₹200.50 → ₹201). */
+export function fmtINR(value: string | number | null | undefined): string {
+  const n = typeof value === "string" ? Number.parseFloat(value) : (value ?? 0);
+  if (!Number.isFinite(n)) return "₹0";
+  return `₹${Math.round(n).toLocaleString("en-IN")}`;
+}
+
 /**
  * Format a UTC ISO datetime as a full locale-aware string → "31 Aug 2026, 14:30:05".
  * Use for audit logs and other verbose displays.

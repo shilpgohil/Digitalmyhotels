@@ -14,7 +14,7 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
-import { fmtApiDate } from "@/lib/formatting";
+import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import type { DailyClosingOut } from "@/types/money";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -91,12 +91,12 @@ function DailyClosingContent() {
             <dl className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
               <Stat label={t("checkins")} value={String(row.checkins_count)} />
               <Stat label={t("checkouts")} value={String(row.checkouts_count)} />
-              <Stat label={t("cash")} value={`₹${row.cash_collected}`} />
-              <Stat label={t("upi")} value={`₹${row.upi_collected}`} />
-              <Stat label={t("revenue")} value={`₹${row.total_revenue}`} />
-              <Stat label={t("expenses")} value={`₹${row.total_expenses}`} />
-              <Stat label={t("refunds")} value={`₹${row.refunds_total}`} />
-              <Stat label={t("dues")} value={`₹${row.dues_total}`} />
+              <Stat label={t("cash")} value={fmtINR(row.cash_collected)} />
+              <Stat label={t("upi")} value={fmtINR(row.upi_collected)} />
+              <Stat label={t("revenue")} value={fmtINR(row.total_revenue)} />
+              <Stat label={t("expenses")} value={fmtINR(row.total_expenses)} />
+              <Stat label={t("refunds")} value={fmtINR(row.refunds_total)} />
+              <Stat label={t("dues")} value={fmtINR(row.dues_total)} />
             </dl>
             {row.status === "open" && (
               <div className="mt-4 space-y-3">

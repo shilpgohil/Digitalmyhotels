@@ -14,7 +14,7 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
-import { fmtApiDate } from "@/lib/formatting";
+import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { GstSettingsOut, HotelOut, ListOut } from "@/types/hotel";
 import type { InvoiceOut } from "@/types/money";
@@ -71,12 +71,10 @@ function InvoicePreviewContent() {
   });
 
   const gstTotal = invoice
-    ? (
-        Number(invoice.cgst_amount) +
-        Number(invoice.sgst_amount) +
-        Number(invoice.igst_amount)
-      ).toFixed(2)
-    : "0.00";
+    ? Number(invoice.cgst_amount) +
+      Number(invoice.sgst_amount) +
+      Number(invoice.igst_amount)
+    : 0;
 
   const hotelAddress = hotel.data
     ? [
@@ -96,7 +94,7 @@ function InvoicePreviewContent() {
   const shareInvoiceWhatsApp = async () => {
     if (!invoice || !guestPhone) return;
     const hotelName = hotel.data?.name ?? "";
-    const text = `${hotelName} — ${t("waInvoice")} ${invoice.invoice_number} — ${t("waTotalDue")} ₹${invoice.due_amount}`;
+    const text = `${hotelName} — ${t("waInvoice")} ${invoice.invoice_number} — ${t("waTotalDue")} ${fmtINR(invoice.due_amount)}`;
 
     // Mobile: try Web Share API with the PDF file attached.
     if (typeof navigator !== "undefined" && "share" in navigator) {
@@ -292,7 +290,7 @@ function InvoicePreviewContent() {
                         {item.description}
                         {item.quantity > 1 ? ` × ${item.quantity}` : ""}
                       </td>
-                      <td className="py-2 text-right tabular-nums">₹{item.total_amount}</td>
+                      <td className="py-2 text-right tabular-nums">{fmtINR(item.total_amount)}</td>
                     </tr>
                   ))}
                   {invoice.items.length === 0 && (
@@ -311,28 +309,28 @@ function InvoicePreviewContent() {
               <div className="w-full max-w-xs space-y-1.5 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">{t("subtotal")}</span>
-                  <span className="tabular-nums">₹{invoice.subtotal}</span>
+                  <span className="tabular-nums">{fmtINR(invoice.subtotal)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">{t("gst")}</span>
-                  <span className="tabular-nums">₹{gstTotal}</span>
+                  <span className="tabular-nums">{fmtINR(gstTotal)}</span>
                 </div>
                 {Number(invoice.discount_amount) > 0 && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{t("discount")}</span>
-                    <span className="tabular-nums">−₹{invoice.discount_amount}</span>
+                    <span className="tabular-nums">−{fmtINR(invoice.discount_amount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-medium text-gold-600">
                   <span>{t("advancePaid")}</span>
-                  <span className="tabular-nums">−₹{invoice.paid_amount}</span>
+                  <span className="tabular-nums">−{fmtINR(invoice.paid_amount)}</span>
                 </div>
                 <div className="mt-2 flex items-center justify-between border-t pt-2">
                   <span className="text-xs font-semibold uppercase tracking-widest">
                     {t("totalDue")}
                   </span>
                   <span className="text-2xl font-semibold tabular-nums">
-                    ₹{invoice.due_amount}
+                    {fmtINR(invoice.due_amount)}
                   </span>
                 </div>
               </div>

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
@@ -73,7 +74,7 @@ async def test_full_lifecycle_booking_checkin_transfer_checkout(
 
     booking = await _make_booking(client, headers, guest_id, [room_ids[0]])
     assert booking["status"] == "confirmed"
-    assert booking["total_amount"] == "4000.00"  # 2 nights x 2000
+    assert Decimal(booking["total_amount"]) == 4000  # 2 nights x 2000
 
     # Room became reserved.
     rooms = await client.get("/api/v1/rooms?limit=200", headers=headers)
@@ -142,7 +143,7 @@ async def test_full_lifecycle_booking_checkin_transfer_checkout(
     )
     assert authorized.status_code == 201, authorized.text
     out = authorized.json()
-    assert out["due_amount"] == "4000.00"
+    assert Decimal(out["due_amount"]) == 4000
     assert out["payment_due_authorized"] is True
 
     rooms = await client.get("/api/v1/rooms?limit=200", headers=headers)
@@ -273,6 +274,50 @@ async def test_book_and_checkin_atomic_walk_in(
     rooms = await client.get("/api/v1/rooms?limit=200", headers=headers)
     room_status = {r["id"]: r["status"] for r in rooms.json()["items"]}
     assert room_status[room_ids[0]] == "occupied"
+
+
+async def test_book_and_checkin_atomic_payment_and_charges(
+    client: AsyncClient, hotel_a: HotelFixture
+) -> None:
+    """Charges + advance payment ride INSIDE the check-in transaction."""
+    headers = await _headers(client, hotel_a)
+    room_ids = await _setup_rooms(client, headers, count=1)
+    guest_id = await _make_guest(client, headers, "9888777661")
+
+    resp = await client.post(
+        "/api/v1/checkins/book-and-checkin",
+        json={
+            "booking": {
+                "primary_guest_id": guest_id,
+                "room_ids": room_ids,
+                "check_in_date": str(TODAY),
+                "check_out_date": str(TODAY + timedelta(days=1)),
+            },
+            "terms_acknowledged": True,
+            "charges": [
+                {"description": "Early check-in fee", "amount": "200", "category": "other"},
+                {"description": "Dinner package", "amount": "400", "category": "restaurant"},
+            ],
+            "advance_payment": {"amount": "1000", "method": "upi"},
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    booking_id = resp.json()["booking_id"]
+
+    detail = await client.get(f"/api/v1/bookings/{booking_id}", headers=headers)
+    body = detail.json()
+    # Room 2000 + charges 600 = 2600 total; advance 1000 → due 1600, partial.
+    assert Decimal(body["total_amount"]) == 2600
+    assert Decimal(body["advance_amount"]) == 1000
+    assert Decimal(body["due_amount"]) == 1600
+    assert body["payment_status"] == "partial"
+
+    # Ledger has debits for rooms + both charges and a credit for the advance.
+    ledger = await client.get(f"/api/v1/payments/ledger/{booking_id}", headers=headers)
+    types = [e["entry_type"] for e in ledger.json()["items"]]
+    assert types.count("debit") == 3
+    assert types.count("credit") == 1
 
 
 async def test_book_and_checkin_rolls_back_booking_on_checkin_failure(

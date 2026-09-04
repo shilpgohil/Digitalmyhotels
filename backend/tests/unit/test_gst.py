@@ -21,15 +21,18 @@ class TestIntraState:
         assert breakup.rates_version == 3
 
     def test_rounding_half_up(self) -> None:
-        # 6% of 1234.56 = 74.0736 → 74.07 per component
+        # Whole-rupee policy: 6% of 1234.56 = 74.0736 → ₹74 per component;
+        # taxable itself rounds to ₹1235 → total = 1235 + 74 + 74 = 1383.
         breakup = calculate_gst(Decimal("1234.56"), RATES)
-        assert breakup.cgst_amount == Decimal("74.07")
-        assert breakup.sgst_amount == Decimal("74.07")
-        assert breakup.total_amount == Decimal("1382.70")
+        assert breakup.cgst_amount == Decimal("74")
+        assert breakup.sgst_amount == Decimal("74")
+        assert breakup.total_amount == Decimal("1383")
 
     def test_half_up_boundary(self) -> None:
-        assert money(Decimal("10.005")) == Decimal("10.01")
-        assert money(Decimal("10.004")) == Decimal("10.00")
+        # Whole-rupee rounding: .50 rounds up, .49 rounds down.
+        assert money(Decimal("200.50")) == Decimal("201")
+        assert money(Decimal("200.49")) == Decimal("200")
+        assert money(Decimal("10.005")) == Decimal("10")
 
 
 class TestInterState:
@@ -56,5 +59,6 @@ class TestInclusivePricing:
     def test_roundtrip_close(self) -> None:
         taxable = extract_taxable_from_inclusive(Decimal("999.00"), RATES)
         breakup = calculate_gst(taxable, RATES)
-        # Rounding may drift by at most a paisa.
-        assert abs(breakup.total_amount - Decimal("999.00")) <= Decimal("0.01")
+        # Whole-rupee rounding: roundtrip may drift by up to ₹2
+        # (taxable rounds once, each tax component rounds once more).
+        assert abs(breakup.total_amount - Decimal("999.00")) <= Decimal("2")

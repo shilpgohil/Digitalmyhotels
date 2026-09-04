@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
-import { fmtApiDate } from "@/lib/formatting";
+import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import { PERMISSIONS } from "@/lib/permissions";
 import {
   Table,
@@ -198,26 +198,26 @@ function ReportsContent() {
             <>
               <ReportCard title={t("revenue")} loading={revenue.isLoading} error={revenue.isError}>
                 {revenue.data && (
-                  <p className="text-3xl font-semibold tabular-nums">₹{revenue.data.net_revenue}</p>
+                  <p className="text-3xl font-semibold tabular-nums">{fmtINR(revenue.data.net_revenue)}</p>
                 )}
               </ReportCard>
               <ReportCard title={t("payments")} loading={payments.isLoading} error={payments.isError}>
                 {payments.data && (
                   <p className="text-sm">
-                    {t("cash")}: ₹{payments.data.cash} · {t("upi")}: ₹{payments.data.upi}
+                    {t("cash")}: {fmtINR(payments.data.cash)} · {t("upi")}: {fmtINR(payments.data.upi)}
                   </p>
                 )}
               </ReportCard>
               <ReportCard title={t("gst")} loading={gst.isLoading} error={gst.isError}>
                 {gst.data && (
                   <p className="text-sm">
-                    CGST ₹{gst.data.cgst} · SGST ₹{gst.data.sgst} · IGST ₹{gst.data.igst}
+                    CGST {fmtINR(gst.data.cgst)} · SGST {fmtINR(gst.data.sgst)} · IGST {fmtINR(gst.data.igst)}
                   </p>
                 )}
               </ReportCard>
               <ReportCard title={t("expenses")} loading={expenses.isLoading} error={expenses.isError}>
                 {expenses.data && (
-                  <p className="text-3xl font-semibold tabular-nums">₹{expenses.data.total}</p>
+                  <p className="text-3xl font-semibold tabular-nums">{fmtINR(expenses.data.total)}</p>
                 )}
               </ReportCard>
             </>
@@ -268,7 +268,7 @@ function ReportsContent() {
                           <span className="tabular-nums text-sm">{row.occupancy_percent}%</span>
                         </div>
                       </TableCell>
-                      <TableCell className="tabular-nums">₹{row.revenue}</TableCell>
+                      <TableCell className="tabular-nums">{fmtINR(row.revenue)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -321,11 +321,11 @@ function ReportsContent() {
                       <TableCell className="text-muted-foreground">
                         {row.invoice_number} · {fmtApiDate(row.invoice_date)}
                       </TableCell>
-                      <TableCell className="tabular-nums">₹{row.taxable}</TableCell>
-                      <TableCell className="tabular-nums">₹{row.cgst}</TableCell>
-                      <TableCell className="tabular-nums">₹{row.sgst}</TableCell>
-                      <TableCell className="tabular-nums">₹{row.igst}</TableCell>
-                      <TableCell className="tabular-nums font-semibold">₹{row.total}</TableCell>
+                      <TableCell className="tabular-nums">{fmtINR(row.taxable)}</TableCell>
+                      <TableCell className="tabular-nums">{fmtINR(row.cgst)}</TableCell>
+                      <TableCell className="tabular-nums">{fmtINR(row.sgst)}</TableCell>
+                      <TableCell className="tabular-nums">{fmtINR(row.igst)}</TableCell>
+                      <TableCell className="tabular-nums font-semibold">{fmtINR(row.total)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

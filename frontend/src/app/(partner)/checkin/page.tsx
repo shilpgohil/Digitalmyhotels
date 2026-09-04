@@ -74,12 +74,13 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE, ApiError, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { compressDocument } from "@/lib/compress-image";
-import { fmtApiDate, localToday, localTomorrow } from "@/lib/formatting";
+import { fmtApiDate, fmtINR, localToday, localTomorrow } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import type { ListOut } from "@/types/hotel";
 import type {
   BookAndCheckInRequest,
   BookingOut,
+  CheckInChargeIn,
   CheckInCreateOut,
   CheckInRequest,
   ForeignGuestIn,
@@ -420,7 +421,7 @@ function InlineCameraCapture({
         >
           {tc("cancel")}
         </button>
-      </div>
+        </div>
     </div>
   );
 }
@@ -445,7 +446,7 @@ function SelectedServicesList({
         {chosen.map((s) => (
           <li key={s.id} className="flex items-center justify-between text-sm">
             <span>{s.name}</span>
-            <span className="tabular-nums font-medium">₹{s.price}</span>
+            <span className="tabular-nums font-medium">{fmtINR(s.price)}</span>
           </li>
         ))}
       </ul>
@@ -663,8 +664,8 @@ function ForeignGuestSection({
               </div>
             </div>
           </div>
-        </div>
-      )}
+            </div>
+          )}
     </div>
   );
 }
@@ -717,9 +718,9 @@ function Section({
         ) : (
           <ChevronDown className="size-4 text-muted-foreground shrink-0" aria-hidden />
         )}
-      </button>
+              </button>
       {open && <div className="border-t px-5 py-5">{children}</div>}
-    </div>
+            </div>
   );
 }
 
@@ -794,14 +795,16 @@ function DocUpload({
     try {
       const compressed = await compressDocument(file);
 
-      // Run OCR in parallel with upload.
+      // Run OCR in parallel with upload — on the ORIGINAL file, not the
+      // compressed one: OCR accuracy depends on resolution, while the upload
+      // uses the compressed copy to save bandwidth/storage.
       // Front → full extraction (name, DOB, gender, ID number, address).
       // Back  → address-only (Aadhar address lives on the back face; we only
       //          surface it if the callback is wired by the parent).
       if ((side === "front" || side === "back") && onOcrResult) {
         setOcrRunning(true);
         const { parseIdDocument } = await import("@/lib/id-ocr");
-        parseIdDocument(compressed, idType ?? "Aadhar Card")
+        parseIdDocument(file, idType ?? "Aadhar Card")
           .then((result) => {
             if (side === "back") {
               // Back face: surface address field only — don't overwrite
@@ -1037,10 +1040,14 @@ function QueuedDocUpload({
   side,
   label,
   onQueued,
+  onOriginal,
 }: {
   readonly side: DocSide;
   readonly label: string;
   readonly onQueued: (side: DocSide, file: File) => void;
+  /** Receives the ORIGINAL (uncompressed) file — use for OCR, which needs
+   *  full resolution. The queued/uploaded file is the compressed copy. */
+  readonly onOriginal?: (side: DocSide, file: File) => void;
 }) {
   const t = useTranslations("checkin");
   const [queued, setQueued] = useState(false);
@@ -1055,6 +1062,7 @@ function QueuedDocUpload({
     if (!file) return;
     const previewUrl = URL.createObjectURL(file);
     setPreview(previewUrl);
+    onOriginal?.(side, file);
     try {
       const compressed = await compressDocument(file);
       onQueued(side, compressed);
@@ -1351,11 +1359,11 @@ function AdditionalGuestEntry({
             <QueuedDocUpload
               side="front"
               label={t("uploadFront")}
-              onQueued={(side, file) => {
-                handleQueueDoc(side, file);
-                // Run OCR on the front face
+              onQueued={handleQueueDoc}
+              onOriginal={(_side, original) => {
+                // OCR runs on the ORIGINAL (full-resolution) image.
                 import("@/lib/id-ocr").then(({ parseIdDocument }) =>
-                  parseIdDocument(file, form.id_proof_type ?? "Aadhar Card").then(setCoOcrResult),
+                  parseIdDocument(original, form.id_proof_type ?? "Aadhar Card").then(setCoOcrResult),
                 );
               }}
             />
@@ -1741,6 +1749,21 @@ function CheckinForm({
     staleTime: 5 * 60_000,
   });
 
+  // Hotel GST settings for accurate payment breakdown.
+  const gstSettings = useQuery({
+    queryKey: ["hotel-gst", activeHotelId],
+    queryFn: () =>
+      api<{ default_cgst_rate: string; default_sgst_rate: string }>(
+        "/api/v1/hotels/me/gst",
+      ),
+    enabled: !!activeHotelId,
+    staleTime: 5 * 60_000,
+  });
+  // Total rate = CGST + SGST. Falls back to 5 if data not yet loaded.
+  const hotelGstRate =
+    Number.parseFloat(gstSettings.data?.default_cgst_rate ?? "0") +
+    Number.parseFloat(gstSettings.data?.default_sgst_rate ?? "0") || 5;
+
   // Auto early check-in fee — recomputed whenever check-in time changes.
   useEffect(() => {
     const s = checkinSettings.data;
@@ -1785,8 +1808,11 @@ function CheckinForm({
   // Note: booking.total_amount does not include GST (GST is only on the invoice).
   // We show an *approximate* GST for the balance display only, using the
   // hotel's configured rate. The authoritative amount is on the invoice.
-  const gstAmount = Math.round((bookingTotal + extraChargesNum) * 0.05 * 100) / 100;
-  const balance = Math.max(bookingTotal + extraChargesNum + gstAmount - advPaid - newAdvance, 0);
+  const gstAmount = Math.round((bookingTotal + extraChargesNum) * (hotelGstRate / 100) * 100) / 100;
+  // Only subtract the new advance when staff confirmed it was actually collected —
+  // otherwise it is not recorded and the balance would be dishonest.
+  const collectedAdvance = paymentReceived ? newAdvance : 0;
+  const balance = Math.max(bookingTotal + extraChargesNum + gstAmount - advPaid - collectedAdvance, 0);
 
   // ── Mutation ─────────────────────────────────────────────────────────────
   const mutation = useMutation({
@@ -1893,7 +1919,28 @@ function CheckinForm({
         });
       }
 
-      // 4. Check in
+      // 4. Check in — charges + advance payment are applied atomically by the
+      // backend inside the check-in transaction (no separate /charges or
+      // /payments calls needed).
+      // NOTE: early_fee is passed via is_early/early_fee — the backend
+      // (stay.check_in) adds it to booking.total_amount and booking.due_amount.
+      // Do NOT also put it in the charges array — that would double-charge.
+      const chosen = (services.data ?? []).filter((s) =>
+        selectedServices.includes(s.id),
+      );
+      const chargesList: CheckInChargeIn[] = chosen.map((svc) => ({
+        description: svc.name,
+        amount: svc.price,
+        category: "other",
+      }));
+      const ecNum = Number.parseFloat(extraCharges) || 0;
+      if (ecNum > 0) {
+        chargesList.push({
+          description: "Additional charges at check-in",
+          amount: extraCharges,
+          category: "other",
+        });
+      }
       const checkinBody: CheckInRequest = {
         booking_id: booking.id,
         co_guests: resolvedIds.map((id) => ({ guest_id: id })),
@@ -1903,69 +1950,22 @@ function CheckinForm({
         early_fee: earlyFee.toString(),
         terms_acknowledged: terms,
         foreign_guest: buildForeignGuestPayload(fgEnabled, fgForm),
+        charges: chargesList,
+        advance_payment:
+          paymentReceived && newAdvance > 0
+            ? { amount: advanceAmount, method: paymentMode }
+            : null,
       };
       const checkinOut = await api<CheckInCreateOut>("/api/v1/checkins", {
         method: "POST",
         body: checkinBody,
       });
 
-      // 5. Add service charges
-      const chosen = (services.data ?? []).filter((s) =>
-        selectedServices.includes(s.id),
-      );
-      for (const svc of chosen) {
-        await api("/api/v1/charges", {
-          method: "POST",
-          body: {
-            booking_id: booking.id,
-            category: "other",
-            description: svc.name,
-            quantity: 1,
-            rate: svc.price,
-            apply_gst: false,
-          },
-        });
-      }
-
-      // NOTE: early_fee is passed directly in the CheckInRequest body above;
-      // the backend (stay.check_in) adds it to booking.total_amount and
-      // booking.due_amount. Do NOT also post a /charges for it — that would
-      // double-charge the guest.
-
-      // 6. Collect advance payment if provided and confirmed by staff
-      if (paymentReceived && newAdvance > 0) {
-        await api("/api/v1/payments", {
-          method: "POST",
-          body: {
-            booking_id: booking.id,
-            amount: advanceAmount,
-            method: paymentMode,
-            purpose: "advance",
-          },
-        });
-      }
-
-      // 7. Add special instructions as a note (via booking patch if changed)
+      // 5. Add special instructions as a note (via booking patch if changed)
       if (specialInstructions.trim()) {
         await api(`/api/v1/bookings/${booking.id}`, {
           method: "PATCH",
           body: { special_requests: specialInstructions.trim() },
-        });
-      }
-
-      // 8. Extra charges entered at check-in.
-      const ecNum = Number.parseFloat(extraCharges) || 0;
-      if (ecNum > 0) {
-        await api("/api/v1/charges", {
-          method: "POST",
-          body: {
-            booking_id: booking.id,
-            category: "other",
-            description: "Additional charges at check-in",
-            quantity: 1,
-            rate: extraCharges,
-            apply_gst: false,
-          },
         });
       }
 
@@ -1985,7 +1985,7 @@ function CheckinForm({
 
   // ── Post-check-in success state ──────────────────────────────────────────
   if (checkinResult) {
-    return (
+  return (
       <CheckinSuccess
         result={checkinResult}
         bookingId={booking.id}
@@ -2058,7 +2058,7 @@ function CheckinForm({
             const hrs = Math.max(1, Math.round(earlyFee / rate));
             return (
               <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                Early check-in by {hrs} hr{hrs !== 1 ? "s" : ""} — ₹{earlyFee} fee will be added to the bill
+                Early check-in by {hrs} hr{hrs !== 1 ? "s" : ""} — {fmtINR(earlyFee)} fee will be added to the bill
               </div>
             );
           })()}
@@ -2269,7 +2269,7 @@ function CheckinForm({
                   </button>
                   <span className="w-6 text-center tabular-nums font-semibold">
                     {roomOccupancy[room.room_id]?.adults ?? 1}
-                  </span>
+            </span>
                   <button
                     type="button"
                     onClick={() => setRoomAdults(room.room_id, 1)}
@@ -2330,7 +2330,7 @@ function CheckinForm({
                     )}
                   >
                     {svc.name}<span className={cn("text-xs", active ? "opacity-80" : "opacity-60")}>
-                      ₹{svc.price}
+                      {fmtINR(svc.price)}
                     </span>
                   </button>
                 );
@@ -2365,13 +2365,13 @@ function CheckinForm({
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("bookingAmount")}
               </Label>
-              <p className="mt-1 tabular-nums font-medium">₹{booking.total_amount}</p>
+              <p className="mt-1 tabular-nums font-medium">{fmtINR(booking.total_amount)}</p>
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("gst")}
               </Label>
-              <p className="mt-1 tabular-nums">₹{booking.tax_amount}</p>
+              <p className="mt-1 tabular-nums">{fmtINR(booking.tax_amount)}</p>
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -2385,14 +2385,14 @@ function CheckinForm({
                   advPaid > 0 ? "text-green-600" : "text-muted-foreground",
                 )}
               >
-                ₹{Number.parseFloat(booking.advance_amount || "0").toFixed(2)}
+                {fmtINR(booking.advance_amount || "0")}
               </p>
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {tb("securityDeposit")}
               </Label>
-              <p className="mt-1 tabular-nums">₹{booking.security_deposit}</p>
+              <p className="mt-1 tabular-nums">{fmtINR(booking.security_deposit)}</p>
             </div>
           </div>
 
@@ -2402,7 +2402,7 @@ function CheckinForm({
             <div className="grid grid-cols-5 gap-2 rounded-lg border bg-background px-3 py-3">
               <div className="space-y-1 text-center">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Room Rent</p>
-                <p className="text-sm font-bold tabular-nums">₹{bookingTotal.toFixed(2)}</p>
+                <p className="text-sm font-bold tabular-nums">{fmtINR(bookingTotal)}</p>
               </div>
               <div className="space-y-1 text-center">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Extra Charges</p>
@@ -2418,19 +2418,19 @@ function CheckinForm({
               </div>
               <div className="space-y-1 text-center">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Advance Paid</p>
-                <p className="text-sm font-bold tabular-nums">₹{advPaid.toFixed(2)}</p>
+                <p className="text-sm font-bold tabular-nums">{fmtINR(advPaid)}</p>
               </div>
               <div className="space-y-1 text-center">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">GST (5%)</p>
-                <p className="text-sm font-bold tabular-nums">₹{gstAmount.toFixed(2)}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">GST ({hotelGstRate}%)</p>
+                <p className="text-sm font-bold tabular-nums">{fmtINR(gstAmount)}</p>
               </div>
               <div className="space-y-1 text-center">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
-                <p className={cn("text-sm font-bold tabular-nums", balance > 0 ? "text-gold-600" : "text-green-600")}>₹{balance.toFixed(2)}</p>
+                <p className={cn("text-sm font-bold tabular-nums", balance > 0 ? "text-gold-600" : "text-green-600")}>{fmtINR(balance)}</p>
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-1.5">
+            <div className="space-y-1.5">
                 <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {t("collectAtCheckin")}
                 </Label>
@@ -2444,8 +2444,8 @@ function CheckinForm({
                   placeholder="0.00"
                 />
                 <p className="text-[10px] text-muted-foreground">{t("enterZeroHint")}</p>
-              </div>
-              <div className="space-y-1.5">
+            </div>
+            <div className="space-y-1.5">
                 <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {t("paymentMode")}
                 </Label>
@@ -2473,9 +2473,9 @@ function CheckinForm({
                     ) : qrImageQueryCheckin.isLoading ? (
                       <Skeleton className="h-36 w-36 rounded-lg" />
                     ) : null}
-                  </div>
+            </div>
                 )}
-              </div>
+          </div>
               <div className="space-y-1">
                 <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {t("balanceAfterCheckin")}
@@ -2486,7 +2486,7 @@ function CheckinForm({
                     balance > 0 ? "text-gold-600" : "text-green-600",
                   )}
                 >
-                  ₹{balance.toFixed(2)}
+                  {fmtINR(balance)}
                 </p>
                 {balance > 0 && (
                   <p className="text-[10px] text-muted-foreground">{t("dueAtCheckout")}</p>
@@ -2509,6 +2509,11 @@ function CheckinForm({
                 Payment collected from guest
               </span>
             </label>
+            {!paymentReceived && newAdvance > 0 && (
+              <p className="text-xs font-medium text-amber-600">
+                {t("advanceNotRecordedWarning")}
+              </p>
+            )}
           </div>
         </div>
       </Section>
@@ -2638,8 +2643,8 @@ function CountControl({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <button
-        type="button"
+                <button
+                  type="button"
         onClick={() => onDelta(-1)}
         disabled={value <= min}
         className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40"
@@ -2849,7 +2854,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   }, [availData, selectedRooms, nights]);
   const extraChargesNumWI = Number.parseFloat(extraCharges || "0") || 0;
   const gstAmountWI = Math.round((roomRentWalkIn + extraChargesNumWI) * (hotelGstRate / 100) * 100) / 100;
-  const remainingWI = Math.max(roomRentWalkIn + extraChargesNumWI + gstAmountWI - newAdvance, 0);
+  // Only subtract the advance when staff confirmed it was actually collected —
+  // otherwise it is not recorded and the remaining balance would be dishonest.
+  const collectedAdvanceWI = paymentReceived ? newAdvance : 0;
+  const remainingWI = Math.max(roomRentWalkIn + extraChargesNumWI + gstAmountWI - collectedAdvanceWI, 0);
 
   // UPI QR code — fetched as a blob URL when UPI + amount > 0.
   const showQr = paymentMode === "upi" && newAdvance > 0;
@@ -3044,7 +3052,32 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         }
       }
 
-      // 3. Book + check in atomically.
+      // 3. Book + check in atomically — service charges, early check-in fee,
+      // extra charges and the advance payment are all applied by the backend
+      // inside the same transaction (no separate /charges or /payments calls).
+      const chosen = (services.data ?? []).filter((s) =>
+        selectedServices.includes(s.id),
+      );
+      const chargesList: CheckInChargeIn[] = chosen.map((svc) => ({
+        description: svc.name,
+        amount: svc.price,
+        category: "other",
+      }));
+      if (earlyFee > 0) {
+        chargesList.push({
+          description: "Early check-in fee",
+          amount: earlyFee.toString(),
+          category: "other",
+        });
+      }
+      const ecNumWI = Number.parseFloat(extraCharges) || 0;
+      if (ecNumWI > 0) {
+        chargesList.push({
+          description: "Additional charges at check-in",
+          amount: extraCharges,
+          category: "other",
+        });
+      }
       const payload: BookAndCheckInRequest = {
         booking: {
           primary_guest_id: guest.id,
@@ -3071,80 +3104,19 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         notes: null,
         terms_acknowledged: terms,
         foreign_guest: buildForeignGuestPayload(fgEnabled, fgForm),
+        charges: chargesList,
+        advance_payment:
+          paymentReceived && newAdvance > 0
+            ? { amount: advanceAmount, method: paymentMode }
+            : null,
       };
       const checkinOut = await api<CheckInCreateOut>(
         "/api/v1/checkins/book-and-checkin",
         {
           method: "POST",
-          body: {
-            ...payload,
-            is_early: earlyFee > 0,
-            early_fee: earlyFee > 0 ? earlyFee.toString() : "0",
-          },
+          body: payload,
         },
       );
-
-      // 4. Add service charges (booking now exists).
-      const chosen = (services.data ?? []).filter((s) =>
-        selectedServices.includes(s.id),
-      );
-      for (const svc of chosen) {
-        await api("/api/v1/charges", {
-          method: "POST",
-          body: {
-            booking_id: checkinOut.booking_id,
-            category: "other",
-            description: svc.name,
-            quantity: 1,
-            rate: svc.price,
-            apply_gst: false,
-          },
-        });
-      }
-
-      // 4b. Early check-in charge (if applicable).
-      if (earlyFee > 0) {
-        await api("/api/v1/charges", {
-          method: "POST",
-          body: {
-            booking_id: checkinOut.booking_id,
-            category: "other",
-            description: "Early check-in fee",
-            quantity: 1,
-            rate: earlyFee.toString(),
-            apply_gst: false,
-          },
-        });
-      }
-
-      // 5. Collect advance payment if provided AND confirmed by staff.
-      if (paymentReceived && newAdvance > 0) {
-        await api("/api/v1/payments", {
-          method: "POST",
-          body: {
-            booking_id: checkinOut.booking_id,
-            amount: advanceAmount,
-            method: paymentMode,
-            purpose: "advance",
-          },
-        });
-      }
-
-      // 6. Extra charges entered at check-in.
-      const ecNumWI = Number.parseFloat(extraCharges) || 0;
-      if (ecNumWI > 0) {
-        await api("/api/v1/charges", {
-          method: "POST",
-          body: {
-            booking_id: checkinOut.booking_id,
-            category: "other",
-            description: "Additional charges at check-in",
-            quantity: 1,
-            rate: extraCharges,
-            apply_gst: false,
-          },
-        });
-      }
 
       return checkinOut;
     },
@@ -3215,8 +3187,8 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               className="inline-flex h-8 items-center rounded-lg border border-gold-400 px-3 text-xs font-medium text-gold-700 hover:bg-gold-100"
             >
               {t("discard")}
-            </button>
-          </div>
+                </button>
+              </div>
         </div>
       )}
 
@@ -3296,7 +3268,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           const hrs = Math.max(1, Math.round(earlyFee / rate));
           return (
             <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              Early check-in by {hrs} hr{hrs !== 1 ? "s" : ""} — ₹{earlyFee} fee will be added to the bill
+              Early check-in by {hrs} hr{hrs !== 1 ? "s" : ""} — {fmtINR(earlyFee)} fee will be added to the bill
             </div>
           );
         })()}
@@ -3360,9 +3332,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   onOcrResult={(result) => {
                     if (result.fields.address) {
                       setPgAddress((prev) => prev || (result.fields.address ?? ""));
-                    }
-                  }}
-                />
+                  }
+                }}
+              />
                 <DocUpload
                   key={`${guest.id}-selfie`}
                   guestId={guest.id}
@@ -3462,11 +3434,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             />
           ))}
           <button
-            type="button"
+                type="button"
             onClick={addGuestEntry}
             className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
-          >
-            <Plus className="size-4" aria-hidden />
+              >
+                <Plus className="size-4" aria-hidden />
             {t("addGuest")}
           </button>
         </div>
@@ -3540,12 +3512,12 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                     )}
                   >
                     {svc.name}<span className={cn("text-xs", active ? "opacity-80" : "opacity-60")}>
-                      ₹{svc.price}
+                      {fmtINR(svc.price)}
                     </span>
                   </button>
                 );
               })}
-            </div>
+          </div>
           )}
           <SelectedServicesList
             services={services.data ?? []}
@@ -3574,7 +3546,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             <div className="space-y-1 text-center">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Room Rent</p>
               <p className={cn("text-sm font-bold tabular-nums", roomRentWalkIn === 0 ? "text-muted-foreground" : "")}>
-                {roomRentWalkIn === 0 ? "—" : `₹${roomRentWalkIn.toFixed(2)}`}
+                {roomRentWalkIn === 0 ? "—" : fmtINR(roomRentWalkIn)}
               </p>
             </div>
             <div className="space-y-1 text-center">
@@ -3591,15 +3563,15 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             </div>
             <div className="space-y-1 text-center">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Advance Paid</p>
-              <p className="text-sm font-bold tabular-nums">₹{newAdvance.toFixed(2)}</p>
+              <p className="text-sm font-bold tabular-nums">{fmtINR(collectedAdvanceWI)}</p>
             </div>
             <div className="space-y-1 text-center">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">GST ({hotelGstRate}%)</p>
-              <p className="text-sm font-bold tabular-nums">₹{gstAmountWI.toFixed(2)}</p>
+              <p className="text-sm font-bold tabular-nums">{fmtINR(gstAmountWI)}</p>
             </div>
             <div className="space-y-1 text-center">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
-              <p className={cn("text-sm font-bold tabular-nums", remainingWI > 0 ? "text-gold-600" : "text-green-600")}>₹{remainingWI.toFixed(2)}</p>
+              <p className={cn("text-sm font-bold tabular-nums", remainingWI > 0 ? "text-gold-600" : "text-green-600")}>{fmtINR(remainingWI)}</p>
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -3663,16 +3635,21 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               Payment collected from guest
             </span>
           </label>
-        </div>
+          {!paymentReceived && newAdvance > 0 && (
+            <p className="text-xs font-medium text-amber-600">
+              {t("advanceNotRecordedWarning")}
+            </p>
+          )}
+          </div>
       </Section>
 
       {/* ── 7. Emergency Contact ──────────────────────────────────────────── */}
       <Section icon={AlertTriangle} title={t("emergencyContact")} subtitle={t("optional")} defaultOpen={false}>
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1.5">
+            <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactName")}</Label>
             <Input value={emName} onChange={(e) => setEmName(e.target.value)} placeholder={t("contactNamePlaceholder")} />
-          </div>
+            </div>
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactRelation")}</Label>
             <Input value={emRelation} onChange={(e) => setEmRelation(e.target.value)} placeholder={t("relationPlaceholder")} />
@@ -3731,11 +3708,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           </span>
         </label>
 
-        {error && (
+          {error && (
           <p className="rounded-lg bg-danger-bg border border-danger/30 px-3 py-2 text-sm text-danger" role="alert">
-            {error}
-          </p>
-        )}
+              {error}
+            </p>
+          )}
 
         <div className="flex flex-wrap items-center justify-end gap-3">
           <Button
@@ -3746,7 +3723,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           >
             <FileText className="size-4" aria-hidden />
             {ts("saveDraft")}
-          </Button>
+            </Button>
           <Button
             type="button"
             disabled={!canSubmit}

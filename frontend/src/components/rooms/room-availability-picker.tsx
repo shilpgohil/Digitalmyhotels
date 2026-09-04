@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { cn } from "@/lib/utils";
+import { fmtINR } from "@/lib/formatting";
 import type {
   RoomAvailabilityOut,
   RoomAvailableItem,
@@ -138,7 +139,7 @@ function AvailableChip({
         </span>
       )}
       <span className="mt-1 text-xs font-semibold text-navy-900">
-        ₹{Number(room.room_type_base_price).toLocaleString("en-IN")}
+        {fmtINR(room.room_type_base_price)}
         <span className="font-normal text-muted-foreground">/night</span>
       </span>
       {/* Show current status as a small hint — room is still bookable */}

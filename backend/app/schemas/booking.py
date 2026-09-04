@@ -75,8 +75,20 @@ class BookingCreate(BaseModel):
 
     @model_validator(mode="after")
     def check_dates(self) -> "BookingCreate":
-        if self.check_out_date <= self.check_in_date:
+        if self.check_out_date < self.check_in_date:
             raise ValueError("Check-out date must be after check-in date")
+        if self.check_out_date == self.check_in_date:
+            # Day-use booking: same-day is allowed ONLY with explicit times
+            # and checkout strictly after check-in (hourly pricing applies).
+            if not (
+                self.check_in_time
+                and self.check_out_time
+                and self.check_out_time > self.check_in_time
+            ):
+                raise ValueError(
+                    "Same-day (day-use) bookings require check-in and check-out "
+                    "times, with check-out time after check-in time"
+                )
         # The service layer will enforce no-past guard so the schema allows today
         # (edge case: booking created at midnight right before check-in).
         return self

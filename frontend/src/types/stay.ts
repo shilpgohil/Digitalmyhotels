@@ -163,6 +163,19 @@ export interface ForeignGuestIn {
   purpose_of_visit?: string | null;
 }
 
+/** Extra charge applied atomically inside the check-in transaction. */
+export interface CheckInChargeIn {
+  description: string;
+  amount: string;
+  category?: string;
+}
+
+/** Advance payment recorded atomically inside the check-in transaction. */
+export interface CheckInAdvancePaymentIn {
+  amount: string;
+  method: string;
+}
+
 /** POST /api/v1/checkins/book-and-checkin — walk-in flow: book + check in atomically. */
 export interface BookAndCheckInRequest {
   booking: BookingCreatePayload;
@@ -173,6 +186,8 @@ export interface BookAndCheckInRequest {
   notes?: string | null;
   terms_acknowledged: boolean;
   foreign_guest?: ForeignGuestIn | null;
+  charges?: CheckInChargeIn[];
+  advance_payment?: CheckInAdvancePaymentIn | null;
 }
 
 /** POST /api/v1/checkins — existing-booking check-in (mirrors backend CheckInRequest). */
@@ -188,6 +203,8 @@ export interface CheckInRequest {
   notes?: string | null;
   terms_acknowledged: boolean;
   foreign_guest?: ForeignGuestIn | null;
+  charges?: CheckInChargeIn[];
+  advance_payment?: CheckInAdvancePaymentIn | null;
 }
 
 export interface CheckInCreateOut {
@@ -196,6 +213,27 @@ export interface CheckInCreateOut {
   booking_number: string;
   checked_in_at: string;
   registration_numbers: string[];
+}
+
+/**
+ * GET /api/v1/checkouts/{booking_id}/preview — server-computed settlement.
+ * All values are decimal strings. `final_total` = room_subtotal + GST-on-rooms
+ * + charges_total (tax-inclusive) + late_fee − discount. `gst_amount` combines
+ * room GST and charge taxes. `effective_paid` = advance_paid + security_deposit.
+ * `due`/`refund` are already clamped to ≥ 0.
+ */
+export interface SettlementPreviewOut {
+  room_subtotal: string;
+  gst_amount: string;
+  charges_total: string;
+  late_fee: string;
+  discount: string;
+  final_total: string;
+  advance_paid: string;
+  security_deposit: string;
+  effective_paid: string;
+  due: string;
+  refund: string;
 }
 
 export interface CheckOutOut {

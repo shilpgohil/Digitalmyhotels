@@ -119,9 +119,11 @@ async def room_availability(
 
     from app.core.errors import ValidationAppError
 
-    if check_out <= check_in:
+    # Same-day (check_out == check_in) is allowed: day-use bookings query
+    # availability for a single calendar day.
+    if check_out < check_in:
         raise ValidationAppError(
-            "Check-out date must be after check-in date",
+            "Check-out date must be on or after check-in date",
             code="invalid_dates",
         )
     # Use UTC date for comparison so availability can be queried for "today"

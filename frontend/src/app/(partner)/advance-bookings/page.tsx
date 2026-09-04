@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, MoreVertical, LogIn, XCircle, UserX } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
-import { fmtApiDate } from "@/lib/formatting";
+import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -277,7 +277,7 @@ function AdvanceBookingsContent() {
                     <TableCell className="whitespace-nowrap text-muted-foreground">
                       {fmtApiDate(booking.check_in_date)} → {fmtApiDate(booking.check_out_date)}
                     </TableCell>
-                    <TableCell className="tabular-nums">₹{booking.total_amount}</TableCell>
+                    <TableCell className="tabular-nums">{fmtINR(booking.total_amount)}</TableCell>
                     <TableCell>
                       <BookingStatusBadge status={booking.status} />
                     </TableCell>

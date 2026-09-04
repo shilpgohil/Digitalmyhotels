@@ -40,6 +40,7 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/client";
+import { fmtINR } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import type { ListOut, RoomOut, RoomStatus, RoomTypeOut } from "@/types/hotel";
 import { RequirePermission } from "@/components/auth/require-permission";
@@ -324,6 +325,7 @@ function RoomsContent() {
                       <TableHead className="text-white">{t("typeCode")}</TableHead>
                       <TableHead className="text-white">{t("typeName")}</TableHead>
                       <TableHead className="text-white">{t("basePrice")}</TableHead>
+                      <TableHead className="text-white">{t("hourlyRate")}</TableHead>
                       <TableHead className="text-white">{t("extraGuestPrice")}</TableHead>
                       <TableHead className="text-white">{t("maxOccupancy")}</TableHead>
                     </TableRow>
@@ -333,8 +335,11 @@ function RoomsContent() {
                       <TableRow key={type.id}>
                         <TableCell className="font-mono text-xs">{type.code}</TableCell>
                         <TableCell className="font-medium">{type.name}</TableCell>
-                        <TableCell>₹{type.base_price}</TableCell>
-                        <TableCell>₹{type.extra_guest_price}</TableCell>
+                        <TableCell>{fmtINR(type.base_price)}</TableCell>
+                        <TableCell>
+                          {type.hourly_rate ? `${fmtINR(type.hourly_rate)}/hr` : "—"}
+                        </TableCell>
+                        <TableCell>{fmtINR(type.extra_guest_price)}</TableCell>
                         <TableCell>{type.max_occupancy}</TableCell>
                       </TableRow>
                     ))}
@@ -387,6 +392,7 @@ function CreateRoomTypeDialog({ onCreated }: { onCreated: () => void }) {
           name: String(form.get("name")).trim(),
           base_price: String(form.get("base_price")),
           extra_guest_price: String(form.get("extra_guest_price") || "0"),
+          hourly_rate: form.get("hourly_rate") ? String(form.get("hourly_rate")) : null,
           max_occupancy: Number(form.get("max_occupancy") || 2),
         },
       }),
@@ -434,6 +440,10 @@ function CreateRoomTypeDialog({ onCreated }: { onCreated: () => void }) {
             <div className="space-y-1.5">
               <Label htmlFor="rt-extra">{t("extraGuestPrice")}</Label>
               <Input id="rt-extra" name="extra_guest_price" type="number" min="0" step="0.01" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="rt-hourly">{t("hourlyRate")}</Label>
+              <Input id="rt-hourly" name="hourly_rate" type="number" min="0" step="1" placeholder={t("hourlyRateHint")} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="rt-occ">{t("maxOccupancy")}</Label>
@@ -534,7 +544,7 @@ function CreateRoomDialog({
                   .filter((type) => type.is_active)
                   .map((type) => (
                     <option key={type.id} value={type.id}>
-                      {type.name} (₹{type.base_price})
+                      {type.name} ({fmtINR(type.base_price)})
                     </option>
                   ))}
               </select>

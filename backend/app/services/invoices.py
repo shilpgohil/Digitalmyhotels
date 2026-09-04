@@ -113,7 +113,17 @@ async def generate_invoice(
                 hotel_id=hotel_id,
                 invoice_id=invoice.id,
                 description=(
-                    f"Room {room.room_number if room else ''} — {nights} night(s)"
+                    f"Room {room.room_number if room else ''} — "
+                    + (
+                        "Day use"
+                        + (
+                            f" ({booking.check_in_time}–{booking.check_out_time})"
+                            if booking.check_in_time and booking.check_out_time
+                            else ""
+                        )
+                        if booking.check_in_date == booking.check_out_date
+                        else f"{nights} night(s)"
+                    )
                 ),
                 quantity=nights,
                 rate=booking_room.rate,
@@ -190,11 +200,12 @@ async def generate_invoice(
     total = money(
         subtotal + cgst_total + sgst_total + igst_total - booking.discount_amount
     )
-    # Checkout final_total includes late fee; use it as the authoritative due basis.
-    effective_total = checkout_record.final_total if checkout_record else total
+    # Checkout now computes final_total with the SAME engine (rooms×GST +
+    # charges + late fee − discount), so the invoice total and the checkout
+    # settlement agree by construction. Due is simply total − paid − deposit.
     paid_amount = booking.advance_amount
     security = booking.security_deposit
-    due = money(max(effective_total - paid_amount - security, Decimal("0.00")))
+    due = money(max(total - paid_amount - security, Decimal("0.00")))
 
     invoice.subtotal = money(subtotal)
     invoice.cgst_amount = money(cgst_total)

@@ -21,15 +21,14 @@ jobs:
 
     steps:
       - name: Ping /health
-        env:
-          RENDER_URL: ${{ secrets.RENDER_BACKEND_URL }}
         run: |
-          # Fall back to the Singapore service URL when the secret isn't set.
-          if [ -z "$RENDER_URL" ]; then
-            RENDER_URL="https://digitalmyhotels-api-sg.onrender.com"
-          fi
+          # Singapore service URL pinned directly — the RENDER_BACKEND_URL secret
+          # previously pointed at the old suspended Oregon service, which made
+          # every run fail with a timeout. Do NOT reintroduce the secret unless
+          # the backend URL changes.
+          RENDER_URL="https://digitalmyhotels-api-sg.onrender.com"
           echo "Pinging $RENDER_URL/health ..."
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$RENDER_URL/health")
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "$RENDER_URL/health")
           echo "HTTP status: $STATUS"
           if [ "$STATUS" != "200" ]; then
             echo "Unexpected status $STATUS — service may be down"

@@ -21,7 +21,7 @@ import {
 import { RequirePermission } from "@/components/auth/require-permission";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
-import { localToday } from "@/lib/formatting";
+import { fmtINR, localToday } from "@/lib/formatting";
 import { PERMISSIONS } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
@@ -207,7 +207,7 @@ function GstTaxContent() {
                 <p className="text-[10px] font-semibold uppercase tracking-widest opacity-80">
                   {t(key)}
                 </p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums">₹{value}</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{fmtINR(value)}</p>
               </div>
             ))}
           </div>
@@ -262,14 +262,14 @@ function GstTaxContent() {
                     <TableRow key={`${item.booking_number}-${item.invoice_number}-${idx}`}>
                       <TableCell className="font-medium">{item.booking_number}</TableCell>
                       <TableCell className="tabular-nums">{gstRate(item)}</TableCell>
-                      <TableCell className="tabular-nums">₹{item.taxable}</TableCell>
-                      <TableCell className="tabular-nums">₹{item.cgst}</TableCell>
-                      <TableCell className="tabular-nums">₹{item.sgst}</TableCell>
+                      <TableCell className="tabular-nums">{fmtINR(item.taxable)}</TableCell>
+                      <TableCell className="tabular-nums">{fmtINR(item.cgst)}</TableCell>
+                      <TableCell className="tabular-nums">{fmtINR(item.sgst)}</TableCell>
                       <TableCell className="tabular-nums">
-                        ₹{gstPayable(item).toFixed(2)}
+                        {fmtINR(gstPayable(item))}
                       </TableCell>
                       <TableCell className="tabular-nums font-semibold">
-                        ₹{item.total}
+                        {fmtINR(item.total)}
                       </TableCell>
                     </TableRow>
                   ))}

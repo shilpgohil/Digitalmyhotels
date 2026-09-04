@@ -33,8 +33,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PaymentStatusBadge } from "@/components/stay/booking-badges";
-import { fmtDateTime, fmtDate, fmtApiDate } from "@/lib/formatting";
-import { CheckoutDialog } from "@/components/stay/checkout-dialog";
+import { fmtDateTime, fmtDate, fmtApiDate, fmtINR } from "@/lib/formatting";
+import { useRouter } from "next/navigation";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -52,8 +52,8 @@ function CurrentGuestsContent() {
   const queryClient = useQueryClient();
   const { activeHotelId, can } = useAuth();
   const [search, setSearch] = useState("");
+  const router = useRouter();
   const [transferTarget, setTransferTarget] = useState<CurrentGuestOut | null>(null);
-  const [checkoutTarget, setCheckoutTarget] = useState<CurrentGuestOut | null>(null);
   const [viewTarget, setViewTarget] = useState<CurrentGuestOut | null>(null);
 
   const guests = useQuery({
@@ -153,7 +153,7 @@ function CurrentGuestsContent() {
                     <TableCell>
                       <PaymentStatusBadge status={entry.payment_status} />
                     </TableCell>
-                    <TableCell className="tabular-nums">₹{entry.due_amount}</TableCell>
+                    <TableCell className="tabular-nums">{fmtINR(entry.due_amount)}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger
@@ -176,7 +176,9 @@ function CurrentGuestsContent() {
                           {can(PERMISSIONS.checkout) && (
                             <DropdownMenuItem
                               variant="destructive"
-                              onClick={() => setCheckoutTarget(entry)}
+                              onClick={() =>
+                                router.push(`/checkout?booking=${entry.booking_id}`)
+                              }
                             >
                               <LogOut className="size-4" aria-hidden />
                               {t("checkOutAction")}
@@ -196,11 +198,6 @@ function CurrentGuestsContent() {
         <TransferDialog
           entry={transferTarget}
           onClose={() => setTransferTarget(null)}
-          onDone={invalidate}
-        />
-        <CheckoutDialog
-          entry={checkoutTarget}
-          onClose={() => setCheckoutTarget(null)}
           onDone={invalidate}
         />
       </main>
@@ -252,8 +249,8 @@ function StayDetailDialog({
         <tr><td>${tb("checkinDate")}</td><td>${fmtApiDate(b.check_in_date)}</td></tr>
         <tr><td>${tb("checkoutDate")}</td><td>${fmtApiDate(b.check_out_date)}</td></tr>
         <tr><td>${tb("adults")} / ${tb("children")}</td><td>${b.adults} / ${b.children}</td></tr>
-        <tr><td>${tb("total")}</td><td>₹${b.total_amount}</td></tr>
-        <tr><td>${tb("due")}</td><td>₹${b.due_amount}</td></tr>
+        <tr><td>${tb("total")}</td><td>${fmtINR(b.total_amount)}</td></tr>
+        <tr><td>${tb("due")}</td><td>${fmtINR(b.due_amount)}</td></tr>
         ${b.emergency_contact_name ? `<tr><td>${t("emergencyContact")}</td><td>${b.emergency_contact_name} (${b.emergency_contact_relation ?? ""}) ${b.emergency_contact_phone ?? ""}</td></tr>` : ""}
         ${b.vehicle_number ? `<tr><td>${t("vehicleDetails")}</td><td>${b.vehicle_number} · ${b.vehicle_type ?? ""} · ${b.parking_slot ?? ""}</td></tr>` : ""}
         ${b.special_requests ? `<tr><td>${tb("specialRequests")}</td><td>${b.special_requests}</td></tr>` : ""}
@@ -288,10 +285,10 @@ function StayDetailDialog({
             <Detail label={tb("checkoutDate")} value={fmtApiDate(b.check_out_date)} />
             <Detail label={`${tb("adults")} / ${tb("children")}`} value={`${b.adults} / ${b.children}`} />
             <Detail label={tb("payment")} value={b.payment_status} />
-            <Detail label={tb("total")} value={`₹${b.total_amount}`} />
-            <Detail label={tb("due")} value={`₹${b.due_amount}`} />
+            <Detail label={tb("total")} value={fmtINR(b.total_amount)} />
+            <Detail label={tb("due")} value={fmtINR(b.due_amount)} />
             {b.security_deposit !== "0.00" && (
-              <Detail label={tb("securityDeposit")} value={`₹${b.security_deposit}`} />
+              <Detail label={tb("securityDeposit")} value={fmtINR(b.security_deposit)} />
             )}
             {b.emergency_contact_name && (
               <Detail

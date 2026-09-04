@@ -90,6 +90,8 @@ async def book_and_check_in(
         notes=body.notes,
         terms_acknowledged=body.terms_acknowledged,
         foreign_guest=body.foreign_guest,
+        charges=body.charges,
+        advance_payment=body.advance_payment,
     )
     return await check_in(db, tenant, checkin_request, correlation_id=correlation_id)
 
@@ -189,8 +191,11 @@ async def check_in(
         )
 
     if body.early_fee > 0:
-        booking.total_amount += body.early_fee
-        booking.due_amount += body.early_fee
+        from app.domain.gst import money as _money
+        from app.services.bookings import settle_booking_amounts
+
+        booking.total_amount = _money(booking.total_amount + body.early_fee)
+        settle_booking_amounts(booking)
         from app.services.ledger import append_entry
 
         await append_entry(
@@ -206,6 +211,44 @@ async def check_in(
 
     booking.status = "checked_in"
     await db.flush()
+
+    # ── Atomic extras: charges + advance payment in the SAME transaction ──
+    # (fixes the partial-failure bug where a network error after check-in left
+    # the guest in-house with missing charges / unrecorded payment)
+    if body.charges:
+        from app.schemas.payment import ChargeCreate
+        from app.services.charges import add_charge
+
+        for item in body.charges:
+            await add_charge(
+                db,
+                tenant,
+                ChargeCreate(
+                    booking_id=booking.id,
+                    category=item.category,
+                    description=item.description,
+                    quantity=1,
+                    rate=item.amount,
+                    apply_gst=False,
+                ),
+                correlation_id=correlation_id,
+            )
+    if body.advance_payment is not None:
+        from app.schemas.payment import PaymentCreate
+        from app.services.payments import collect_payment
+
+        await collect_payment(
+            db,
+            tenant,
+            PaymentCreate(
+                booking_id=booking.id,
+                amount=body.advance_payment.amount,
+                method=body.advance_payment.method,
+                purpose="advance",
+            ),
+            correlation_id=correlation_id,
+        )
+
     await write_audit(
         db,
         action="stay.checked_in",
@@ -453,6 +496,75 @@ async def transfer_room(
     )
 
 
+async def compute_settlement(
+    db: AsyncSession, booking: Booking, *, late_fee: Decimal = Decimal("0.00")
+) -> dict[str, Decimal]:
+    """Single source of truth for the final bill.
+
+    Computes the settlement EXACTLY the way invoice generation does — room
+    taxable × hotel GST rates + charge totals (which carry their own tax) +
+    late fee − discount — so the checkout screen, the checkout record and the
+    invoice can never show different totals.
+    """
+    from app.domain.gst import GstRates, calculate_gst
+    from app.domain.gst import money as _m
+    from app.models.payment import HotelCharge
+    from app.repositories.hotels import get_or_create_gst_settings
+
+    nights = max((booking.check_out_date - booking.check_in_date).days, 1)
+
+    # Room subtotal from allocated rooms (same basis as invoice line items).
+    room_taxable = _m(
+        sum(
+            (br.rate * nights for br in booking.rooms if br.is_current),
+            Decimal("0.00"),
+        )
+    )
+    gst = await get_or_create_gst_settings(db, booking.hotel_id)
+    rates = GstRates(
+        cgst=gst.default_cgst_rate,
+        sgst=gst.default_sgst_rate,
+        igst=gst.default_igst_rate,
+        version=gst.version,
+    )
+    room_breakup = calculate_gst(room_taxable, rates, is_registered=gst.is_gst_registered)
+
+    charges_result = await db.execute(
+        select(HotelCharge).where(
+            HotelCharge.booking_id == booking.id,
+            HotelCharge.hotel_id == booking.hotel_id,
+            HotelCharge.voided_at.is_(None),
+        )
+    )
+    charges = list(charges_result.scalars().all())
+    charges_total = _m(sum((c.total_amount for c in charges), Decimal("0.00")))
+    charges_tax = _m(sum((c.tax_amount for c in charges), Decimal("0.00")))
+
+    final_total = _m(
+        max(
+            room_breakup.total_amount + charges_total + late_fee - booking.discount_amount,
+            Decimal("0.00"),
+        )
+    )
+    effective_paid = _m(booking.advance_amount + booking.security_deposit)
+    due = _m(max(final_total - effective_paid, Decimal("0.00")))
+    refund = _m(max(effective_paid - final_total, Decimal("0.00")))
+
+    return {
+        "room_subtotal": room_taxable,
+        "gst_amount": _m(room_breakup.total_tax + charges_tax),
+        "charges_total": charges_total,
+        "late_fee": _m(late_fee),
+        "discount": booking.discount_amount,
+        "final_total": final_total,
+        "advance_paid": booking.advance_amount,
+        "security_deposit": booking.security_deposit,
+        "effective_paid": effective_paid,
+        "due": due,
+        "refund": refund,
+    }
+
+
 async def check_out(
     db: AsyncSession,
     tenant: TenantContext,
@@ -468,12 +580,11 @@ async def check_out(
         )
 
     nights = max((booking.check_out_date - booking.check_in_date).days, 1)
-    final_total = booking.total_amount + body.late_fee
+    settlement = await compute_settlement(db, booking, late_fee=body.late_fee)
+    final_total = settlement["final_total"]
     paid = booking.advance_amount
-    # Security deposit is applied against the final bill.
-    effective_paid = paid + booking.security_deposit
-    due = max(final_total - effective_paid, Decimal("0.00"))
-    refund = max(effective_paid - final_total, Decimal("0.00"))
+    due = settlement["due"]
+    refund = settlement["refund"]
 
     if due > 0 and not body.allow_due:
         raise ConflictError(
@@ -534,6 +645,25 @@ async def check_out(
         booking.payment_status = "paid"
     elif paid > 0:
         booking.payment_status = "partial"
+
+    # Record the overpayment refund in the ledger so the cash drawer, daily
+    # closing and audit trail all reflect the money returned to the guest.
+    # (Client bug: refund shown on screen but never recorded anywhere.)
+    if refund > 0:
+        from app.services.ledger import append_entry as _append
+
+        await _append(
+            db,
+            hotel_id=hotel_id,
+            booking_id=booking.id,
+            entry_type="debit",
+            amount=refund,
+            description="Refund to guest at checkout (overpaid)",
+            reference_type="checkout_refund",
+            reference_id=checkout.id,
+            created_by_id=tenant.user_id,
+        )
+        booking.payment_status = "refunded"
     await db.flush()
     await write_audit(
         db,

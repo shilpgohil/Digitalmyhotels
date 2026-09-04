@@ -21,7 +21,7 @@ import {
 import { RequirePermission } from "@/components/auth/require-permission";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
-import { localToday } from "@/lib/formatting";
+import { fmtINR, localToday } from "@/lib/formatting";
 import { PERMISSIONS } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
@@ -192,7 +192,7 @@ function RestaurantBillingContent() {
                 <p className="text-[10px] font-semibold uppercase tracking-widest opacity-80">
                   {t(key)}
                 </p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums">₹{value}</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{fmtINR(value)}</p>
               </div>
             ))}
           </div>
@@ -246,11 +246,11 @@ function RestaurantBillingContent() {
                     <TableRow key={`${item.booking_number}-${item.charged_on}-${idx}`}>
                       <TableCell className="font-medium">{item.booking_number}</TableCell>
                       <TableCell>{item.guest_name}</TableCell>
-                      <TableCell className="tabular-nums">₹{item.taxable_value}</TableCell>
+                      <TableCell className="tabular-nums">{fmtINR(item.taxable_value)}</TableCell>
                       <TableCell className="tabular-nums">{item.gst_rate}%</TableCell>
-                      <TableCell className="tabular-nums">₹{item.gst_payable}</TableCell>
+                      <TableCell className="tabular-nums">{fmtINR(item.gst_payable)}</TableCell>
                       <TableCell className="tabular-nums font-semibold">
-                        ₹{item.final_price}
+                        {fmtINR(item.final_price)}
                       </TableCell>
                     </TableRow>
                   ))}

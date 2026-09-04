@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch } from "@/lib/api/client";
+import { fmtINR } from "@/lib/formatting";
 import type { SubscriptionPlanOut } from "@/types/money";
 
 export default function AdminPlansPage() {
@@ -24,7 +25,7 @@ export default function AdminPlansPage() {
             <div key={p.id} className="rounded-lg border bg-card p-5">
               <p className="font-display text-xl">{p.name}</p>
               <p className="mt-1 text-sm text-muted-foreground">{p.code}</p>
-              <p className="mt-3 text-2xl font-semibold tabular-nums">₹{p.price}</p>
+              <p className="mt-3 text-2xl font-semibold tabular-nums">{fmtINR(p.price)}</p>
               <p className="text-sm text-muted-foreground">
                 {p.duration_days} {t("days")} · {p.trial_days} {t("trialDays")}
               </p>

@@ -20,6 +20,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { ApiError, API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { compressLogo } from "@/lib/compress-image";
+import { fmtINR } from "@/lib/formatting";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { cn } from "@/lib/utils";
 import type {
@@ -186,7 +187,7 @@ function ServicesPanel() {
             className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
           >
             <span className={svc.is_active ? "" : "text-muted-foreground line-through"}>
-              {svc.name} · ₹{svc.price}
+              {svc.name} · {fmtINR(svc.price)}
             </span>
             <Button size="sm" variant="ghost" onClick={() => toggle.mutate(svc)}>
               {svc.is_active ? t("deactivateService") : t("activateService")}

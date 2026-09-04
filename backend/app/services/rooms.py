@@ -344,10 +344,20 @@ async def check_availability(
 
     # Step 2: single batch query — for every room, find overlapping bookings
     # and record the latest checkout date (= when the room will be free).
+    # Day-use bookings (check_in == check_out) still block that calendar day,
+    # so both sides of the comparison use an effective checkout ≥ in + 1 day.
+    from datetime import timedelta as _td
+
+    from sqlalchemy import literal as _lit
+
+    effective_out = check_out if check_out > check_in else check_in + _td(days=1)
+    stored_effective_out = func.greatest(
+        Booking.check_out_date, Booking.check_in_date + _lit(1)
+    )
     overlap_stmt = (
         select(
             BookingRoom.room_id,
-            func.max(Booking.check_out_date).label("free_from"),
+            func.max(stored_effective_out).label("free_from"),
             func.count().label("booking_count"),
         )
         .join(Booking, Booking.id == BookingRoom.booking_id)
@@ -355,9 +365,9 @@ async def check_availability(
             BookingRoom.hotel_id == hotel_id,
             BookingRoom.is_current.is_(True),
             Booking.status.in_(_ACTIVE_BOOKING_STATUSES),
-            # Overlap condition: [check_in, check_out) intersects [B.check_in, B.check_out)
-            Booking.check_in_date < check_out,
-            Booking.check_out_date > check_in,
+            # Overlap condition: [check_in, effective_out) intersects stored range
+            Booking.check_in_date < effective_out,
+            stored_effective_out > check_in,
         )
         .group_by(BookingRoom.room_id)
     )

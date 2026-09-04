@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { apiFetch, ApiError } from "@/lib/api/client";
+import { fmtINR } from "@/lib/formatting";
 import type { HotelAdminOut, SubscriptionPlanOut } from "@/types/money";
 
 export function RenewDialog({ hotel }: { readonly hotel: HotelAdminOut }) {
@@ -71,7 +72,7 @@ export function RenewDialog({ hotel }: { readonly hotel: HotelAdminOut }) {
               <option value="">—</option>
               {plans.data?.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} — ₹{p.price} / {p.duration_days}d
+                  {p.name} — {fmtINR(p.price)} / {p.duration_days}d
                 </option>
               ))}
             </select>

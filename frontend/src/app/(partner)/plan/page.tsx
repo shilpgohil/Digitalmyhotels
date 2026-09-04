@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { BadgeCheck } from "lucide-react";
-import { fmtApiDate } from "@/lib/formatting";
+import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -120,7 +120,7 @@ function PlanContent() {
                     <h2 className="font-display text-xl">{plan.name}</h2>
                     <p className="mt-2">
                       <span className="text-3xl font-semibold text-gold-600">
-                        ₹{plan.price}
+                        {fmtINR(plan.price)}
                       </span>
                       <span className="text-sm text-muted-foreground">
                         {" "}

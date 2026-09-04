@@ -14,7 +14,7 @@ from app.models.booking import Booking
 from app.models.payment import Payment, Refund
 from app.schemas.payment import PaymentCreate, RefundCreate
 from app.services.audit import write_audit
-from app.services.bookings import get_booking
+from app.services.bookings import get_booking, settle_booking_amounts
 from app.services.ledger import append_entry
 
 
@@ -93,15 +93,6 @@ async def payment_summary(
     )
 
 
-def _recompute_payment_status(booking: Booking) -> None:
-    if booking.due_amount <= Decimal("0.00") and booking.advance_amount > 0:
-        booking.payment_status = "paid"
-    elif booking.advance_amount > 0:
-        booking.payment_status = "partial"
-    else:
-        booking.payment_status = "unpaid"
-
-
 async def collect_payment(
     db: AsyncSession,
     tenant: TenantContext,
@@ -139,10 +130,8 @@ async def collect_payment(
         booking.security_deposit = money(booking.security_deposit + payment.amount)
     else:
         booking.advance_amount = money(booking.advance_amount + payment.amount)
-        booking.due_amount = money(
-            max(booking.total_amount - booking.advance_amount, Decimal("0.00"))
-        )
-        _recompute_payment_status(booking)
+    # Deposit AND advance both settle against the bill — recompute due + status.
+    settle_booking_amounts(booking)
 
     await append_entry(
         db,
@@ -239,10 +228,7 @@ async def correct_payment(
         booking.security_deposit = money(booking.security_deposit + delta)
     else:
         booking.advance_amount = money(booking.advance_amount + delta)
-        booking.due_amount = money(
-            max(booking.total_amount - booking.advance_amount, Decimal("0.00"))
-        )
-        _recompute_payment_status(booking)
+    settle_booking_amounts(booking)
 
     entry_type = "credit" if delta > 0 else "debit"
     if delta != 0:
@@ -316,13 +302,9 @@ async def refund_payment(
     await db.flush()
 
     booking.advance_amount = money(max(booking.advance_amount - amount, Decimal("0.00")))
-    booking.due_amount = money(
-        max(booking.total_amount - booking.advance_amount, Decimal("0.00"))
-    )
+    settle_booking_amounts(booking)
     if booking.status == "checked_out" and booking.due_amount == 0:
         booking.payment_status = "refunded"
-    else:
-        _recompute_payment_status(booking)
 
     await append_entry(
         db,

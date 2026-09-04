@@ -16,7 +16,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   BadgeCheck,
@@ -43,7 +43,7 @@ import { API_BASE, ApiError } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { PERMISSIONS } from "@/lib/permissions";
 import { RequirePermission } from "@/components/auth/require-permission";
-import { fmtApiDate } from "@/lib/formatting";
+import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import {
   activeCharges,
   computeSettlement,
@@ -51,7 +51,12 @@ import {
   money,
 } from "@/components/stay/checkout-summary";
 import type { ListOut, HotelOut, HotelSettingsOut } from "@/types/hotel";
-import type { BookingOut, CheckOutOut, CurrentGuestOut } from "@/types/stay";
+import type {
+  BookingOut,
+  CheckOutOut,
+  CurrentGuestOut,
+  SettlementPreviewOut,
+} from "@/types/stay";
 import type { ChargeOut, PaymentOut } from "@/types/money";
 
 interface HotelQr {
@@ -136,6 +141,12 @@ function CheckoutContent() {
   // ── Selection state ────────────────────────────────────────────────────
   const [selectedId, setSelectedId] = useState("");
   const [entry, setEntry] = useState<CurrentGuestOut | null>(null);
+  // ?booking=<id> lets other pages (Current Guests) deep-link straight into
+  // the checkout flow for a specific in-house booking.
+  const [deepLinkId, setDeepLinkId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("booking");
+  });
 
   // ── Form state ─────────────────────────────────────────────────────────
   const [actualCheckoutTime, setActualCheckoutTime] = useState("");
@@ -278,7 +289,50 @@ function CheckoutContent() {
   const lateHoursNum = lateCalc.lateHours;
   const lateFeeNum = lateCalc.fee;
 
+  // Local fallback computation — only used if the server preview fails.
   const settlement = computeSettlement(booking, charges, lateFeeNum);
+
+  // Server-computed settlement preview — the single source of truth for the
+  // totals block, so the screen always matches the recorded bill and invoice.
+  // Re-fetches when the auto-calculated late fee changes (part of the key);
+  // keepPreviousData avoids flicker while a new fee is being priced.
+  const previewQuery = useQuery({
+    queryKey: ["settlement", entry?.booking_id, lateFeeNum],
+    queryFn: () =>
+      api<SettlementPreviewOut>(
+        `/api/v1/checkouts/${entry!.booking_id}/preview?late_fee=${lateFeeNum.toFixed(2)}`,
+      ),
+    enabled: !!entry?.booking_id,
+    placeholderData: keepPreviousData,
+    staleTime: 0,
+  });
+  const preview = previewQuery.data;
+  const previewLoading = !!entry && previewQuery.isLoading && !preview;
+
+  /** Totals for display — server values when available, local math otherwise. */
+  const totals = preview
+    ? {
+        roomSubtotal: money(preview.room_subtotal),
+        gst: money(preview.gst_amount),
+        chargesTotal: money(preview.charges_total),
+        lateFee: money(preview.late_fee),
+        discount: money(preview.discount),
+        finalTotal: money(preview.final_total),
+        advancePaid: money(preview.advance_paid),
+        secDeposit: money(preview.security_deposit),
+        effectivePaid: money(preview.effective_paid),
+      }
+    : {
+        roomSubtotal: settlement.roomChargesTotal,
+        gst: money(booking?.tax_amount),
+        chargesTotal: settlement.extraChargesTotal,
+        lateFee: lateFeeNum,
+        discount: money(booking?.discount_amount),
+        finalTotal: settlement.finalTotal,
+        advancePaid: settlement.advancePaid,
+        secDeposit: settlement.secDeposit,
+        effectivePaid: settlement.effectivePaid,
+      };
 
   // Extras entered locally — not on the booking until POSTed at checkout.
   const extrasTotal = useMemo(
@@ -287,9 +341,9 @@ function CheckoutContent() {
     [extras],
   );
 
-  const grandTotal = settlement.finalTotal + extrasTotal;
-  const pendingAmount = Math.max(grandTotal - settlement.effectivePaid, 0);
-  const refundAmount = Math.max(settlement.effectivePaid - grandTotal, 0);
+  const grandTotal = totals.finalTotal + extrasTotal;
+  const pendingAmount = Math.max(grandTotal - totals.effectivePaid, 0);
+  const refundAmount = Math.max(totals.effectivePaid - grandTotal, 0);
   const needsDueAuth = payStatus === "pending" && pendingAmount > 0;
 
   // ── Actions ────────────────────────────────────────────────────────────
@@ -299,6 +353,24 @@ function CheckoutContent() {
     resetForm();
     setEntry(found);
   };
+
+  // Deep link: auto-select the booking once the in-house guest list loads,
+  // then strip the param so back-navigation doesn't re-trigger it.
+  useEffect(() => {
+    if (!deepLinkId || entry || !guests.data) return;
+    const found = guests.data.items.find((g) => g.booking_id === deepLinkId);
+    if (found) {
+      setSelectedId(deepLinkId);
+      setEntry(found);
+    }
+    setDeepLinkId(null);
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("booking")) {
+      url.searchParams.delete("booking");
+      window.history.replaceState(null, "", url.toString());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkId, guests.data]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
@@ -776,7 +848,7 @@ function CheckoutContent() {
                       {lateFeeNum > 0 && (
                         <div className="col-span-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
                           Late checkout by {lateHoursNum} hr{lateHoursNum !== 1 ? "s" : ""} —{" "}
-                          ₹{lateFeeNum.toFixed(2)} late fee added
+                          {fmtINR(lateFeeNum)} late fee added
                         </div>
                       )}
                     </div>
@@ -835,42 +907,94 @@ function CheckoutContent() {
                 )}
                 {entry && detailsLoading && (
                   <div className="space-y-2">
-                    {Array.from({ length: 4 }).map((_, i) => (
+              {Array.from({ length: 4 }).map((_, i) => (
                       <Skeleton key={i} className="h-8 w-full" />
-                    ))}
-                  </div>
-                )}
+              ))}
+            </div>
+          )}
                 {entry && !detailsLoading && (
                   <>
-                    {/* Totals */}
-                    <div className="rounded-xl border text-sm divide-y">
-                      <div className="flex justify-between px-3 py-2">
-                        <span className="text-muted-foreground">{tp("advancePayment")}</span>
-                        <span className="font-medium text-green-700 tabular-nums">
-                          {fmtMoney(settlement.effectivePaid)}
-                        </span>
+                    {/* Totals — server-computed settlement preview */}
+                    {previewLoading ? (
+                      <div className="space-y-2">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Skeleton key={i} className="h-7 w-full" />
+                        ))}
                       </div>
-                      <div className="flex justify-between px-3 py-2">
-                        <span className="text-muted-foreground">{tp("pendingPayment")}</span>
-                        <span
-                          className={
-                            pendingAmount > 0
-                              ? "font-medium text-red-600 tabular-nums"
-                              : "font-medium text-green-700 tabular-nums"
-                          }
-                        >
-                          {fmtMoney(pendingAmount)}
-                        </span>
-                      </div>
-                      {refundAmount > 0 && (
+                    ) : (
+                      <div className="rounded-xl border text-sm divide-y">
                         <div className="flex justify-between px-3 py-2">
-                          <span className="text-muted-foreground">{tp("refundToGuest")}</span>
-                          <span className="font-medium text-blue-600 tabular-nums">
-                            {fmtMoney(refundAmount)}
+                          <span className="text-muted-foreground">{tp("roomSubtotal")}</span>
+                          <span className="font-medium tabular-nums">
+                            {fmtMoney(totals.roomSubtotal)}
                           </span>
                         </div>
-                      )}
-                    </div>
+                        <div className="flex justify-between px-3 py-2">
+                          <span className="text-muted-foreground">{tp("gst")}</span>
+                          <span className="font-medium tabular-nums">{fmtMoney(totals.gst)}</span>
+                        </div>
+                        {totals.chargesTotal > 0 && (
+                          <div className="flex justify-between px-3 py-2">
+                            <span className="text-muted-foreground">{tp("additionalCharges")}</span>
+                            <span className="font-medium tabular-nums">
+                              {fmtMoney(totals.chargesTotal)}
+                            </span>
+                          </div>
+                        )}
+                        {totals.lateFee > 0 && (
+                          <div className="flex justify-between px-3 py-2">
+                            <span className="text-muted-foreground">{t("lateFee")}</span>
+                            <span className="font-medium text-orange-600 tabular-nums">
+                              {fmtMoney(totals.lateFee)}
+                            </span>
+                          </div>
+                        )}
+                        {totals.discount > 0 && (
+                          <div className="flex justify-between px-3 py-2">
+                            <span className="text-muted-foreground">{tp("discount")}</span>
+                            <span className="font-medium text-green-700 tabular-nums">
+                              −{fmtMoney(totals.discount)}
+                            </span>
+                          </div>
+                        )}
+                        {extrasTotal > 0 && (
+                          <div className="flex justify-between px-3 py-2">
+                            <span className="text-muted-foreground">{tp("newChargesAtCheckout")}</span>
+                            <span className="font-medium tabular-nums">{fmtMoney(extrasTotal)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between px-3 py-2">
+                          <span className="text-muted-foreground">{tp("advancePayment")}</span>
+                          <span className="font-medium text-green-700 tabular-nums">
+                            {fmtMoney(totals.advancePaid)}
+                          </span>
+                        </div>
+                        {totals.secDeposit > 0 && (
+                          <div className="flex justify-between px-3 py-2">
+                            <span className="text-muted-foreground">{tp("securityDeposit")}</span>
+                            <span className="font-medium text-green-700 tabular-nums">
+                              {fmtMoney(totals.secDeposit)}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between px-3 py-2">
+                          <span className="text-muted-foreground">
+                            {refundAmount > 0 ? tp("refundToGuest") : tp("pendingPayment")}
+                          </span>
+                          <span
+                            className={
+                              refundAmount > 0
+                                ? "font-medium text-blue-600 tabular-nums"
+                                : pendingAmount > 0
+                                  ? "font-medium text-red-600 tabular-nums"
+                                  : "font-medium text-green-700 tabular-nums"
+                            }
+                          >
+                            {fmtMoney(refundAmount > 0 ? refundAmount : pendingAmount)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Payment status / method */}
                     {!done && (
@@ -927,8 +1051,8 @@ function CheckoutContent() {
                               placeholder={tp("dueReasonPlaceholder")}
                               disabled={isPending}
                             />
-                          </div>
-                        )}
+            </div>
+          )}
                       </>
                     )}
 
@@ -946,8 +1070,8 @@ function CheckoutContent() {
                         role="alert"
                       >
                         {error}
-                      </p>
-                    )}
+            </p>
+          )}
 
                     {/* Actions */}
                     <div className="space-y-2">
@@ -962,7 +1086,7 @@ function CheckoutContent() {
                           ) : (
                             <LogOut className="mr-2 size-4" aria-hidden />
                           )}
-                          {t("checkOutAction")}
+                        {t("checkOutAction")}
                         </Button>
                       )}
                       <Button

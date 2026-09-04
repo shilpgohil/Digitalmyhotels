@@ -10,11 +10,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
-TWO_PLACES = Decimal("0.01")
+# Client requirement (2026-09-04): all monetary amounts are WHOLE RUPEES,
+# system-wide (stored values included) — ₹200.49 → 200, ₹200.50 → 201.
+# DB columns remain Numeric(12,2); whole-rupee values store cleanly.
+WHOLE_RUPEE = Decimal("1")
 
 
 def money(value: Decimal | int | str) -> Decimal:
-    return Decimal(value).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+    return Decimal(value).quantize(WHOLE_RUPEE, rounding=ROUND_HALF_UP)
 
 
 @dataclass(frozen=True, slots=True)

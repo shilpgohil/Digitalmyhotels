@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.tenant import TenantContext
+from app.domain.gst import money
 from app.domain.room_status import RoomStatus, is_allocatable
 from app.models.booking import Booking, BookingRoom
 from app.models.guest import Guest
@@ -67,6 +68,16 @@ async def _assert_no_overlap(
     exclude_booking_id: UUID | None = None,
 ) -> None:
     """Re-check availability inside the transaction (after locking rooms)."""
+    from sqlalchemy import func, literal
+
+    # Day-use bookings are stored with check_in_date == check_out_date but
+    # still occupy the room for that calendar day, so overlap comparisons use
+    # an EFFECTIVE checkout of at least check_in + 1 day on both sides.
+    effective_out = check_out if check_out > check_in else check_in + timedelta(days=1)
+    stored_effective_out = func.greatest(
+        Booking.check_out_date,
+        Booking.check_in_date + literal(1),
+    )
     stmt = (
         select(BookingRoom.room_id)
         .join(Booking, Booking.id == BookingRoom.booking_id)
@@ -75,9 +86,9 @@ async def _assert_no_overlap(
             BookingRoom.room_id.in_(room_ids),
             BookingRoom.is_current.is_(True),
             Booking.status.in_(ACTIVE_BOOKING_STATUSES),
-            # date-range overlap: [check_in, check_out)
-            Booking.check_in_date < check_out,
-            Booking.check_out_date > check_in,
+            # date-range overlap: [check_in, effective_out)
+            Booking.check_in_date < effective_out,
+            stored_effective_out > check_in,
         )
     )
     if exclude_booking_id:
@@ -93,6 +104,39 @@ async def _assert_no_overlap(
 
 def _nights(check_in: date, check_out: date) -> int:
     return max((check_out - check_in).days, 1)
+
+
+def _day_use_hours(check_in_time: str | None, check_out_time: str | None) -> int:
+    """Billable hours for a same-day (day-use) stay — ceil to the next hour."""
+    if not (check_in_time and check_out_time):
+        return 0
+    in_h, in_m = (int(p) for p in check_in_time.split(":"))
+    out_h, out_m = (int(p) for p in check_out_time.split(":"))
+    minutes = (out_h * 60 + out_m) - (in_h * 60 + in_m)
+    return max(-(-minutes // 60), 1)  # ceil division
+
+
+def settle_booking_amounts(booking: Booking) -> None:
+    """Recompute due_amount and payment_status from the booking's totals.
+
+    Single source of truth used by payments, charges and check-in fee paths so
+    the security deposit is ALWAYS counted against the due amount and the
+    payment badge can never say "paid" while money is still owed.
+    """
+    booking.due_amount = money(
+        max(
+            booking.total_amount - booking.advance_amount - booking.security_deposit,
+            Decimal("0.00"),
+        )
+    )
+    if booking.due_amount <= Decimal("0.00") and (
+        booking.advance_amount > 0 or booking.security_deposit > 0
+    ):
+        booking.payment_status = "paid"
+    elif booking.advance_amount > 0 or booking.security_deposit > 0:
+        booking.payment_status = "partial"
+    else:
+        booking.payment_status = "unpaid"
 
 
 async def create_booking(
@@ -132,17 +176,37 @@ async def create_booking(
             )
 
     nights = _nights(body.check_in_date, body.check_out_date)
+    is_day_use = body.check_in_date == body.check_out_date
+    day_use_hours = (
+        _day_use_hours(body.check_in_time, body.check_out_time) if is_day_use else 0
+    )
     room_result = await db.execute(
         select(Room)
         .options(selectinload(Room.room_type))
         .where(Room.id.in_([r.id for r in rooms]))
     )
     rooms_with_types = list(room_result.scalars().all())
+
+    def _stay_rate(room: Room) -> Decimal:
+        """Rate stored on BookingRoom = full price of the stay for that room.
+
+        Night stays: per-night base price (multiplied by nights for totals).
+        Day use: ceil(hours) × hourly_rate, or the full-night base price when
+        the room type has no hourly rate configured (nights == 1 for day use,
+        so the stored rate IS the stay total in that case).
+        """
+        if is_day_use:
+            rt = room.room_type
+            if rt.hourly_rate and rt.hourly_rate > 0:
+                return money(rt.hourly_rate * day_use_hours)
+            return money(rt.base_price)
+        return room.room_type.base_price
+
     subtotal = sum(
-        (room.room_type.base_price * nights for room in rooms_with_types),
+        (_stay_rate(room) * nights for room in rooms_with_types),
         Decimal("0.00"),
     )
-    total = max(subtotal - body.discount_amount, Decimal("0.00"))
+    total = money(max(subtotal - body.discount_amount, Decimal("0.00")))
 
     booking = Booking(
         hotel_id=hotel_id,
@@ -182,7 +246,7 @@ async def create_booking(
                 booking_id=booking.id,
                 room_id=room.id,
                 room_type_id=room.room_type_id,
-                rate=room.room_type.base_price,
+                rate=_stay_rate(room),
                 is_current=True,
             )
         )
@@ -203,7 +267,11 @@ async def create_booking(
         booking_id=booking.id,
         entry_type="debit",
         amount=total,
-        description=f"Room charges ({nights} night(s), {len(rooms)} room(s))",
+        description=(
+            f"Room charges (day use, {day_use_hours} hr(s), {len(rooms)} room(s))"
+            if is_day_use
+            else f"Room charges ({nights} night(s), {len(rooms)} room(s))"
+        ),
         reference_type="booking",
         reference_id=booking.id,
         created_by_id=tenant.user_id,
@@ -309,7 +377,10 @@ async def update_booking(
     changes = body.model_dump(exclude_unset=True)
     new_in = changes.get("check_in_date", booking.check_in_date)
     new_out = changes.get("check_out_date", booking.check_out_date)
-    if new_out <= new_in:
+    is_day_use = booking.check_in_date == booking.check_out_date
+    if new_out < new_in or (new_out == new_in and not is_day_use):
+        # Same-day dates are only valid for bookings created as day-use
+        # (which carry check-in/out times and hourly pricing on the rate).
         raise ValidationAppError("Check-out date must be after check-in date")
 
     old_total = booking.total_amount
@@ -324,13 +395,13 @@ async def update_booking(
         room_subtotal = sum(
             (br.rate * nights for br in booking.rooms if br.is_current), Decimal("0.00")
         )
-        booking.total_amount = max(
-            room_subtotal - (changes.get("discount_amount", booking.discount_amount)),
-            Decimal("0.00"),
+        booking.total_amount = money(
+            max(
+                room_subtotal - (changes.get("discount_amount", booking.discount_amount)),
+                Decimal("0.00"),
+            )
         )
-        booking.due_amount = max(
-            booking.total_amount - booking.advance_amount, Decimal("0.00")
-        )
+        settle_booking_amounts(booking)
 
     before = {k: str(getattr(booking, k)) for k in changes}
     for key, value in changes.items():
