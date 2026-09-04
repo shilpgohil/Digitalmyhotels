@@ -1,4 +1,4 @@
-# DigitalMyHotels Backend
+﻿# DigitalMyHotels Backend
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 sqlalchemy[asyncio]==2.0.36
@@ -30,3 +30,4 @@ types-python-jose==3.3.4.20240106
 types-passlib==1.7.7.20240819
 fpdf2==2.8.2
 types-python-dateutil==2.9.0.20241206
+tzdata==2026.3

@@ -87,6 +87,13 @@ class Booking(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     parking_slot: Mapped[str | None] = mapped_column(String(40), nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancel_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Set once when the checkout-overdue notification fires — durable dedupe
+    # so the sweep never notifies the same stay twice. Cleared on checkout
+    # reversal is unnecessary: a reversed checkout re-uses the same booking
+    # and SHOULD not re-alert (staff already know).
+    overdue_notified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )

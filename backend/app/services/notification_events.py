@@ -32,6 +32,7 @@ class NE(StrEnum):
     CHECKIN_COMPLETED = "stay.checked_in"
     CHECKOUT_COMPLETED = "stay.checked_out"
     CHECKOUT_REVERSED = "stay.checkout_reversed"
+    CHECKOUT_OVERDUE = "stay.checkout_overdue"
     ROOM_TRANSFERRED = "stay.room_transferred"
 
     # Housekeeping
@@ -113,6 +114,15 @@ _TEMPLATES: dict[NE, dict] = {
         "body": (
             "{booking_number} ({guest_name}) checkout was reversed. "
             "Guest is back in-house."
+        ),
+        "deep_link": "/current-guests",
+    },
+    NE.CHECKOUT_OVERDUE: {
+        "category": "front_desk",
+        "title": "Checkout overdue",
+        "body": (
+            "{guest_name} (Room {rooms}) was due to check out at {expected} "
+            "and is still in-house ({booking_number})"
         ),
         "deep_link": "/current-guests",
     },

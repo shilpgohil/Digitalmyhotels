@@ -169,6 +169,81 @@ async def test_day_use_blocks_the_calendar_day(
     assert tomorrow.status_code == 201, tomorrow.text
 
 
+async def test_overdue_sweep_fires_once(
+    client: AsyncClient, hotel_a: HotelFixture, db_session
+) -> None:
+    """Sweep notifies exactly once for an overdue in-house stay."""
+    from datetime import UTC, datetime
+    from datetime import timedelta as td
+
+    from sqlalchemy import select
+
+    from app.models.booking import Booking
+    from app.models.platform import Notification
+    from app.services.overdue import sweep_overdue_checkouts
+
+    headers = await _headers(client, hotel_a)
+    room_id = await _setup_room(client, headers, hourly_rate=None, room_number="306")
+    guest_id = await _make_guest(client, headers, "9822200016")
+
+    booked = await client.post(
+        "/api/v1/bookings",
+        json={
+            "primary_guest_id": guest_id,
+            "room_ids": [room_id],
+            "check_in_date": str(TODAY),
+            "check_out_date": str(TODAY + timedelta(days=1)),
+        },
+        headers=headers,
+    )
+    assert booked.status_code == 201, booked.text
+    booking_id = booked.json()["id"]
+    checkin = await client.post(
+        "/api/v1/checkins",
+        json={"booking_id": booking_id, "terms_acknowledged": True},
+        headers=headers,
+    )
+    assert checkin.status_code == 201, checkin.text
+
+    # Not overdue now → sweep is a no-op for this booking.
+    booking = (
+        await db_session.execute(select(Booking).where(Booking.id == booking_id))
+    ).scalar_one()
+    assert booking.overdue_notified_at is None
+
+    # Time-travel: sweep as if it's 2 days from now (checkout long past).
+    future = datetime.now(UTC) + td(days=2)
+    fired = await sweep_overdue_checkouts(db_session, now_utc=future)
+    assert fired >= 1
+
+    await db_session.refresh(booking)
+    assert booking.overdue_notified_at is not None
+
+    notif = (
+        await db_session.execute(
+            select(Notification).where(
+                Notification.hotel_id == booking.hotel_id,
+                Notification.title == "Checkout overdue",
+            )
+        )
+    ).scalars().all()
+    assert len(notif) >= 1
+    assert booked.json()["booking_number"] in notif[-1].body
+
+    # Second sweep: durable dedupe — nothing new for this booking.
+    before = len(notif)
+    await sweep_overdue_checkouts(db_session, now_utc=future)
+    notif_after = (
+        await db_session.execute(
+            select(Notification).where(
+                Notification.hotel_id == booking.hotel_id,
+                Notification.title == "Checkout overdue",
+            )
+        )
+    ).scalars().all()
+    assert len(notif_after) == before
+
+
 async def test_availability_endpoint_allows_same_day_and_sees_day_use(
     client: AsyncClient, hotel_a: HotelFixture
 ) -> None:

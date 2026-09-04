@@ -22,9 +22,21 @@ from app.core.logging import setup_logging
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    import asyncio
+
+    from app.services.overdue import overdue_sweep_loop
+
     settings = get_settings()
     setup_logging(debug=settings.debug)
+    # Checkout-overdue notifications: lightweight in-process scheduler (the
+    # loop sleeps before its first sweep, so tests/short processes never run it).
+    sweep_task = asyncio.create_task(overdue_sweep_loop())
     yield
+    sweep_task.cancel()
+    try:
+        await sweep_task
+    except asyncio.CancelledError:
+        pass
 
 
 def create_app() -> FastAPI:
