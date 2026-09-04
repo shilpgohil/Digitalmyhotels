@@ -72,10 +72,33 @@ def can_transition(current: RoomStatus | str, target: RoomStatus | str) -> bool:
     return tgt in TRANSITIONS.get(cur, frozenset())
 
 
+# Human-friendly labels for error messages (client: raw enums like
+# 'cleaning_required' in error toasts were confusing to front-desk staff).
+STATUS_LABELS: dict[RoomStatus, str] = {
+    RoomStatus.AVAILABLE: "Available",
+    RoomStatus.RESERVED: "Reserved",
+    RoomStatus.OCCUPIED: "Occupied",
+    RoomStatus.CLEANING_REQUIRED: "Cleaning Required",
+    RoomStatus.CLEANING_IN_PROGRESS: "Cleaning In Progress",
+    RoomStatus.CLEAN_READY: "Clean & Ready",
+    RoomStatus.INSPECTION_REQUIRED: "Inspection Required",
+    RoomStatus.MAINTENANCE: "Under Maintenance",
+    RoomStatus.OUT_OF_SERVICE: "Out of Service",
+}
+
+
+def status_label(status: RoomStatus | str) -> str:
+    return STATUS_LABELS.get(RoomStatus(status), str(status))
+
+
 def assert_transition(current: RoomStatus | str, target: RoomStatus | str) -> None:
     if not can_transition(current, target):
+        cur = RoomStatus(current)
+        allowed = sorted(status_label(s) for s in TRANSITIONS.get(cur, frozenset()))
+        allowed_hint = f" It can move to: {', '.join(allowed)}." if allowed else ""
         raise ConflictError(
-            f"Room cannot move from '{current}' to '{target}'",
+            f"Room is currently '{status_label(cur)}' and cannot be set to "
+            f"'{status_label(target)}'.{allowed_hint}",
             code="invalid_room_transition",
         )
 

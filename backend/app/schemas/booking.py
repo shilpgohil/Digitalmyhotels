@@ -51,6 +51,26 @@ class BookingOut(ORMModel):
     created_at: datetime
 
 
+class BookingGuestDocOut(BaseModel):
+    id: UUID
+    document_type: str
+    side: str | None
+
+
+class BookingGuestOut(BaseModel):
+    """Registered guest on a booking, with ID documents — view drawer data."""
+
+    guest_id: UUID
+    full_name: str
+    phone_masked: str
+    is_primary: bool
+    registration_number: str
+    purpose_of_visit: str | None
+    company_name: str | None
+    id_proof_type: str | None
+    documents: list[BookingGuestDocOut]
+
+
 class RoomRateOverride(BaseModel):
     """Staff-edited room rate (per night; for day-use it's the whole stay)."""
 

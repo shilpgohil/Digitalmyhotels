@@ -59,6 +59,8 @@ function PaymentsContent() {
   const [bookingId, setBookingId] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [correctTarget, setCorrectTarget] = useState<PaymentOut | null>(null);
+  const [refundTarget, setRefundTarget] = useState<PaymentOut | null>(null);
 
   const rangeQs = `${fromDate ? `&from_date=${fromDate}` : ""}${toDate ? `&to_date=${toDate}` : ""}`;
 
@@ -98,10 +100,13 @@ function PaymentsContent() {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["payments", activeHotelId] });
+    queryClient.invalidateQueries({ queryKey: ["payment-summary", activeHotelId] });
     queryClient.invalidateQueries({ queryKey: ["charges", activeHotelId] });
     queryClient.invalidateQueries({ queryKey: ["ledger", activeHotelId] });
     queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
   };
+
+  const showActions = can(PERMISSIONS.paymentsCorrect) || can(PERMISSIONS.paymentsRefund);
 
   return (
     <>
@@ -208,6 +213,7 @@ function PaymentsContent() {
                   <TableHead>{t("purpose")}</TableHead>
                   <TableHead>{t("reference")}</TableHead>
                   <TableHead>Status</TableHead>
+                  {showActions && <TableHead className="text-right">{tc("actions")}</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -222,6 +228,20 @@ function PaymentsContent() {
                         {p.status}
                       </StatusBadge>
                     </TableCell>
+                    {showActions && (
+                      <TableCell className="space-x-1 text-right">
+                        {can(PERMISSIONS.paymentsCorrect) && p.status === "completed" && (
+                          <Button size="sm" variant="outline" onClick={() => setCorrectTarget(p)}>
+                            {t("correct")}
+                          </Button>
+                        )}
+                        {can(PERMISSIONS.paymentsRefund) && p.status === "completed" && (
+                          <Button size="sm" variant="ghost" onClick={() => setRefundTarget(p)}>
+                            {t("refundAction")}
+                          </Button>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -313,8 +333,174 @@ function PaymentsContent() {
             </ul>
           </section>
         )}
+
+        {correctTarget && (
+          <CorrectPaymentDialog
+            payment={correctTarget}
+            onClose={() => setCorrectTarget(null)}
+            onDone={invalidate}
+          />
+        )}
+        {refundTarget && (
+          <RefundDialog
+            payment={refundTarget}
+            onClose={() => setRefundTarget(null)}
+            onDone={invalidate}
+          />
+        )}
       </main>
     </>
+  );
+}
+
+function CorrectPaymentDialog({
+  payment,
+  onClose,
+  onDone,
+}: {
+  payment: PaymentOut;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const t = useTranslations("money");
+  const tc = useTranslations("common");
+  const api = useApi();
+  const [amount, setAmount] = useState(payment.amount);
+  const [reason, setReason] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api<PaymentOut>(`/api/v1/payments/${payment.id}/correct`, {
+        method: "POST",
+        body: { corrected_amount: amount, reason },
+      }),
+    onSuccess: () => {
+      toast.success(t("correctionDone"));
+      onDone();
+      onClose();
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
+  });
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("correct")}</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-3">
+          <div>
+            <Label>{t("correctedAmount")}</Label>
+            <Input
+              className="mt-1"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>{t("correctionReason")}</Label>
+            <Input className="mt-1" value={reason} onChange={(e) => setReason(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm">
+            {tc("cancel")}
+          </DialogClose>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={!amount || reason.trim().length < 3 || mutation.isPending}
+          >
+            {mutation.isPending ? tc("saving") : t("correct")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RefundDialog({
+  payment,
+  onClose,
+  onDone,
+}: {
+  payment: PaymentOut;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const t = useTranslations("money");
+  const tc = useTranslations("common");
+  const api = useApi();
+  const [amount, setAmount] = useState(payment.amount);
+  const [method, setMethod] = useState<string>(
+    payment.method === "upi" ? "upi" : "cash",
+  );
+  const [reason, setReason] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api("/api/v1/payments/refunds", {
+        method: "POST",
+        body: {
+          booking_id: payment.booking_id,
+          amount,
+          method,
+          reason,
+        },
+      }),
+    onSuccess: () => {
+      toast.success(t("refundDone"));
+      onDone();
+      onClose();
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
+  });
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("refundAction")}</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-3">
+          <div>
+            <Label>{t("amount")}</Label>
+            <Input
+              className="mt-1"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>{t("method")}</Label>
+            <select
+              className="mt-1 h-8 w-full rounded-lg border border-input px-2.5 text-sm"
+              value={method}
+              onChange={(e) => setMethod(e.target.value)}
+            >
+              <option value="cash">{t("cash")}</option>
+              <option value="upi">{t("upi")}</option>
+            </select>
+          </div>
+          <div>
+            <Label>{t("refundReason")}</Label>
+            <Input className="mt-1" value={reason} onChange={(e) => setReason(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm">
+            {tc("cancel")}
+          </DialogClose>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={!amount || reason.trim().length < 3 || mutation.isPending}
+          >
+            {mutation.isPending ? tc("saving") : t("refundAction")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Paperclip, Plus } from "lucide-react";
 import { fmtApiDate, fmtINR, localToday } from "@/lib/formatting";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,9 @@ import {
 import { StatusBadge } from "@/components/feedback/status-badge";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
-import { ApiError } from "@/lib/api/client";
+import { API_BASE, ApiError, apiUpload } from "@/lib/api/client";
+import { getAccessToken } from "@/lib/auth/session";
+import { compressReceipt } from "@/lib/compress-image";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { ListOut } from "@/types/hotel";
@@ -64,10 +66,30 @@ function ExpensesContent() {
   const queryClient = useQueryClient();
   const [rejectTarget, setRejectTarget] = useState<string | null>(null);
   const rejectConfirm = useConfirmDialog();
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [filterCategoryId, setFilterCategoryId] = useState("");
+  const [filterMethod, setFilterMethod] = useState("");
+
+  const filterQs = [
+    fromDate && `from_date=${fromDate}`,
+    toDate && `to_date=${toDate}`,
+    filterCategoryId && `category_id=${filterCategoryId}`,
+    filterMethod && `payment_method=${filterMethod}`,
+  ]
+    .filter(Boolean)
+    .join("&");
+
+  const categories = useQuery({
+    queryKey: ["expense-categories", activeHotelId],
+    queryFn: () => api<ExpenseCategoryOut[]>("/api/v1/expenses/categories"),
+    enabled: !!activeHotelId && can(PERMISSIONS.expensesCreate),
+  });
 
   const expenses = useQuery({
-    queryKey: ["expenses", activeHotelId],
-    queryFn: () => api<ListOut<ExpenseOut>>("/api/v1/expenses?limit=50"),
+    queryKey: ["expenses", activeHotelId, filterQs],
+    queryFn: () =>
+      api<ListOut<ExpenseOut>>(`/api/v1/expenses?limit=50${filterQs ? `&${filterQs}` : ""}`),
     enabled: !!activeHotelId,
   });
   const recurring = useQuery({
@@ -122,6 +144,63 @@ function ExpensesContent() {
         {/* Inline add-expense card (replaces the old dialog, per Figma) */}
         {can(PERMISSIONS.expensesCreate) && <InlineAddExpense onDone={invalidate} />}
 
+        {/* Ledger filters */}
+        <div className="mb-4 flex flex-wrap items-end gap-3">
+          <div>
+            <Label>{t("fromDate")}</Label>
+            <DateInput className="mt-1" value={fromDate} onChange={setFromDate} />
+          </div>
+          <div>
+            <Label>{t("toDate")}</Label>
+            <DateInput className="mt-1" value={toDate} onChange={setToDate} />
+          </div>
+          {(categories.data?.length ?? 0) > 0 && (
+            <div className="min-w-40">
+              <Label>{t("category")}</Label>
+              <select
+                className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                value={filterCategoryId}
+                onChange={(e) => setFilterCategoryId(e.target.value)}
+              >
+                <option value="">{t("allCategories")}</option>
+                {categories.data?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="min-w-40">
+            <Label>{t("paymentMode")}</Label>
+            <select
+              className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+              value={filterMethod}
+              onChange={(e) => setFilterMethod(e.target.value)}
+            >
+              <option value="">{t("allMethods")}</option>
+              {FILTER_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {t(`mode_${mode}`)}
+                </option>
+              ))}
+            </select>
+          </div>
+          {(fromDate || toDate || filterCategoryId || filterMethod) && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setFromDate("");
+                setToDate("");
+                setFilterCategoryId("");
+                setFilterMethod("");
+              }}
+            >
+              {t("clearFilters")}
+            </Button>
+          )}
+        </div>
+
         <div className="rounded-lg border bg-card">
           {expenses.isLoading && <Skeleton className="h-48" />}
           {expenses.isError && (
@@ -139,6 +218,7 @@ function ExpensesContent() {
                   <TableHead>{t("expenseDate")}</TableHead>
                   <TableHead>{t("amount")}</TableHead>
                   <TableHead>{t("description")}</TableHead>
+                  <TableHead>{t("paymentMode")}</TableHead>
                   <TableHead>{t("statusCol")}</TableHead>
                   <TableHead>{tc("actions")}</TableHead>
                 </TableRow>
@@ -150,11 +230,17 @@ function ExpensesContent() {
                     <TableCell className="tabular-nums">{fmtINR(ex.amount)}</TableCell>
                     <TableCell>{ex.description ?? "—"}</TableCell>
                     <TableCell>
+                      {FILTER_MODES.includes(ex.payment_method)
+                        ? t(`mode_${ex.payment_method}`)
+                        : ex.payment_method}
+                    </TableCell>
+                    <TableCell>
                       <StatusBadge tone={TONE[ex.status] ?? "neutral"}>
                         {t(`status_${ex.status}`)}
                       </StatusBadge>
                     </TableCell>
                     <TableCell className="space-x-1">
+                      {ex.has_attachment && <ViewReceiptButton expenseId={ex.id} />}
                       {ex.status === "draft" && can(PERMISSIONS.expensesCreate) && (
                         <Button size="sm" variant="outline" onClick={() => act.mutate({ id: ex.id, action: "submit" })}>
                           {t("submit")}
@@ -399,6 +485,57 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
 
 const PAYMENT_MODES = ["cash", "upi", "card", "bank_transfer"] as const;
 
+/** Modes offered by the ledger filter (superset incl. "other" used by the API). */
+const FILTER_MODES: string[] = [...PAYMENT_MODES, "other"];
+
+/** Fetches the receipt with auth headers and opens it in a new tab. */
+function ViewReceiptButton({ expenseId }: { expenseId: string }) {
+  const t = useTranslations("expenses");
+  const { activeHotelId } = useAuth();
+  const [loading, setLoading] = useState(false);
+
+  const openReceipt = async () => {
+    setLoading(true);
+    try {
+      const headers: Record<string, string> = {};
+      const token = getAccessToken();
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (activeHotelId) headers["X-Hotel-Id"] = activeHotelId;
+      const res = await fetch(`${API_BASE}/api/v1/expenses/${expenseId}/attachment`, {
+        headers,
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.click();
+      // Give the new tab time to load the blob before revoking.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      toast.error(t("receiptOpenFailed"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      disabled={loading}
+      onClick={openReceipt}
+      aria-label={t("viewReceipt")}
+      title={t("viewReceipt")}
+    >
+      <Paperclip className="size-3.5" aria-hidden />
+    </Button>
+  );
+}
+
 function InlineAddExpense({ onDone }: { onDone: () => void }) {
   const t = useTranslations("expenses");
   const tc = useTranslations("common");
@@ -410,6 +547,8 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
   const [categoryId, setCategoryId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<string>("cash");
   const [vendorId, setVendorId] = useState("");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const categories = useQuery({
     queryKey: ["expense-categories", activeHotelId],
@@ -424,8 +563,8 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
   });
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api<{ id: string }>("/api/v1/expenses", {
+    mutationFn: async () => {
+      const expense = await api<{ id: string }>("/api/v1/expenses", {
         method: "POST",
         body: {
           amount,
@@ -436,7 +575,27 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
           payment_method: paymentMethod,
           submit: true,
         },
-      }),
+      });
+      // The expense is created either way — a failed upload must not undo it,
+      // so surface upload errors as a separate toast instead of failing the mutation.
+      if (receiptFile) {
+        try {
+          const upload =
+            receiptFile.type === "application/pdf"
+              ? receiptFile
+              : await compressReceipt(receiptFile);
+          const form = new FormData();
+          form.append("file", upload);
+          await apiUpload(`/api/v1/expenses/${expense.id}/attachment`, form, {
+            method: "PUT",
+            hotelId: activeHotelId ?? undefined,
+          });
+        } catch (err) {
+          toast.error(err instanceof ApiError ? err.message : t("receiptUploadFailed"));
+        }
+      }
+      return expense;
+    },
     onSuccess: () => {
       toast.success(t("created"));
       setAmount("");
@@ -445,6 +604,8 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
       setCategoryId("");
       setPaymentMethod("cash");
       setVendorId("");
+      setReceiptFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       onDone();
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
@@ -518,6 +679,17 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
               </option>
             ))}
           </select>
+        </div>
+        <div>
+          <Label htmlFor="exp-receipt">{t("receiptOptional")}</Label>
+          <input
+            id="exp-receipt"
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,application/pdf"
+            className="mt-1 block w-full text-sm text-muted-foreground file:mr-2 file:rounded-lg file:border file:border-input file:bg-transparent file:px-2.5 file:py-1 file:text-sm file:text-foreground"
+            onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
+          />
         </div>
       </div>
       <Button

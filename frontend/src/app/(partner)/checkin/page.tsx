@@ -909,14 +909,19 @@ function DocUpload({
       if ((side === "front" || side === "back") && onOcrResult) {
         setOcrRunning(true);
         const { parseIdDocument } = await import("@/lib/id-ocr");
-        parseIdDocument(file, idType ?? "Aadhar Card")
+        parseIdDocument(file, idType ?? "Aadhar Card", side)
           .then((result) => {
             if (side === "back") {
-              // Back face: surface address field only — don't overwrite
-              // name/DOB/gender already captured from the front.
+              // Back face: surface address + pincode only — don't overwrite
+              // name/DOB/gender already captured from the front. The back
+              // parser has a strict quality gate (valid pincode required),
+              // so garbage is never offered for autofill.
               const addressOnly = {
                 ...result,
-                fields: { address: result.fields.address },
+                fields: {
+                  address: result.fields.address,
+                  pincode: result.fields.pincode,
+                },
               };
               onOcrResult(addressOnly);
             } else {
@@ -1084,6 +1089,7 @@ function AutofillBanner({
     fields.date_of_birth && { label: t("fieldDob"), value: fields.date_of_birth },
     fields.gender && { label: t("fieldGender"), value: fields.gender },
     fields.address && { label: t("fieldAddress"), value: fields.address.slice(0, 60) + (fields.address.length > 60 ? "…" : "") },
+    fields.pincode && { label: t("pincode"), value: fields.pincode },
   ].filter(Boolean) as { label: string; value: string }[];
 
   const pct = Math.round(result.confidence * 100);
@@ -1477,7 +1483,29 @@ function AdditionalGuestEntry({
                 );
               }}
             />
-            <QueuedDocUpload side="back" label={t("uploadBack")} onQueued={handleQueueDoc} />
+            <QueuedDocUpload
+              side="back"
+              label={t("uploadBack")}
+              onQueued={handleQueueDoc}
+              onOriginal={(_side, original) => {
+                // Back face → dedicated Aadhaar address/pincode parser.
+                import("@/lib/id-ocr").then(({ parseIdDocument }) =>
+                  parseIdDocument(original, form.id_proof_type ?? "Aadhar Card", "back").then(
+                    (result) => {
+                      if (result.fields.address) {
+                        set("address", form.address || result.fields.address);
+                        if (result.fields.pincode && !form.postal_code) {
+                          set("postal_code", result.fields.pincode);
+                        }
+                        toast.success(t("formAutofilled"));
+                      } else {
+                        toast.warning(result.message);
+                      }
+                    },
+                  ),
+                );
+              }}
+            />
             <QueuedDocUpload side="selfie" label={t("selfieCapture")} onQueued={handleQueueDoc} />
           </div>
 
@@ -2263,6 +2291,12 @@ function CheckinForm({
               onOcrResult={(result) => {
                 if (result.fields.address) {
                   setPgAddress((prev) => prev || (result.fields.address ?? ""));
+                  if (result.fields.pincode) {
+                    setPgPostalCode((prev) => prev || (result.fields.pincode ?? ""));
+                  }
+                  toast.success(t("formAutofilled"));
+                } else {
+                  toast.warning(result.message);
                 }
               }}
             />
@@ -3544,9 +3578,15 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   onOcrResult={(result) => {
                     if (result.fields.address) {
                       setPgAddress((prev) => prev || (result.fields.address ?? ""));
-                  }
-                }}
-              />
+                      if (result.fields.pincode) {
+                        setPgPostalCode((prev) => prev || (result.fields.pincode ?? ""));
+                      }
+                      toast.success(t("formAutofilled"));
+                    } else {
+                      toast.warning(result.message);
+                    }
+                  }}
+                />
                 <DocUpload
                   key={`${guest.id}-selfie`}
                   guestId={guest.id}

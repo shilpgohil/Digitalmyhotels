@@ -22,11 +22,25 @@
   totals/ledger/invoice/audit); editable service-chip amounts; Mode B check-out time (CheckInRequest
   .check_out_time → booking); "Available for …" header removed; vehicle Other → named field.
   BookingUpdate also accepts check_in_time/check_out_time (Phase 4 prep).
+- ✅ Phase 4 COMPLETE: Current Guests Edit-stay dialog (checkout DateTimePicker/counts/instructions
+  via PATCH, changed-fields-only) + red Overdue badge (23:59 fallback, display-only); Completed
+  Bookings View sheet w/ auth-fetched ID doc thumbnails (GET /bookings/{id}/guests endpoint, batched);
+  Expenses date/category/payment-mode filters (backend params) + Payment Mode column + receipt
+  attach/view re-added (has_attachment computed field); Rooms grid/table share ONE status menu,
+  friendly transition errors w/ allowed-targets hint (domain/room_status STATUS_LABELS); stale
+  housekeeping tasks auto-cancelled on manual ready; Vendor GSTIN+PAN field validators; Payments
+  Correct/Refund row actions (permission-gated dialogs).
+- ✅ Phase 5 OCR ITEM DONE (user-emphasized): front face no longer extracts address; dedicated
+  parseAadharBack (English Address label → lines until pincode, skips Devanagari, pincode extracted
+  separately); strict gate (valid pincode + ≥60% word chars else "enter manually" warning);
+  2x-upscale/grayscale/contrast preprocessing on back faces; wired in all 3 doc-upload sites;
+  GuestPicker new-guest button flow done too.
 - Backend suite: 117 passed. Frontend: tsc+eslint+prod build clean.
-- NEXT: Phase 4 (Current Guests edit action + overdue badge, Completed Bookings view drawer w/ ID
-  images, Expenses filters + receipts, Rooms status-menu parity + friendly errors, Vendor GSTIN
-  validation, Payments actions UI), then Phase 5 (mobile nav, Aadhaar back OCR parser, deep links,
-  i18n parity) and Phase 6 (smoke extension, deploy verify). Phase 0.4 image-compression audit open.
+- NEXT (Phase 5 remainder): mobile nav drawer + responsive grids, hotel switcher, stale /bookings
+  deep links, errors scroll-into-view + disabled-CheckIn reason, walk-in QR message, WhatsApp gating,
+  draft completeness, payments stat-card labels, i18n parity sweep. Then Phase 6: smoke script
+  extension (day-use, refund, rate override, overdue), full deploy verify, memory bank update.
+  Phase 0.4 image-compression audit still open.
 
 Sources: 21 client screenshots + WhatsApp notes (`main documents/client changes and bugs/`),
 three internal audits (check-in flows, money surfaces, cross-cutting UX), and user decisions.

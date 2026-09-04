@@ -81,6 +81,26 @@ export interface BookingOut {
   check_out_time?: string | null;
 }
 
+/** One uploaded document of a booking guest (GET /api/v1/bookings/{id}/guests). */
+export interface BookingGuestDocOut {
+  id: string;
+  document_type: string;
+  side: string | null;
+}
+
+/** Registered guest of a booking (GET /api/v1/bookings/{id}/guests). */
+export interface BookingGuestOut {
+  guest_id: string;
+  full_name: string;
+  phone_masked: string;
+  is_primary: boolean;
+  registration_number: string;
+  purpose_of_visit: string | null;
+  company_name: string | null;
+  id_proof_type: string | null;
+  documents: BookingGuestDocOut[];
+}
+
 export type BookingStatus =
   | "pending"
   | "confirmed"

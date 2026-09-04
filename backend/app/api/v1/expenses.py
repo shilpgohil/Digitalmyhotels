@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, Request, Response, UploadFile
@@ -113,13 +114,25 @@ async def run_recurring(
 @router.get("", response_model=ExpenseListOut)
 async def list_expenses(
     status: str | None = Query(default=None),
+    from_date: date | None = Query(default=None),
+    to_date: date | None = Query(default=None),
+    category_id: UUID | None = Query(default=None),
+    payment_method: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     tenant: TenantContext = Depends(require_permissions(Permission.EXPENSES_VIEW)),
     db: AsyncSession = Depends(get_db),
 ) -> ExpenseListOut:
     items, total = await expenses_service.list_expenses(
-        db, tenant, status=status, limit=limit, offset=offset
+        db,
+        tenant,
+        status=status,
+        from_date=from_date,
+        to_date=to_date,
+        category_id=category_id,
+        payment_method=payment_method,
+        limit=limit,
+        offset=offset,
     )
     return ExpenseListOut(items=[ExpenseOut.model_validate(e) for e in items], total=total)
 

@@ -116,6 +116,10 @@ async def list_expenses(
     tenant: TenantContext,
     *,
     status: str | None = None,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    category_id: UUID | None = None,
+    payment_method: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[Expense], int]:
@@ -123,6 +127,14 @@ async def list_expenses(
     stmt = select(Expense).where(Expense.hotel_id == hotel_id)
     if status:
         stmt = stmt.where(Expense.status == status)
+    if from_date:
+        stmt = stmt.where(Expense.expense_date >= from_date)
+    if to_date:
+        stmt = stmt.where(Expense.expense_date <= to_date)
+    if category_id:
+        stmt = stmt.where(Expense.category_id == category_id)
+    if payment_method:
+        stmt = stmt.where(Expense.payment_method == payment_method)
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
     result = await db.execute(
         stmt.order_by(Expense.expense_date.desc(), Expense.created_at.desc())

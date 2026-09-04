@@ -86,6 +86,7 @@ export interface ExpenseOut {
   description: string | null;
   bill_number: string | null;
   rejection_reason: string | null;
+  has_attachment: boolean;
   created_at: string;
 }
 

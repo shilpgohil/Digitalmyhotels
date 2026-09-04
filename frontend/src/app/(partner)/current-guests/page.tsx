@@ -4,12 +4,21 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { MoreVertical, ArrowLeftRight, LogOut, Eye, Printer } from "lucide-react";
+import {
+  MoreVertical,
+  ArrowLeftRight,
+  LogOut,
+  Eye,
+  Pencil,
+  Printer,
+} from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import {
   Dialog,
   DialogClose,
@@ -33,6 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PaymentStatusBadge } from "@/components/stay/booking-badges";
+import { StatusBadge } from "@/components/feedback/status-badge";
 import { fmtDateTime, fmtDate, fmtApiDate, fmtINR } from "@/lib/formatting";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/lib/api/use-api";
@@ -46,6 +56,17 @@ import { RequirePermission } from "@/components/auth/require-permission";
 /** `DD/MM/YYYY` plus `, HH:MM` when a time is present (no dangling comma). */
 function fmtApiDateTime(date: string, time?: string | null): string {
   return time ? `${fmtApiDate(date)}, ${time}` : fmtApiDate(date);
+}
+
+/**
+ * Whether the expected checkout moment (local time) is already past.
+ * Missing time falls back to 23:59 so guests aren't flagged early.
+ */
+function isCheckoutOverdue(date: string, time?: string | null): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const [y, m, d] = date.split("-").map(Number);
+  const [hh, mm] = (time || "23:59").split(":").map(Number);
+  return new Date(y, m - 1, d, hh || 0, mm || 0).getTime() < Date.now();
 }
 
 /** Day use (same check-in/out date) with both times known. */
@@ -67,6 +88,7 @@ function CurrentGuestsContent() {
   const router = useRouter();
   const [transferTarget, setTransferTarget] = useState<CurrentGuestOut | null>(null);
   const [viewTarget, setViewTarget] = useState<CurrentGuestOut | null>(null);
+  const [editTarget, setEditTarget] = useState<CurrentGuestOut | null>(null);
 
   const guests = useQuery({
     queryKey: ["current-guests", activeHotelId, search],
@@ -162,6 +184,11 @@ function CurrentGuestsContent() {
                     <TableCell className="whitespace-nowrap text-muted-foreground text-xs">
                       {fmtDate(entry.check_out_date)}
                       {entry.check_out_time ? `, ${entry.check_out_time}` : ""}
+                      {isCheckoutOverdue(entry.check_out_date, entry.check_out_time) && (
+                        <StatusBadge tone="danger" className="ml-2">
+                          {t("overdue")}
+                        </StatusBadge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <PaymentStatusBadge status={entry.payment_status} />
@@ -180,6 +207,12 @@ function CurrentGuestsContent() {
                             <Eye className="size-4" aria-hidden />
                             {tc("view")}
                           </DropdownMenuItem>
+                          {can(PERMISSIONS.bookingsManage) && (
+                            <DropdownMenuItem onClick={() => setEditTarget(entry)}>
+                              <Pencil className="size-4" aria-hidden />
+                              {t("editStay")}
+                            </DropdownMenuItem>
+                          )}
                           {can(PERMISSIONS.roomTransfer) && (
                             <DropdownMenuItem onClick={() => setTransferTarget(entry)}>
                               <ArrowLeftRight className="size-4" aria-hidden />
@@ -208,6 +241,11 @@ function CurrentGuestsContent() {
         </div>
 
         <StayDetailDialog entry={viewTarget} onClose={() => setViewTarget(null)} />
+        <EditStayDialog
+          entry={editTarget}
+          onClose={() => setEditTarget(null)}
+          onDone={invalidate}
+        />
         <TransferDialog
           entry={transferTarget}
           onClose={() => setTransferTarget(null)}
@@ -302,6 +340,11 @@ function StayDetailDialog({
               <Detail
                 label={tb("dates")}
                 value={`${fmtApiDate(b.check_in_date)}, ${b.check_in_time} – ${b.check_out_time}`}
+                badge={
+                  isCheckoutOverdue(b.check_out_date, b.check_out_time) ? (
+                    <StatusBadge tone="danger">{t("overdue")}</StatusBadge>
+                  ) : null
+                }
               />
             ) : (
               <>
@@ -312,6 +355,11 @@ function StayDetailDialog({
                 <Detail
                   label={tb("checkoutDate")}
                   value={fmtApiDateTime(b.check_out_date, b.check_out_time)}
+                  badge={
+                    isCheckoutOverdue(b.check_out_date, b.check_out_time) ? (
+                      <StatusBadge tone="danger">{t("overdue")}</StatusBadge>
+                    ) : null
+                  }
                 />
               </>
             )}
@@ -358,12 +406,196 @@ function StayDetailDialog({
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
+function Detail({
+  label,
+  value,
+  badge,
+}: {
+  label: string;
+  value: string;
+  badge?: React.ReactNode;
+}) {
   return (
     <div>
       <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
-      <dd className="mt-0.5 font-medium">{value}</dd>
+      <dd className="mt-0.5 font-medium">
+        {value}
+        {badge && <span className="ml-2 inline-flex align-middle">{badge}</span>}
+      </dd>
     </div>
+  );
+}
+
+function EditStayDialog({
+  entry,
+  onClose,
+  onDone,
+}: {
+  entry: CurrentGuestOut | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const t = useTranslations("stay");
+  const api = useApi();
+
+  const booking = useQuery({
+    queryKey: ["booking", entry?.booking_id, "detail"],
+    queryFn: () => api<BookingOut>(`/api/v1/bookings/${entry?.booking_id}`),
+    enabled: !!entry,
+  });
+
+  return (
+    <Dialog open={entry !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {t("editStayTitle")} — {entry?.booking_number}
+          </DialogTitle>
+        </DialogHeader>
+        {booking.isLoading && <Skeleton className="h-64" />}
+        {booking.data && entry && (
+          <EditStayForm
+            key={entry.booking_id}
+            bookingId={entry.booking_id}
+            booking={booking.data}
+            onClose={onClose}
+            onDone={onDone}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditStayForm({
+  bookingId,
+  booking,
+  onClose,
+  onDone,
+}: {
+  bookingId: string;
+  booking: BookingOut;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const t = useTranslations("stay");
+  const tb = useTranslations("bookings");
+  const tc = useTranslations("common");
+  const api = useApi();
+
+  const [checkOutDate, setCheckOutDate] = useState(booking.check_out_date);
+  const [checkOutTime, setCheckOutTime] = useState(booking.check_out_time ?? "");
+  const [adults, setAdults] = useState(String(booking.adults));
+  const [children, setChildren] = useState(String(booking.children));
+  const [specialRequests, setSpecialRequests] = useState(
+    booking.special_requests ?? "",
+  );
+
+  const mutation = useMutation({
+    mutationFn: (patch: Record<string, unknown>) =>
+      api(`/api/v1/bookings/${bookingId}`, { method: "PATCH", body: patch }),
+    onSuccess: () => {
+      toast.success(t("stayUpdatedToast"));
+      onClose();
+      onDone();
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
+  });
+
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const patch: Record<string, unknown> = {};
+    if (checkOutDate !== booking.check_out_date) {
+      patch.check_out_date = checkOutDate;
+    }
+    if (checkOutTime && checkOutTime !== (booking.check_out_time ?? "")) {
+      patch.check_out_time = checkOutTime;
+    }
+    const nAdults = Number(adults);
+    const nChildren = Number(children);
+    if (Number.isInteger(nAdults) && nAdults >= 1 && nAdults !== booking.adults) {
+      patch.adults = nAdults;
+    }
+    if (
+      Number.isInteger(nChildren) &&
+      nChildren >= 0 &&
+      nChildren !== booking.children
+    ) {
+      patch.children = nChildren;
+    }
+    const requests = specialRequests.trim();
+    if (requests !== (booking.special_requests ?? "")) {
+      patch.special_requests = requests || null;
+    }
+    if (Object.keys(patch).length === 0) {
+      onClose();
+      return;
+    }
+    mutation.mutate(patch);
+  };
+
+  return (
+    <form className="space-y-4" onSubmit={submit}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {/* Check-in is read-only: the guest is already in-house. */}
+        <div className="space-y-1.5">
+          <Label>{tb("checkinDate")}</Label>
+          <p className="flex h-9 items-center rounded-lg border border-input bg-muted px-2.5 text-sm text-muted-foreground">
+            {fmtApiDateTime(booking.check_in_date, booking.check_in_time)}
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="es-checkout">{tb("checkoutDate")}</Label>
+          <DateTimePicker
+            id="es-checkout"
+            dateValue={checkOutDate}
+            timeValue={checkOutTime}
+            onDateChange={setCheckOutDate}
+            onTimeChange={setCheckOutTime}
+            min={booking.check_in_date}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="es-adults">{tb("adults")}</Label>
+          <Input
+            id="es-adults"
+            type="number"
+            min={1}
+            required
+            value={adults}
+            onChange={(e) => setAdults(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="es-children">{tb("children")}</Label>
+          <Input
+            id="es-children"
+            type="number"
+            min={0}
+            required
+            value={children}
+            onChange={(e) => setChildren(e.target.value)}
+          />
+        </div>
+        <div className="col-span-full space-y-1.5">
+          <Label htmlFor="es-requests">{tb("specialRequests")}</Label>
+          <Textarea
+            id="es-requests"
+            maxLength={2000}
+            value={specialRequests}
+            onChange={(e) => setSpecialRequests(e.target.value)}
+          />
+        </div>
+      </div>
+      <DialogFooter>
+        <DialogClose className="inline-flex h-8 items-center rounded-lg border border-border px-2.5 text-sm hover:bg-muted">
+          {tc("cancel")}
+        </DialogClose>
+        <Button type="submit" disabled={mutation.isPending}>
+          {mutation.isPending ? tc("saving") : tc("save")}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 

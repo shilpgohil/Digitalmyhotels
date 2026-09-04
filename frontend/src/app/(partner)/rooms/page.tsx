@@ -54,12 +54,11 @@ const GRID_FILTERS: Array<RoomStatus | "all"> = [
   "maintenance",
 ];
 
-/** Statuses offered from the grid-tile "..." menu (per Figma: Available / Cleaning / Maintenance). */
-const TILE_STATUSES: RoomStatus[] = ["available", "cleaning_required", "maintenance"];
-
-/** Rooms in these statuses must not be changed manually from the tile menu. */
-const LOCKED_STATUSES: RoomStatus[] = ["occupied", "reserved"];
-
+/**
+ * Statuses a user may set manually — the single source of truth for BOTH the
+ * grid-tile menu and the table-row menu. Invalid transitions are rejected by
+ * the backend with a friendly message shown verbatim in the error toast.
+ */
 const MANUAL_STATUSES: RoomStatus[] = [
   "available",
   "cleaning_required",
@@ -69,6 +68,27 @@ const MANUAL_STATUSES: RoomStatus[] = [
   "maintenance",
   "out_of_service",
 ];
+
+/** Shared status-change menu items — identical options for grid and table views. */
+function RoomStatusMenuItems({
+  currentStatus,
+  onSelect,
+}: {
+  currentStatus: RoomStatus;
+  onSelect: (status: RoomStatus) => void;
+}) {
+  const t = useTranslations("rooms");
+  return (
+    <>
+      <DropdownMenuLabel>{t("changeStatus")}</DropdownMenuLabel>
+      {MANUAL_STATUSES.filter((s) => s !== currentStatus).map((status) => (
+        <DropdownMenuItem key={status} onClick={() => onSelect(status)}>
+          {t(`status_${status}`)}
+        </DropdownMenuItem>
+      ))}
+    </>
+  );
+}
 
 function RoomsContent() {
   const t = useTranslations("rooms");
@@ -196,32 +216,24 @@ function RoomsContent() {
                       >
                         <div className="flex w-full items-start justify-between">
                           <span className="text-lg font-semibold">{room.room_number}</span>
-                          {can(PERMISSIONS.roomsUpdateStatus) &&
-                            !LOCKED_STATUSES.includes(room.status) && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger
-                                  className="-mr-1 -mt-1 flex size-6 items-center justify-center rounded hover:bg-muted"
-                                  aria-label={t("changeStatus")}
-                                >
-                                  <MoreHorizontal className="size-3.5" aria-hidden />
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel>{t("changeStatus")}</DropdownMenuLabel>
-                                  {TILE_STATUSES.filter((s) => s !== room.status).map(
-                                    (status) => (
-                                      <DropdownMenuItem
-                                        key={status}
-                                        onClick={() =>
-                                          statusMutation.mutate({ roomId: room.id, status })
-                                        }
-                                      >
-                                        {t(`status_${status}`)}
-                                      </DropdownMenuItem>
-                                    ),
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
+                          {can(PERMISSIONS.roomsUpdateStatus) && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger
+                                className="-mr-1 -mt-1 flex size-6 items-center justify-center rounded hover:bg-muted"
+                                aria-label={t("changeStatus")}
+                              >
+                                <MoreHorizontal className="size-3.5" aria-hidden />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <RoomStatusMenuItems
+                                  currentStatus={room.status}
+                                  onSelect={(status) =>
+                                    statusMutation.mutate({ roomId: room.id, status })
+                                  }
+                                />
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                         </div>
                         <StatusBadge tone={ROOM_STATUS_TONE[room.status]}>
                           {t(`status_${room.status}`)}
@@ -283,19 +295,12 @@ function RoomsContent() {
                                 <MoreVertical className="size-4" aria-hidden />
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>{t("changeStatus")}</DropdownMenuLabel>
-                                {MANUAL_STATUSES.filter((s) => s !== room.status).map(
-                                  (status) => (
-                                    <DropdownMenuItem
-                                      key={status}
-                                      onClick={() =>
-                                        statusMutation.mutate({ roomId: room.id, status })
-                                      }
-                                    >
-                                      {t(`status_${status}`)}
-                                    </DropdownMenuItem>
-                                  ),
-                                )}
+                                <RoomStatusMenuItems
+                                  currentStatus={room.status}
+                                  onSelect={(status) =>
+                                    statusMutation.mutate({ roomId: room.id, status })
+                                  }
+                                />
                               </DropdownMenuContent>
                             </DropdownMenu>
                           )}

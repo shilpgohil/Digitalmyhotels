@@ -354,6 +354,15 @@ async def test_book_and_checkin_atomic_payment_and_charges(
     assert types.count("debit") == 3
     assert types.count("credit") == 1
 
+    # View-drawer endpoint: registered guests with registration numbers.
+    guests_resp = await client.get(f"/api/v1/bookings/{booking_id}/guests", headers=headers)
+    assert guests_resp.status_code == 200
+    booking_guests = guests_resp.json()
+    assert len(booking_guests) == 1
+    assert booking_guests[0]["is_primary"] is True
+    assert booking_guests[0]["registration_number"]
+    assert booking_guests[0]["documents"] == []
+
 
 async def test_book_and_checkin_rolls_back_booking_on_checkin_failure(
     client: AsyncClient, hotel_a: HotelFixture

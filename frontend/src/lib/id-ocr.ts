@@ -14,6 +14,8 @@ export interface ParsedIdFields {
   date_of_birth?: string;  // YYYY-MM-DD  (HTML date input format)
   gender?: string;
   address?: string;
+  /** 6-digit Indian PIN code extracted from the address block. */
+  pincode?: string;
   id_type_detected?: string;
 }
 
@@ -148,41 +150,87 @@ function parseAadhar(text: string): Partial<ParsedIdFields> & { score: number } 
     }
   }
 
-  // ── Address ────────────────────────────────────────────────────────────────
-  // Aadhar card layout: ... [gender line] [address line(s)] [Aadhar number]
-  // So address = lines strictly between the gender line and the Aadhar number.
-  if (genderLineIdx >= 0 && aadharLineIdx > genderLineIdx + 1) {
-    const addrCandidates = lines
-      .slice(genderLineIdx + 1, aadharLineIdx)
-      .filter((l) => {
-        if (l.length < 3) return false;
-        // Reject lines that are mostly non-printable / OCR noise
-        const wordChars = l.replace(/[^A-Za-z0-9,. ]/g, "").length;
-        const ratio = wordChars / l.length;
-        if (ratio < 0.5) return false;
-        // Reject ONLY full header/footer labels — not addresses that contain these words
-        // e.g. "GOVERNMENT OF INDIA" → reject; "Patna, Bihar, India" → keep
-        if (/^(GOVERNMENT\s+OF\s+INDIA|YOUR\s+AADHAAR|AADHAAR|आपका\s+आधार)$/i.test(l)) return false;
-        return true;
-      });
+  // ── Address: NOT extracted from the front face ─────────────────────────────
+  // The Aadhaar FRONT has no reliable address (the address lives on the BACK).
+  // Earlier versions guessed at lines between gender and the number, which
+  // produced garbage autofill (client-reported). Front = name/DOB/gender/number
+  // only; the back face goes through parseAadharBack().
+  void genderLineIdx;
 
-    if (addrCandidates.length > 0) {
-      fields.address = addrCandidates.join(", ");
-      score += 0.10;
+  return { ...fields, score };
+}
+
+// Devanagari (Hindi) block — back faces print the address in Hindi first, then
+// English. We keep the English block only.
+const DEVANAGARI = /[\u0900-\u097F]/;
+
+/** 6-digit Indian PIN code, not part of a longer digit run. */
+const PIN_RE = /\b([1-9]\d{5})\b/;
+
+/**
+ * Dedicated Aadhaar BACK-face parser (address + pincode).
+ *
+ * Strategy: find the English "Address:" label, then collect subsequent
+ * English lines until (and including) the line containing the 6-digit
+ * pincode. Strict quality gate: a result without a valid pincode or with
+ * < 60% word characters is rejected — NEVER autofill garbage.
+ */
+function parseAadharBack(text: string): Partial<ParsedIdFields> & { score: number } {
+  const fields: Partial<ParsedIdFields> = { id_type_detected: "Aadhar Card" };
+  let score = 0;
+
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  // Aadhaar number is printed on the back too — grab it as a bonus.
+  const numMatch = text.match(PATTERNS.aadhar);
+  if (numMatch) {
+    fields.id_number = numMatch[0];
+    score += 0.15;
+  }
+
+  // Locate the ENGLISH address label ("Address:" — skip the Hindi "पता").
+  const labelIdx = lines.findIndex(
+    (l) => /\bAddress\b\s*[:.]?/i.test(l) && !DEVANAGARI.test(l.replace(/Address/i, "")),
+  );
+  const startIdx = labelIdx >= 0 ? labelIdx : lines.findIndex((l) => /\bAddress\b/i.test(l));
+  if (startIdx < 0) return { ...fields, score };
+
+  const collected: string[] = [];
+  // Any text on the label line itself, after the label.
+  const onLabel = lines[startIdx].replace(/^.*?\bAddress\b\s*[:.]?\s*/i, "").trim();
+  if (onLabel && !DEVANAGARI.test(onLabel)) collected.push(onLabel);
+
+  let pincode: string | undefined;
+  for (let i = startIdx + 1; i < Math.min(lines.length, startIdx + 8); i++) {
+    const line = lines[i];
+    if (DEVANAGARI.test(line)) continue; // Hindi block — skip
+    if (PATTERNS.aadhar.test(line)) break; // reached the number strip
+    if (/^(www\.|help@|1947|uidai|unique identification)/i.test(line)) break;
+    const cleaned = line.replace(/\s+/g, " ").trim();
+    if (cleaned.length < 3) continue;
+    collected.push(cleaned);
+    const pin = cleaned.match(PIN_RE);
+    if (pin) {
+      pincode = pin[1];
+      break; // pincode is the last line of an Indian address
     }
-  } else if (genderLineIdx < 0 && aadharLineIdx > 0) {
-    // Fallback: lines immediately above the Aadhar number
-    const addrCandidates = lines
-      .slice(Math.max(0, aadharLineIdx - 3), aadharLineIdx)
-      .filter((l) => {
-        const wordChars = l.replace(/[^A-Za-z0-9,. ]/g, "").length;
-        return l.length > 3 && wordChars / l.length > 0.5
-          && !/^(GOVERNMENT\s+OF\s+INDIA|AADHAAR)$/i.test(l);
-      });
-    if (addrCandidates.length > 0) {
-      fields.address = addrCandidates.join(", ");
-      score += 0.05;
-    }
+  }
+
+  if (collected.length === 0) return { ...fields, score };
+
+  const joined = collected
+    .join(", ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/,\s*,+/g, ",")
+    .replace(/^[,\s]+|[,\s]+$/g, "");
+
+  // Quality gate: valid pincode AND ≥ 60% word characters, else reject.
+  const wordChars = joined.replace(/[^A-Za-z0-9,./\- ]/g, "").length;
+  const quality = joined.length > 0 ? wordChars / joined.length : 0;
+  if (pincode && quality >= 0.6 && joined.length >= 10) {
+    fields.address = joined;
+    fields.pincode = pincode;
+    score += 0.55; // address + pincode is the whole point of the back face
   }
 
   return { ...fields, score };
@@ -378,20 +426,65 @@ function detectAndParse(text: string): Partial<ParsedIdFields> & { score: number
   return parseAadhar(text);
 }
 
+// ─── Image preprocessing ──────────────────────────────────────────────────────
+
+/**
+ * Upscale small images (2×) and boost contrast in grayscale before OCR.
+ * Tesseract accuracy on Aadhaar back-face address text improves markedly
+ * with this; falls back to the original file on any failure.
+ */
+async function preprocessForOcr(imageFile: File): Promise<Blob | File> {
+  try {
+    const bitmap = await createImageBitmap(imageFile);
+    const scale = Math.max(bitmap.width, bitmap.height) < 1200 ? 2 : 1;
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width * scale;
+    canvas.height = bitmap.height * scale;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return imageFile;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const px = img.data;
+    const CONTRAST = 1.35; // gentle boost — aggressive values destroy thin glyphs
+    for (let i = 0; i < px.length; i += 4) {
+      const gray = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      const boosted = Math.min(255, Math.max(0, (gray - 128) * CONTRAST + 128));
+      px[i] = px[i + 1] = px[i + 2] = boosted;
+    }
+    ctx.putImageData(img, 0, 0);
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/png"),
+    );
+    return blob ?? imageFile;
+  } catch {
+    return imageFile;
+  }
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /** Normalised confidence threshold above which autofill is offered. */
 const AUTOFILL_THRESHOLD = 0.55;
+
+export type DocumentSide = "front" | "back";
 
 /**
  * Run OCR on an ID document image and return parsed fields + confidence.
  *
  * @param imageFile  The image File object (PNG / JPEG / WebP).
  * @param idType     Expected ID type (from the form dropdown). Used as a hint.
+ * @param side       Which face was uploaded. "back" routes Aadhaar to the
+ *                   dedicated address/pincode parser with preprocessing.
  */
 export async function parseIdDocument(
   imageFile: File,
   idType: string,
+  side: DocumentSide = "front",
 ): Promise<IdOcrResult> {
   try {
     // Dynamically import Tesseract.js so it doesn't affect initial bundle size.
@@ -401,7 +494,10 @@ export async function parseIdDocument(
       logger: () => undefined, // suppress verbose logs
     });
 
-    const { data } = await worker.recognize(imageFile);
+    // Back faces get grayscale/contrast/upscale preprocessing — the address
+    // block is small print and benefits the most.
+    const input = side === "back" ? await preprocessForOcr(imageFile) : imageFile;
+    const { data } = await worker.recognize(input);
     await worker.terminate();
 
     const rawText = data.text ?? "";
@@ -418,14 +514,19 @@ export async function parseIdDocument(
     }
 
     // Dispatch to the appropriate parser (with expected idType as a hint).
-    let parsed = detectAndParse(rawText);
-
-    // If the user explicitly chose a type, trust that over our detection.
-    if (idType && idType !== "Aadhar Card") {
-      if (idType === "PAN Card") parsed = parsePAN(rawText);
-      else if (idType === "Passport") parsed = parsePassport(rawText);
-      else if (idType === "Driving License") parsed = parseDrivingLicence(rawText);
-      else if (idType === "Voter ID") parsed = parseVoterID(rawText);
+    let parsed: Partial<ParsedIdFields> & { score: number };
+    if (side === "back" && (!idType || idType === "Aadhar Card")) {
+      // Aadhaar back face: dedicated address/pincode parser with strict gate.
+      parsed = parseAadharBack(rawText);
+    } else {
+      parsed = detectAndParse(rawText);
+      // If the user explicitly chose a type, trust that over our detection.
+      if (idType && idType !== "Aadhar Card") {
+        if (idType === "PAN Card") parsed = parsePAN(rawText);
+        else if (idType === "Passport") parsed = parsePassport(rawText);
+        else if (idType === "Driving License") parsed = parseDrivingLicence(rawText);
+        else if (idType === "Voter ID") parsed = parseVoterID(rawText);
+      }
     }
 
     // Blend Tesseract's character-level confidence with our field-match score.
@@ -444,6 +545,16 @@ export async function parseIdDocument(
         confidence: finalConfidence,
         message: `${detected} details detected (${Math.round(finalConfidence * 100)}% confidence)`,
         can_autofill: true,
+      };
+    }
+
+    if (side === "back" && !fields.address) {
+      return {
+        fields,
+        confidence: finalConfidence,
+        message:
+          "Couldn't read the address clearly from the back face — please enter it manually.",
+        can_autofill: false,
       };
     }
 

@@ -1,8 +1,9 @@
+import re
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 
 class ORMModel(BaseModel):
@@ -40,6 +41,34 @@ class VendorCreate(BaseModel):
     pan: str | None = Field(default=None, max_length=10)
     category: str | None = Field(default=None, max_length=120)
 
+    @field_validator("gstin")
+    @classmethod
+    def validate_gstin(cls, value: str | None) -> str | None:
+        """Field-level GSTIN validation (client: generic error was useless).
+
+        Same rule as hotel GST settings: 2-digit state code + 10-char PAN +
+        entity code + 'Z' + checksum char. Empty string is treated as None.
+        """
+        if value is None or not value.strip():
+            return None
+        value = value.upper().strip()
+        if not re.fullmatch(r"\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]", value):
+            raise ValueError(
+                "Invalid GSTIN — expected 15 characters like 22AAAAA0000A1Z5 "
+                "(2-digit state code, 10-character PAN, entity code, 'Z', checksum)"
+            )
+        return value
+
+    @field_validator("pan")
+    @classmethod
+    def validate_pan(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        value = value.upper().strip()
+        if not re.fullmatch(r"[A-Z]{5}\d{4}[A-Z]", value):
+            raise ValueError("Invalid PAN — expected 10 characters like AAAAA0000A")
+        return value
+
 
 class ExpenseOut(ORMModel):
     id: UUID
@@ -61,6 +90,14 @@ class ExpenseOut(ORMModel):
     approved_at: datetime | None
     rejection_reason: str | None
     created_at: datetime
+    # Internal storage key — excluded from API output; drives has_attachment.
+    attachment_object_key: str | None = Field(default=None, exclude=True)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def has_attachment(self) -> bool:
+        """Whether a receipt file is stored for this expense."""
+        return self.attachment_object_key is not None
 
 
 class ExpenseCreate(BaseModel):

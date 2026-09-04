@@ -292,6 +292,32 @@ async def update_room_status(
         )
     assert_transition(old_status, body.status)
     room.status = body.status
+
+    # Manual move to Available/Clean & Ready makes any open cleaning task
+    # stale ("Start cleaning" shown for an already-ready room). Auto-cancel
+    # open tasks so housekeeping reflects reality (client-reported bug).
+    if body.status in (RoomStatus.AVAILABLE.value, RoomStatus.CLEAN_READY.value):
+        from datetime import UTC as _UTC
+        from datetime import datetime as _dt
+
+        from app.models.ops import HousekeepingTask
+
+        open_tasks = await db.execute(
+            select(HousekeepingTask).where(
+                HousekeepingTask.hotel_id == tenant.hotel_id,
+                HousekeepingTask.room_id == room.id,
+                HousekeepingTask.status.in_(
+                    ("cleaning_required", "cleaning_in_progress", "inspection_required")
+                ),
+            )
+        )
+        for task in open_tasks.scalars():
+            task.status = "cancelled"
+            task.completed_at = _dt.now(_UTC)
+            task.notes = (
+                f"{task.notes} | " if task.notes else ""
+            ) + "Auto-cancelled: room manually marked ready"
+
     await write_audit(
         db,
         action="rooms.status_changed",

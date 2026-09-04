@@ -62,6 +62,72 @@ async def get_booking(
     return await bookings_service.to_out(db, booking)
 
 
+@router.get("/{booking_id}/guests")
+async def list_booking_guests(
+    booking_id: UUID,
+    tenant: TenantContext = Depends(require_permissions(Permission.BOOKINGS_VIEW)),
+    db: AsyncSession = Depends(get_db),
+):
+    """All registered guests for a booking, with their ID documents.
+
+    Powers the Completed Bookings view drawer (client: show full guest details
+    including Aadhaar/ID images + selfie). Document binaries are fetched via the
+    existing GET /guests/{gid}/documents/{doc_id}/file endpoint.
+    """
+    from sqlalchemy import select as _select
+
+    from app.models.guest import Guest, GuestDocument, GuestRegistration
+    from app.schemas.booking import BookingGuestDocOut, BookingGuestOut
+
+    booking = await bookings_service.get_booking(db, tenant, booking_id)
+    regs_result = await db.execute(
+        _select(GuestRegistration, Guest)
+        .join(Guest, Guest.id == GuestRegistration.guest_id)
+        .where(
+            GuestRegistration.booking_id == booking.id,
+            GuestRegistration.hotel_id == booking.hotel_id,
+        )
+        .order_by(GuestRegistration.is_primary.desc(), GuestRegistration.created_at)
+    )
+    rows = regs_result.all()
+    guest_ids = [g.id for _, g in rows]
+    docs_by_guest: dict[UUID, list[GuestDocument]] = {}
+    if guest_ids:
+        docs_result = await db.execute(
+            _select(GuestDocument).where(
+                GuestDocument.guest_id.in_(guest_ids),
+                GuestDocument.hotel_id == booking.hotel_id,
+            )
+        )
+        for doc in docs_result.scalars():
+            docs_by_guest.setdefault(doc.guest_id, []).append(doc)
+
+    def _mask(phone: str | None) -> str:
+        if not phone or len(phone) < 4:
+            return ""
+        return f"••••••{phone[-4:]}"
+
+    return [
+        BookingGuestOut(
+            guest_id=guest.id,
+            full_name=guest.full_name,
+            phone_masked=_mask(guest.normalized_phone),
+            is_primary=reg.is_primary,
+            registration_number=reg.registration_number,
+            purpose_of_visit=reg.purpose_of_visit,
+            company_name=reg.company_name,
+            id_proof_type=guest.id_proof_type,
+            documents=[
+                BookingGuestDocOut(
+                    id=d.id, document_type=d.document_type, side=d.side
+                )
+                for d in docs_by_guest.get(guest.id, [])
+            ],
+        )
+        for reg, guest in rows
+    ]
+
+
 @router.get("/{booking_id}/foreign-guests")
 async def list_foreign_guest_details(
     booking_id: UUID,
