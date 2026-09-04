@@ -24,19 +24,29 @@ from app.core.logging import setup_logging
 async def lifespan(_app: FastAPI):
     import asyncio
 
+    from app.services.keepalive import self_ping_loop
     from app.services.overdue import overdue_sweep_loop
 
     settings = get_settings()
     setup_logging(debug=settings.debug)
-    # Checkout-overdue notifications: lightweight in-process scheduler (the
-    # loop sleeps before its first sweep, so tests/short processes never run it).
-    sweep_task = asyncio.create_task(overdue_sweep_loop())
+    # Background loops (both sleep before their first cycle, so tests and
+    # short-lived processes never execute them):
+    # - overdue sweep: checkout-overdue notifications every 15 min
+    # - keep-alive: self-ping via public URL every 10 min (Render free tier
+    #   sleeps after 15 min without inbound traffic; GitHub cron alone is
+    #   throttled to 1-5 h gaps and cannot prevent sleep). No-op off Render.
+    tasks = [
+        asyncio.create_task(overdue_sweep_loop()),
+        asyncio.create_task(self_ping_loop()),
+    ]
     yield
-    sweep_task.cancel()
-    try:
-        await sweep_task
-    except asyncio.CancelledError:
-        pass
+    for task in tasks:
+        task.cancel()
+    for task in tasks:
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 def create_app() -> FastAPI:
