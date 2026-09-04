@@ -47,9 +47,13 @@
 - ✅ Phase 6 smoke script EXTENDED + run locally: 24/24 (day-use pricing/blocking, rate override,
   settlement preview coherence, vendor GSTIN rejection, atomic flows, Form C, reports, checkout).
 - i18n parity: en=hi=1122 keys, zero drift. Backend suite: 117 passed. Frontend: tsc+eslint+build clean.
-- REMAINING: overdue notification event (server-side scheduled — needs a cron/scheduler decision),
-  pending external inputs (Resend API key; client decisions on nav consolidation + hour-level
-  day-use conflicts). Deploy verify after each push. Memory bank final update at wrap-up.
+- ✅ OVERDUE NOTIFICATIONS LIVE (commit c166f66): NE.CHECKOUT_OVERDUE + in-process 15-min sweep
+  loop from app lifespan (sleeps first — tests unaffected); rule identical to frontend badge
+  (check_out_time else 23:59, hotel timezone, safe fallbacks); durable fire-once dedupe via
+  bookings.overdue_notified_at (migration 95c1dcc60bfe); alert-only, no auto-checkout; tzdata
+  pinned. 7 unit + 1 integration test; suite now 125 passed.
+- PLAN COMPLETE. Only external inputs remain: Resend API key (activate invoice email on Render);
+  client decisions on nav consolidation and hour-level day-use conflicts (both flagged to client).
 
 Sources: 21 client screenshots + WhatsApp notes (`main documents/client changes and bugs/`),
 three internal audits (check-in flows, money surfaces, cross-cutting UX), and user decisions.
