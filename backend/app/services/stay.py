@@ -416,6 +416,71 @@ async def list_current_guests(
     )).all()
     reg_counts: dict[UUID, int] = {row.booking_id: row.cnt for row in reg_count_rows}
 
+    # Batch 5: GST-aware due computation.
+    #
+    # booking.due_amount = total_amount - advance_amount, but total_amount
+    # does NOT include GST (GST is computed at invoice time). This causes the
+    # Current Guests "Due" column to show a wrong (too-low) amount compared to
+    # the Checkout page which correctly adds GST via compute_settlement().
+    #
+    # Fix: recompute the GST-inclusive due for every in-house booking using
+    # the hotel's live GST settings and a batch charge query — same math as
+    # compute_settlement() but batched so we don't N+1 the list.
+    #
+    # One hotel-scoped GST query (not per-booking):
+    from app.domain.gst import GstRates, calculate_gst
+    from app.domain.gst import money as _money
+    from app.models.payment import HotelCharge
+    from app.repositories.hotels import get_or_create_gst_settings
+
+    gst_settings = await get_or_create_gst_settings(db, hotel_id)
+    gst_rates = GstRates(
+        cgst=gst_settings.default_cgst_rate,
+        sgst=gst_settings.default_sgst_rate,
+        igst=gst_settings.default_igst_rate,
+        version=gst_settings.version,
+    )
+
+    # One batch charge query for all current bookings:
+    charge_rows = (await db.execute(
+        select(HotelCharge.booking_id, func.sum(HotelCharge.total_amount).label("total"))
+        .where(
+            HotelCharge.hotel_id == hotel_id,
+            HotelCharge.booking_id.in_(booking_ids),
+            HotelCharge.voided_at.is_(None),
+        )
+        .group_by(HotelCharge.booking_id)
+    )).all()
+    charges_by_booking: dict[UUID, Decimal] = {
+        row.booking_id: Decimal(str(row.total)) for row in charge_rows
+    }
+
+    def _gst_inclusive_due(b: Booking) -> tuple[Decimal, str]:
+        """Compute the correct GST-inclusive due and payment_status."""
+        nights = max((b.check_out_date - b.check_in_date).days, 1)
+        room_taxable = _money(
+            sum(
+                (br.rate * nights for br in b.rooms if br.is_current),
+                Decimal("0.00"),
+            )
+        )
+        room_breakup = calculate_gst(
+            room_taxable, gst_rates, is_registered=gst_settings.is_gst_registered
+        )
+        charges_total = charges_by_booking.get(b.id, Decimal("0.00"))
+        final_total = _money(
+            max(room_breakup.total_amount + charges_total - b.discount_amount, Decimal("0.00"))
+        )
+        effective_paid = _money(b.advance_amount + b.security_deposit)
+        due = _money(max(final_total - effective_paid, Decimal("0.00")))
+        if due <= Decimal("0.00") and effective_paid > Decimal("0.00"):
+            status = "paid"
+        elif effective_paid > Decimal("0.00"):
+            status = "partial"
+        else:
+            status = "unpaid"
+        return due, status
+
     items: list[CurrentGuestOut] = []
     for booking in bookings:
         checkin = checkins_by_booking.get(booking.id)
@@ -425,6 +490,7 @@ async def list_current_guests(
             for br in booking.rooms
             if br.is_current and br.room_id in room_numbers_by_id
         ]
+        gst_due, gst_status = _gst_inclusive_due(booking)
         items.append(
             CurrentGuestOut(
                 booking_id=booking.id,
@@ -438,8 +504,8 @@ async def list_current_guests(
                 check_out_date=booking.check_out_date,
                 check_in_time=booking.check_in_time,
                 check_out_time=booking.check_out_time,
-                payment_status=booking.payment_status,
-                due_amount=booking.due_amount,
+                payment_status=gst_status,
+                due_amount=gst_due,
                 guest_count=max(reg_counts.get(booking.id, 0), 1),
             )
         )
