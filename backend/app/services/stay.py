@@ -338,6 +338,28 @@ async def list_current_guests(
         .where(Booking.hotel_id == hotel_id, Booking.status == "checked_in")
         .order_by(latest_checkin.desc().nulls_last())
     )
+    # Self-healing: re-settle any checked-in bookings whose due_amount and
+    # payment_status diverged (stale data from before settle_booking_amounts
+    # was called consistently). This makes the "PAID but ₹200 due" badge
+    # correct on every page load without any manual intervention.
+    stale_bookings = (await db.execute(
+        select(Booking).where(
+            Booking.hotel_id == hotel_id,
+            Booking.status == "checked_in",
+            # Catch the mismatch: "paid" with non-zero due, or wrong zero-due badge.
+            (
+                (Booking.payment_status == "paid") & (Booking.due_amount > 0)
+                | (Booking.payment_status != "paid") & (Booking.due_amount <= 0)
+                & ((Booking.advance_amount > 0) | (Booking.security_deposit > 0))
+            ),
+        )
+    )).scalars().all()
+    if stale_bookings:
+        from app.services.bookings import settle_booking_amounts as _settle
+        for _bk in stale_bookings:
+            _settle(_bk)
+        await db.flush()
+
     if query:
         guest_ids = select(Guest.id).where(
             Guest.hotel_id == hotel_id, Guest.full_name.ilike(f"%{query}%")
