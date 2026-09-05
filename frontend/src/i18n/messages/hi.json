@@ -241,7 +241,12 @@
     "docSelfie": "सेल्फ़ी",
     "docOther": "दस्तावेज़",
     "docLoadFailed": "लोड नहीं हो सका",
-    "openFullImage": "पूरी छवि नई टैब में खोलें"
+    "openFullImage": "पूरी छवि नई टैब में खोलें",
+    "paymentMode": "भुगतान मोड",
+    "paymentsSection": "भुगतान",
+    "extraCharges": "अतिरिक्त शुल्क",
+    "noExtraCharges": "कोई अतिरिक्त शुल्क नहीं।",
+    "addressLabel": "पता"
   },
   "guestPicker": {
     "searchByPhone": "फ़ोन नंबर (पूरा या आंशिक)",
@@ -328,6 +333,12 @@
     "editStay": "ठहराव संपादित करें",
     "contactNumber": "संपर्क नंबर",
     "editStayTitle": "ठहराव संपादित करें",
+    "guestDetails": "अतिथि विवरण",
+    "guestName": "पूरा नाम",
+    "guestPhone": "फ़ोन नंबर",
+    "guestEmail": "ईमेल",
+    "guestAddress": "पता",
+    "guestPincode": "पिनकोड",
     "stayUpdatedToast": "ठहराव अपडेट हुआ",
     "overdue": "विलंबित",
     "printRegistration": "पंजीकरण कार्ड प्रिंट करें",
@@ -716,6 +727,8 @@
     "viewAll": "सभी देखें",
     "markAllRead": "सभी पढ़ा हुआ करें",
     "cat_all": "सभी",
+    "showMore": "{count} और दिखाएं",
+    "showLess": "कम दिखाएं",
     "cat_front_desk": "फ्रंट डेस्क",
     "cat_housekeeping": "हाउसकीपिंग",
     "cat_finance": "वित्त",
@@ -1172,6 +1185,9 @@
     "requireRooms": "कम से कम एक कमरा चुनें",
     "requireDates": "चेक-इन/चेक-आउट समय ठीक करें",
     "requireTerms": "जारी रखने के लिए नियम व शर्तें स्वीकार करें",
-    "qrNotConfiguredInfo": "UPI QR कॉन्फ़िगर नहीं है — इसे सेटिंग्स → भुगतान में जोड़ें।"
+    "qrNotConfiguredInfo": "UPI QR कॉन्फ़िगर नहीं है — इसे सेटिंग्स → भुगतान में जोड़ें।",
+    "createGuestAction": "अतिथि बनाएँ",
+    "manualExtraCharges": "मैनुअल अतिरिक्त शुल्क (₹)",
+    "extraIncludesServices": "चुनी गई सेवाओं के {amount} शामिल हैं"
   }
 }

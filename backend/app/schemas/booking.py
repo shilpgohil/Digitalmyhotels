@@ -63,6 +63,10 @@ class BookingGuestOut(BaseModel):
     guest_id: UUID
     full_name: str
     phone_masked: str
+    # Full contact + address for the completed-bookings detail view (client
+    # explicitly asked for the real number and address, not the masked form).
+    phone: str | None = None
+    address: str | None = None
     is_primary: bool
     registration_number: str
     purpose_of_visit: str | None

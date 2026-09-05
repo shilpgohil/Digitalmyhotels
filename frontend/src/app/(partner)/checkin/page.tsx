@@ -86,9 +86,11 @@ import type {
   CheckInChargeIn,
   CheckInCreateOut,
   CheckInRequest,
+  CoGuestIn,
   ForeignGuestIn,
   GuestAutofill,
   GuestCreatePayload,
+  GuestOut,
   GuestSearchResult,
   RoomRateOverride,
 } from "@/types/stay";
@@ -113,6 +115,8 @@ interface ResolvedCoGuest {
   full_name: string;
   /** Docs queued for upload after guest is created/resolved. */
   docs: { side: DocSide; file: File }[];
+  /** Form C details when this co-guest is a foreign national. */
+  foreign_guest?: ForeignGuestIn | null;
 }
 
 /** Editable Form C fields — all strings so inputs stay controlled. */
@@ -267,6 +271,18 @@ function calcEarlyCheckinFee(
 
 /** Fixed values of the vehicle-type select (i18n only changes the labels). */
 const VEHICLE_TYPE_OPTIONS = ["Car", "Bike", "Auto", "Taxi", "Bus", "Other"];
+
+/** Current local time rounded UP to the next 5 minutes, as "HH:MM". */
+function nowRoundedUpTo5(): string {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() + ((5 - (d.getMinutes() % 5)) % 5), 0, 0);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** API decimal string ("150.00") → whole-rupee string ("150") for inputs. */
+function wholeRupees(price: string): string {
+  return String(Math.round(Number(price) || 0));
+}
 
 /** "HH:MM" → minutes since midnight; NaN when malformed. */
 function timeToMinutes(t: string): number {
@@ -546,7 +562,7 @@ function ServiceChips({
                 type="number"
                 min={0}
                 step="0.01"
-                value={amounts[svc.id] ?? svc.price}
+                value={amounts[svc.id] ?? wholeRupees(svc.price)}
                 onChange={(e) => onAmountChange(svc.id, e.target.value)}
                 aria-label={t("serviceAmountLabel", { name: svc.name })}
                 className="h-8 w-24 text-right text-sm tabular-nums"
@@ -1241,6 +1257,192 @@ function QueuedDocUpload({
   );
 }
 
+// ─── New guest rich form (shared by primary + additional guests) ────────────
+
+/**
+ * Full identity form for creating a NEW guest: ID type/number, three queued
+ * doc tiles (front/back/selfie) with OCR autofill, personal details and a
+ * confirm button. Docs are only QUEUED here — the parent uploads them after
+ * the guest record is created (primary: immediately; additional: at submit).
+ */
+function NewGuestForm({
+  initialPhone = "",
+  confirmLabel,
+  pending = false,
+  onConfirm,
+}: {
+  /** Seeds the mobile field (e.g. the phone that was searched with no match). */
+  readonly initialPhone?: string;
+  readonly confirmLabel: string;
+  /** Disables the confirm button while the parent is creating the guest. */
+  readonly pending?: boolean;
+  readonly onConfirm: (
+    form: GuestCreatePayload,
+    docs: { side: DocSide; file: File }[],
+  ) => void;
+}) {
+  const t = useTranslations("checkin");
+  const tc = useTranslations("common");
+  const tg = useTranslations("guestPicker");
+  const [docs, setDocs] = useState<{ side: DocSide; file: File }[]>([]);
+  const [ocrResult, setOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
+  const [form, setForm] = useState<GuestCreatePayload>({
+    full_name: "",
+    phone: initialPhone,
+    email: "",
+    address: "",
+    gender: "",
+    date_of_birth: "",
+    id_proof_type: "Aadhar Card",
+    id_number: "",
+    postal_code: "",
+  });
+
+  const set = (k: keyof GuestCreatePayload, v: string) =>
+    setForm((prev) => ({ ...prev, [k]: v }));
+
+  const handleQueueDoc = (side: DocSide, file: File) =>
+    setDocs((prev) => prev.filter((d) => d.side !== side).concat({ side, file }));
+
+  return (
+    <div className="space-y-4">
+      {/* ID verification */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t("idType")}</Label>
+          <select
+            value={form.id_proof_type}
+            onChange={(e) => set("id_proof_type", e.target.value)}
+            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+          >
+            <option value="Aadhar Card">{t("idAadhar")}</option>
+            <option value="PAN Card">{t("idPan")}</option>
+            <option value="Passport">{t("idPassport")}</option>
+            <option value="Driving License">{t("idDrivingLicense")}</option>
+            <option value="Voter ID">{t("idVoter")}</option>
+          </select>
+        </div>
+        <MaskedIdInput
+          label={t("fieldIdNumber")}
+          labelClassName="text-xs"
+          value={form.id_number ?? ""}
+          onChange={(v) => set("id_number", v)}
+          placeholder={t("last4Min")}
+        />
+      </div>
+
+      {/* Doc uploads — front triggers OCR */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <QueuedDocUpload
+          side="front"
+          label={t("uploadFront")}
+          onQueued={handleQueueDoc}
+          onOriginal={(_side, original) => {
+            // OCR runs on the ORIGINAL (full-resolution) image.
+            import("@/lib/id-ocr").then(({ parseIdDocument }) =>
+              parseIdDocument(original, form.id_proof_type ?? "Aadhar Card").then(setOcrResult),
+            );
+          }}
+        />
+        <QueuedDocUpload
+          side="back"
+          label={t("uploadBack")}
+          onQueued={handleQueueDoc}
+          onOriginal={(_side, original) => {
+            // Back face → dedicated Aadhaar address/pincode parser.
+            import("@/lib/id-ocr").then(({ parseIdDocument }) =>
+              parseIdDocument(original, form.id_proof_type ?? "Aadhar Card", "back").then(
+                (result) => {
+                  if (result.fields.address) {
+                    setForm((prev) => ({
+                      ...prev,
+                      address: prev.address || result.fields.address || "",
+                      postal_code: prev.postal_code || result.fields.pincode || "",
+                    }));
+                    toast.success(t("formAutofilled"));
+                  } else {
+                    toast.warning(result.message);
+                  }
+                },
+              ),
+            );
+          }}
+        />
+        <QueuedDocUpload side="selfie" label={t("selfieCapture")} onQueued={handleQueueDoc} />
+      </div>
+
+      {/* OCR autofill banner */}
+      {ocrResult && (
+        <AutofillBanner
+          result={ocrResult}
+          onAccept={(fields) => {
+            if (fields.name) set("full_name", fields.name);
+            if (fields.id_number) set("id_number", fields.id_number);
+            if (fields.gender) set("gender", fields.gender);
+            if (fields.date_of_birth) set("date_of_birth", fields.date_of_birth);
+            if (fields.address) set("address", fields.address);
+            if (fields.id_type_detected) set("id_proof_type", fields.id_type_detected);
+            setOcrResult(null);
+            toast.success(t("guestAutofilled"));
+          }}
+          onDismiss={() => setOcrResult(null)}
+        />
+      )}
+
+      {/* Guest details */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs">{tg("fullName")} *</Label>
+          <Input value={form.full_name} onChange={(e) => set("full_name", e.target.value)} placeholder={tg("fullName")} required />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">{tg("phoneNumber")} *</Label>
+          <Input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder={t("mobile10")} inputMode="tel" required />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t("emailOptional")}</Label>
+          <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="email@example.com" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t("fieldGender")}</Label>
+          <select
+            value={form.gender}
+            onChange={(e) => set("gender", e.target.value)}
+            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+          >
+            <option value="">{t("selectOption")}</option>
+            <option value="Male">{t("male")}</option>
+            <option value="Female">{t("female")}</option>
+            <option value="Other">{t("genderOther")}</option>
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t("fieldDob")}</Label>
+          <DateInput value={form.date_of_birth ?? ""} onChange={(v) => set("date_of_birth", v)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t("pincode")}</Label>
+          <Input value={form.postal_code} onChange={(e) => set("postal_code", e.target.value)} placeholder={t("pincode")} inputMode="numeric" />
+        </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label className="text-xs">{t("fieldAddress")}</Label>
+          <Input value={form.address} onChange={(e) => set("address", e.target.value)} placeholder={t("fieldAddress")} />
+        </div>
+      </div>
+
+      <Button
+        type="button"
+        size="sm"
+        className="bg-navy-900 text-white hover:bg-navy-900/90"
+        disabled={!form.full_name.trim() || !form.phone.trim() || pending}
+        onClick={() => onConfirm({ ...form }, docs)}
+      >
+        {pending ? tc("saving") : confirmLabel}
+      </Button>
+    </div>
+  );
+}
+
 // ─── Additional Guest entry component ────────────────────────────────────────
 
 function AdditionalGuestEntry({
@@ -1254,7 +1456,6 @@ function AdditionalGuestEntry({
 }) {
   const t = useTranslations("checkin");
   const tc = useTranslations("common");
-  const tg = useTranslations("guestPicker");
   const api = useApi();
   const [searchPhone, setSearchPhone] = useState("");
   const [searchResults, setSearchResults] = useState<GuestSearchResult[]>([]);
@@ -1262,23 +1463,24 @@ function AdditionalGuestEntry({
   const [resolved, setResolved] = useState<ResolvedCoGuest | null>(null);
   const [mode, setMode] = useState<"search" | "form">("search");
   const [docs, setDocs] = useState<{ side: DocSide; file: File }[]>([]);
-  const [coOcrResult, setCoOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
 
-  // New guest form state
-  const [form, setForm] = useState<GuestCreatePayload>({
-    full_name: "",
-    phone: "",
-    email: "",
-    address: "",
-    gender: "",
-    date_of_birth: "",
-    id_proof_type: "Aadhar Card",
-    id_number: "",
-    postal_code: "",
-  });
+  // Foreign guest (Form C) — same fields as the primary guest's section.
+  const [fgEnabled, setFgEnabled] = useState(false);
+  const [fgForm, setFgForm] = useState<ForeignGuestFormState>(EMPTY_FOREIGN_GUEST);
 
-  const set = (k: keyof GuestCreatePayload, v: string) =>
-    setForm((prev) => ({ ...prev, [k]: v }));
+  /** Update Form C state and propagate it into the resolved co-guest. */
+  const applyForeign = (enabled: boolean, f: ForeignGuestFormState) => {
+    setFgEnabled(enabled);
+    setFgForm(f);
+    if (resolved) {
+      const updated = {
+        ...resolved,
+        foreign_guest: buildForeignGuestPayload(enabled, f),
+      };
+      setResolved(updated);
+      onResolved(updated);
+    }
+  };
 
   const handleSearch = async () => {
     if (!searchPhone.trim()) return;
@@ -1302,6 +1504,7 @@ function AdditionalGuestEntry({
         guest_id: g.id,
         full_name: full.full_name,
         docs: [],
+        foreign_guest: buildForeignGuestPayload(fgEnabled, fgForm),
       };
       setResolved(resolved);
       onResolved(resolved);
@@ -1348,6 +1551,13 @@ function AdditionalGuestEntry({
           <QueuedDocUpload side="back" label={t("uploadBack")} onQueued={handleQueueDoc} />
           <QueuedDocUpload side="selfie" label={t("selfieCapture")} onQueued={handleQueueDoc} />
         </div>
+        {/* Foreign guest (Form C) — per co-guest, same fields as the primary. */}
+        <ForeignGuestSection
+          enabled={fgEnabled}
+          onEnabledChange={(v) => applyForeign(v, fgForm)}
+          value={fgForm}
+          onChange={(f) => applyForeign(fgEnabled, f)}
+        />
       </div>
     );
   }
@@ -1445,149 +1655,31 @@ function AdditionalGuestEntry({
         </div>
       ) : (
         <div className="space-y-4">
-          {/* ID verification */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">{t("idType")}</Label>
-              <select
-                value={form.id_proof_type}
-                onChange={(e) => set("id_proof_type", e.target.value)}
-                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
-              >
-                <option value="Aadhar Card">{t("idAadhar")}</option>
-                <option value="PAN Card">{t("idPan")}</option>
-                <option value="Passport">{t("idPassport")}</option>
-                <option value="Driving License">{t("idDrivingLicense")}</option>
-                <option value="Voter ID">{t("idVoter")}</option>
-              </select>
-            </div>
-            <MaskedIdInput
-              label={t("fieldIdNumber")}
-              labelClassName="text-xs"
-              value={form.id_number ?? ""}
-              onChange={(v) => set("id_number", v)}
-              placeholder={t("last4Min")}
-            />
-        </div>
-
-          {/* Doc uploads — front triggers OCR */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            <QueuedDocUpload
-              side="front"
-              label={t("uploadFront")}
-              onQueued={handleQueueDoc}
-              onOriginal={(_side, original) => {
-                // OCR runs on the ORIGINAL (full-resolution) image.
-                import("@/lib/id-ocr").then(({ parseIdDocument }) =>
-                  parseIdDocument(original, form.id_proof_type ?? "Aadhar Card").then(setCoOcrResult),
-                );
-              }}
-            />
-            <QueuedDocUpload
-              side="back"
-              label={t("uploadBack")}
-              onQueued={handleQueueDoc}
-              onOriginal={(_side, original) => {
-                // Back face → dedicated Aadhaar address/pincode parser.
-                import("@/lib/id-ocr").then(({ parseIdDocument }) =>
-                  parseIdDocument(original, form.id_proof_type ?? "Aadhar Card", "back").then(
-                    (result) => {
-                      if (result.fields.address) {
-                        set("address", form.address || result.fields.address);
-                        if (result.fields.pincode && !form.postal_code) {
-                          set("postal_code", result.fields.pincode);
-                        }
-                        toast.success(t("formAutofilled"));
-                      } else {
-                        toast.warning(result.message);
-                      }
-                    },
-                  ),
-                );
-              }}
-            />
-            <QueuedDocUpload side="selfie" label={t("selfieCapture")} onQueued={handleQueueDoc} />
-          </div>
-
-          {/* OCR autofill banner for additional guest */}
-          {coOcrResult && (
-            <AutofillBanner
-              result={coOcrResult}
-              onAccept={(fields) => {
-                if (fields.name) set("full_name", fields.name);
-                if (fields.id_number) set("id_number", fields.id_number);
-                if (fields.gender) set("gender", fields.gender);
-                if (fields.date_of_birth) set("date_of_birth", fields.date_of_birth);
-                if (fields.address) set("address", fields.address);
-                if (fields.id_type_detected) set("id_proof_type", fields.id_type_detected);
-                setCoOcrResult(null);
-                toast.success(t("guestAutofilled"));
-              }}
-              onDismiss={() => setCoOcrResult(null)}
-            />
-          )}
-
-          {/* Guest details */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">{tg("fullName")} *</Label>
-              <Input value={form.full_name} onChange={(e) => set("full_name", e.target.value)} placeholder={tg("fullName")} required />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">{tg("phoneNumber")} *</Label>
-              <Input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder={t("mobile10")} inputMode="tel" required />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">{t("emailOptional")}</Label>
-              <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="email@example.com" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">{t("fieldGender")}</Label>
-              <select
-                value={form.gender}
-                onChange={(e) => set("gender", e.target.value)}
-                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
-              >
-                <option value="">{t("selectOption")}</option>
-                <option value="Male">{t("male")}</option>
-                <option value="Female">{t("female")}</option>
-                <option value="Other">{t("genderOther")}</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">{t("fieldDob")}</Label>
-              <DateInput value={form.date_of_birth ?? ""} onChange={(v) => set("date_of_birth", v)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">{t("pincode")}</Label>
-              <Input value={form.postal_code} onChange={(e) => set("postal_code", e.target.value)} placeholder={t("pincode")} inputMode="numeric" />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-xs">{t("fieldAddress")}</Label>
-              <Input value={form.address} onChange={(e) => set("address", e.target.value)} placeholder={t("fieldAddress")} />
-            </div>
-          </div>
-
-          <Button
-            type="button"
-            size="sm"
-            className="bg-navy-900 text-white hover:bg-navy-900/90"
-            disabled={!form.full_name.trim() || !form.phone.trim()}
-            onClick={() => {
-              // Will be created in the mutation; mark as pending-creation
+          {/* Shared rich identity form (same one the primary guest uses). */}
+          <NewGuestForm
+            confirmLabel={t("confirmGuestDetails")}
+            onConfirm={(form, formDocs) => {
+              // Will be created in the mutation; mark as pending-creation.
+              setDocs(formDocs);
               const pending: ResolvedCoGuest = {
                 guest_id: `__new__${Date.now()}`,
                 full_name: form.full_name,
-                docs,
+                docs: formDocs,
+                foreign_guest: buildForeignGuestPayload(fgEnabled, fgForm),
               };
               // Attach the form data to the resolved object for the mutation
               (pending as ResolvedCoGuest & { _newForm?: GuestCreatePayload })._newForm = { ...form };
               setResolved(pending);
               onResolved(pending);
             }}
-          >
-            {t("confirmGuestDetails")}
-                      </Button>
+          />
+          {/* Foreign guest (Form C) — per co-guest, same fields as the primary. */}
+          <ForeignGuestSection
+            enabled={fgEnabled}
+            onEnabledChange={(v) => applyForeign(v, fgForm)}
+            value={fgForm}
+            onChange={(f) => applyForeign(fgEnabled, f)}
+          />
         </div>
           )}
         </div>
@@ -1977,6 +2069,14 @@ function CheckinForm({
       if (fgEnabled && fgForm.passport_number.trim().length < 3) {
         throw new ApiError(400, "validation", t("passportRequired"));
       }
+      // Co-guests marked foreign need a passport number too.
+      if (
+        coGuests
+          .filter(Boolean)
+          .some((cg) => cg.foreign_guest && cg.foreign_guest.passport_number.trim().length < 3)
+      ) {
+        throw new ApiError(400, "validation", t("passportRequired"));
+      }
 
       // 1. Update primary guest if anything changed
       const originalName = booking.primary_guest_name ?? "";
@@ -2006,8 +2106,8 @@ function CheckinForm({
         }
       }
 
-      // 2. Create new additional guests + resolve IDs
-      const resolvedIds: string[] = [];
+      // 2. Create new additional guests + resolve IDs (incl. Form C payloads)
+      const resolvedCoGuests: CoGuestIn[] = [];
       for (const cg of coGuests.filter(Boolean)) {
         const isNew = cg.guest_id.startsWith("__new__");
         if (isNew) {
@@ -2039,7 +2139,10 @@ function CheckinForm({
               hotelId: activeHotelId ?? undefined,
             });
           }
-          resolvedIds.push(created.id);
+          resolvedCoGuests.push({
+            guest_id: created.id,
+            foreign_guest: cg.foreign_guest ?? null,
+          });
         } else {
           // Existing guest — upload any queued docs
           for (const doc of cg.docs) {
@@ -2051,7 +2154,10 @@ function CheckinForm({
               hotelId: activeHotelId ?? undefined,
             });
           }
-          resolvedIds.push(cg.guest_id);
+          resolvedCoGuests.push({
+            guest_id: cg.guest_id,
+            foreign_guest: cg.foreign_guest ?? null,
+          });
         }
       }
 
@@ -2100,7 +2206,7 @@ function CheckinForm({
       }
       const checkinBody: CheckInRequest = {
         booking_id: booking.id,
-        co_guests: resolvedIds.map((id) => ({ guest_id: id })),
+        co_guests: resolvedCoGuests,
         purpose_of_visit: pgPurpose.trim() || null,
         company_name: pgCompany.trim() || null,
         is_early: earlyFee > 0,
@@ -2877,6 +2983,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const t = useTranslations("checkin");
   const ts = useTranslations("stay");
   const tb = useTranslations("bookings");
+  const tc = useTranslations("common");
   const tg = useTranslations("guestPicker");
   const api = useApi();
   const { activeHotelId } = useAuth();
@@ -2886,7 +2993,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   // Local dates (not UTC) so the default isn't "yesterday" east of UTC.
   const [checkInDate, setCheckInDate] = useState(localToday);
   const [checkOutDate, setCheckOutDate] = useState(localTomorrow);
-  const [checkInTime, setCheckInTime] = useState("");
+  // Walk-ins check in NOW — default to the current time rounded up to the
+  // next 5 minutes (client request), not the hotel's standard check-in time.
+  const [checkInTime, setCheckInTime] = useState(nowRoundedUpTo5);
   const [checkOutTime, setCheckOutTime] = useState("");
   const [guestType, setGuestType] = useState("");
 
@@ -2919,11 +3028,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     Number.parseFloat(gstSettings.data?.default_cgst_rate ?? "0") +
     Number.parseFloat(gstSettings.data?.default_sgst_rate ?? "0") || 5;
 
-  // Default the time inputs from hotel settings once loaded (unless edited).
+  // Default the checkout time from hotel settings once loaded (unless edited).
+  // Check-in time is NOT defaulted from settings — walk-ins start at "now".
   useEffect(() => {
     const s = settings.data;
     if (!s) return;
-    setCheckInTime((t) => t || s.check_in_time?.slice(0, 5) || "");
     setCheckOutTime((t) => t || s.check_out_time?.slice(0, 5) || "");
   }, [settings.data]);
 
@@ -3000,6 +3109,61 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       setPgExistingDocs(docs);
     }
   };
+
+  // ── Primary guest creation — rich form (same as additional guests) shown
+  // when GuestPicker's search finds no match and staff clicks "Create new
+  // guest". Creates the guest, uploads the queued docs, then selects them
+  // exactly like GuestPicker's onSelected would.
+  const [showPgCreate, setShowPgCreate] = useState(false);
+  const [pgCreatePhone, setPgCreatePhone] = useState("");
+
+  const createPrimaryGuest = useMutation({
+    mutationFn: async ({
+      form,
+      docs,
+    }: {
+      form: GuestCreatePayload;
+      docs: { side: DocSide; file: File }[];
+    }) => {
+      const created = await api<GuestOut>("/api/v1/guests", {
+        method: "POST",
+        body: {
+          full_name: form.full_name.trim(),
+          phone: form.phone.trim(),
+          email: form.email?.trim() || undefined,
+          address: form.address?.trim() || undefined,
+          postal_code: form.postal_code?.trim() || undefined,
+          gender: form.gender?.trim() || undefined,
+          date_of_birth: form.date_of_birth?.trim() || undefined,
+          id_proof_type: form.id_proof_type?.trim() || undefined,
+          id_number: form.id_number?.trim() || undefined,
+        },
+      });
+      // Upload the queued ID docs (front/back/selfie) for the new guest.
+      for (const doc of docs) {
+        const fd = new FormData();
+        fd.append("side", doc.side);
+        fd.append("document_type", "id_proof");
+        fd.append("file", doc.file);
+        await apiUpload(`/api/v1/guests/${created.id}/documents`, fd, {
+          hotelId: activeHotelId ?? undefined,
+        });
+      }
+      return created;
+    },
+    onSuccess: async (created) => {
+      setShowPgCreate(false);
+      toast.success(tg("guestCreated"));
+      // Select like GuestPicker.onSelected → also re-fetches autofill + docs
+      // so the identity fields and doc tiles below fill in.
+      await handleGuestSelected({
+        id: created.id,
+        full_name: created.full_name,
+        phone: created.normalized_phone,
+      });
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
+  });
 
   // ── 3. Additional guests ──
   const [coGuests, setCoGuests] = useState<ResolvedCoGuest[]>([]);
@@ -3112,11 +3276,27 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAvailRooms, nights, isSameDay, dayUseHours, rateEdits]);
   const extraChargesNumWI = Number.parseFloat(extraCharges || "0") || 0;
-  const gstAmountWI = Math.round((roomRentWalkIn + extraChargesNumWI) * (hotelGstRate / 100) * 100) / 100;
+  // Sum of the selected service chips (staff-edited amount when present).
+  // DISPLAY ONLY — the atomic payload still sends each chip as its own charge
+  // plus the manual extra as a separate charge, so nothing is double-counted.
+  const chipsTotalWI = useMemo(
+    () =>
+      (services.data ?? [])
+        .filter((s) => selectedServices.includes(s.id))
+        .reduce(
+          (sum, s) =>
+            sum + (Number.parseFloat(serviceChargeAmount(s, serviceAmounts)) || 0),
+          0,
+        ),
+    [services.data, selectedServices, serviceAmounts],
+  );
+  // Extra-charges cell auto-fills with chips + manual entry (client request).
+  const displayExtraWI = chipsTotalWI + extraChargesNumWI;
+  const gstAmountWI = Math.round((roomRentWalkIn + displayExtraWI) * (hotelGstRate / 100) * 100) / 100;
   // Only subtract the advance when staff confirmed it was actually collected —
   // otherwise it is not recorded and the remaining balance would be dishonest.
   const collectedAdvanceWI = paymentReceived ? newAdvance : 0;
-  const remainingWI = Math.max(roomRentWalkIn + extraChargesNumWI + gstAmountWI - collectedAdvanceWI, 0);
+  const remainingWI = Math.max(roomRentWalkIn + displayExtraWI + gstAmountWI - collectedAdvanceWI, 0);
 
   // UPI QR code — fetched as a blob URL when UPI + amount > 0.
   const showQr = paymentMode === "upi" && newAdvance > 0;
@@ -3259,6 +3439,14 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const mutation = useMutation({
     mutationFn: async () => {
       if (!guest) throw new ApiError(400, "validation", t("selectGuestFirst"));
+      // Co-guests marked foreign need a passport number too.
+      if (
+        coGuests
+          .filter(Boolean)
+          .some((cg) => cg.foreign_guest && cg.foreign_guest.passport_number.trim().length < 3)
+      ) {
+        throw new ApiError(400, "validation", t("passportRequired"));
+      }
 
       // 1. Update primary guest profile if identity fields were edited.
       const patch: Record<string, string> = {};
@@ -3279,7 +3467,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       }
 
       // 2. Create new additional guests + upload queued docs (same as MODE B).
-      const resolvedIds: string[] = [];
+      const resolvedCoGuests: CoGuestIn[] = [];
       for (const cg of coGuests.filter(Boolean)) {
         const isNew = cg.guest_id.startsWith("__new__");
         if (isNew) {
@@ -3310,7 +3498,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               hotelId: activeHotelId ?? undefined,
             });
           }
-          resolvedIds.push(created.id);
+          resolvedCoGuests.push({
+            guest_id: created.id,
+            foreign_guest: cg.foreign_guest ?? null,
+          });
         } else {
           for (const doc of cg.docs) {
             const form = new FormData();
@@ -3321,7 +3512,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               hotelId: activeHotelId ?? undefined,
             });
           }
-          resolvedIds.push(cg.guest_id);
+          resolvedCoGuests.push({
+            guest_id: cg.guest_id,
+            foreign_guest: cg.foreign_guest ?? null,
+          });
         }
       }
 
@@ -3388,7 +3582,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           parking_slot: parkingSlot.trim() || null,
         },
         checked_in_at: null,
-        co_guests: resolvedIds.map((id) => ({ guest_id: id })),
+        co_guests: resolvedCoGuests,
         purpose_of_visit: null,
         company_name: guestType === "business" ? pgCompany.trim() || null : null,
         notes: null,
@@ -3621,8 +3815,33 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         <div className="space-y-5">
           <GuestPicker
             selected={guest?.id ? guest : null}
-            onSelected={handleGuestSelected}
+            onSelected={(g) => {
+              setShowPgCreate(false);
+              void handleGuestSelected(g);
+            }}
+            onCreateNew={(phone) => {
+              setPgCreatePhone(phone);
+              setShowPgCreate(true);
+            }}
           />
+
+          {/* Rich new-guest form (same as Additional Guests → Create New) —
+              replaces GuestPicker's old inline mini-form for walk-ins. */}
+          {!guest && showPgCreate && (
+            <div className="rounded-xl border p-4 space-y-4">
+              <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+                <UserPlus className="size-3.5" aria-hidden />
+                {tg("newGuest")}
+              </p>
+              <NewGuestForm
+                key={pgCreatePhone}
+                initialPhone={pgCreatePhone}
+                confirmLabel={t("createGuestAction")}
+                pending={createPrimaryGuest.isPending}
+                onConfirm={(form, docs) => createPrimaryGuest.mutate({ form, docs })}
+              />
+            </div>
+          )}
 
           {guest && (
             <>
@@ -3931,15 +4150,24 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             </div>
             <div className="space-y-1 text-center">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Extra Charges</p>
+              {/* Auto-filled: selected service chips + the manual entry below. */}
+              <p className="text-sm font-bold tabular-nums">{fmtINR(displayExtraWI)}</p>
               <Input
                 type="number"
                 min={0}
                 step="0.01"
                 value={extraCharges}
                 onChange={(e) => setExtraCharges(e.target.value)}
+                aria-label={t("manualExtraCharges")}
+                title={t("manualExtraCharges")}
                 className="h-7 text-center text-sm tabular-nums px-1"
                 placeholder="0.00"
               />
+              {chipsTotalWI > 0 && (
+                <p className="text-[9px] text-muted-foreground">
+                  {t("extraIncludesServices", { amount: fmtINR(chipsTotalWI) })}
+                </p>
+              )}
             </div>
             <div className="space-y-1 text-center">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Advance Paid</p>

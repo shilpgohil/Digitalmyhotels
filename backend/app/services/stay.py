@@ -181,10 +181,11 @@ async def check_in(
         registration_numbers.append(reg_number)
         await db.flush()
 
-    # Form C record for foreign nationals (linked to the primary guest).
-    if body.foreign_guest is not None:
-        from app.models.guest import ForeignGuestDetail
+    # Form C records for foreign nationals — primary guest AND any co-guest
+    # marked foreign (client: additional guests were missing passport/visa).
+    from app.models.guest import ForeignGuestDetail
 
+    if body.foreign_guest is not None:
         db.add(
             ForeignGuestDetail(
                 hotel_id=hotel_id,
@@ -193,6 +194,16 @@ async def check_in(
                 **body.foreign_guest.model_dump(),
             )
         )
+    for co_guest in body.co_guests:
+        if co_guest.foreign_guest is not None:
+            db.add(
+                ForeignGuestDetail(
+                    hotel_id=hotel_id,
+                    booking_id=booking.id,
+                    guest_id=co_guest.guest_id,
+                    **co_guest.foreign_guest.model_dump(),
+                )
+            )
 
     if body.early_fee > 0:
         from app.domain.gst import money as _money
@@ -311,10 +322,18 @@ async def list_current_guests(
     from sqlalchemy import or_
     from sqlalchemy.orm import selectinload
 
+    # Most recent check-in FIRST (client: "recently detail all time first
+    # showing here is common flow").
+    latest_checkin = (
+        select(func.max(CheckIn.checked_in_at))
+        .where(CheckIn.booking_id == Booking.id)
+        .correlate(Booking)
+        .scalar_subquery()
+    )
     stmt = (
         select(Booking)
         .where(Booking.hotel_id == hotel_id, Booking.status == "checked_in")
-        .order_by(Booking.check_out_date)
+        .order_by(latest_checkin.desc().nulls_last())
     )
     if query:
         guest_ids = select(Guest.id).where(

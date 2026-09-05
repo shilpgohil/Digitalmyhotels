@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { Eye } from "lucide-react";
 import type { ListOut } from "@/types/hotel";
 import type { BookingGuestDocOut, BookingGuestOut, BookingOut } from "@/types/stay";
+import type { ChargeOut, PaymentOut } from "@/types/money";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -164,13 +165,22 @@ function GuestCard({ guest }: { guest: BookingGuestOut }) {
             {t("primaryBadge")}
           </span>
         )}
-        <span className="text-sm text-muted-foreground">{guest.phone_masked}</span>
+        {/* Full contact number when the API provides it, masked otherwise. */}
+        <span className="text-sm text-muted-foreground">
+          {guest.phone ?? guest.phone_masked}
+        </span>
       </div>
       <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
         <div>
           <dt className="text-xs text-muted-foreground">{t("registrationNumber")}</dt>
           <dd>{guest.registration_number}</dd>
         </div>
+        {guest.address && (
+          <div className="col-span-2">
+            <dt className="text-xs text-muted-foreground">{t("addressLabel")}</dt>
+            <dd>{guest.address}</dd>
+          </div>
+        )}
         {guest.id_proof_type && (
           <div>
             <dt className="text-xs text-muted-foreground">{t("idProofType")}</dt>
@@ -226,6 +236,7 @@ function BookingDetailSheet({
 }) {
   const t = useTranslations("bookings");
   const tc = useTranslations("common");
+  const tm = useTranslations("money");
   const api = useApi();
   const { activeHotelId } = useAuth();
 
@@ -241,6 +252,40 @@ function BookingDetailSheet({
     enabled: !!activeHotelId && !!bookingId,
   });
 
+  // Payments on this booking → "Payments" list + payment-mode summary line
+  // (same pattern as the current-guests StayDetailDialog).
+  const payments = useQuery({
+    queryKey: ["payments", activeHotelId, bookingId, "booking-drawer"],
+    queryFn: () =>
+      api<{ items: PaymentOut[]; total: number }>(
+        `/api/v1/payments?booking_id=${bookingId}&limit=20`,
+      ),
+    enabled: !!activeHotelId && !!bookingId,
+  });
+
+  // Extra charges (non-voided) added during the stay.
+  const charges = useQuery({
+    queryKey: ["charges", activeHotelId, bookingId, "booking-drawer"],
+    queryFn: () =>
+      api<{ items: ChargeOut[]; total: number }>(`/api/v1/charges?booking_id=${bookingId}`),
+    enabled: !!activeHotelId && !!bookingId,
+  });
+
+  const latestMethod =
+    payments.data?.items?.find((p) => p.status === "completed")?.method ??
+    payments.data?.items?.[0]?.method;
+  const methodLabel = (m: string): string => {
+    const keys: Record<string, string> = {
+      cash: "cash",
+      upi: "upi",
+      card: "card",
+      bank_transfer: "bankTransfer",
+      other: "otherMethod",
+    };
+    return keys[m] ? tm(keys[m]) : m;
+  };
+
+  const activeCharges = (charges.data?.items ?? []).filter((c) => !c.voided_at);
   const b = booking.data;
 
   return (
@@ -299,6 +344,12 @@ function BookingDetailSheet({
               <SummaryRow label={t("advance")} value={fmtINR(b.advance_amount)} />
               <SummaryRow label={t("securityDeposit")} value={fmtINR(b.security_deposit)} />
               <SummaryRow label={t("due")} value={fmtINR(b.due_amount)} />
+              {latestMethod && (
+                <SummaryRow
+                  label={t("paymentMode")}
+                  value={`${b.payment_status} · ${methodLabel(latestMethod)}`}
+                />
+              )}
               {b.special_requests && (
                 <SummaryRow label={t("specialRequests")} value={b.special_requests} />
               )}
@@ -324,6 +375,45 @@ function BookingDetailSheet({
               )}
             </div>
           )}
+
+          {/* ── Payments ── */}
+          <div>
+            <h3 className="mb-2 text-sm font-semibold">{t("paymentsSection")}</h3>
+            {payments.isLoading && <Skeleton className="h-16 w-full" />}
+            {payments.data && payments.data.items.length === 0 && (
+              <p className="text-sm text-muted-foreground">{tm("noPayments")}</p>
+            )}
+            {payments.data && payments.data.items.length > 0 && (
+              <ul className="divide-y rounded-lg border text-sm">
+                {payments.data.items.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between gap-3 px-3 py-1.5">
+                    <span>{methodLabel(p.method)}</span>
+                    <span className="text-xs text-muted-foreground">{p.status}</span>
+                    <span className="tabular-nums">{fmtINR(p.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* ── Extra charges (non-voided) ── */}
+          <div>
+            <h3 className="mb-2 text-sm font-semibold">{t("extraCharges")}</h3>
+            {charges.isLoading && <Skeleton className="h-16 w-full" />}
+            {charges.data && activeCharges.length === 0 && (
+              <p className="text-sm text-muted-foreground">{t("noExtraCharges")}</p>
+            )}
+            {activeCharges.length > 0 && (
+              <ul className="divide-y rounded-lg border text-sm">
+                {activeCharges.map((c) => (
+                  <li key={c.id} className="flex items-center justify-between gap-3 px-3 py-1.5">
+                    <span className="min-w-0 truncate">{c.description}</span>
+                    <span className="tabular-nums">{fmtINR(c.total_amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           {/* ── Registered guests + ID documents ── */}
           <div>

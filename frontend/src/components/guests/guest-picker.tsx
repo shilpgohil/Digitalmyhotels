@@ -15,13 +15,19 @@ import type { GuestAutofill, GuestOut, GuestSearchResult } from "@/types/stay";
 interface GuestPickerProps {
   onSelected: (guest: { id: string; full_name: string; phone: string }) => void;
   selected?: { id: string; full_name: string } | null;
+  /**
+   * When provided, the "Create new guest" button delegates to the parent
+   * (receiving the phone that was searched) instead of opening the built-in
+   * mini creation form. Lets pages render their own rich new-guest form.
+   */
+  onCreateNew?: (searchedPhone: string) => void;
 }
 
 /**
  * Guest reuse workflow: search by phone or last-4 ID → explicit autofill → pick.
  * Falls back to inline creation for new guests. Never shows booking history.
  */
-export function GuestPicker({ onSelected, selected }: GuestPickerProps) {
+export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerProps) {
   const t = useTranslations("guestPicker");
   const tc = useTranslations("common");
   const api = useApi();
@@ -171,7 +177,9 @@ export function GuestPicker({ onSelected, selected }: GuestPickerProps) {
               type="button"
               size="sm"
               className="bg-gold-500 text-navy-900 hover:bg-gold-600"
-              onClick={() => setShowCreate(true)}
+              onClick={() =>
+                onCreateNew ? onCreateNew(searchedPhone) : setShowCreate(true)
+              }
             >
               <UserPlus className="size-4" aria-hidden />
               {t("createNewGuest")}

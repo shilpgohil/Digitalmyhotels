@@ -388,11 +388,36 @@ async def update_booking(
     correlation_id: str | None = None,
 ) -> Booking:
     booking = await get_booking(db, tenant, booking_id)
-    if booking.status not in ("pending", "confirmed"):
-        raise ValidationAppError(
-            "Only pending/confirmed bookings can be modified", code="booking_locked"
-        )
     changes = body.model_dump(exclude_unset=True)
+
+    # In-house stays CAN be edited (client: Edit Stay on Current Guests) — but
+    # only forward-looking fields. The check-in side is history once the guest
+    # is in the room.
+    _CHECKED_IN_EDITABLE = {
+        "check_out_date",
+        "check_out_time",
+        "adults",
+        "children",
+        "special_requests",
+        "emergency_contact_name",
+        "emergency_contact_relation",
+        "emergency_contact_phone",
+        "vehicle_number",
+        "vehicle_type",
+        "parking_slot",
+    }
+    if booking.status == "checked_in":
+        blocked = set(changes) - _CHECKED_IN_EDITABLE
+        if blocked:
+            raise ValidationAppError(
+                f"These fields cannot be changed after check-in: {', '.join(sorted(blocked))}",
+                code="booking_locked_fields",
+            )
+    elif booking.status not in ("pending", "confirmed"):
+        raise ValidationAppError(
+            "Completed/cancelled bookings cannot be modified", code="booking_locked"
+        )
+
     new_in = changes.get("check_in_date", booking.check_in_date)
     new_out = changes.get("check_out_date", booking.check_out_date)
     is_day_use = booking.check_in_date == booking.check_out_date
@@ -408,18 +433,37 @@ async def update_booking(
         await _assert_no_overlap(
             db, booking.hotel_id, room_ids, new_in, new_out, exclude_booking_id=booking.id
         )
-        # Recalculate room total for the new night count.
+        # Recalculate room total for the new night count — INCLUDING existing
+        # charges (they were previously dropped here, silently shrinking the
+        # total for stays with restaurant/service charges).
+        from app.models.payment import HotelCharge
+
+        charges_result = await db.execute(
+            select(func.coalesce(func.sum(HotelCharge.total_amount), 0)).where(
+                HotelCharge.booking_id == booking.id,
+                HotelCharge.hotel_id == booking.hotel_id,
+                HotelCharge.voided_at.is_(None),
+            )
+        )
+        charges_total = Decimal(str(charges_result.scalar_one()))
         nights = _nights(new_in, new_out)
         room_subtotal = sum(
             (br.rate * nights for br in booking.rooms if br.is_current), Decimal("0.00")
         )
         booking.total_amount = money(
             max(
-                room_subtotal - (changes.get("discount_amount", booking.discount_amount)),
+                room_subtotal
+                + charges_total
+                - (changes.get("discount_amount", booking.discount_amount)),
                 Decimal("0.00"),
             )
         )
         settle_booking_amounts(booking)
+
+    # Extending/correcting the checkout moment resets the overdue-notification
+    # dedupe so a future overdue on the new schedule alerts again.
+    if "check_out_date" in changes or "check_out_time" in changes:
+        booking.overdue_notified_at = None
 
     before = {k: str(getattr(booking, k)) for k in changes}
     for key, value in changes.items():

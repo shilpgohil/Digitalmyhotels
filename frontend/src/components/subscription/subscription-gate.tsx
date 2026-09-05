@@ -65,6 +65,7 @@ export function SubscriptionGate() {
   const status = sub.data?.status;
   const blocked = status === "expired" || status === "suspended";
   const expiring = status === "expiring_soon";
+  const [detailOpen, setDetailOpen] = useState(false);
 
   if (!sub.data || (!blocked && !expiring)) return null;
 
@@ -78,16 +79,58 @@ export function SubscriptionGate() {
           )}
           role="status"
         >
-          <span>
+          {/* Client request: clicking the banner shows expiry details in a popup. */}
+          <button
+            type="button"
+            className="text-left hover:underline"
+            onClick={() => setDetailOpen(true)}
+          >
             {blocked
               ? t("expiredBanner", { date: fmtApiDate(sub.data.expiry_date) })
               : t("expiringBanner", { date: fmtApiDate(sub.data.expiry_date) })}
-          </span>
+          </button>
           <Link href="/plan" className="font-semibold underline">
             {t("viewPlans")}
           </Link>
         </div>
       )}
+
+      {/* Expiry-detail popup (banner click) — reuses the expired-modal layout. */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="items-center text-center">
+            <div
+              className={cn(
+                "flex size-12 items-center justify-center rounded-full",
+                blocked ? "bg-danger-bg" : "bg-warning-bg",
+              )}
+            >
+              <CalendarX2
+                className={cn("size-6", blocked ? "text-danger" : "text-warning")}
+                aria-hidden
+              />
+            </div>
+            <DialogTitle className="font-display text-xl">
+              {blocked ? t("expiredTitle") : t("viewPlans")}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-center text-sm text-muted-foreground">
+            {blocked
+              ? t("expiredBody", { date: fmtApiDate(sub.data.expiry_date) })
+              : t("expiringBanner", { date: fmtApiDate(sub.data.expiry_date) })}
+          </p>
+          <Link
+            href="/plan"
+            onClick={() => setDetailOpen(false)}
+            className={cn(
+              buttonVariants(),
+              "w-full bg-gold-500 text-navy-900 hover:bg-gold-400",
+            )}
+          >
+            {t("renewPlan")}
+          </Link>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={blocked && !dismissed} onOpenChange={(open) => !open && dismiss()}>
         <DialogContent className="sm:max-w-md">

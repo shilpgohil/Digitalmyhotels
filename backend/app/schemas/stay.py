@@ -7,12 +7,6 @@ from pydantic import BaseModel, Field
 from app.schemas.booking import BookingCreate
 
 
-class CoGuestIn(BaseModel):
-    guest_id: UUID
-    purpose_of_visit: str | None = Field(default=None, max_length=200)
-    company_name: str | None = Field(default=None, max_length=200)
-
-
 class ForeignGuestIn(BaseModel):
     """Form C fields for a foreign national (FRRO compliance)."""
 
@@ -33,6 +27,15 @@ class ForeignGuestIn(BaseModel):
     next_destination: str | None = Field(default=None, max_length=120)
     next_destination_country: str | None = Field(default=None, max_length=120)
     purpose_of_visit: str | None = Field(default=None, max_length=200)
+
+
+class CoGuestIn(BaseModel):
+    guest_id: UUID
+    purpose_of_visit: str | None = Field(default=None, max_length=200)
+    company_name: str | None = Field(default=None, max_length=200)
+    # Form C data when this co-guest is a foreign national (client: additional
+    # guests were missing the passport/visa section).
+    foreign_guest: ForeignGuestIn | None = None
 
 
 class ForeignGuestOut(ForeignGuestIn):

@@ -241,7 +241,12 @@
     "docSelfie": "Selfie",
     "docOther": "Document",
     "docLoadFailed": "Failed to load",
-    "openFullImage": "Open full image in a new tab"
+    "openFullImage": "Open full image in a new tab",
+    "paymentMode": "Payment Mode",
+    "paymentsSection": "Payments",
+    "extraCharges": "Extra Charges",
+    "noExtraCharges": "No extra charges.",
+    "addressLabel": "Address"
   },
   "guestPicker": {
     "searchByPhone": "Phone number (full or partial)",
@@ -328,6 +333,12 @@
     "editStay": "Edit Stay",
     "contactNumber": "Contact Number",
     "editStayTitle": "Edit Stay",
+    "guestDetails": "Guest Details",
+    "guestName": "Full Name",
+    "guestPhone": "Phone",
+    "guestEmail": "Email",
+    "guestAddress": "Address",
+    "guestPincode": "Pincode",
     "stayUpdatedToast": "Stay updated",
     "overdue": "Overdue",
     "printRegistration": "Print Registration Card",
@@ -716,6 +727,8 @@
     "viewAll": "View all",
     "markAllRead": "Mark all read",
     "cat_all": "All",
+    "showMore": "Show {count} more",
+    "showLess": "Show less",
     "cat_front_desk": "Front Desk",
     "cat_housekeeping": "Housekeeping",
     "cat_finance": "Finance",
@@ -1172,6 +1185,9 @@
     "requireRooms": "Select at least one room",
     "requireDates": "Fix the check-in/check-out times",
     "requireTerms": "Acknowledge terms to continue",
-    "qrNotConfiguredInfo": "UPI QR not configured — add it in Settings → Payments."
+    "qrNotConfiguredInfo": "UPI QR not configured — add it in Settings → Payments.",
+    "createGuestAction": "Create Guest",
+    "manualExtraCharges": "Manual extra charges (₹)",
+    "extraIncludesServices": "Includes {amount} from selected services"
   }
 }

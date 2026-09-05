@@ -112,6 +112,8 @@ async def list_booking_guests(
             guest_id=guest.id,
             full_name=guest.full_name,
             phone_masked=_mask(guest.normalized_phone),
+            phone=guest.normalized_phone,
+            address=guest.address,
             is_primary=reg.is_primary,
             registration_number=reg.registration_number,
             purpose_of_visit=reg.purpose_of_visit,

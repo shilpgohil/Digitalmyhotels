@@ -9,10 +9,19 @@
  *   hour/minute columns (5-minute steps).
  * - `dateValue`/`onDateChange` use YYYY-MM-DD; `timeValue`/`onTimeChange`
  *   use HH:MM (24-hour).
- * - Closes on outside click, Escape, or the Done button.
+ * - Panel renders with `position: fixed` (viewport coordinates from the
+ *   trigger rect) so ancestor `overflow: hidden` cannot clip it.
+ * - When empty, defaults to today + current time rounded to 5 minutes.
+ * - Closes on outside click, outside scroll, Escape, or the Done button.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { CalendarClock, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -69,6 +78,18 @@ function isValidTime(t: string): boolean {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
 }
 
+/** Current time rounded to the nearest 5 minutes, as HH:MM (24h). */
+function roundedNowTime(): string {
+  const now = new Date();
+  let hours = now.getHours();
+  let minutes = Math.round(now.getMinutes() / 5) * 5;
+  if (minutes === 60) {
+    minutes = 0;
+    hours = (hours + 1) % 24;
+  }
+  return `${pad2(hours)}:${pad2(minutes)}`;
+}
+
 export function DateTimePicker({
   dateValue,
   timeValue,
@@ -81,7 +102,13 @@ export function DateTimePicker({
   min,
 }: DateTimePickerProps) {
   const [open, setOpen] = useState(false);
-  const [alignRight, setAlignRight] = useState(false);
+  // Viewport coordinates for the fixed-position panel; null until measured.
+  const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(
+    null,
+  );
+  // Fallback time highlighted when timeValue is empty; captured at open time
+  // so the panel defaults to "now" (rounded to 5 minutes) instead of 12:00.
+  const [fallbackTime, setFallbackTime] = useState("12:00");
 
   const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -99,7 +126,7 @@ export function DateTimePicker({
   const [viewMonth, setViewMonth] = useState(initialViewDate.getMonth());
 
   // Highlighted (not yet emitted) time when timeValue is empty.
-  const effectiveTime = isValidTime(timeValue) ? timeValue : "12:00";
+  const effectiveTime = isValidTime(timeValue) ? timeValue : fallbackTime;
   const [selHour, selMinute] = effectiveTime.split(":");
 
   // --- open/close handling ---------------------------------------------
@@ -115,7 +142,16 @@ export function DateTimePicker({
       setViewYear(now.getFullYear());
       setViewMonth(now.getMonth());
     }
+    // Default the highlighted time to "now" (rounded) when no time is set.
+    setFallbackTime(roundedNowTime());
     setOpen(true);
+  };
+
+  /** Close the panel, committing today + current time for empty parts. */
+  const commitAndClose = () => {
+    if (!isValidIsoDate(dateValue)) onDateChange(todayIso);
+    if (!isValidTime(timeValue)) onTimeChange(effectiveTime);
+    setOpen(false);
   };
 
   useEffect(() => {
@@ -136,25 +172,89 @@ export function DateTimePicker({
     };
   }, [open]);
 
-  // Right-edge overflow: align panel to the right edge of the field if
-  // it would spill past the viewport.
-  useLayoutEffect(() => {
-    if (!open) return;
+  // --- fixed positioning -------------------------------------------------
+  //
+  // The panel uses `position: fixed` with coordinates computed from the
+  // trigger's getBoundingClientRect(), so it escapes any ancestor
+  // `overflow: hidden` clipping (e.g. the check-in page Section cards).
+  // NOTE: `fixed` is measured from the nearest transformed ancestor if one
+  // exists; the current page chains contain no CSS transforms on containers
+  // wrapping this picker, so viewport coordinates are correct.
+
+  /** Measure the trigger + panel and place the panel in the viewport. */
+  const positionPanel = useCallback(() => {
     const root = rootRef.current;
     const panel = panelRef.current;
     if (!root || !panel) return;
-    const rootRect = root.getBoundingClientRect();
-    const overflows =
-      rootRect.left + panel.offsetWidth > window.innerWidth - 8;
-    setAlignRight(overflows);
-    // Scroll the selected hour/minute into view.
-    hourColRef.current
-      ?.querySelector('[data-selected="true"]')
-      ?.scrollIntoView({ block: "center" });
-    minuteColRef.current
-      ?.querySelector('[data-selected="true"]')
-      ?.scrollIntoView({ block: "center" });
-  }, [open]);
+    const rect = root.getBoundingClientRect();
+    const panelWidth = panel.offsetWidth;
+    const panelHeight = panel.offsetHeight;
+    const margin = 8;
+    const gap = 4;
+
+    // Horizontal: left-align with the field; flip to right-align if the
+    // panel would overflow the right viewport edge.
+    let left = rect.left;
+    if (left + panelWidth > window.innerWidth - margin) {
+      left = Math.max(margin, rect.right - panelWidth);
+    }
+
+    // Vertical: below the field; flip above if it would overflow the
+    // bottom of the viewport and there is room above.
+    let top = rect.bottom + gap;
+    if (
+      top + panelHeight > window.innerHeight - margin &&
+      rect.top - gap - panelHeight >= margin
+    ) {
+      top = rect.top - gap - panelHeight;
+    }
+
+    setPanelPos({ top, left });
+  }, []);
+
+  /**
+   * Center the selected item inside its own scroll column WITHOUT
+   * scrollIntoView, which would also scroll every scrollable ancestor
+   * (including the page — the reported "field scrolls the page" bug).
+   */
+  const centerSelected = (column: HTMLDivElement | null) => {
+    if (!column) return;
+    const item = column.querySelector<HTMLElement>('[data-selected="true"]');
+    if (!item) return;
+    column.scrollTop =
+      item.offsetTop - column.clientHeight / 2 + item.clientHeight / 2;
+  };
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPanelPos(null);
+      return;
+    }
+    positionPanel();
+    centerSelected(hourColRef.current);
+    centerSelected(minuteColRef.current);
+  }, [open, positionPanel]);
+
+  // Keep the panel anchored: reposition on window resize; close on any
+  // scroll outside the panel (simpler and robust — capture phase catches
+  // scrolling of any ancestor container, not just the window).
+  useEffect(() => {
+    if (!open) return;
+    const onResize = () => positionPanel();
+    const onScroll = (e: Event) => {
+      const panel = panelRef.current;
+      if (panel && e.target instanceof Node && panel.contains(e.target)) {
+        return; // internal hour/minute column scrolling — keep open
+      }
+      setOpen(false);
+    };
+    window.addEventListener("resize", onResize);
+    document.addEventListener("scroll", onScroll, true);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      document.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open, positionPanel]);
 
   // --- calendar math ----------------------------------------------------
 
@@ -205,7 +305,9 @@ export function DateTimePicker({
     ? `${displayDate || "DD/MM/YYYY"}, ${displayTime || "HH:MM"}`
     : "";
 
-  const previewText = `${displayDate || "DD/MM/YYYY"}, ${effectiveTime}`;
+  // Preview reflects what Done will commit: today + current rounded time
+  // when the field is empty.
+  const previewText = `${displayDate || toDisplayDate(todayIso)}, ${effectiveTime}`;
 
   return (
     <div ref={rootRef} className={cn("relative", className)}>
@@ -245,10 +347,14 @@ export function DateTimePicker({
           ref={panelRef}
           role="dialog"
           aria-label="Date and time picker"
+          style={{
+            top: panelPos?.top ?? 0,
+            left: panelPos?.left ?? 0,
+            visibility: panelPos ? undefined : "hidden",
+          }}
           className={cn(
-            "absolute top-full z-50 mt-1 w-max rounded-xl border border-input bg-white shadow-lg",
+            "fixed z-50 w-max rounded-xl border border-input bg-white shadow-lg",
             "dark:bg-background",
-            alignRight ? "right-0" : "left-0",
           )}
         >
           <div className="flex flex-col gap-3 p-3 sm:flex-row">
@@ -398,7 +504,7 @@ export function DateTimePicker({
             </span>
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={commitAndClose}
               className="rounded-md bg-gold-500 px-3 py-1.5 text-sm font-semibold text-navy-900 hover:bg-gold-400"
             >
               Done

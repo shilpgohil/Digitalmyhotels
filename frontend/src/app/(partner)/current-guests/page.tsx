@@ -50,7 +50,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/client";
 import type { ListOut, RoomOut } from "@/types/hotel";
-import type { BookingOut, CurrentGuestOut } from "@/types/stay";
+import type { BookingOut, CurrentGuestOut, GuestOut } from "@/types/stay";
 import { RequirePermission } from "@/components/auth/require-permission";
 
 /** `DD/MM/YYYY` plus `, HH:MM` when a time is present (no dangling comma). */
@@ -480,20 +480,35 @@ function EditStayDialog({
     enabled: !!entry,
   });
 
+  // Primary guest record (email / address / pincode are not on BookingOut).
+  const guestId = booking.data?.primary_guest_id ?? null;
+  const guest = useQuery({
+    queryKey: ["guest", guestId],
+    queryFn: () => api<GuestOut>(`/api/v1/guests/${guestId}`),
+    enabled: !!entry && !!guestId,
+  });
+
+  // Wait for the guest record (or its failure) so the form initialises once
+  // with the right values — the form is keyed and never re-seeds its state.
+  const guestSettled = !guestId || !!guest.data || guest.isError;
+
   return (
     <Dialog open={entry !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {t("editStayTitle")} — {entry?.booking_number}
           </DialogTitle>
         </DialogHeader>
-        {booking.isLoading && <Skeleton className="h-64" />}
-        {booking.data && entry && (
+        {(booking.isLoading || (!!booking.data && !guestSettled)) && (
+          <Skeleton className="h-64" />
+        )}
+        {booking.data && entry && guestSettled && (
           <EditStayForm
             key={entry.booking_id}
             bookingId={entry.booking_id}
             booking={booking.data}
+            guest={guest.data ?? null}
             onClose={onClose}
             onDone={onDone}
           />
@@ -506,11 +521,14 @@ function EditStayDialog({
 function EditStayForm({
   bookingId,
   booking,
+  guest,
   onClose,
   onDone,
 }: {
   bookingId: string;
   booking: BookingOut;
+  /** Primary guest record, or null when it could not be loaded. */
+  guest: GuestOut | null;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -518,6 +536,7 @@ function EditStayForm({
   const tb = useTranslations("bookings");
   const tc = useTranslations("common");
   const api = useApi();
+  const queryClient = useQueryClient();
 
   const [checkOutDate, setCheckOutDate] = useState(booking.check_out_date);
   const [checkOutTime, setCheckOutTime] = useState(booking.check_out_time ?? "");
@@ -527,11 +546,36 @@ function EditStayForm({
     booking.special_requests ?? "",
   );
 
+  // ── Primary guest details (PATCH /api/v1/guests/{id}) ──
+  const [guestName, setGuestName] = useState(guest?.full_name ?? "");
+  const [guestPhone, setGuestPhone] = useState(
+    guest?.normalized_phone ?? booking.primary_guest_phone ?? "",
+  );
+  const [guestEmail, setGuestEmail] = useState(guest?.email ?? "");
+  const [guestAddress, setGuestAddress] = useState(guest?.address ?? "");
+  const [guestPincode, setGuestPincode] = useState(guest?.postal_code ?? "");
+
   const mutation = useMutation({
-    mutationFn: (patch: Record<string, unknown>) =>
-      api(`/api/v1/bookings/${bookingId}`, { method: "PATCH", body: patch }),
+    mutationFn: async ({
+      bookingPatch,
+      guestPatch,
+    }: {
+      bookingPatch: Record<string, unknown>;
+      guestPatch: Record<string, unknown>;
+    }) => {
+      // Guest first so a guest validation error stops before the booking PATCH.
+      if (guest && Object.keys(guestPatch).length > 0) {
+        await api(`/api/v1/guests/${guest.id}`, { method: "PATCH", body: guestPatch });
+      }
+      if (Object.keys(bookingPatch).length > 0) {
+        await api(`/api/v1/bookings/${bookingId}`, { method: "PATCH", body: bookingPatch });
+      }
+    },
     onSuccess: () => {
       toast.success(t("stayUpdatedToast"));
+      // Refresh the cached booking detail (primary guest name/phone) + guest.
+      queryClient.invalidateQueries({ queryKey: ["booking", bookingId] });
+      if (guest) queryClient.invalidateQueries({ queryKey: ["guest", guest.id] });
       onClose();
       onDone();
     },
@@ -563,11 +607,29 @@ function EditStayForm({
     if (requests !== (booking.special_requests ?? "")) {
       patch.special_requests = requests || null;
     }
-    if (Object.keys(patch).length === 0) {
+
+    // Only changed guest fields are sent (GuestUpdate uses exclude_unset).
+    const guestPatch: Record<string, unknown> = {};
+    if (guest) {
+      const name = guestName.trim();
+      if (name && name !== guest.full_name) guestPatch.full_name = name;
+      const phone = guestPhone.trim();
+      if (phone && phone !== guest.normalized_phone) guestPatch.phone = phone;
+      const email = guestEmail.trim();
+      if (email !== (guest.email ?? "")) guestPatch.email = email || null;
+      const address = guestAddress.trim();
+      if (address !== (guest.address ?? "")) guestPatch.address = address || null;
+      const pincode = guestPincode.trim();
+      if (pincode !== (guest.postal_code ?? "")) {
+        guestPatch.postal_code = pincode || null;
+      }
+    }
+
+    if (Object.keys(patch).length === 0 && Object.keys(guestPatch).length === 0) {
       onClose();
       return;
     }
-    mutation.mutate(patch);
+    mutation.mutate({ bookingPatch: patch, guestPatch });
   };
 
   return (
@@ -623,6 +685,66 @@ function EditStayForm({
           />
         </div>
       </div>
+
+      {/* ── Primary guest details (only when the guest record loaded) ── */}
+      {guest && (
+        <div className="space-y-3 border-t pt-3">
+          <p className="text-sm font-semibold">{t("guestDetails")}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="es-guest-name">{t("guestName")}</Label>
+              <Input
+                id="es-guest-name"
+                required
+                minLength={2}
+                maxLength={200}
+                value={guestName}
+                onChange={(e) => setGuestName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="es-guest-phone">{t("guestPhone")}</Label>
+              <Input
+                id="es-guest-phone"
+                type="tel"
+                required
+                minLength={7}
+                maxLength={20}
+                value={guestPhone}
+                onChange={(e) => setGuestPhone(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="es-guest-email">{t("guestEmail")}</Label>
+              <Input
+                id="es-guest-email"
+                type="email"
+                value={guestEmail}
+                onChange={(e) => setGuestEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="es-guest-pincode">{t("guestPincode")}</Label>
+              <Input
+                id="es-guest-pincode"
+                inputMode="numeric"
+                maxLength={32}
+                value={guestPincode}
+                onChange={(e) => setGuestPincode(e.target.value)}
+              />
+            </div>
+            <div className="col-span-full space-y-1.5">
+              <Label htmlFor="es-guest-address">{t("guestAddress")}</Label>
+              <Textarea
+                id="es-guest-address"
+                maxLength={2000}
+                value={guestAddress}
+                onChange={(e) => setGuestAddress(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
       <DialogFooter>
         <DialogClose className="inline-flex h-8 items-center rounded-lg border border-border px-2.5 text-sm hover:bg-muted">
           {tc("cancel")}

@@ -220,6 +220,9 @@ function parseAadharBack(text: string): Partial<ParsedIdFields> & { score: numbe
 
   const joined = collected
     .join(", ")
+    // Strip characters that never appear in an Indian address (OCR noise
+    // like §, ¥, ©, stray brackets) while keeping legitimate punctuation.
+    .replace(/[^\w\s,./():#'-]/g, "")
     .replace(/\s{2,}/g, " ")
     .replace(/,\s*,+/g, ",")
     .replace(/^[,\s]+|[,\s]+$/g, "");
@@ -429,14 +432,17 @@ function detectAndParse(text: string): Partial<ParsedIdFields> & { score: number
 // ─── Image preprocessing ──────────────────────────────────────────────────────
 
 /**
- * Upscale small images (2×) and boost contrast in grayscale before OCR.
- * Tesseract accuracy on Aadhaar back-face address text improves markedly
- * with this; falls back to the original file on any failure.
+ * Preprocess for OCR: upscale so the smaller side is ≥ 1500 px, grayscale,
+ * then Otsu-threshold binarization (pure black/white). Binarization is what
+ * dedicated ID-scanning products do before Tesseract — it removes the
+ * Aadhaar back's colored background and hologram noise that garbles the
+ * address block. Falls back to the original file on any failure.
  */
 async function preprocessForOcr(imageFile: File): Promise<Blob | File> {
   try {
     const bitmap = await createImageBitmap(imageFile);
-    const scale = Math.max(bitmap.width, bitmap.height) < 1200 ? 2 : 1;
+    const minSide = Math.min(bitmap.width, bitmap.height);
+    const scale = minSide < 1500 ? Math.min(Math.ceil(1500 / minSide), 3) : 1;
     const canvas = document.createElement("canvas");
     canvas.width = bitmap.width * scale;
     canvas.height = bitmap.height * scale;
@@ -449,11 +455,40 @@ async function preprocessForOcr(imageFile: File): Promise<Blob | File> {
 
     const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const px = img.data;
-    const CONTRAST = 1.35; // gentle boost — aggressive values destroy thin glyphs
-    for (let i = 0; i < px.length; i += 4) {
-      const gray = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-      const boosted = Math.min(255, Math.max(0, (gray - 128) * CONTRAST + 128));
-      px[i] = px[i + 1] = px[i + 2] = boosted;
+
+    // Grayscale + histogram for Otsu's method.
+    const hist = new Array<number>(256).fill(0);
+    const grays = new Uint8Array(px.length / 4);
+    for (let i = 0, g = 0; i < px.length; i += 4, g++) {
+      const gray = Math.round(0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]);
+      grays[g] = gray;
+      hist[gray]++;
+    }
+    // Otsu: threshold maximizing between-class variance.
+    const totalPx = grays.length;
+    let sumAll = 0;
+    for (let t = 0; t < 256; t++) sumAll += t * hist[t];
+    let sumBg = 0;
+    let weightBg = 0;
+    let maxVariance = 0;
+    let threshold = 128;
+    for (let t = 0; t < 256; t++) {
+      weightBg += hist[t];
+      if (weightBg === 0) continue;
+      const weightFg = totalPx - weightBg;
+      if (weightFg === 0) break;
+      sumBg += t * hist[t];
+      const meanBg = sumBg / weightBg;
+      const meanFg = (sumAll - sumBg) / weightFg;
+      const variance = weightBg * weightFg * (meanBg - meanFg) ** 2;
+      if (variance > maxVariance) {
+        maxVariance = variance;
+        threshold = t;
+      }
+    }
+    for (let i = 0, g = 0; i < px.length; i += 4, g++) {
+      const bw = grays[g] > threshold ? 255 : 0;
+      px[i] = px[i + 1] = px[i + 2] = bw;
     }
     ctx.putImageData(img, 0, 0);
 
@@ -494,31 +529,56 @@ export async function parseIdDocument(
       logger: () => undefined, // suppress verbose logs
     });
 
-    // Back faces get grayscale/contrast/upscale preprocessing — the address
-    // block is small print and benefits the most.
-    const input = side === "back" ? await preprocessForOcr(imageFile) : imageFile;
-    const { data } = await worker.recognize(input);
-    await worker.terminate();
+    const isAadhaarBack = side === "back" && (!idType || idType === "Aadhar Card");
 
-    const rawText = data.text ?? "";
-    // Tesseract gives a 0–100 confidence on each character; we take the mean.
-    const tesseractConfidence = (data.confidence ?? 0) / 100;
-
-    if (!rawText.trim() || tesseractConfidence < 0.2) {
-      return {
-        fields: {},
-        confidence: 0,
-        message: "Image is too blurry or unclear to read. Please upload a clearer photo.",
-        can_autofill: false,
-      };
-    }
-
-    // Dispatch to the appropriate parser (with expected idType as a hint).
+    let rawText = "";
+    let tesseractConfidence = 0;
     let parsed: Partial<ParsedIdFields> & { score: number };
-    if (side === "back" && (!idType || idType === "Aadhar Card")) {
-      // Aadhaar back face: dedicated address/pincode parser with strict gate.
-      parsed = parseAadharBack(rawText);
+
+    if (isAadhaarBack) {
+      // MULTI-PASS: Otsu-binarized upscale first (best for the noisy address
+      // block), raw original as fallback. Keep whichever pass produces a
+      // valid address WITH pincode; if both do, keep the longer address.
+      const passes: (Blob | File)[] = [await preprocessForOcr(imageFile), imageFile];
+      let best: {
+        parsed: Partial<ParsedIdFields> & { score: number };
+        text: string;
+        conf: number;
+      } | null = null;
+      for (const input of passes) {
+        const { data } = await worker.recognize(input);
+        const text = data.text ?? "";
+        const conf = (data.confidence ?? 0) / 100;
+        const attempt = parseAadharBack(text);
+        const better =
+          best === null ||
+          (attempt.address && !best.parsed.address) ||
+          (attempt.address &&
+            best.parsed.address &&
+            attempt.address.length > best.parsed.address.length);
+        if (better) best = { parsed: attempt, text, conf };
+        if (attempt.address && attempt.pincode) break; // good enough — stop
+      }
+      await worker.terminate();
+      parsed = best!.parsed;
+      rawText = best!.text;
+      tesseractConfidence = best!.conf;
     } else {
+      const { data } = await worker.recognize(imageFile);
+      await worker.terminate();
+      rawText = data.text ?? "";
+      tesseractConfidence = (data.confidence ?? 0) / 100;
+
+      if (!rawText.trim() || tesseractConfidence < 0.2) {
+        return {
+          fields: {},
+          confidence: 0,
+          message: "Image is too blurry or unclear to read. Please upload a clearer photo.",
+          can_autofill: false,
+        };
+      }
+
+      // Dispatch to the appropriate parser (with expected idType as a hint).
       parsed = detectAndParse(rawText);
       // If the user explicitly chose a type, trust that over our detection.
       if (idType && idType !== "Aadhar Card") {

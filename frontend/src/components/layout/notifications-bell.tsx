@@ -10,7 +10,7 @@ import {
   ChevronDown,
   ChevronRight,
   Sparkles,
-  DollarSign,
+  IndianRupee,
   Settings,
   Layers,
   LayoutDashboard,
@@ -73,7 +73,7 @@ const CATEGORY_CONFIG: Record<
   finance: {
     bg: "bg-emerald-50 dark:bg-emerald-900/20",
     dot: "bg-emerald-400",
-    icon: DollarSign,
+    icon: IndianRupee,
     labelKey: "cat_finance",
   },
   operations: {
@@ -257,6 +257,8 @@ export function NotificationsBell() {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   // expandedItems = categories where the user clicked "show more"
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  // Top category tab: "all" or a category key present in the data.
+  const [activeTab, setActiveTab] = useState<string>("all");
 
 
   const toggleShowMore = (cat: string) =>
@@ -281,6 +283,27 @@ export function NotificationsBell() {
     const bUnread = bItems.some((i) => !i.is_read) ? 0 : 1;
     return aUnread - bUnread;
   });
+
+  // Fall back to "All" if the selected category vanished from the data.
+  const effectiveTab =
+    activeTab !== "all" && !grouped.some(([cat]) => cat === activeTab)
+      ? "all"
+      : activeTab;
+  const visibleGroups =
+    effectiveTab === "all" ? grouped : grouped.filter(([cat]) => cat === effectiveTab);
+
+  const selectTab = (tab: string) => {
+    setActiveTab(tab);
+    if (tab !== "all") {
+      // Auto-expand the chosen category so the filtered view isn't empty.
+      setCollapsedCategories((prev) => {
+        const next = new Set(prev);
+        next.delete(tab);
+        next.add(tab + ":opened");
+        return next;
+      });
+    }
+  };
 
   // Auto-collapse fully-read categories when data first loads.
   useEffect(() => {
@@ -349,6 +372,49 @@ export function NotificationsBell() {
           </div>
         </div>
 
+        {/* Category tabs: "All" + one tab per category present in the data */}
+        {all.length > 0 && (
+          <div className="flex gap-1 overflow-x-auto border-b px-2 py-1.5">
+            {[
+              ["all", null] as const,
+              ...grouped.map(([cat, items]) => [cat, items] as const),
+            ].map(([tab, items]) => {
+              const isActive = effectiveTab === tab;
+              const label =
+                tab === "all"
+                  ? t("cat_all")
+                  : t((CATEGORY_CONFIG[tab] ?? DEFAULT_CATEGORY).labelKey);
+              const tabUnread =
+                tab === "all" ? unread : (items ?? []).filter((i) => !i.is_read).length;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => selectTab(tab)}
+                  className={cn(
+                    "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+                    isActive
+                      ? "bg-navy-900 text-white"
+                      : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  {label}
+                  {tabUnread > 0 && (
+                    <span
+                      className={cn(
+                        "flex min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold",
+                        isActive ? "bg-white/20 text-white" : "bg-danger text-white",
+                      )}
+                    >
+                      {tabUnread > 9 ? "9+" : tabUnread}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Body */}
         <div className="max-h-[440px] overflow-y-auto">
           {all.length === 0 && (
@@ -357,7 +423,7 @@ export function NotificationsBell() {
             </p>
           )}
 
-          {grouped.map(([category, items]) => {
+          {visibleGroups.map(([category, items]) => {
             const cfg = CATEGORY_CONFIG[category] ?? DEFAULT_CATEGORY;
             const Icon = cfg.icon;
             const catUnread = items.filter((i) => !i.is_read).length;
@@ -435,8 +501,8 @@ export function NotificationsBell() {
                         className="w-full px-3 py-1.5 text-[11px] text-gold-600 font-medium hover:bg-muted/40 transition-colors text-center"
                       >
                         {isShowingMore
-                          ? "Show less"
-                          : `Show ${items.length - PREVIEW_COUNT} more`}
+                          ? t("showLess")
+                          : t("showMore", { count: items.length - PREVIEW_COUNT })}
                       </button>
                     )}
                   </div>

@@ -93,6 +93,10 @@ export interface BookingGuestOut {
   guest_id: string;
   full_name: string;
   phone_masked: string;
+  /** Full contact number (unmasked) — completed-bookings detail view. */
+  phone: string | null;
+  /** Guest address — completed-bookings detail view. */
+  address: string | null;
   is_primary: boolean;
   registration_number: string;
   purpose_of_visit: string | null;
@@ -193,6 +197,12 @@ export interface ForeignGuestIn {
   purpose_of_visit?: string | null;
 }
 
+/** Co-guest sent with a check-in — optionally with their own Form C details. */
+export interface CoGuestIn {
+  guest_id: string;
+  foreign_guest?: ForeignGuestIn | null;
+}
+
 /** Extra charge applied atomically inside the check-in transaction. */
 export interface CheckInChargeIn {
   description: string;
@@ -210,7 +220,7 @@ export interface CheckInAdvancePaymentIn {
 export interface BookAndCheckInRequest {
   booking: BookingCreatePayload;
   checked_in_at?: string | null;
-  co_guests: { guest_id: string }[];
+  co_guests: CoGuestIn[];
   purpose_of_visit?: string | null;
   company_name?: string | null;
   notes?: string | null;
@@ -225,7 +235,7 @@ export interface CheckInRequest {
   booking_id: string;
   checked_in_at?: string | null;
   expected_checkout_at?: string | null;
-  co_guests: { guest_id: string }[];
+  co_guests: CoGuestIn[];
   purpose_of_visit?: string | null;
   company_name?: string | null;
   is_early?: boolean;
