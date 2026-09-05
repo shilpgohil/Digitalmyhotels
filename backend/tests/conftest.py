@@ -12,20 +12,37 @@ from app.db.session import get_db
 from app.main import app
 from app.models import Base
 
-# Point tests at the local Docker Postgres regardless of .env content.
-# Port 5434 is used because 5432 is often already taken on the dev machine.
+# TEST_DATABASE_URL resolution:
+#   CI (GitHub Actions):  DATABASE_URL env var already points at the correct
+#     test DB on localhost:5432 — use it directly.
+#   Local dev:            Docker Postgres runs on port 5434 to avoid clashing
+#     with a system Postgres; rewrite localhost:5432 → localhost:5434 so that
+#     tests connect to the right container.
+#
+# The TEST_DATABASE_URL env var (if set) wins over everything — this is the
+# escape hatch for any other environment.
 _BASE_DB = (
-    os.environ.get("DATABASE_URL", get_settings().database_url)
-    .replace("@127.0.0.1:5432/", "@127.0.0.1:5434/")
-    .replace("@localhost:5432/", "@127.0.0.1:5434/")
+    os.environ.get("TEST_DATABASE_URL")
+    or (
+        os.environ.get("DATABASE_URL", get_settings().database_url)
+        .replace("@127.0.0.1:5432/", "@127.0.0.1:5434/")
+        .replace("@localhost:5432/", "@127.0.0.1:5434/")
+    )
 )
-TEST_DATABASE_URL = _BASE_DB.rsplit("/", 1)[0] + "/digitalmyhotels_test"
+TEST_DATABASE_URL = (
+    _BASE_DB
+    if "/digitalmyhotels_test" in _BASE_DB
+    else _BASE_DB.rsplit("/", 1)[0] + "/digitalmyhotels_test"
+)
 
 
 @pytest.fixture(scope="session")
 async def test_engine():
+    # Derive the admin connection from TEST_DATABASE_URL so CI and local
+    # both hit the same host/port.
+    _admin_url = TEST_DATABASE_URL.rsplit("/", 1)[0] + "/postgres"
     admin_engine = create_async_engine(
-        get_settings().database_url.rsplit("/", 1)[0] + "/postgres",
+        _admin_url,
         isolation_level="AUTOCOMMIT",
     )
     from sqlalchemy import text
