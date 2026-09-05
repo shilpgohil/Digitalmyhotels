@@ -266,6 +266,7 @@ function StayDetailDialog({
   const t = useTranslations("stay");
   const tb = useTranslations("bookings");
   const tc = useTranslations("common");
+  const tm = useTranslations("money");
   const api = useApi();
 
   const booking = useQuery({
@@ -273,6 +274,30 @@ function StayDetailDialog({
     queryFn: () => api<BookingOut>(`/api/v1/bookings/${entry?.booking_id}`),
     enabled: !!entry,
   });
+
+  // Latest completed payment → the payment MODE for display (client asked for
+  // "Payment Mode: UPI", not just the paid/partial status).
+  const payments = useQuery({
+    queryKey: ["payments", entry?.booking_id, "stay-dialog"],
+    queryFn: () =>
+      api<{ items: { method: string; status: string }[] }>(
+        `/api/v1/payments?booking_id=${entry?.booking_id}&limit=10`,
+      ),
+    enabled: !!entry,
+  });
+  const latestMethod =
+    payments.data?.items?.find((p) => p.status === "completed")?.method ??
+    payments.data?.items?.[0]?.method;
+  const methodLabel = (m: string): string => {
+    const keys: Record<string, string> = {
+      cash: "cash",
+      upi: "upi",
+      card: "card",
+      bank_transfer: "bankTransfer",
+      other: "otherMethod",
+    };
+    return keys[m] ? tm(keys[m]) : m;
+  };
 
   const printRegistration = () => {
     const b = booking.data;
@@ -330,6 +355,10 @@ function StayDetailDialog({
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <Detail label={tb("guest")} value={b.primary_guest_name ?? "—"} />
             <Detail
+              label={t("contactNumber")}
+              value={b.primary_guest_phone ?? entry?.primary_guest_phone_masked ?? "—"}
+            />
+            <Detail
               label={tb("roomsCol")}
               value={b.rooms
                 .filter((r) => r.is_current)
@@ -364,7 +393,14 @@ function StayDetailDialog({
               </>
             )}
             <Detail label={`${tb("adults")} / ${tb("children")}`} value={`${b.adults} / ${b.children}`} />
-            <Detail label={tb("payment")} value={b.payment_status} />
+            <Detail
+              label={tb("payment")}
+              value={
+                latestMethod
+                  ? `${b.payment_status} · ${methodLabel(latestMethod)}`
+                  : b.payment_status
+              }
+            />
             <Detail label={tb("total")} value={fmtINR(b.total_amount)} />
             <Detail label={tb("due")} value={fmtINR(b.due_amount)} />
             {b.security_deposit !== "0.00" && (

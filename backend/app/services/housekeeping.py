@@ -93,10 +93,46 @@ async def ensure_task_for_room(
     return task
 
 
+_OPEN_TASK_STATUSES = ("cleaning_required", "cleaning_in_progress", "inspection_required")
+
+# Room states in which an open cleaning task no longer makes sense: the room
+# is already usable (or has a guest in it) so "Start cleaning" would be stale.
+# Maintenance/out-of-service rooms KEEP their tasks — cleaning resumes after.
+_TASK_STALE_ROOM_STATUSES = (
+    RoomStatus.AVAILABLE.value,
+    RoomStatus.CLEAN_READY.value,
+    RoomStatus.OCCUPIED.value,
+    RoomStatus.RESERVED.value,
+)
+
+
 async def list_tasks(
     db: AsyncSession, tenant: TenantContext, *, status: str | None = None
 ) -> list[HousekeepingTaskOut]:
     hotel_id = tenant.require_hotel()
+
+    # Self-heal BEFORE listing: open tasks whose room already moved on (e.g.
+    # marked Available manually before auto-cancel existed, or re-occupied)
+    # are cancelled so staff never see "Start cleaning" for a ready room.
+    stale_rows = await db.execute(
+        select(HousekeepingTask)
+        .join(Room, Room.id == HousekeepingTask.room_id)
+        .where(
+            HousekeepingTask.hotel_id == hotel_id,
+            HousekeepingTask.status.in_(_OPEN_TASK_STATUSES),
+            Room.status.in_(_TASK_STALE_ROOM_STATUSES),
+        )
+    )
+    stale_tasks = list(stale_rows.scalars().all())
+    for task in stale_tasks:
+        task.status = "cancelled"
+        task.completed_at = _now()
+        task.notes = (
+            f"{task.notes} | " if task.notes else ""
+        ) + "Auto-cancelled: room already ready/in use"
+    if stale_tasks:
+        await db.flush()
+
     query = (
         select(HousekeepingTask, Room.room_number)
         .join(Room, Room.id == HousekeepingTask.room_id)

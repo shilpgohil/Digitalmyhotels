@@ -4157,10 +4157,15 @@ function ArrivalsStrip({
   bookings,
   isLoading,
   onSelect,
+  defaultInTime,
+  defaultOutTime,
 }: {
   readonly bookings: BookingOut[];
   readonly isLoading: boolean;
   readonly onSelect: (booking: BookingOut) => void;
+  /** Hotel standard times — shown when a booking has no per-booking time. */
+  readonly defaultInTime?: string;
+  readonly defaultOutTime?: string;
 }) {
   const t = useTranslations("checkin");
   const [showAll, setShowAll] = useState(false);
@@ -4219,9 +4224,9 @@ function ArrivalsStrip({
             </span>
             <span className="text-[10px] text-muted-foreground mt-0.5">
               {fmtApiDate(booking.check_in_date)}
-              {booking.check_in_time ? `, ${booking.check_in_time}` : ""} →{" "}
+              {`, ${booking.check_in_time || defaultInTime || "14:00"}`} →{" "}
               {fmtApiDate(booking.check_out_date)}
-              {booking.check_out_time ? `, ${booking.check_out_time}` : ""}
+              {`, ${booking.check_out_time || defaultOutTime || "11:00"}`}
             </span>
           </button>
         ))}
@@ -4275,6 +4280,17 @@ function CheckinContent() {
     enabled: !!activeHotelId,
   });
 
+  // Hotel default times — arrival cards fall back to these when a booking
+  // carries no per-booking times (client: "Time missing here").
+  const hotelSettings = useQuery({
+    queryKey: ["hotel-settings", activeHotelId],
+    queryFn: () =>
+      api<{ check_in_time: string; check_out_time: string }>("/api/v1/hotels/me/settings"),
+    enabled: !!activeHotelId,
+  });
+  const defaultInTime = hotelSettings.data?.check_in_time?.slice(0, 5);
+  const defaultOutTime = hotelSettings.data?.check_out_time?.slice(0, 5);
+
   useEffect(() => {
     if (!pendingBookingId || !bookings.data) return;
     const match = bookings.data.items.find((b) => b.id === pendingBookingId);
@@ -4321,6 +4337,8 @@ function CheckinContent() {
           <ArrivalsStrip
             bookings={bookings.data?.items ?? []}
             isLoading={bookings.isLoading}
+            defaultInTime={defaultInTime}
+            defaultOutTime={defaultOutTime}
             onSelect={(booking) => {
               sessionStorage.setItem(CHECKIN_SESSION_KEY, booking.id);
               setSelectedBooking(booking);

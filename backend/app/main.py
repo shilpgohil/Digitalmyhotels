@@ -77,11 +77,23 @@ def create_app() -> FastAPI:
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
         correlation_id = getattr(request.state, "correlation_id", new_correlation_id())
+        # Surface the FIRST field error as a human message (client bug: forms
+        # showed a useless generic "Request validation failed" toast while the
+        # real reason — e.g. an invalid GSTIN — sat unread in `details`).
+        message = "Request validation failed"
+        errors = exc.errors()
+        if errors:
+            first = errors[0]
+            loc = [str(p) for p in first.get("loc", []) if p not in ("body", "query", "path")]
+            field = ".".join(loc)
+            msg = str(first.get("msg", "")).removeprefix("Value error, ").strip()
+            if msg:
+                message = f"{field}: {msg}" if field else msg
         return JSONResponse(
             status_code=422,
             content=error_payload(
                 code="validation_error",
-                message="Request validation failed",
+                message=message,
                 correlation_id=correlation_id,
                 details=jsonable_encoder(
                     exc.errors(), custom_encoder={Exception: str}
