@@ -8,7 +8,7 @@ import { Plus, MoreVertical, LogIn, XCircle, UserX } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import { Input } from "@/components/ui/input";
-import { DateInput } from "@/components/ui/date-input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -161,13 +161,13 @@ function AdvanceBookingsContent() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <DateInput
+            <DatePicker
               className="w-40"
               aria-label={t("checkinDate")}
               value={fromDate}
               onChange={setFromDate}
             />
-            <DateInput
+            <DatePicker
               className="w-40"
               aria-label={t("checkoutDate")}
               value={toDate}

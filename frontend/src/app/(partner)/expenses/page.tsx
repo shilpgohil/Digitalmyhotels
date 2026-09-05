@@ -9,7 +9,7 @@ import { fmtApiDate, fmtINR, localToday } from "@/lib/formatting";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DateInput } from "@/components/ui/date-input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -148,11 +148,11 @@ function ExpensesContent() {
         <div className="mb-4 flex flex-wrap items-end gap-3">
           <div>
             <Label>{t("fromDate")}</Label>
-            <DateInput className="mt-1" value={fromDate} onChange={setFromDate} />
+            <DatePicker className="mt-1" value={fromDate} onChange={setFromDate} />
           </div>
           <div>
             <Label>{t("toDate")}</Label>
-            <DateInput className="mt-1" value={toDate} onChange={setToDate} />
+            <DatePicker className="mt-1" value={toDate} onChange={setToDate} />
           </div>
           {(categories.data?.length ?? 0) > 0 && (
             <div className="min-w-40">
@@ -444,7 +444,7 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>{t("startDate")}</Label>
-              <DateInput
+              <DatePicker
                 className="mt-1"
                 value={startDate}
                 onChange={setStartDate}
@@ -617,7 +617,7 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <div>
           <Label>{t("expenseDate")}</Label>
-          <DateInput className="mt-1" value={expenseDate} onChange={setExpenseDate} />
+          <DatePicker className="mt-1" value={expenseDate} onChange={setExpenseDate} />
         </div>
         <div>
           <Label>{t("category")}</Label>

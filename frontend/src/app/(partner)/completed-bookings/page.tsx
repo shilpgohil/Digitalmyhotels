@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import { Input } from "@/components/ui/input";
-import { DateInput } from "@/components/ui/date-input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import {
@@ -533,7 +533,7 @@ function CompletedBookingsContent() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <DateInput
+            <DatePicker
               className="w-40"
               aria-label={t("checkinDate")}
               value={fromDate}
@@ -542,7 +542,7 @@ function CompletedBookingsContent() {
                 setFromDate(v);
               }}
             />
-            <DateInput
+            <DatePicker
               className="w-40"
               aria-label={t("checkoutDate")}
               value={toDate}

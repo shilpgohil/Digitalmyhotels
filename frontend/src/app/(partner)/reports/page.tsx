@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { PartnerHeader } from "@/components/layout/partner-header";
-import { DateInput } from "@/components/ui/date-input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApi } from "@/lib/api/use-api";
@@ -178,11 +178,11 @@ function ReportsContent() {
         <div className="mb-6 flex flex-wrap items-end gap-3">
           <div>
             <Label>{t("from")}</Label>
-            <DateInput className="mt-1" value={fromDate} onChange={setFromDate} />
+            <DatePicker className="mt-1" value={fromDate} onChange={setFromDate} />
           </div>
           <div>
             <Label>{t("to")}</Label>
-            <DateInput className="mt-1" value={toDate} onChange={setToDate} />
+            <DatePicker className="mt-1" value={toDate} onChange={setToDate} />
           </div>
           <button className="h-8 rounded-lg border px-3 text-sm" onClick={exportCsv}>
             {t("exportCsv")}

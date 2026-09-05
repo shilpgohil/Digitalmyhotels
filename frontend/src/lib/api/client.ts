@@ -119,7 +119,17 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     }
   }
 
-  if (!response.ok) throw await parseError(response);
+  if (!response.ok) {
+    const err = await parseError(response);
+    // If the server says the user must change their password, redirect there
+    // instead of showing a generic "Something went wrong" on every page.
+    if (response.status === 403 && (err as ApiError).code === "must_reset_password") {
+      if (typeof window !== "undefined") {
+        window.location.href = "/change-password";
+      }
+    }
+    throw err;
+  }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }

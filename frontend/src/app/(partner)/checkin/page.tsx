@@ -65,7 +65,7 @@ import {
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DateInput } from "@/components/ui/date-input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { TimeInput } from "@/components/ui/time-input";
 import { Label } from "@/components/ui/label";
@@ -648,7 +648,7 @@ function ForeignGuestSection({
               </div>
               <div className="space-y-1.5">
                 <Label className={lbl}>{t("passportExpiry")}</Label>
-                <DateInput
+                <DatePicker
                   value={value.passport_expiry}
                   onChange={(v) => set("passport_expiry", v)}
                 />
@@ -694,7 +694,7 @@ function ForeignGuestSection({
               </div>
               <div className="space-y-1.5">
                 <Label className={lbl}>{t("visaExpiry")}</Label>
-                <DateInput
+                <DatePicker
                   value={value.visa_expiry}
                   onChange={(v) => set("visa_expiry", v)}
                 />
@@ -739,7 +739,7 @@ function ForeignGuestSection({
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
                 <Label className={lbl}>{t("arrivedInIndiaOn")}</Label>
-                <DateInput
+                <DatePicker
                   value={value.arrived_in_india_on}
                   onChange={(v) => set("arrived_in_india_on", v)}
                 />
@@ -1436,7 +1436,7 @@ function NewGuestForm({
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">{t("fieldDob")}</Label>
-          <DateInput value={form.date_of_birth ?? ""} onChange={(v) => set("date_of_birth", v)} />
+          <DatePicker value={form.date_of_birth ?? ""} onChange={(v) => set("date_of_birth", v)} />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">{t("pincode")}</Label>
@@ -2533,7 +2533,7 @@ function CheckinForm({
           </div>
             <div className="space-y-1.5">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldDob")}</Label>
-              <DateInput value={pgDob} onChange={setPgDob} />
+              <DatePicker value={pgDob} onChange={setPgDob} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>
@@ -4082,7 +4082,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldDob")}</Label>
-                  <DateInput value={pgDob} onChange={setPgDob} />
+                  <DatePicker value={pgDob} onChange={setPgDob} />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>

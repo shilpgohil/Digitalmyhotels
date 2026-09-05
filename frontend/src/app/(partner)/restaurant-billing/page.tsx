@@ -7,7 +7,7 @@ import { Search } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DateInput } from "@/components/ui/date-input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -157,11 +157,11 @@ function RestaurantBillingContent() {
         <div className="mb-6 flex flex-wrap items-end gap-3">
           <div>
             <Label>{t("fromDate")}</Label>
-            <DateInput className="mt-1" value={draftFrom} onChange={setDraftFrom} />
+            <DatePicker className="mt-1" value={draftFrom} onChange={setDraftFrom} />
           </div>
           <div>
             <Label>{t("toDate")}</Label>
-            <DateInput className="mt-1" value={draftTo} onChange={setDraftTo} />
+            <DatePicker className="mt-1" value={draftTo} onChange={setDraftTo} />
           </div>
           <Button onClick={applyDates} disabled={!draftFrom || !draftTo}>
             {t("apply")}
