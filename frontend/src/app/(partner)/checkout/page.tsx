@@ -879,8 +879,8 @@ function CheckoutContent() {
                             id={`co-extra-${field.key}`}
                             type="number"
                             min={0}
-                            step="0.01"
-                            placeholder="0.00"
+                            step="1"
+                            placeholder="0"
                             value={extras[field.key]}
                             onChange={(e) =>
                               setExtras((prev) => ({ ...prev, [field.key]: e.target.value }))

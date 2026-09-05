@@ -570,7 +570,7 @@ function ServiceChips({
               <Input
                 type="number"
                 min={0}
-                step="0.01"
+                step="1"
                 value={amounts[svc.id] ?? wholeRupees(svc.price)}
                 onChange={(e) => onAmountChange(svc.id, e.target.value)}
                 aria-label={t("serviceAmountLabel", { name: svc.name })}
@@ -2794,11 +2794,11 @@ function CheckinForm({
                 <Input
                   type="number"
                   min={0}
-                  step="0.01"
+                  step="1"
                   value={advanceAmount}
                   onChange={(e) => setAdvanceAmount(e.target.value)}
                   className="tabular-nums"
-                  placeholder="0.00"
+                  placeholder="0"
                 />
                 <p className="text-[10px] text-muted-foreground">{t("enterZeroHint")}</p>
             </div>
@@ -4222,7 +4222,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                     <Input
                       type="number"
                       min={0}
-                      step="0.01"
+                      step="1"
                       value={rateEdits[r.id] ?? String(defaultRoomRate(r))}
                       onChange={(e) =>
                         setRateEdits((prev) => ({ ...prev, [r.id]: e.target.value }))
@@ -4295,13 +4295,13 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               <Input
                 type="number"
                 min={0}
-                step="0.01"
+                step="1"
                 value={extraCharges}
                 onChange={(e) => setExtraCharges(e.target.value)}
                 aria-label={t("manualExtraCharges")}
                 title={t("manualExtraCharges")}
                 className="h-7 text-center text-sm tabular-nums px-1"
-                placeholder="0.00"
+                placeholder="0"
               />
               {chipsTotalWI > 0 && (
                 <p className="text-[9px] text-muted-foreground">
@@ -4335,11 +4335,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               <Input
                 type="number"
                 min={0}
-                step="0.01"
+                step="1"
                 value={advanceAmount}
                 onChange={(e) => setAdvanceAmount(e.target.value)}
                 className="tabular-nums"
-                placeholder="0.00"
+                placeholder="0"
               />
               <p className="text-[10px] text-muted-foreground">{t("enterZeroHint")}</p>
             </div>

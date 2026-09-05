@@ -502,7 +502,7 @@ function AdvanceBookingContent() {
                         <Input
                           type="number"
                           min={0}
-                          step="0.01"
+                          step="1"
                           value={rateEdits[r.id] ?? String(defaultRoomRate(r))}
                           onChange={(e) =>
                             setRateEdits((prev) => ({ ...prev, [r.id]: e.target.value }))
@@ -545,11 +545,11 @@ function AdvanceBookingContent() {
                     id="ab-advance"
                     type="number"
                     min={0}
-                    step="0.01"
+                    step="1"
                     value={advanceAmount}
                     onChange={(e) => setAdvanceAmount(e.target.value)}
                     className="tabular-nums"
-                    placeholder="0.00"
+                    placeholder="0"
                   />
                   <p className="text-[10px] text-muted-foreground">Enter 0 if collecting later</p>
                 </div>
