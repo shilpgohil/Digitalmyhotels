@@ -554,6 +554,9 @@ function EditStayForm({
   const [guestEmail, setGuestEmail] = useState(guest?.email ?? "");
   const [guestAddress, setGuestAddress] = useState(guest?.address ?? "");
   const [guestPincode, setGuestPincode] = useState(guest?.postal_code ?? "");
+  const [guestCity, setGuestCity] = useState(guest?.city ?? "");
+  const [guestState, setGuestState] = useState(guest?.state ?? "");
+  const [guestCountry, setGuestCountry] = useState(guest?.country ?? "India");
 
   const mutation = useMutation({
     mutationFn: async ({
@@ -623,6 +626,12 @@ function EditStayForm({
       if (pincode !== (guest.postal_code ?? "")) {
         guestPatch.postal_code = pincode || null;
       }
+      const city = guestCity.trim();
+      if (city !== (guest.city ?? "")) guestPatch.city = city || null;
+      const state = guestState.trim();
+      if (state !== (guest.state ?? "")) guestPatch.state = state || null;
+      const country = guestCountry.trim();
+      if (country !== (guest.country ?? "")) guestPatch.country = country || null;
     }
 
     if (Object.keys(patch).length === 0 && Object.keys(guestPatch).length === 0) {
@@ -731,6 +740,30 @@ function EditStayForm({
                 maxLength={32}
                 value={guestPincode}
                 onChange={(e) => setGuestPincode(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="es-guest-city">{t("guestCity")}</Label>
+              <Input
+                id="es-guest-city"
+                value={guestCity}
+                onChange={(e) => setGuestCity(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="es-guest-state">{t("guestState")}</Label>
+              <Input
+                id="es-guest-state"
+                value={guestState}
+                onChange={(e) => setGuestState(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="es-guest-country">{t("guestCountry")}</Label>
+              <Input
+                id="es-guest-country"
+                value={guestCountry}
+                onChange={(e) => setGuestCountry(e.target.value)}
               />
             </div>
             <div className="col-span-full space-y-1.5">

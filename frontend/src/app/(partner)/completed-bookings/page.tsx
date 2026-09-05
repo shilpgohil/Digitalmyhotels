@@ -178,7 +178,15 @@ function GuestCard({ guest }: { guest: BookingGuestOut }) {
         {guest.address && (
           <div className="col-span-2">
             <dt className="text-xs text-muted-foreground">{t("addressLabel")}</dt>
-            <dd>{guest.address}</dd>
+            <dd>
+              {guest.address}
+              {(guest.city || guest.state) && (
+                <span className="text-muted-foreground">
+                  {", "}
+                  {[guest.city, guest.state, guest.country].filter(Boolean).join(", ")}
+                </span>
+              )}
+            </dd>
           </div>
         )}
         {guest.id_proof_type && (

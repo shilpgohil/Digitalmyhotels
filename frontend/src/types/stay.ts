@@ -95,8 +95,11 @@ export interface BookingGuestOut {
   phone_masked: string;
   /** Full contact number (unmasked) — completed-bookings detail view. */
   phone: string | null;
-  /** Guest address — completed-bookings detail view. */
+  /** Guest address components — displayed separately in drawer. */
   address: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
   is_primary: boolean;
   registration_number: string;
   purpose_of_visit: string | null;

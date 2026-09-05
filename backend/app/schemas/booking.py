@@ -67,6 +67,9 @@ class BookingGuestOut(BaseModel):
     # explicitly asked for the real number and address, not the masked form).
     phone: str | None = None
     address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    country: str | None = None
     is_primary: bool
     registration_number: str
     purpose_of_visit: str | None
