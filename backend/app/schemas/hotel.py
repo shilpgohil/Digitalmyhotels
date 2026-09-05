@@ -13,7 +13,10 @@ class HotelOut(ORMModel):
     id: UUID
     name: str
     slug: str
-    logo_object_key: str | None
+    # Storage key intentionally excluded — callers use the /logo endpoint
+    # to fetch the image. Exposing the key would leak the bucket structure.
+    # (audit finding storage MEDIUM #8)
+    logo_object_key: str | None = Field(default=None, exclude=True)
     address_line1: str | None
     address_line2: str | None
     city: str | None

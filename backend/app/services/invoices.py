@@ -47,6 +47,9 @@ async def generate_invoice(
     correlation_id: str | None = None,
 ) -> Invoice:
     hotel_id = tenant.require_hotel()
+    from app.services.subscriptions import assert_transactions_allowed as _ata
+
+    await _ata(db, hotel_id)
     booking = await get_booking(db, tenant, booking_id)
     if booking.status not in ("checked_in", "checked_out"):
         raise ValidationAppError(

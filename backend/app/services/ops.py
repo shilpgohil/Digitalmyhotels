@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, NotFoundError
@@ -12,8 +12,9 @@ from app.core.tenant import TenantContext
 from app.domain.gst import money
 from app.models.booking import Booking, CheckIn, CheckOut
 from app.models.expense import Expense
+from app.models.hotel import Hotel
 from app.models.ops import DailyClosing, ShiftHandover
-from app.models.payment import Payment, Refund
+from app.models.payment import GuestBookingLedger, Payment, Refund
 from app.models.room import Room
 from app.schemas.ops import DailyClosingClose, DailyClosingReopen, ShiftHandoverCreate
 from app.services.audit import write_audit
@@ -23,17 +24,42 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+async def _hotel_tz(db: AsyncSession, hotel_id: UUID) -> str:
+    """Return the hotel's IANA timezone string (default Asia/Kolkata)."""
+    tz = (
+        await db.execute(select(Hotel.timezone).where(Hotel.id == hotel_id))
+    ).scalar_one_or_none()
+    return tz or "Asia/Kolkata"
+
+
 async def _snapshot(db: AsyncSession, hotel_id: UUID, business_date: date) -> dict:
+    """Build a consistent point-in-time snapshot for a business date.
+
+    IMPORTANT design decisions (audit-driven):
+    - All timestamps are converted to the HOTEL's local timezone before date
+      comparison so "today" means today for IST hotels, not UTC midnight.
+    - Cash/UPI collected = payments that arrived on this local business date.
+    - Total revenue = ALL completed payment methods (not just cash+UPI).
+    - Checkout overpayment refunds are summed from the ledger (reference_type =
+      'checkout_refund') because they never create a Refund-table row.
+    - API Refund rows (manual refunds) are also summed separately.
+    - cash_balance = cash collected − cash expenses − cash refunds out.
+    """
+    hotel_tz = await _hotel_tz(db, hotel_id)
+
+    def _local_date(col):
+        return func.date(func.timezone(literal(hotel_tz), col))
+
     checkins = await db.scalar(
         select(func.count()).select_from(CheckIn).where(
             CheckIn.hotel_id == hotel_id,
-            func.date(CheckIn.checked_in_at) == business_date,
+            _local_date(CheckIn.checked_in_at) == business_date,
         )
     )
     checkouts = await db.scalar(
         select(func.count()).select_from(CheckOut).where(
             CheckOut.hotel_id == hotel_id,
-            func.date(CheckOut.checked_out_at) == business_date,
+            _local_date(CheckOut.checked_out_at) == business_date,
             CheckOut.is_reversed.is_(False),
         )
     )
@@ -52,33 +78,53 @@ async def _snapshot(db: AsyncSession, hotel_id: UUID, business_date: date) -> di
             Room.hotel_id == hotel_id, Room.status == "occupied"
         )
     )
+    # Cash payments (local business date)
     cash = await db.scalar(
         select(func.coalesce(func.sum(Payment.amount), 0)).where(
             Payment.hotel_id == hotel_id,
             Payment.method == "cash",
             Payment.status == "completed",
-            func.date(Payment.paid_at) == business_date,
+            _local_date(Payment.paid_at) == business_date,
         )
     )
+    # UPI payments (local business date)
     upi = await db.scalar(
         select(func.coalesce(func.sum(Payment.amount), 0)).where(
             Payment.hotel_id == hotel_id,
             Payment.method == "upi",
             Payment.status == "completed",
-            func.date(Payment.paid_at) == business_date,
+            _local_date(Payment.paid_at) == business_date,
         )
     )
-    refunds = await db.scalar(
+    # All collected methods → total_revenue
+    all_collected = await db.scalar(
+        select(func.coalesce(func.sum(Payment.amount), 0)).where(
+            Payment.hotel_id == hotel_id,
+            Payment.status == "completed",
+            _local_date(Payment.paid_at) == business_date,
+        )
+    )
+    # API Refund rows (manual/booking refunds, local date)
+    api_refunds = await db.scalar(
         select(func.coalesce(func.sum(Refund.amount), 0)).where(
             Refund.hotel_id == hotel_id,
             Refund.status == "completed",
-            func.date(Refund.refunded_at) == business_date,
+            _local_date(Refund.refunded_at) == business_date,
+        )
+    )
+    # Checkout overpayment refunds (ledger-only, never hit Refund table)
+    checkout_refunds = await db.scalar(
+        select(func.coalesce(func.sum(GuestBookingLedger.amount), 0)).where(
+            GuestBookingLedger.hotel_id == hotel_id,
+            GuestBookingLedger.reference_type == "checkout_refund",
+            _local_date(GuestBookingLedger.created_at) == business_date,
         )
     )
     expenses = await db.scalar(
         select(func.coalesce(func.sum(Expense.amount), 0)).where(
             Expense.hotel_id == hotel_id,
             Expense.status == "paid",
+            # Expense date is already a calendar date — compare directly.
             Expense.expense_date == business_date,
         )
     )
@@ -94,11 +140,12 @@ async def _snapshot(db: AsyncSession, hotel_id: UUID, business_date: date) -> di
     occupancy = (
         money(Decimal(occupied_n) * Decimal("100") / Decimal(total_rooms_n))
         if total_rooms_n
-        else Decimal("0.00")
+        else Decimal("0")
     )
     cash_d = money(cash or 0)
     upi_d = money(upi or 0)
-    refunds_d = money(refunds or 0)
+    revenue_d = money(all_collected or 0)
+    refunds_d = money((api_refunds or 0) + (checkout_refunds or 0))
     expenses_d = money(expenses or 0)
     return {
         "checkins_count": int(checkins or 0),
@@ -107,7 +154,7 @@ async def _snapshot(db: AsyncSession, hotel_id: UUID, business_date: date) -> di
         "occupancy_percent": occupancy,
         "cash_collected": cash_d,
         "upi_collected": upi_d,
-        "total_revenue": money(cash_d + upi_d),
+        "total_revenue": revenue_d,
         "total_expenses": expenses_d,
         "refunds_total": refunds_d,
         "dues_total": money(dues or 0),
@@ -125,7 +172,17 @@ async def get_or_open_day(
     db: AsyncSession, tenant: TenantContext, business_date: date | None = None
 ) -> DailyClosing:
     hotel_id = tenant.require_hotel()
-    day = business_date or date.today()
+    if business_date is None:
+        from datetime import datetime as _dt
+        from zoneinfo import ZoneInfo
+
+        tz_str = await _hotel_tz(db, hotel_id)
+        try:
+            day = _dt.now(ZoneInfo(tz_str)).date()
+        except Exception:
+            day = _dt.now(UTC).date()
+    else:
+        day = business_date
     result = await db.execute(
         select(DailyClosing).where(
             DailyClosing.hotel_id == hotel_id, DailyClosing.business_date == day

@@ -104,6 +104,9 @@ async def check_in(
     correlation_id: str | None = None,
 ) -> CheckInOut:
     hotel_id = tenant.require_hotel()
+    from app.services.subscriptions import assert_transactions_allowed as _ata
+
+    await _ata(db, hotel_id)
     booking = await get_booking(db, tenant, body.booking_id)
 
     if booking.status == "checked_in":
@@ -458,6 +461,7 @@ async def transfer_room(
     from_room, to_room = rooms[body.from_room_id], rooms[body.to_room_id]
 
     from app.domain.room_status import is_allocatable
+    from app.services.bookings import _assert_no_overlap  # type: ignore[import]
 
     if not is_allocatable(to_room.status):
         raise ConflictError(
@@ -465,7 +469,19 @@ async def transfer_room(
             code="room_not_allocatable",
         )
 
+    # Audit finding CRITICAL #1: transfers skipped the overlap check, allowing
+    # double-booking when a future booking on to_room was already confirmed.
+    await _assert_no_overlap(
+        db,
+        hotel_id,
+        [to_room.id],
+        booking.check_in_date,
+        booking.check_out_date,
+        exclude_booking_id=booking.id,
+    )
+
     # History-preserving: old allocation flagged non-current, new row inserted.
+    # Rate is preserved from the current allocation so billing is unchanged.
     current.is_current = False
     db.add(
         BookingRoom(
@@ -599,6 +615,9 @@ async def check_out(
     correlation_id: str | None = None,
 ) -> CheckOutOut:
     hotel_id = tenant.require_hotel()
+    from app.services.subscriptions import assert_transactions_allowed as _ata
+
+    await _ata(db, hotel_id)
     booking = await get_booking(db, tenant, body.booking_id)
     if booking.status != "checked_in":
         raise ValidationAppError(

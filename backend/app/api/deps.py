@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import Depends, Header, Request
+from fastapi import Request as _Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +19,15 @@ from app.models.user import HotelMembership, User
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+_RESET_PASSWORD_EXEMPT = frozenset({
+    "/api/v1/auth/change-password",
+    "/api/v1/auth/logout",
+    "/api/v1/auth/me",
+})
+
+
 async def get_current_user(
+    request: _Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
@@ -32,6 +41,14 @@ async def get_current_user(
         raise UnauthorizedError("User not found")
     if not user.is_active:
         raise ForbiddenError("Account is disabled", code="account_disabled")
+    # Server-side must_reset_password enforcement (audit finding — the frontend
+    # redirect alone is bypassable via direct API calls). Exempt auth paths only.
+    if getattr(user, "must_reset_password", False):
+        if request.url.path not in _RESET_PASSWORD_EXEMPT:
+            raise ForbiddenError(
+                "Password reset required — please change your password to continue.",
+                code="must_reset_password",
+            )
     return user
 
 

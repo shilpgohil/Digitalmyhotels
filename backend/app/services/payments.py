@@ -197,6 +197,9 @@ async def correct_payment(
 ) -> Payment:
     """Correction never mutates the original — it voids and re-records."""
     hotel_id = tenant.require_hotel()
+    from app.services.subscriptions import assert_transactions_allowed as _ata
+
+    await _ata(db, hotel_id)
     original = await get_payment(db, tenant, payment_id)
     if original.status != "completed":
         raise ValidationAppError(
@@ -269,6 +272,9 @@ async def refund_payment(
     correlation_id: str | None = None,
 ) -> Refund:
     hotel_id = tenant.require_hotel()
+    from app.services.subscriptions import assert_transactions_allowed as _ata2
+
+    await _ata2(db, hotel_id)
     booking = await get_booking(db, tenant, body.booking_id)
     amount = money(body.amount)
 

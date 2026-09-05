@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -64,8 +64,13 @@ async def occupancy(
     occupied_nights = 0
     for booking in bookings:
         start = max(booking.check_in_date, from_date)
-        end = min(booking.check_out_date, to_date)
-        nights = max((end - start).days, 0)
+        # Day-use bookings (same date) contribute 1 occupied night — they
+        # physically use the room for that calendar day.
+        end = min(
+            max(booking.check_out_date, booking.check_in_date + timedelta(days=1)),
+            to_date,
+        )
+        nights = max((end - start).days, 1)
         occupied_nights += nights * max(booking.room_count, 1)
     available_nights = total_rooms * days
     percent = (
@@ -88,17 +93,26 @@ async def revenue(
 ) -> RevenueReportOut:
     hotel_id = tenant.require_hotel()
     from_date, to_date = _range(from_date, to_date)
-    room_rev = money(
+
+    # Revenue = payments collected (all methods) in the period.
+    # We use payment-based recognition so room revenue and charge revenue
+    # are never double-counted (Booking.total_amount already includes charges;
+    # adding HotelCharge.total_amount on top is incorrect — audit finding #2).
+    # "Room revenue" ≈ payments on stay bookings; "charge revenue" ≈ standalone
+    # charge payments. Both flow through the same Payment model (hotel_id + paid_at).
+    total_collected = money(
         await db.scalar(
-            select(func.coalesce(func.sum(Booking.total_amount), 0)).where(
-                Booking.hotel_id == hotel_id,
-                Booking.status.in_(("checked_in", "checked_out")),
-                Booking.check_in_date >= from_date,
-                Booking.check_in_date <= to_date,
+            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+                Payment.hotel_id == hotel_id,
+                Payment.status == "completed",
+                func.date(Payment.paid_at) >= from_date,
+                func.date(Payment.paid_at) <= to_date,
             )
         )
         or 0
     )
+    # Charge-specific revenue within the period (non-voided, for the breakdown
+    # row — this is NOT added to total; it's informational only).
     charge_rev = money(
         await db.scalar(
             select(func.coalesce(func.sum(HotelCharge.total_amount), 0)).where(
@@ -110,6 +124,10 @@ async def revenue(
         )
         or 0
     )
+    # Derive room revenue as: total collected − charge amounts (approximate,
+    # since payments are booking-level, not split by line item).
+    room_rev = money(max(total_collected - charge_rev, Decimal("0")))
+
     refunds = money(
         await db.scalar(
             select(func.coalesce(func.sum(Refund.amount), 0)).where(
@@ -121,15 +139,14 @@ async def revenue(
         )
         or 0
     )
-    total = money(room_rev + charge_rev)
     return RevenueReportOut(
         from_date=from_date,
         to_date=to_date,
         room_revenue=room_rev,
         charge_revenue=charge_rev,
-        total_revenue=total,
+        total_revenue=total_collected,
         refunds=refunds,
-        net_revenue=money(total - refunds),
+        net_revenue=money(total_collected - refunds),
     )
 
 

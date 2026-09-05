@@ -208,6 +208,15 @@ interface CheckinDraft {
   selectedServices: string[];
   advanceAmount: string;
   paymentMode: "cash" | "upi" | "card" | "bank_transfer" | "other";
+  /** Money state — MUST round-trip or a collected advance silently vanishes
+   *  on restore (client-reported). All optional for old-draft compatibility. */
+  paymentReceived?: boolean;
+  extraCharges?: string;
+  /** Staff-edited service chip amounts, keyed by service id. */
+  serviceAmounts?: Record<string, string>;
+  /** Staff-edited room rates, keyed by room id. */
+  rateEdits?: Record<string, string>;
+  terms?: boolean;
   emName: string;
   emRelation: string;
   emPhone: string;
@@ -937,6 +946,8 @@ function DocUpload({
                 fields: {
                   address: result.fields.address,
                   pincode: result.fields.pincode,
+                  city: result.fields.city,
+                  state: result.fields.state,
                 },
               };
               onOcrResult(addressOnly);
@@ -1106,6 +1117,8 @@ function AutofillBanner({
     fields.gender && { label: t("fieldGender"), value: fields.gender },
     fields.address && { label: t("fieldAddress"), value: fields.address.slice(0, 60) + (fields.address.length > 60 ? "…" : "") },
     fields.pincode && { label: t("pincode"), value: fields.pincode },
+    fields.city && { label: t("fieldCity"), value: fields.city },
+    fields.state && { label: t("fieldState"), value: fields.state },
   ].filter(Boolean) as { label: string; value: string }[];
 
   const pct = Math.round(result.confidence * 100);
@@ -1291,6 +1304,9 @@ function NewGuestForm({
     phone: initialPhone,
     email: "",
     address: "",
+    city: "",
+    state: "",
+    country: "India",
     gender: "",
     date_of_birth: "",
     id_proof_type: "Aadhar Card",
@@ -1358,6 +1374,8 @@ function NewGuestForm({
                       ...prev,
                       address: prev.address || result.fields.address || "",
                       postal_code: prev.postal_code || result.fields.pincode || "",
+                      city: prev.city || result.fields.city || "",
+                      state: prev.state || result.fields.state || "",
                     }));
                     toast.success(t("formAutofilled"));
                   } else {
@@ -1427,6 +1445,19 @@ function NewGuestForm({
         <div className="space-y-1.5 sm:col-span-2">
           <Label className="text-xs">{t("fieldAddress")}</Label>
           <Input value={form.address} onChange={(e) => set("address", e.target.value)} placeholder={t("fieldAddress")} />
+        </div>
+        {/* City / State / Country — client reference layout (Aadhaar-style). */}
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t("fieldCity")}</Label>
+          <Input value={form.city ?? ""} onChange={(e) => set("city", e.target.value)} placeholder={t("fieldCity")} />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t("fieldState")}</Label>
+          <Input value={form.state ?? ""} onChange={(e) => set("state", e.target.value)} placeholder={t("fieldState")} />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t("fieldCountry")}</Label>
+          <Input value={form.country ?? ""} onChange={(e) => set("country", e.target.value)} placeholder={t("fieldCountry")} />
         </div>
       </div>
 
@@ -1798,6 +1829,9 @@ function CheckinForm({
   const [pgDob, setPgDob] = useState("");
   const [pgAddress, setPgAddress] = useState("");
   const [pgPostalCode, setPgPostalCode] = useState("");
+  const [pgCity, setPgCity] = useState("");
+  const [pgState, setPgState] = useState("");
+  const [pgCountry, setPgCountry] = useState("India");
   const [pgPurpose, setPgPurpose] = useState("");
   const [pgCompany, setPgCompany] = useState("");
 
@@ -1834,6 +1868,9 @@ function CheckinForm({
         setPgDob((v) => v || (full.date_of_birth ?? ""));
         setPgAddress((v) => v || (full.address ?? ""));
         setPgPostalCode((v) => v || (full.postal_code ?? ""));
+        setPgCity((v) => v || (full.city ?? ""));
+        setPgState((v) => v || (full.state ?? ""));
+        setPgCountry((v) => v || (full.country ?? "India"));
         if (full.id_proof_type) setPgIdType((v) => (v === "Aadhar Card" ? full.id_proof_type! : v));
       }
 
@@ -2054,14 +2091,32 @@ function CheckinForm({
   const advPaid = Number.parseFloat(booking.advance_amount) || 0;
   const newAdvance = Number.parseFloat(advanceAmount) || 0;
   const extraChargesNum = Number.parseFloat(extraCharges || "0") || 0;
+  // Selected service chips (staff-edited amounts) — they are billed via the
+  // atomic charges array, so the balance must include them.
+  const chipsTotal = useMemo(
+    () =>
+      (services.data ?? [])
+        .filter((s) => selectedServices.includes(s.id))
+        .reduce(
+          (sum, s) =>
+            sum + (Number.parseFloat(serviceChargeAmount(s, serviceAmounts)) || 0),
+          0,
+        ),
+    [services.data, selectedServices, serviceAmounts],
+  );
+  // Early check-in fee is billed too (is_early/early_fee on the request).
+  const displayExtra = chipsTotal + extraChargesNum + earlyFee;
   // Note: booking.total_amount does not include GST (GST is only on the invoice).
   // We show an *approximate* GST for the balance display only, using the
-  // hotel's configured rate. The authoritative amount is on the invoice.
-  const gstAmount = Math.round((bookingTotal + extraChargesNum) * (hotelGstRate / 100) * 100) / 100;
+  // hotel's configured rate (whole rupees, matching backend money()).
+  const gstAmount = Math.round((bookingTotal + displayExtra) * (hotelGstRate / 100));
   // Only subtract the new advance when staff confirmed it was actually collected —
   // otherwise it is not recorded and the balance would be dishonest.
   const collectedAdvance = paymentReceived ? newAdvance : 0;
-  const balance = Math.max(bookingTotal + extraChargesNum + gstAmount - advPaid - collectedAdvance, 0);
+  const payable = bookingTotal + displayExtra + gstAmount;
+  const balance = Math.max(payable - advPaid - collectedAdvance, 0);
+  // Collected more than the bill → say so instead of silently showing ₹0.
+  const overpaid = Math.max(advPaid + collectedAdvance - payable, 0);
 
   // ── Mutation ─────────────────────────────────────────────────────────────
   const mutation = useMutation({
@@ -2096,6 +2151,9 @@ function CheckinForm({
         if (pgDob) body.date_of_birth = pgDob;
         if (pgAddress) body.address = pgAddress;
         if (pgPostalCode) body.postal_code = pgPostalCode;
+        if (pgCity) body.city = pgCity;
+        if (pgState) body.state = pgState;
+        if (pgCountry) body.country = pgCountry;
         if (pgIdType) body.id_proof_type = pgIdType;
         if (pgIdNumber) body.id_number = pgIdNumber;
         if (Object.keys(body).length > 0) {
@@ -2122,6 +2180,9 @@ function CheckinForm({
               phone: newForm.phone.trim(),
               email: newForm.email?.trim() || undefined,
               address: newForm.address?.trim() || undefined,
+              city: newForm.city?.trim() || undefined,
+              state: newForm.state?.trim() || undefined,
+              country: newForm.country?.trim() || undefined,
               postal_code: newForm.postal_code?.trim() || undefined,
               gender: newForm.gender?.trim() || undefined,
               date_of_birth: newForm.date_of_birth?.trim() || undefined,
@@ -2129,14 +2190,17 @@ function CheckinForm({
               id_number: newForm.id_number?.trim() || undefined,
             },
           });
-          // Upload queued docs for the new guest
+          // Non-blocking doc uploads (audit finding storage HIGH #5): a failed
+          // upload must not abort check-in; docs can be added later in settings.
           for (const doc of cg.docs) {
             const form = new FormData();
             form.append("side", doc.side);
             form.append("document_type", "id_proof");
             form.append("file", doc.file);
-            await apiUpload(`/api/v1/guests/${created.id}/documents`, form, {
+            apiUpload(`/api/v1/guests/${created.id}/documents`, form, {
               hotelId: activeHotelId ?? undefined,
+            }).catch((err: unknown) => {
+              console.warn("[checkin] co-guest doc upload failed:", err);
             });
           }
           resolvedCoGuests.push({
@@ -2144,15 +2208,15 @@ function CheckinForm({
             foreign_guest: cg.foreign_guest ?? null,
           });
         } else {
-          // Existing guest — upload any queued docs
+          // Existing guest — upload queued docs (non-blocking; failures just warn)
           for (const doc of cg.docs) {
             const form = new FormData();
             form.append("side", doc.side);
             form.append("document_type", "id_proof");
             form.append("file", doc.file);
-            await apiUpload(`/api/v1/guests/${cg.guest_id}/documents`, form, {
+            apiUpload(`/api/v1/guests/${cg.guest_id}/documents`, form, {
               hotelId: activeHotelId ?? undefined,
-            });
+            }).catch((err: unknown) => console.warn("[checkin] co-guest doc upload:", err));
           }
           resolvedCoGuests.push({
             guest_id: cg.guest_id,
@@ -2405,6 +2469,12 @@ function CheckinForm({
                   if (result.fields.pincode) {
                     setPgPostalCode((prev) => prev || (result.fields.pincode ?? ""));
                   }
+                  if (result.fields.city) {
+                    setPgCity((prev) => prev || (result.fields.city ?? ""));
+                  }
+                  if (result.fields.state) {
+                    setPgState((prev) => prev || (result.fields.state ?? ""));
+                  }
                   toast.success(t("formAutofilled"));
                 } else {
                   toast.warning(result.message);
@@ -2478,6 +2548,18 @@ function CheckinForm({
                 inputMode="numeric"
                 maxLength={6}
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldCity")}</Label>
+              <Input value={pgCity} onChange={(e) => setPgCity(e.target.value)} placeholder={t("fieldCity")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldState")}</Label>
+              <Input value={pgState} onChange={(e) => setPgState(e.target.value)} placeholder={t("fieldState")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldCountry")}</Label>
+              <Input value={pgCountry} onChange={(e) => setPgCountry(e.target.value)} placeholder={t("fieldCountry")} />
             </div>
           </div>
 
@@ -2674,14 +2756,16 @@ function CheckinForm({
               </div>
               <div className="space-y-1 text-center">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Extra Charges</p>
+                {/* Auto-filled: service chips + early fee + the manual entry below. */}
+                <p className="text-sm font-bold tabular-nums">{fmtINR(displayExtra)}</p>
                 <Input
                   type="number"
                   min={0}
-                  step="0.01"
+                  step="1"
                   value={extraCharges}
                   onChange={(e) => setExtraCharges(e.target.value)}
                   className="h-7 text-center text-sm tabular-nums px-1"
-                  placeholder="0.00"
+                  placeholder="0"
                 />
               </div>
               <div className="space-y-1 text-center">
@@ -2695,6 +2779,11 @@ function CheckinForm({
               <div className="space-y-1 text-center">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
                 <p className={cn("text-sm font-bold tabular-nums", balance > 0 ? "text-gold-600" : "text-green-600")}>{fmtINR(balance)}</p>
+                {overpaid > 0 && (
+                  <p className="text-[10px] font-medium text-amber-600">
+                    {t("overpaidHint", { amount: fmtINR(overpaid) })}
+                  </p>
+                )}
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
@@ -3059,6 +3148,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const [pgDob, setPgDob] = useState("");
   const [pgAddress, setPgAddress] = useState("");
   const [pgPostalCode, setPgPostalCode] = useState("");
+  const [pgCity, setPgCity] = useState("");
+  const [pgState, setPgState] = useState("");
+  const [pgCountry, setPgCountry] = useState("India");
   const [pgCompany, setPgCompany] = useState("");
   const [pgOcrResult, setPgOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
 
@@ -3093,6 +3185,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       setPgDob(full.date_of_birth ?? "");
       setPgAddress(full.address ?? "");
       setPgPostalCode(full.postal_code ?? "");
+      setPgCity(full.city ?? "");
+      setPgState(full.state ?? "");
+      setPgCountry(full.country ?? "India");
       if (full.id_proof_type) setPgIdType(full.id_proof_type);
     } else {
       setPgBaseline(null);
@@ -3132,6 +3227,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           phone: form.phone.trim(),
           email: form.email?.trim() || undefined,
           address: form.address?.trim() || undefined,
+          city: form.city?.trim() || undefined,
+          state: form.state?.trim() || undefined,
+          country: form.country?.trim() || undefined,
           postal_code: form.postal_code?.trim() || undefined,
           gender: form.gender?.trim() || undefined,
           date_of_birth: form.date_of_birth?.trim() || undefined,
@@ -3140,14 +3238,15 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         },
       });
       // Upload the queued ID docs (front/back/selfie) for the new guest.
+      // Non-blocking: a failed upload never aborts the guest creation.
       for (const doc of docs) {
         const fd = new FormData();
         fd.append("side", doc.side);
         fd.append("document_type", "id_proof");
         fd.append("file", doc.file);
-        await apiUpload(`/api/v1/guests/${created.id}/documents`, fd, {
+        apiUpload(`/api/v1/guests/${created.id}/documents`, fd, {
           hotelId: activeHotelId ?? undefined,
-        });
+        }).catch((err: unknown) => console.warn("[checkin] pg doc upload:", err));
       }
       return created;
     },
@@ -3290,13 +3389,19 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         ),
     [services.data, selectedServices, serviceAmounts],
   );
-  // Extra-charges cell auto-fills with chips + manual entry (client request).
-  const displayExtraWI = chipsTotalWI + extraChargesNumWI;
-  const gstAmountWI = Math.round((roomRentWalkIn + displayExtraWI) * (hotelGstRate / 100) * 100) / 100;
+  // Extra-charges cell auto-fills with chips + manual entry + early check-in
+  // fee (client request). The early fee IS billed (it rides in the atomic
+  // charges array), so hiding it here understated Remaining.
+  const displayExtraWI = chipsTotalWI + extraChargesNumWI + earlyFee;
+  // Whole-rupee GST — matches backend money() (ROUND_HALF_UP to ₹1).
+  const gstAmountWI = Math.round((roomRentWalkIn + displayExtraWI) * (hotelGstRate / 100));
   // Only subtract the advance when staff confirmed it was actually collected —
   // otherwise it is not recorded and the remaining balance would be dishonest.
   const collectedAdvanceWI = paymentReceived ? newAdvance : 0;
-  const remainingWI = Math.max(roomRentWalkIn + displayExtraWI + gstAmountWI - collectedAdvanceWI, 0);
+  const payableWI = roomRentWalkIn + displayExtraWI + gstAmountWI;
+  const remainingWI = Math.max(payableWI - collectedAdvanceWI, 0);
+  // Collected more than the bill → say so instead of silently showing ₹0.
+  const overpaidWI = Math.max(collectedAdvanceWI - payableWI, 0);
 
   // UPI QR code — fetched as a blob URL when UPI + amount > 0.
   const showQr = paymentMode === "upi" && newAdvance > 0;
@@ -3367,6 +3472,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       selectedServices,
       advanceAmount,
       paymentMode,
+      paymentReceived,
+      extraCharges,
+      serviceAmounts,
+      rateEdits,
+      terms,
       emName,
       emRelation,
       emPhone,
@@ -3400,6 +3510,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     setSelectedServices(d.selectedServices ?? []);
     setAdvanceAmount(d.advanceAmount ?? "0");
     setPaymentMode(d.paymentMode ?? "cash");
+    setPaymentReceived(d.paymentReceived ?? false);
+    setExtraCharges(d.extraCharges ?? "0");
+    setServiceAmounts(d.serviceAmounts ?? {});
+    setRateEdits(d.rateEdits ?? {});
+    setTerms(d.terms ?? false);
     setEmName(d.emName ?? "");
     setEmRelation(d.emRelation ?? "");
     setEmPhone(d.emPhone ?? "");
@@ -3458,6 +3573,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       if (pgDob && pgDob !== (pgBaseline?.date_of_birth ?? "")) patch.date_of_birth = pgDob;
       if (pgAddress && pgAddress !== (pgBaseline?.address ?? "")) patch.address = pgAddress;
       if (pgPostalCode && pgPostalCode !== (pgBaseline?.postal_code ?? "")) patch.postal_code = pgPostalCode;
+      if (pgCity && pgCity !== (pgBaseline?.city ?? "")) patch.city = pgCity;
+      if (pgState && pgState !== (pgBaseline?.state ?? "")) patch.state = pgState;
+      if (pgCountry && pgCountry !== (pgBaseline?.country ?? "India")) patch.country = pgCountry;
       if (pgIdNumber.trim()) {
         patch.id_number = pgIdNumber.trim();
         patch.id_proof_type = pgIdType;
@@ -3482,6 +3600,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               phone: newForm.phone.trim(),
               email: newForm.email?.trim() || undefined,
               address: newForm.address?.trim() || undefined,
+              city: newForm.city?.trim() || undefined,
+              state: newForm.state?.trim() || undefined,
+              country: newForm.country?.trim() || undefined,
               postal_code: newForm.postal_code?.trim() || undefined,
               gender: newForm.gender?.trim() || undefined,
               date_of_birth: newForm.date_of_birth?.trim() || undefined,
@@ -3489,14 +3610,15 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               id_number: newForm.id_number?.trim() || undefined,
             },
           });
+          // Non-blocking uploads — doc failures must not abort check-in
           for (const doc of cg.docs) {
             const form = new FormData();
             form.append("side", doc.side);
             form.append("document_type", "id_proof");
             form.append("file", doc.file);
-            await apiUpload(`/api/v1/guests/${created.id}/documents`, form, {
+            apiUpload(`/api/v1/guests/${created.id}/documents`, form, {
               hotelId: activeHotelId ?? undefined,
-            });
+            }).catch((err: unknown) => console.warn("[checkin] new co-guest doc:", err));
           }
           resolvedCoGuests.push({
             guest_id: created.id,
@@ -3508,9 +3630,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             form.append("side", doc.side);
             form.append("document_type", "id_proof");
             form.append("file", doc.file);
-            await apiUpload(`/api/v1/guests/${cg.guest_id}/documents`, form, {
+            apiUpload(`/api/v1/guests/${cg.guest_id}/documents`, form, {
               hotelId: activeHotelId ?? undefined,
-            });
+            }).catch((err: unknown) => console.warn("[checkin] existing co-guest doc:", err));
           }
           resolvedCoGuests.push({
             guest_id: cg.guest_id,
@@ -3896,6 +4018,12 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                       if (result.fields.pincode) {
                         setPgPostalCode((prev) => prev || (result.fields.pincode ?? ""));
                       }
+                      if (result.fields.city) {
+                        setPgCity((prev) => prev || (result.fields.city ?? ""));
+                      }
+                      if (result.fields.state) {
+                        setPgState((prev) => prev || (result.fields.state ?? ""));
+                      }
                       toast.success(t("formAutofilled"));
                     } else {
                       toast.warning(result.message);
@@ -3969,6 +4097,18 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                     inputMode="numeric"
                     maxLength={6}
                   />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldCity")}</Label>
+                  <Input value={pgCity} onChange={(e) => setPgCity(e.target.value)} placeholder={t("fieldCity")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldState")}</Label>
+                  <Input value={pgState} onChange={(e) => setPgState(e.target.value)} placeholder={t("fieldState")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldCountry")}</Label>
+                  <Input value={pgCountry} onChange={(e) => setPgCountry(e.target.value)} placeholder={t("fieldCountry")} />
                 </div>
               </div>
             </>
@@ -4180,6 +4320,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             <div className="space-y-1 text-center">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
               <p className={cn("text-sm font-bold tabular-nums", remainingWI > 0 ? "text-gold-600" : "text-green-600")}>{fmtINR(remainingWI)}</p>
+              {overpaidWI > 0 && (
+                <p className="text-[10px] font-medium text-amber-600">
+                  {t("overpaidHint", { amount: fmtINR(overpaidWI) })}
+                </p>
+              )}
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">

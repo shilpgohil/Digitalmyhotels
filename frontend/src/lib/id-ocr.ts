@@ -13,9 +13,16 @@ export interface ParsedIdFields {
   id_number?: string;
   date_of_birth?: string;  // YYYY-MM-DD  (HTML date input format)
   gender?: string;
+  /** Street/locality address ONLY — pincode/state/district are decomposed
+   *  into their own fields and stripped from this text (field purity: no
+   *  column receives data that belongs to another column). */
   address?: string;
   /** 6-digit Indian PIN code extracted from the address block. */
   pincode?: string;
+  /** District/city when the back face carries a "DIST:" marker. */
+  city?: string;
+  /** Indian state/UT name recognized at the end of the address block. */
+  state?: string;
   id_type_detected?: string;
 }
 
@@ -164,6 +171,103 @@ function parseAadhar(text: string): Partial<ParsedIdFields> & { score: number } 
 // English. We keep the English block only.
 const DEVANAGARI = /[\u0900-\u097F]/;
 
+// All 36 Indian states/UTs — used to lift the state out of the address text
+// into its own field. Longest names first so "Dadra..." wins over partials.
+const INDIAN_STATES = [
+  "Dadra and Nagar Haveli and Daman and Diu",
+  "Andaman and Nicobar Islands",
+  "Arunachal Pradesh",
+  "Himachal Pradesh",
+  "Jammu and Kashmir",
+  "Madhya Pradesh",
+  "Andhra Pradesh",
+  "Uttar Pradesh",
+  "West Bengal",
+  "Chhattisgarh",
+  "Maharashtra",
+  "Lakshadweep",
+  "Uttarakhand",
+  "Puducherry",
+  "Chandigarh",
+  "Meghalaya",
+  "Jharkhand",
+  "Karnataka",
+  "Rajasthan",
+  "Tamil Nadu",
+  "Telangana",
+  "Nagaland",
+  "Manipur",
+  "Mizoram",
+  "Tripura",
+  "Gujarat",
+  "Haryana",
+  "Kerala",
+  "Punjab",
+  "Sikkim",
+  "Assam",
+  "Bihar",
+  "Delhi",
+  "Odisha",
+  "Ladakh",
+  "Goa",
+] as const;
+
+/**
+ * Decompose a raw Aadhaar-back address block into dedicated columns.
+ * Pincode, state, and district (city) are extracted AND removed from the
+ * address text so every value lives only in its own field.
+ */
+function decomposeAddress(raw: string, pincode: string | undefined): {
+  address: string;
+  city?: string;
+  state?: string;
+} {
+  let address = raw;
+  let city: string | undefined;
+  let state: string | undefined;
+
+  // 1. Remove the pincode (and an immediately preceding dash) from the text.
+  if (pincode) {
+    address = address
+      .replace(new RegExp(`[-\\s,]*\\b${pincode}\\b`, "g"), "")
+      .trim();
+  }
+
+  // 2. Lift the state name out (matched case-insensitively, prefer the LAST
+  //    occurrence since the state ends an Indian address).
+  for (const name of INDIAN_STATES) {
+    const re = new RegExp(`[,\\s]*\\b${name.replace(/ /g, "\\s+")}\\b`, "gi");
+    const matches = [...address.matchAll(re)];
+    if (matches.length > 0) {
+      state = name;
+      const last = matches[matches.length - 1];
+      address =
+        address.slice(0, last.index) +
+        address.slice((last.index ?? 0) + last[0].length);
+      break;
+    }
+  }
+
+  // 3. Lift the district out when marked ("DIST: Gwalior" / "District Gwalior").
+  const distMatch = address.match(
+    /[,\s]*\b(?:DIST(?:RICT)?)[.:\s]+([A-Za-z][A-Za-z ]{1,30}?)(?=,|$)/i,
+  );
+  if (distMatch) {
+    city = distMatch[1].trim();
+    address = address.replace(distMatch[0], "");
+  }
+
+  // 4. Tidy leftover separators.
+  address = address
+    .replace(/\s{2,}/g, " ")
+    .replace(/,\s*,+/g, ",")
+    .replace(/[,\s-]+$/g, "")
+    .replace(/^[,\s-]+/g, "")
+    .trim();
+
+  return { address, city, state };
+}
+
 /** 6-digit Indian PIN code, not part of a longer digit run. */
 const PIN_RE = /\b([1-9]\d{5})\b/;
 
@@ -231,9 +335,16 @@ function parseAadharBack(text: string): Partial<ParsedIdFields> & { score: numbe
   const wordChars = joined.replace(/[^A-Za-z0-9,./\- ]/g, "").length;
   const quality = joined.length > 0 ? wordChars / joined.length : 0;
   if (pincode && quality >= 0.6 && joined.length >= 10) {
-    fields.address = joined;
-    fields.pincode = pincode;
-    score += 0.55; // address + pincode is the whole point of the back face
+    // Field purity: pincode/state/district land ONLY in their own fields —
+    // the address text keeps street/locality parts exclusively.
+    const parts = decomposeAddress(joined, pincode);
+    if (parts.address.length >= 5) {
+      fields.address = parts.address;
+      fields.pincode = pincode;
+      if (parts.city) fields.city = parts.city;
+      if (parts.state) fields.state = parts.state;
+      score += 0.55; // address + pincode is the whole point of the back face
+    }
   }
 
   return { ...fields, score };

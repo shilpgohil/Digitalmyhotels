@@ -114,6 +114,18 @@ async def rotate_refresh_token(
     return user, access, new_raw
 
 
+async def _revoke_all_user_refresh_tokens(db: AsyncSession, user_id: UUID) -> None:
+    """Revoke every active refresh token for a user (on password reset/force logout)."""
+    tokens = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None)
+        )
+    )
+    now = datetime.now(UTC)
+    for row in tokens.scalars().all():
+        row.revoked_at = now
+
+
 async def revoke_refresh_token(db: AsyncSession, raw_token: str) -> None:
     token_hash = hash_token(raw_token)
     result = await db.execute(
@@ -204,14 +216,7 @@ async def confirm_password_reset(db: AsyncSession, token: str, new_password: str
     user.password_reset_expires_at = None
     user.must_reset_password = False
     # Invalidate every active session after a reset.
-    tokens = await db.execute(
-        select(RefreshToken).where(
-            RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None)
-        )
-    )
-    now = datetime.now(UTC)
-    for row in tokens.scalars().all():
-        row.revoked_at = now
+    await _revoke_all_user_refresh_tokens(db, user.id)
     await write_audit(
         db,
         action="auth.password_reset_completed",

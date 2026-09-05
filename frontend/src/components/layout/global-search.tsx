@@ -100,9 +100,20 @@ export function GlobalSearch() {
                   key={b.id}
                   type="button"
                   className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted"
-                  onClick={() =>
-                    go(`/advance-bookings?q=${encodeURIComponent(b.booking_number)}`)
-                  }
+                  onClick={() => {
+                    // Route by booking status so the result is actually visible
+                    // (audit finding HIGH #7: all statuses were sent to
+                    // advance-bookings which only shows pending/confirmed).
+                    const dest =
+                      b.status === "checked_in"
+                        ? `/current-guests`
+                        : b.status === "checked_out" ||
+                            b.status === "cancelled" ||
+                            b.status === "no_show"
+                          ? `/completed-bookings?q=${encodeURIComponent(b.booking_number)}`
+                          : `/advance-bookings?q=${encodeURIComponent(b.booking_number)}`;
+                    go(dest);
+                  }}
                 >
                   <CalendarRange className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="font-medium">{b.booking_number}</span>

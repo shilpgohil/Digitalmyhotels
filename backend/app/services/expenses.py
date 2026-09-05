@@ -152,6 +152,9 @@ async def create_expense(
     correlation_id: str | None = None,
 ) -> Expense:
     hotel_id = tenant.require_hotel()
+    from app.services.subscriptions import assert_transactions_allowed as _ata
+
+    await _ata(db, hotel_id)
     expense = Expense(
         hotel_id=hotel_id,
         category_id=body.category_id,

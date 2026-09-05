@@ -78,31 +78,64 @@ class _S3CompatibleStorage(StorageBackend):
             region_name=region,
         )
 
+    @staticmethod
+    def _map_boto_error(exc: Exception) -> Exception:
+        """Map boto3/botocore errors to AppErrors so callers get 404/503, not 500."""
+        # Import lazily so local/non-S3 storage never imports boto3.
+        try:
+            from botocore.exceptions import BotoCoreError, ClientError
+        except ImportError:  # pragma: no cover
+            return exc
+        if isinstance(exc, ClientError):
+            code = exc.response.get("Error", {}).get("Code", "")
+            if code in ("NoSuchKey", "NoSuchBucket", "404"):
+                from app.core.errors import NotFoundError
+
+                return NotFoundError("Object not found in storage")
+        if isinstance(exc, ClientError | BotoCoreError):
+            from app.core.errors import AppError
+
+            return AppError(
+                "storage_unavailable",
+                "Object storage is temporarily unavailable",
+                status_code=503,
+            )
+        return exc
+
     async def put_bytes(self, *, key: str, data: bytes, content_type: str) -> str:
         # boto3 is synchronous — run in a thread so the asyncio event loop is
         # never blocked during network I/O to the S3-compatible endpoint.
-        await asyncio.to_thread(
-            partial(
-                self.client.put_object,
-                Bucket=self.bucket,
-                Key=key,
-                Body=data,
-                ContentType=content_type,
+        try:
+            await asyncio.to_thread(
+                partial(
+                    self.client.put_object,
+                    Bucket=self.bucket,
+                    Key=key,
+                    Body=data,
+                    ContentType=content_type,
+                )
             )
-        )
+        except Exception as exc:
+            raise self._map_boto_error(exc) from exc
         return key
 
     async def get_bytes(self, key: str) -> bytes:
-        result = await asyncio.to_thread(
-            partial(self.client.get_object, Bucket=self.bucket, Key=key)
-        )
-        # Body.read() is also blocking I/O — run it in the thread too.
-        return await asyncio.to_thread(result["Body"].read)
+        try:
+            result = await asyncio.to_thread(
+                partial(self.client.get_object, Bucket=self.bucket, Key=key)
+            )
+            # Body.read() is also blocking I/O — run it in the thread too.
+            return await asyncio.to_thread(result["Body"].read)
+        except Exception as exc:
+            raise self._map_boto_error(exc) from exc
 
     async def delete(self, key: str) -> None:
-        await asyncio.to_thread(
-            partial(self.client.delete_object, Bucket=self.bucket, Key=key)
-        )
+        try:
+            await asyncio.to_thread(
+                partial(self.client.delete_object, Bucket=self.bucket, Key=key)
+            )
+        except Exception as exc:
+            raise self._map_boto_error(exc) from exc
 
     def public_url(self, key: str) -> str | None:
         if not self.public_base:

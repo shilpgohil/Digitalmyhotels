@@ -212,6 +212,11 @@ async def reset_member_password(
     _guard_not_owner(membership)
     membership.user.password_hash = hash_password(new_password)
     membership.user.must_reset_password = True
+    # Audit finding HIGH #6: admin-side password reset did not revoke active
+    # refresh sessions, leaving old tokens valid until expiry. Revoke now.
+    from app.services.auth import _revoke_all_user_refresh_tokens
+
+    await _revoke_all_user_refresh_tokens(db, membership.user_id)
     await write_audit(
         db,
         action="team.password_reset",

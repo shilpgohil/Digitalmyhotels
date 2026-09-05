@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permissions
@@ -29,8 +29,15 @@ async def list_audit_logs(
         query = query.where(AuditLog.action == action)
     if entity_type:
         query = query.where(AuditLog.entity_type == entity_type)
+    # Count total before applying pagination (audit finding LOW #13).
+    count_query = select(func.count()).select_from(AuditLog).where(
+        AuditLog.hotel_id == hotel_id,
+        *([AuditLog.action == action] if action else []),
+        *([AuditLog.entity_type == entity_type] if entity_type else []),
+    )
+    total = (await db.execute(count_query)).scalar_one()
     query = query.order_by(AuditLog.created_at.desc()).offset(offset).limit(limit)
     items = list((await db.execute(query)).scalars().all())
     return AuditLogListOut(
-        items=[AuditLogOut.model_validate(i) for i in items], total=len(items)
+        items=[AuditLogOut.model_validate(i) for i in items], total=total
     )

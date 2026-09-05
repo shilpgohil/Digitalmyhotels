@@ -29,6 +29,27 @@ async def lifespan(_app: FastAPI):
 
     settings = get_settings()
     setup_logging(debug=settings.debug)
+
+    # Production safety: refuse to start if crypto secrets are still defaults.
+    # A misconfigured deploy with known defaults means forgeable JWTs and
+    # decryptable UPI IDs — both are unacceptable in production.
+    if settings.is_production:
+        _UNSAFE_SECRETS = {
+            "dev-secret-change-me",
+            "dev-fernet-key-replace-with-real-fernet-key==",
+            "",
+        }
+        if settings.secret_key in _UNSAFE_SECRETS:
+            raise RuntimeError(
+                "SECRET_KEY is set to the development default — "
+                "set a strong random value in production env vars."
+            )
+        if settings.upi_encryption_key in _UNSAFE_SECRETS:
+            raise RuntimeError(
+                "UPI_ENCRYPTION_KEY is set to the development default — "
+                "generate a Fernet key and set it in production env vars."
+            )
+
     # Background loops (both sleep before their first cycle, so tests and
     # short-lived processes never execute them):
     # - overdue sweep: checkout-overdue notifications every 15 min
