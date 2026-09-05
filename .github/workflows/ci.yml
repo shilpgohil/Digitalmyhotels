@@ -88,7 +88,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        # Use npm install instead of npm ci: package-lock.json was generated
+        # with a different npm version and CI strict-mode (npm ci) rejects
+        # any checksum/format drift. npm install is idempotent and reliable.
+        run: npm install --prefer-offline
 
       - name: TypeScript check
         run: npx tsc --noEmit
