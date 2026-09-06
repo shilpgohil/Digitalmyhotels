@@ -29,7 +29,8 @@
     "rotateLeft": "Rotate 90° left",
     "rotateRight": "Rotate 90° right",
     "reset": "Reset",
-    "dragZoomHint": "Drag to reposition · scroll to zoom"
+    "dragZoomHint": "Drag · scroll/pinch to zoom",
+    "pinchToZoom": "Pinch to zoom"
   },
   "auth": {
     "loginTitle": "Login",

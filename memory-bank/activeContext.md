@@ -1,5 +1,25 @@
 # Active Context — DigitalMyHotels
 
+## Current focus (2026-09-06 night — remaining items + notifications) — COMMITTED 9d25bf9
+
+Commit 9d25bf9 (pushed):
+- Current Guests View: RegisteredGuestCard + DocThumbnail in StayDetailDialog
+- Completed Bookings: Form C toggle (passport/visa/arrival), foreignGuestBadge
+- Restaurant Billing: GST=₹0 warning banner + link to GST settings
+- Backend notifications: ARRIVAL_TODAY (check-in day reminder), CHECKOUT_REMINDER
+  (2h before checkout), LOW_ROOM_AVAILABILITY (<20% available rooms)
+- DB migration e3f5a2c1b8d9: arrival_notified_at + checkout_reminded_at on bookings
+- All 3 sweeps wired into app lifespan background tasks
+
+Also shipped in 5d72545:
+- iPhone-style image editor with angle ruler (-45° to +45°)
+- High-resolution output at source resolution (not CSS pixels)
+- All upload paths pass correct maxDimension (1800 docs, 900 logos, 1600 gallery)
+
+Additional Guests edit: ALREADY IMPLEMENTED (pencil button per co-guest card)
+Partner sidebar role: ALREADY IMPLEMENTED (role_name shows below user name)
+"Hi" badge in completed bookings: was from old code, NOT in current codebase
+
 ## Current focus (2026-09-06 evening — 9-06 client bugs) — COMMITTED 338107b
 
 Commit 338107b (pushed):

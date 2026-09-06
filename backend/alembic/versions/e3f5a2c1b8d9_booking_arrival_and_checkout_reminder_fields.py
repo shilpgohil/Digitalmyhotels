@@ -23,13 +23,15 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "bookings",
-        sa.Column("arrival_notified_at", sa.DateTime(timezone=True), nullable=True),
+    # ADD COLUMN IF NOT EXISTS — idempotent: safe whether the column is already
+    # there (e.g. from a previous failed Render deploy) or brand-new.
+    op.execute(
+        "ALTER TABLE bookings ADD COLUMN IF NOT EXISTS"
+        " arrival_notified_at TIMESTAMPTZ"
     )
-    op.add_column(
-        "bookings",
-        sa.Column("checkout_reminded_at", sa.DateTime(timezone=True), nullable=True),
+    op.execute(
+        "ALTER TABLE bookings ADD COLUMN IF NOT EXISTS"
+        " checkout_reminded_at TIMESTAMPTZ"
     )
 
 
