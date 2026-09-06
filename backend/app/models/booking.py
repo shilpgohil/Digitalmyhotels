@@ -94,6 +94,14 @@ class Booking(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     overdue_notified_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Set once when the arrival-today reminder fires for a confirmed booking.
+    arrival_notified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Set once when the checkout-reminder (≤ 2 h before checkout) notification fires.
+    checkout_reminded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )

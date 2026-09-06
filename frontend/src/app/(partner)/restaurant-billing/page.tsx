@@ -205,6 +205,22 @@ function RestaurantBillingContent() {
           </div>
         )}
 
+        {/* GST configuration notice — shown when total GST = ₹0 */}
+        {report.data &&
+          Number.parseFloat(report.data.total_gst) === 0 &&
+          report.data.items.length > 0 && (
+            <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <span className="shrink-0 font-bold">⚠</span>
+              <div>
+                <p className="font-semibold">{t("noGstConfigured")}</p>
+                <p className="mt-0.5 text-xs">{t("noGstConfiguredHint")}</p>
+                <a href="/gst-tax" className="mt-1 inline-block text-xs font-semibold text-amber-700 underline hover:text-amber-900">
+                  {t("configureGst")}
+                </a>
+              </div>
+            </div>
+          )}
+
         {/* Search */}
         <div className="mb-4 max-w-sm">
           <div className="relative">

@@ -35,8 +35,9 @@ import { getAccessToken } from "@/lib/auth/session";
 import { cn } from "@/lib/utils";
 import { Eye } from "lucide-react";
 import type { ListOut } from "@/types/hotel";
-import type { BookingGuestDocOut, BookingGuestOut, BookingOut } from "@/types/stay";
+import type { BookingGuestDocOut, BookingGuestOut, BookingOut, ForeignGuestIn } from "@/types/stay";
 import type { ChargeOut, PaymentOut } from "@/types/money";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -154,8 +155,15 @@ function DocThumbnail({ guestId, doc }: { guestId: string; doc: BookingGuestDocO
 }
 
 /** One registered guest inside the detail drawer. */
-function GuestCard({ guest }: { guest: BookingGuestOut }) {
+function GuestCard({
+  guest,
+  foreignGuest = null,
+}: {
+  guest: BookingGuestOut;
+  foreignGuest?: (ForeignGuestIn & { guest_id: string }) | null;
+}) {
   const t = useTranslations("bookings");
+  const [showFormC, setShowFormC] = useState(false);
   return (
     <div className="rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -163,6 +171,11 @@ function GuestCard({ guest }: { guest: BookingGuestOut }) {
         {guest.is_primary && (
           <span className="rounded-full bg-gold-500 px-2 py-0.5 text-xs font-medium text-navy-900">
             {t("primaryBadge")}
+          </span>
+        )}
+        {foreignGuest && (
+          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+            {t("foreignGuestBadge")}
           </span>
         )}
         {/* Full contact number when the API provides it, masked otherwise. */}
@@ -220,6 +233,41 @@ function GuestCard({ guest }: { guest: BookingGuestOut }) {
           </div>
         )}
       </div>
+      {/* Form C (foreign national) toggle */}
+      {foreignGuest && (
+        <div className="mt-3 border-t pt-2">
+          <button
+            type="button"
+            onClick={() => setShowFormC(!showFormC)}
+            className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wide text-blue-700 hover:text-blue-900"
+          >
+            {t("formCDetails")}
+            {showFormC ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+          </button>
+          {showFormC && (
+            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+              {foreignGuest.passport_number && (
+                <div><dt className="text-muted-foreground">{t("fgPassport")}</dt><dd className="font-medium">{foreignGuest.passport_number}</dd></div>
+              )}
+              {foreignGuest.nationality && (
+                <div><dt className="text-muted-foreground">{t("fgNationality")}</dt><dd className="font-medium">{foreignGuest.nationality}</dd></div>
+              )}
+              {foreignGuest.visa_number && (
+                <div><dt className="text-muted-foreground">{t("fgVisa")}</dt><dd className="font-medium">{foreignGuest.visa_number} ({foreignGuest.visa_type ?? ""})</dd></div>
+              )}
+              {foreignGuest.arrived_in_india_on && (
+                <div><dt className="text-muted-foreground">{t("fgArrival")}</dt><dd className="font-medium">{foreignGuest.arrived_in_india_on}</dd></div>
+              )}
+              {foreignGuest.coming_from_country && (
+                <div><dt className="text-muted-foreground">{t("fgFrom")}</dt><dd className="font-medium">{foreignGuest.coming_from_city} ({foreignGuest.coming_from_country})</dd></div>
+              )}
+              {foreignGuest.next_destination_country && (
+                <div><dt className="text-muted-foreground">{t("fgNext")}</dt><dd className="font-medium">{foreignGuest.next_destination} ({foreignGuest.next_destination_country})</dd></div>
+              )}
+            </dl>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -257,6 +305,17 @@ function BookingDetailSheet({
   const guests = useQuery({
     queryKey: ["booking-guests", activeHotelId, bookingId],
     queryFn: () => api<BookingGuestOut[]>(`/api/v1/bookings/${bookingId}/guests`),
+    enabled: !!activeHotelId && !!bookingId,
+  });
+
+  // Foreign guest (Form C) records for this booking — needed to show the
+  // passport/visa details of any foreign national on the booking.
+  const foreignGuests = useQuery({
+    queryKey: ["booking-foreign-guests", activeHotelId, bookingId],
+    queryFn: () => {
+      type FGOut = ForeignGuestIn & { guest_id: string };
+      return api<FGOut[]>(`/api/v1/bookings/${bookingId}/foreign-guests`);
+    },
     enabled: !!activeHotelId && !!bookingId,
   });
 
@@ -446,9 +505,18 @@ function BookingDetailSheet({
             )}
             {guests.data && guests.data.length > 0 && (
               <div className="space-y-3">
-                {guests.data.map((guest) => (
-                  <GuestCard key={guest.guest_id} guest={guest} />
-                ))}
+                {guests.data.map((guest) => {
+                  const fgData = foreignGuests.data?.find(
+                    (fg) => fg.guest_id === guest.guest_id,
+                  );
+                  return (
+                    <GuestCard
+                      key={guest.guest_id}
+                      guest={guest}
+                      foreignGuest={fgData ?? null}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>

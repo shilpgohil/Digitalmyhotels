@@ -49,8 +49,10 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/client";
+import { API_BASE } from "@/lib/api/client";
+import { getAccessToken } from "@/lib/auth/session";
 import type { ListOut, RoomOut } from "@/types/hotel";
-import type { BookingOut, CurrentGuestOut, GuestOut } from "@/types/stay";
+import type { BookingGuestDocOut, BookingGuestOut, BookingOut, CurrentGuestOut, GuestOut } from "@/types/stay";
 import { RequirePermission } from "@/components/auth/require-permission";
 
 /** `DD/MM/YYYY` plus `, HH:MM` when a time is present (no dangling comma). */
@@ -364,10 +366,18 @@ function StayDetailDialog({
   const tc = useTranslations("common");
   const tm = useTranslations("money");
   const api = useApi();
+  const { activeHotelId } = useAuth();
 
   const booking = useQuery({
     queryKey: ["booking", entry?.booking_id, "detail"],
     queryFn: () => api<BookingOut>(`/api/v1/bookings/${entry?.booking_id}`),
+    enabled: !!entry,
+  });
+
+  // Registered guests with ID documents (full identity view).
+  const registeredGuests = useQuery({
+    queryKey: ["booking-guests", entry?.booking_id, "stay-dialog"],
+    queryFn: () => api<BookingGuestOut[]>(`/api/v1/bookings/${entry?.booking_id}/guests`),
     enabled: !!entry,
   });
 
@@ -538,6 +548,19 @@ function StayDetailDialog({
             )}
           </dl>
         )}
+        {/* ── Registered Guests + ID Documents ── */}
+        {registeredGuests.data && registeredGuests.data.length > 0 && (
+          <div className="space-y-2 border-t pt-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("registeredGuestsLabel")}
+            </p>
+            <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+              {registeredGuests.data.map((g) => (
+                <RegisteredGuestCard key={g.guest_id} guest={g} hotelId={activeHotelId} />
+              ))}
+            </div>
+          </div>
+        )}
         <DialogFooter>
           <DialogClose className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm">
             {tc("cancel")}
@@ -568,6 +591,122 @@ function Detail({
         {value}
         {badge && <span className="ml-2 inline-flex align-middle">{badge}</span>}
       </dd>
+    </div>
+  );
+}
+
+/** ID document thumbnail fetched with auth headers. */
+function DocThumbnail({
+  guestId,
+  doc,
+  hotelId,
+}: {
+  guestId: string;
+  doc: BookingGuestDocOut;
+  hotelId: string | null;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [url]);
+
+  useEffect(() => {
+    if (url) return;
+    let cancelled = false;
+    const token = getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (hotelId) headers["X-Hotel-Id"] = hotelId;
+    fetch(`${API_BASE}/api/v1/guests/${guestId}/documents/${doc.id}/file`, {
+      headers,
+      credentials: "include",
+    })
+      .then((r) => (r.ok ? r.blob() : Promise.reject(r.status)))
+      .then((blob) => { if (!cancelled) setUrl(URL.createObjectURL(blob)); })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guestId, doc.id, hotelId]);
+
+  const label = doc.side === "front" ? "Front" : doc.side === "back" ? "Back" : doc.side === "selfie" ? "Selfie" : "Doc";
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      {failed ? (
+        <div className="flex h-20 w-20 items-center justify-center rounded-md border bg-muted text-center text-xs text-muted-foreground">
+          N/A
+        </div>
+      ) : url ? (
+        <button
+          type="button"
+          title={label}
+          onClick={() => window.open(url, "_blank")}
+          className="overflow-hidden rounded-md border hover:opacity-80"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt={label} className="h-20 w-20 object-cover" />
+        </button>
+      ) : (
+        <Skeleton className="h-20 w-20 rounded-md" />
+      )}
+      <span className="text-[11px] text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+/** Registered guest card shown in the stay-detail dialog. */
+function RegisteredGuestCard({
+  guest,
+  hotelId,
+}: {
+  guest: BookingGuestOut;
+  hotelId: string | null;
+}) {
+  const t = useTranslations("stay");
+  const tb = useTranslations("bookings");
+  return (
+    <div className="rounded-lg border p-3 space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium text-sm">{guest.full_name}</span>
+        {guest.is_primary && (
+          <span className="rounded-full bg-gold-500 px-2 py-0.5 text-xs font-medium text-navy-900">
+            {t("primaryGuestLabel")}
+          </span>
+        )}
+        <span className="text-xs text-muted-foreground">
+          {guest.phone ?? guest.phone_masked}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+        <div>
+          <span className="text-muted-foreground">{tb("registrationNumber")}: </span>
+          <span className="font-medium">{guest.registration_number}</span>
+        </div>
+        {guest.id_proof_type && (
+          <div>
+            <span className="text-muted-foreground">{t("idProofLabel")}: </span>
+            <span className="font-medium">{guest.id_proof_type}</span>
+          </div>
+        )}
+        {guest.address && (
+          <div className="col-span-2">
+            <span className="text-muted-foreground">{t("addressLabel")}: </span>
+            <span>
+              {guest.address}
+              {(guest.city || guest.state) && `, ${[guest.city, guest.state].filter(Boolean).join(", ")}`}
+            </span>
+          </div>
+        )}
+      </div>
+      {guest.documents.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {guest.documents.map((doc) => (
+            <DocThumbnail key={doc.id} guestId={guest.guest_id} doc={doc} hotelId={hotelId} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -316,7 +316,15 @@
     "paymentsSection": "Payments",
     "extraCharges": "Extra Charges",
     "noExtraCharges": "No extra charges.",
-    "addressLabel": "Address"
+    "addressLabel": "Address",
+    "foreignGuestBadge": "Foreign Guest",
+    "formCDetails": "Form C / Foreign Guest Details",
+    "fgPassport": "Passport",
+    "fgNationality": "Nationality",
+    "fgVisa": "Visa",
+    "fgArrival": "Arrived India On",
+    "fgFrom": "Coming From",
+    "fgNext": "Next Destination"
   },
   "guestPicker": {
     "searchByPhone": "Phone number (full or partial)",
@@ -421,7 +429,11 @@
     "mobile": "Mobile",
     "roomStatus": "Room Status",
     "printAction": "Print",
-    "showingActiveGuests": "Showing {shown} of {total} active guests"
+    "showingActiveGuests": "Showing {shown} of {total} active guests",
+    "registeredGuestsLabel": "Registered Guests & ID Documents",
+    "primaryGuestLabel": "Primary",
+    "idProofLabel": "ID Proof",
+    "addressLabel": "Address"
   },
   "money": {
     "paymentsTitle": "Payment Details",
@@ -552,7 +564,10 @@
     "colGstRate": "GST Rate (%)",
     "colGstPayable": "GST Payable",
     "colFinalPrice": "Final Price",
-    "noItems": "No restaurant charges found for this period."
+    "noItems": "No restaurant charges found for this period.",
+    "noGstConfigured": "GST shows ₹0 — hotel may not be configured as GST registered",
+    "noGstConfiguredHint": "Go to GST & Tax settings and enable GST registration with CGST/SGST rates to see tax amounts here.",
+    "configureGst": "Configure GST →"
   },
   "gstTax": {
     "title": "GST & Tax",

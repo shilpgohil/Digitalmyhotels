@@ -316,7 +316,15 @@
     "paymentsSection": "भुगतान",
     "extraCharges": "अतिरिक्त शुल्क",
     "noExtraCharges": "कोई अतिरिक्त शुल्क नहीं।",
-    "addressLabel": "पता"
+    "addressLabel": "पता",
+    "foreignGuestBadge": "विदेशी अतिथि",
+    "formCDetails": "फॉर्म C / विदेशी अतिथि विवरण",
+    "fgPassport": "पासपोर्ट",
+    "fgNationality": "राष्ट्रीयता",
+    "fgVisa": "वीज़ा",
+    "fgArrival": "भारत आगमन तिथि",
+    "fgFrom": "किससे आ रहे हैं",
+    "fgNext": "अगला गंतव्य"
   },
   "guestPicker": {
     "searchByPhone": "फ़ोन नंबर (पूरा या आंशिक)",
@@ -421,7 +429,11 @@
     "mobile": "मोबाइल",
     "roomStatus": "कमरे की स्थिति",
     "printAction": "प्रिंट करें",
-    "showingActiveGuests": "{total} सक्रिय अतिथियों में से {shown} दिखाए जा रहे हैं"
+    "showingActiveGuests": "{total} सक्रिय अतिथियों में से {shown} दिखाए जा रहे हैं",
+    "registeredGuestsLabel": "पंजीकृत अतिथि और आईडी दस्तावेज़",
+    "primaryGuestLabel": "प्राथमिक",
+    "idProofLabel": "आईडी प्रमाण",
+    "addressLabel": "पता"
   },
   "settings": {
     "title": "सेटिंग्स",
@@ -608,7 +620,10 @@
     "colGstRate": "जीएसटी दर (%)",
     "colGstPayable": "देय जीएसटी",
     "colFinalPrice": "अंतिम मूल्य",
-    "noItems": "इस अवधि के लिए कोई रेस्तरां शुल्क नहीं मिला।"
+    "noItems": "इस अवधि के लिए कोई रेस्तरां शुल्क नहीं मिला।",
+    "noGstConfigured": "जीएसटी ₹0 दिखा रहा है — होटल GST पंजीकृत नहीं हो सकता",
+    "noGstConfiguredHint": "GST राशि देखने के लिए GST & Tax सेटिंग में CGST/SGST दरें सेट करें।",
+    "configureGst": "GST कॉन्फ़िगर करें →"
   },
   "gstTax": {
     "title": "जीएसटी और कर",
