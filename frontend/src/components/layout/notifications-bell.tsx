@@ -344,7 +344,7 @@ export function NotificationsBell() {
 
       <DropdownMenuContent
         align="end"
-        className="flex w-[26rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden p-0 shadow-lg"
+        className="flex w-[32rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden p-0 shadow-lg"
         sideOffset={6}
       >
         {/* Header */}
@@ -416,7 +416,7 @@ export function NotificationsBell() {
         )}
 
         {/* Body */}
-        <div className="max-h-[440px] overflow-y-auto">
+        <div className="max-h-[60vh] overflow-y-auto">
           {all.length === 0 && (
             <p className="px-4 py-6 text-center text-sm text-muted-foreground">
               {t("empty")}

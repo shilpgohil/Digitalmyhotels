@@ -853,7 +853,7 @@ function UpiQrBlock({
     }
   };
 
-  if (loading) return <Skeleton className="h-56 w-56 rounded-lg" />;
+  if (loading) return <Skeleton className="h-72 w-72 rounded-lg" />;
   if (!qrUrl) {
     // Fetched but no image (404 / not configured / error).
     return (
@@ -868,7 +868,7 @@ function UpiQrBlock({
       <img
         src={qrUrl}
         alt={tp("upiQrAlt")}
-        className="h-56 w-56 rounded-lg border object-contain"
+        className="h-72 w-72 rounded-lg border object-contain"
       />
       <p className="text-sm font-semibold text-navy-900">
         {qrInfoQuery.data?.payment_label ?? tp("scanToPay")}

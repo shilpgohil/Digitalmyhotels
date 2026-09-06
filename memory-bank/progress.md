@@ -1,6 +1,6 @@
 # Progress — DigitalMyHotels
 
-## Super Admin + Mode B picker (2026-09-06) — in working tree, not committed
+## Super Admin + Mode B picker (2026-09-06) — COMMITTED e1d2ebb (pushed)
 - Advance-booking check-in times use DateTimePicker (same custom 24h panel as walk-in).
 - Admin nav dual-highlight fixed (pathname+searchParams). Active hotels exclude
   subscription-lapsed rows. Recently Expired uses `recent_days=30`.

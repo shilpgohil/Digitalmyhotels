@@ -206,10 +206,34 @@ async def create_expense(
     *,
     correlation_id: str | None = None,
 ) -> Expense:
+    from sqlalchemy.exc import IntegrityError as _IntegrityError
+
     hotel_id = tenant.require_hotel()
     from app.services.subscriptions import assert_transactions_allowed as _ata
-
     await _ata(db, hotel_id)
+
+    # Validate that category/vendor belong to this hotel (guard against
+    # stale UUIDs that were deleted between the dropdown render and submit).
+    if body.category_id:
+        cat_row = await db.execute(
+            select(ExpenseCategory).where(
+                ExpenseCategory.id == body.category_id,
+                ExpenseCategory.hotel_id == hotel_id,
+            )
+        )
+        if cat_row.scalar_one_or_none() is None:
+            raise ValidationAppError("Category not found for this hotel", code="category_not_found")
+
+    if body.vendor_id:
+        vendor_row = await db.execute(
+            select(Vendor).where(
+                Vendor.id == body.vendor_id,
+                Vendor.hotel_id == hotel_id,
+            )
+        )
+        if vendor_row.scalar_one_or_none() is None:
+            raise ValidationAppError("Vendor not found for this hotel", code="vendor_not_found")
+
     expense = Expense(
         hotel_id=hotel_id,
         category_id=body.category_id,
@@ -228,7 +252,14 @@ async def create_expense(
         created_by_id=tenant.user_id,
     )
     db.add(expense)
-    await db.flush()
+    try:
+        await db.flush()
+    except _IntegrityError as exc:
+        await db.rollback()
+        raise ValidationAppError(
+            "Could not save expense — a referenced record no longer exists",
+            code="expense_integrity_error",
+        ) from exc
     await write_audit(
         db,
         action="expenses.created",

@@ -1,6 +1,6 @@
 # Active Context — DigitalMyHotels
 
-## Current focus (2026-09-06 evening — Super Admin + Mode B picker)
+## Current focus (2026-09-06 evening — Super Admin + Mode B picker) — COMMITTED e1d2ebb
 - Re-verified last batch: occupancy is booking-in-house (not room.status); stayover clean
   stays Occupied; checkout clean still goes Available. Plans seed + logo cache-bust +
   iPhone crop editor remain correct and are still uncommitted with this wave.
