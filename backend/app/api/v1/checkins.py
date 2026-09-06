@@ -54,7 +54,10 @@ async def book_and_check_in(
 @router.get("/current-guests", response_model=CurrentGuestsListOut)
 async def current_guests(
     q: str | None = Query(default=None, max_length=100),
-    limit: int = Query(default=50, ge=1, le=100),
+    # le=200 matches the rooms endpoint — the frontend fetches the full
+    # in-house list (limit=200) and paginates client-side. le=100 here caused
+    # a permanent 422 on the Current Guests page (client bug, 09/2026).
+    limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     tenant: TenantContext = Depends(require_permissions(Permission.GUESTS_VIEW)),
     db: AsyncSession = Depends(get_db),

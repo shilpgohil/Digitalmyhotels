@@ -150,7 +150,9 @@ function CurrentGuestsContent() {
           )}
           {guests.isError && (
             <div className="p-8 text-center text-sm text-danger">
-              {tc("error")}{" "}
+              {/* Show the real API error message so failures are diagnosable
+                  (a generic message hid a 422 for hours — client bug 09/2026). */}
+              {guests.error instanceof ApiError ? guests.error.message : tc("error")}{" "}
               <button className="underline" onClick={() => guests.refetch()}>
                 {tc("retry")}
               </button>
