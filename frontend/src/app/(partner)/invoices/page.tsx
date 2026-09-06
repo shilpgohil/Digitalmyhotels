@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import {
   Dialog,
   DialogClose,
@@ -46,6 +47,7 @@ function InvoicesContent() {
   const { activeHotelId } = useAuth();
   const queryClient = useQueryClient();
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
   const cancelConfirm = useConfirmDialog();
 
   const invoices = useQuery({
@@ -96,7 +98,10 @@ function InvoicesContent() {
           {invoices.isLoading && <Skeleton className="h-48" />}
           {invoices.isError && (
             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {tc("error")}
+              {tc("error")}{" "}
+              <button type="button" className="underline" onClick={() => invoices.refetch()}>
+                {tc("retry")}
+              </button>
             </p>
           )}
           {invoices.data?.items.length === 0 && (
@@ -115,7 +120,7 @@ function InvoicesContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoices.data.items.map((inv) => (
+                {paginate(invoices.data.items, page, 10).map((inv) => (
                   <TableRow key={inv.id}>
                     <TableCell className="font-medium">{inv.invoice_number}</TableCell>
                     <TableCell>{inv.guest_name}</TableCell>
@@ -147,6 +152,14 @@ function InvoicesContent() {
                 ))}
               </TableBody>
             </Table>
+          )}
+          {invoices.data && invoices.data.items.length > 0 && (
+            <PaginationFooter
+              page={page}
+              total={invoices.data.items.length}
+              pageSize={10}
+              onPageChange={setPage}
+            />
           )}
         </div>
         <ConfirmDialog

@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import {
   Table,
   TableBody,
@@ -42,6 +43,7 @@ function AuditContent() {
   const api = useApi();
   const { activeHotelId, can } = useAuth();
   const [action, setAction] = useState("");
+  const [page, setPage] = useState(1);
 
   const logs = useQuery({
     queryKey: ["audit", activeHotelId, action],
@@ -72,7 +74,10 @@ function AuditContent() {
             placeholder={t("filterByAction")}
             className="max-w-xs"
             value={action}
-            onChange={(e) => setAction(e.target.value)}
+            onChange={(e) => {
+              setAction(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
         <div className="rounded-lg border bg-card">
@@ -99,7 +104,7 @@ function AuditContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {logs.data.items.map((log) => (
+                {paginate(logs.data.items, page, 15).map((log) => (
                   <TableRow key={log.id}>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                       {fmtDateTimeFull(log.created_at)}
@@ -113,6 +118,14 @@ function AuditContent() {
                 ))}
               </TableBody>
             </Table>
+          )}
+          {logs.data && logs.data.items.length > 0 && (
+            <PaginationFooter
+              page={page}
+              total={logs.data.items.length}
+              pageSize={15}
+              onPageChange={setPage}
+            />
           )}
         </div>
       </main>

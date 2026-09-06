@@ -121,13 +121,12 @@ async def assign_subscription(
     db: AsyncSession = Depends(get_db),
 ) -> SubscriptionOut:
     plan = await sub_service.get_plan(db, body.plan_id)
-    sub = await sub_service.assign_plan(
+    sub = await sub_service.renew_subscription(
         db,
         hotel_id=hotel_id,
         plan=plan,
         start=body.start_date,
         grace_days=body.grace_days,
-        trial=False,
     )
     await write_audit(
         db,

@@ -830,7 +830,19 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
             type="file"
             accept="image/png,image/jpeg,image/webp,application/pdf"
             className="mt-1 block w-full text-sm text-muted-foreground file:mr-2 file:rounded-lg file:border file:border-input file:bg-transparent file:px-2.5 file:py-1 file:text-sm file:text-foreground"
-            onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              // PDFs bypass client-side compression, so enforce the backend's
+              // 5 MB attachment cap here for an immediate, clear error instead
+              // of a failed upload after the expense is already created.
+              if (f && f.type === "application/pdf" && f.size > 5 * 1024 * 1024) {
+                toast.error(t("receiptTooLarge"));
+                e.target.value = "";
+                setReceiptFile(null);
+                return;
+              }
+              setReceiptFile(f);
+            }}
           />
         </div>
       </div>

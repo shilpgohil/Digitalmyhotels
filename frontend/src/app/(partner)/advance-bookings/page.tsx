@@ -10,6 +10,7 @@ import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,8 +61,14 @@ function AdvanceBookingsContent() {
   const [fromDate, setFromDate] = useState(() => searchParams.get("from") ?? "");
   const [toDate, setToDate] = useState(() => searchParams.get("to") ?? "");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [page, setPage] = useState(1);
   const [cancelTarget, setCancelTarget] = useState<BookingOut | null>(null);
   const cancelConfirm = useConfirmDialog();
+
+  // Reset pagination whenever any filter changes.
+  useEffect(() => {
+    setPage(1);
+  }, [search, fromDate, toDate, statusFilter]);
 
   const filterQs =
     (search ? `&q=${encodeURIComponent(search)}` : "") +
@@ -269,7 +276,7 @@ function AdvanceBookingsContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((booking) => (
+                {paginate(items, page, 10).map((booking) => (
                   <TableRow key={booking.id}>
                     <TableCell className="font-medium">{booking.booking_number}</TableCell>
                     <TableCell>{booking.primary_guest_name ?? "—"}</TableCell>
@@ -334,6 +341,14 @@ function AdvanceBookingsContent() {
                 ))}
               </TableBody>
             </Table>
+          )}
+          {!isLoading && !isError && items.length > 0 && (
+            <PaginationFooter
+              page={page}
+              total={items.length}
+              pageSize={10}
+              onPageChange={setPage}
+            />
           )}
         </div>
       </main>

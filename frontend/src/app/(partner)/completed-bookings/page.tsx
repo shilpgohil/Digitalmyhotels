@@ -675,12 +675,12 @@ function CompletedBookingsContent() {
         {bookings.data && bookings.data.total > PAGE_SIZE && (
           <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
             <span>
-              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, bookings.data.total)} of{" "}
-              {bookings.data.total}
+              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, bookings.data.total)}{" "}
+              {tc("of")} {bookings.data.total}
             </span>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
-                Previous
+                {tc("previous")}
               </Button>
               <Button
                 size="sm"
@@ -688,7 +688,7 @@ function CompletedBookingsContent() {
                 disabled={(page + 1) * PAGE_SIZE >= bookings.data.total}
                 onClick={() => setPage((p) => p + 1)}
               >
-                Next
+                {tc("next")}
               </Button>
             </div>
           </div>

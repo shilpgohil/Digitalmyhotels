@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import {
   Dialog,
   DialogClose,
@@ -34,6 +35,8 @@ function HousekeepingContent() {
   const api = useApi();
   const { activeHotelId, can } = useAuth();
   const queryClient = useQueryClient();
+  const [tasksPage, setTasksPage] = useState(1);
+  const [maintenancePage, setMaintenancePage] = useState(1);
 
   const tasks = useQuery({
     queryKey: ["hk-tasks", activeHotelId],
@@ -93,14 +96,17 @@ function HousekeepingContent() {
           {tasks.isLoading && <Skeleton className="h-32" />}
           {tasks.isError && (
             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {tc("error")}
+              {tc("error")}{" "}
+              <button type="button" className="underline" onClick={() => tasks.refetch()}>
+                {tc("retry")}
+              </button>
             </p>
           )}
           {tasks.data?.length === 0 && (
             <p className="text-sm text-muted-foreground">{t("noTasks")}</p>
           )}
           <ul className="space-y-2">
-            {tasks.data?.map((task) => (
+            {paginate(tasks.data ?? [], tasksPage, 10).map((task) => (
               <li key={task.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 last:border-0">
                 <div>
                   <p className="font-medium">
@@ -125,7 +131,21 @@ function HousekeepingContent() {
               </li>
             ))}
           </ul>
+          <PaginationFooter
+            page={tasksPage}
+            total={tasks.data?.length ?? 0}
+            pageSize={10}
+            onPageChange={setTasksPage}
+          />
         </section>
+        {maintenance.isError && (
+          <p className="mt-6 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {tc("error")}{" "}
+            <button type="button" className="underline" onClick={() => maintenance.refetch()}>
+              {tc("retry")}
+            </button>
+          </p>
+        )}
         {maintenance.data && (
           <section className="mt-6 rounded-lg border bg-card p-4">
             <h2 className="mb-3 text-sm font-semibold">{t("maintenance")}</h2>
@@ -133,7 +153,7 @@ function HousekeepingContent() {
               <p className="text-sm text-muted-foreground">{t("noMaintenance")}</p>
             )}
             <ul className="space-y-2">
-              {maintenance.data.map((m) => (
+              {paginate(maintenance.data, maintenancePage, 10).map((m) => (
                 <li key={m.id} className="flex items-center justify-between gap-2">
                   <span>
                     {m.reason} · {m.status}
@@ -146,6 +166,12 @@ function HousekeepingContent() {
                 </li>
               ))}
             </ul>
+            <PaginationFooter
+              page={maintenancePage}
+              total={maintenance.data.length}
+              pageSize={10}
+              onPageChange={setMaintenancePage}
+            />
           </section>
         )}
       </main>

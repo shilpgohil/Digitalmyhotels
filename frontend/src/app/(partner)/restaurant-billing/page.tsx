@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import {
   Table,
   TableBody,
@@ -94,6 +95,12 @@ function RestaurantBillingContent() {
   const [draftTo, setDraftTo] = useState(initial.to);
   const [applied, setApplied] = useState(initial);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+
+  // Reset pagination whenever the date range or search changes.
+  useEffect(() => {
+    setPage(1);
+  }, [applied, search]);
 
   const selectChip = (filter: QuickFilter) => {
     const range = quickFilterRange(filter);
@@ -242,7 +249,7 @@ function RestaurantBillingContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredItems.map((item, idx) => (
+                  {paginate(filteredItems, page, 10).map((item, idx) => (
                     <TableRow key={`${item.booking_number}-${item.charged_on}-${idx}`}>
                       <TableCell className="font-medium">{item.booking_number}</TableCell>
                       <TableCell>{item.guest_name}</TableCell>
@@ -256,6 +263,12 @@ function RestaurantBillingContent() {
                   ))}
                 </TableBody>
               </Table>
+              <PaginationFooter
+                page={page}
+                total={filteredItems.length}
+                pageSize={10}
+                onPageChange={setPage}
+              />
             </div>
           )}
         </section>

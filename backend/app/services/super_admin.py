@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, case, func, literal_column, not_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, ValidationAppError
@@ -33,33 +34,94 @@ def _slugify(name: str) -> str:
     return slug or "hotel"
 
 
-async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
-    # Single-pass conditional aggregation for all hotel counts.
-    from sqlalchemy import case, literal_column
+def _latest_sub_sq():
+    """Latest subscription row per hotel (Postgres DISTINCT ON)."""
+    return (
+        select(Subscription)
+        .distinct(Subscription.hotel_id)
+        .order_by(Subscription.hotel_id, Subscription.created_at.desc())
+        .subquery()
+    )
 
-    counts = (await db.execute(
+
+def _sub_expired_cond(latest) -> object:
+    """Latest subscription is past its grace period (and not suspended).
+
+    Hotel.status is never flipped automatically when a subscription lapses,
+    so "expired" must be derived from the subscription — otherwise expired
+    hotels never appear on the admin's expired list or dashboard counts.
+    Coalesced to FALSE so hotels without any subscription stay unaffected.
+    """
+    return func.coalesce(
+        and_(
+            latest.c.status != "suspended",
+            latest.c.expiry_date + latest.c.grace_days < func.current_date(),
+        ),
+        False,
+    )
+
+
+async def _hotel_status_counts(db: AsyncSession) -> dict[str, int]:
+    """Single-pass hotel counts with subscription-aware expiry semantics."""
+    latest = _latest_sub_sq()
+    sub_expired = _sub_expired_cond(latest)
+    expired_cond = or_(Hotel.status == "expired", sub_expired)
+    one = literal_column("1")
+    row = (await db.execute(
         select(
             func.count().label("total"),
-            func.count(case((Hotel.status == "active", literal_column("1")))).label("active"),
-            func.count(case((Hotel.status == "suspended", literal_column("1")))).label("suspended"),
-            func.count(case((Hotel.status == "trial", literal_column("1")))).label("trial"),
-            func.count(case((Hotel.status == "expired", literal_column("1")))).label("expired"),
-        ).select_from(Hotel)
+            func.count(
+                case((and_(Hotel.status == "active", not_(expired_cond)), one))
+            ).label("active"),
+            func.count(case((Hotel.status == "suspended", one))).label("suspended"),
+            func.count(
+                case((and_(Hotel.status == "trial", not_(expired_cond)), one))
+            ).label("trial"),
+            func.count(case((expired_cond, one))).label("expired"),
+        )
+        .select_from(Hotel)
+        .outerjoin(latest, latest.c.hotel_id == Hotel.id)
     )).one()
+    return {
+        "total": int(row.total),
+        "active": int(row.active),
+        "suspended": int(row.suspended),
+        "trial": int(row.trial),
+        "expired": int(row.expired),
+    }
+
+
+async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
+    counts = await _hotel_status_counts(db)
 
     users = int(await db.scalar(select(func.count()).select_from(User)) or 0)
-    soon = date.today() + timedelta(days=7)
+    # Expiring soon: latest subscription per hotel inside the warning window
+    # (expiry within 7 days, grace period not yet over) — mirrors
+    # subscriptions.refresh_status's "expiring_soon" state. Counting every
+    # subscription row would double-count hotels with superseded rows and
+    # include long-expired ones.
+    today = date.today()
+    soon = today + timedelta(days=7)
+    latest = _latest_sub_sq()
     expiring = int(
         await db.scalar(
-            select(func.count()).select_from(Subscription).where(
-                Subscription.expiry_date <= soon,
-                Subscription.status.in_(("active", "trial", "expiring_soon")),
+            select(func.count())
+            .select_from(latest)
+            .join(Hotel, Hotel.id == latest.c.hotel_id)
+            .where(
+                Hotel.status != "suspended",
+                latest.c.status != "suspended",
+                latest.c.expiry_date <= soon,
+                latest.c.expiry_date + latest.c.grace_days >= today,
             )
         )
         or 0
     )
-    # Today's check-ins across all hotels.
-    today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    # Today's check-ins across all hotels. "Today" is hotel-local; the
+    # platform operates in India, so IST midnight is the correct boundary
+    # (UTC midnight is 05:30 IST and mislabels early-morning check-ins).
+    ist_now = datetime.now(ZoneInfo("Asia/Kolkata"))
+    today_start = ist_now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
     today_checkins = int(
         await db.scalar(
             select(func.count()).select_from(CheckIn).where(
@@ -78,11 +140,11 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
         or 0
     )
     return PlatformDashboardOut(
-        total_hotels=int(counts.total),
-        active_hotels=int(counts.active),
-        inactive_hotels=int(counts.suspended),
-        trial_hotels=int(counts.trial),
-        expired_hotels=int(counts.expired),
+        total_hotels=counts["total"],
+        active_hotels=counts["active"],
+        inactive_hotels=counts["suspended"],
+        trial_hotels=counts["trial"],
+        expired_hotels=counts["expired"],
         total_users=users,
         expiring_soon=expiring,
         today_checkins=today_checkins,
@@ -99,7 +161,15 @@ async def list_hotels(
     offset: int = 0,
 ) -> HotelAdminListOut:
     base = select(Hotel).order_by(Hotel.created_at.desc())
-    if status:
+    if status == "expired":
+        # Subscription-aware: hotels whose latest subscription lapsed past its
+        # grace period (or manually marked expired). Hotel.status alone is
+        # never updated automatically on expiry.
+        latest = _latest_sub_sq()
+        base = base.outerjoin(latest, latest.c.hotel_id == Hotel.id).where(
+            or_(Hotel.status == "expired", _sub_expired_cond(latest))
+        )
+    elif status:
         base = base.where(Hotel.status == status)
     if q:
         like = f"%{q.lower()}%"
@@ -179,14 +249,14 @@ async def list_hotels(
             )
         )
 
-    all_hotels_for_counts = list((await db.execute(select(Hotel))).scalars().all())
+    counts = await _hotel_status_counts(db)
     return HotelAdminListOut(
         items=items,
         total=total_count,
-        active=sum(1 for h in all_hotels_for_counts if h.status == "active"),
-        suspended=sum(1 for h in all_hotels_for_counts if h.status == "suspended"),
-        expired=sum(1 for h in all_hotels_for_counts if h.status == "expired"),
-        trial=sum(1 for h in all_hotels_for_counts if h.status == "trial"),
+        active=counts["active"],
+        suspended=counts["suspended"],
+        expired=counts["expired"],
+        trial=counts["trial"],
         limit=limit,
         offset=offset,
     )

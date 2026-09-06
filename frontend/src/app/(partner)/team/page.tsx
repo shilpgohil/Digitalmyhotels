@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import {
   Dialog,
   DialogClose,
@@ -76,6 +77,7 @@ function TeamContent() {
   });
 
   const [resetTarget, setResetTarget] = useState<TeamMemberOut | null>(null);
+  const [page, setPage] = useState(1);
 
   return (
     <>
@@ -117,7 +119,7 @@ function TeamContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {team.data.items.map((member) => (
+                {paginate(team.data.items, page, 10).map((member) => (
                   <TableRow key={member.membership_id}>
                     <TableCell className="font-medium">{member.full_name}</TableCell>
                     <TableCell className="text-muted-foreground">{member.phone || "—"}</TableCell>
@@ -181,6 +183,14 @@ function TeamContent() {
                 ))}
               </TableBody>
             </Table>
+          )}
+          {team.data && team.data.items.length > 0 && (
+            <PaginationFooter
+              page={page}
+              total={team.data.items.length}
+              pageSize={10}
+              onPageChange={setPage}
+            />
           )}
         </div>
         <ResetPasswordDialog

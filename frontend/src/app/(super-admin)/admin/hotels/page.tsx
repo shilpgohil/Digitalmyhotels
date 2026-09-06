@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -23,6 +23,14 @@ function HotelsContent() {
   const [page, setPage] = useState(0);
   const filter = searchParams.get("filter");
 
+  // The header search navigates to /admin/hotels?q=… — when this page is
+  // already mounted only the URL changes, so mirror the param into state.
+  const qParam = searchParams.get("q") ?? "";
+  useEffect(() => {
+    setSearch(qParam);
+    setPage(0);
+  }, [qParam]);
+
   const status = filter === "all" ? undefined : "active";
 
   const hotels = useQuery({
@@ -44,6 +52,8 @@ function HotelsContent() {
     onSuccess: () => {
       toast.success(t("statusUpdated"));
       queryClient.invalidateQueries({ queryKey: ["admin-hotels-list"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels-expired"] });
       queryClient.invalidateQueries({ queryKey: ["platform-dashboard"] });
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),

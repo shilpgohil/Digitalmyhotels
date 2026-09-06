@@ -8,6 +8,7 @@ import { Check, ExternalLink } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -67,6 +68,7 @@ function NotificationsContent() {
   const { activeHotelId, can } = useAuth();
   const queryClient = useQueryClient();
   const [activeCategory, setActiveCategory] = useState("");
+  const [page, setPage] = useState(1);
 
   const qs = activeCategory ? `?category=${activeCategory}` : "";
 
@@ -118,7 +120,10 @@ function NotificationsContent() {
               <button
                 key={cat.key}
                 type="button"
-                onClick={() => setActiveCategory(cat.key)}
+                onClick={() => {
+                  setActiveCategory(cat.key);
+                  setPage(1);
+                }}
                 className={cn(
                   "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
                   activeCategory === cat.key
@@ -158,13 +163,20 @@ function NotificationsContent() {
           )}
           {notifications.isError && (
             <p className="m-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {tc("error")}
+              {tc("error")}{" "}
+              <button
+                type="button"
+                className="underline"
+                onClick={() => notifications.refetch()}
+              >
+                {tc("retry")}
+              </button>
             </p>
           )}
           {!notifications.isLoading && !notifications.isError && items.length === 0 && (
             <p className="p-8 text-center text-sm text-muted-foreground">{t("empty")}</p>
           )}
-          {items.map((n) => {
+          {paginate(items, page, 15).map((n) => {
             const borderColor = ROW_BG[n.category] ?? "border-l-muted";
             const hasLink = !!n.deep_link && (() => {
               const required = DEEP_LINK_PERMISSION.find(([re]) =>
@@ -223,6 +235,12 @@ function NotificationsContent() {
               </button>
             );
           })}
+          <PaginationFooter
+            page={page}
+            total={items.length}
+            pageSize={15}
+            onPageChange={setPage}
+          />
         </div>
       </main>
     </>

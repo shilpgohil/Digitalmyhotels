@@ -19,21 +19,13 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api/client";
-import { fmtDate, fmtINR } from "@/lib/formatting";
+import { fmtApiDate, fmtDate, fmtINR } from "@/lib/formatting";
 import type {
-  HotelAdminOut,
+  HotelAdminListOut,
   PlatformDashboardOut,
   RenewalRequestAdminListOut,
 } from "@/types/money";
 import { RenewDialog } from "@/components/admin/renew-dialog";
-
-interface HotelList {
-  items: HotelAdminOut[];
-  total: int;
-}
-
-// Explicitly inline the needed type
-type int = number;
 
 interface StatCard {
   key: string;
@@ -71,11 +63,11 @@ export default function AdminDashboardPage() {
   const expired = useQuery({
     queryKey: ["admin-hotels", "expired"],
     queryFn: () =>
-      apiFetch<HotelList>("/api/v1/super-admin/hotels?status=expired&limit=5"),
+      apiFetch<HotelAdminListOut>("/api/v1/super-admin/hotels?status=expired&limit=5"),
   });
   const recent = useQuery({
     queryKey: ["admin-hotels", "recent"],
-    queryFn: () => apiFetch<HotelList>("/api/v1/super-admin/hotels?limit=5"),
+    queryFn: () => apiFetch<HotelAdminListOut>("/api/v1/super-admin/hotels?limit=5"),
   });
 
   const approveMutation = useMutation({
@@ -84,6 +76,8 @@ export default function AdminDashboardPage() {
     onSuccess: () => {
       toast.success(t("approved"));
       queryClient.invalidateQueries({ queryKey: ["admin-hotels"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels-list"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels-registrations"] });
       queryClient.invalidateQueries({ queryKey: ["platform-dashboard"] });
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
@@ -104,6 +98,8 @@ export default function AdminDashboardPage() {
       toast.success(vars.action === "approve" ? t("renewalApproved") : t("renewalRejected"));
       queryClient.invalidateQueries({ queryKey: ["admin-renewal-requests"] });
       queryClient.invalidateQueries({ queryKey: ["admin-hotels"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels-list"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels-expired"] });
       queryClient.invalidateQueries({ queryKey: ["platform-dashboard"] });
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
@@ -115,7 +111,7 @@ export default function AdminDashboardPage() {
         activeHotels: dash.data.active_hotels,
         todayCheckins: dash.data.today_checkins,
         totalRevenue: dash.data.total_revenue,
-        recentlyExpiredCard: (dash.data as PlatformDashboardOut & { expiring_soon: number }).expiring_soon,
+        recentlyExpiredCard: dash.data.expiring_soon,
         expiredHotels: dash.data.expired_hotels,
       }
     : {};
@@ -265,7 +261,7 @@ export default function AdminDashboardPage() {
                   <td className="px-4 py-3 text-muted-foreground">{h.owner_name ?? "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground">{h.city ?? "—"}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                    {h.expiry_date ?? "—"}
+                    {fmtApiDate(h.expiry_date)}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{h.subscription_plan_name ?? "—"}</td>
                   <td className="px-4 py-3">

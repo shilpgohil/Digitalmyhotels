@@ -40,7 +40,13 @@ export function RenewDialog({ hotel }: { readonly hotel: HotelAdminOut }) {
     onSuccess: () => {
       toast.success(t("subscriptionAssigned"));
       setOpen(false);
+      // The admin screens use distinct query-key roots — invalidate them all
+      // so renewing from any page refreshes the dashboard, hotels list and
+      // the expired list together.
       queryClient.invalidateQueries({ queryKey: ["admin-hotels"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels-list"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels-expired"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels-registrations"] });
       queryClient.invalidateQueries({ queryKey: ["platform-dashboard"] });
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),

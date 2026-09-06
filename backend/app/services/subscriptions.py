@@ -91,6 +91,46 @@ async def assign_plan(
     return sub
 
 
+async def renew_subscription(
+    db: AsyncSession,
+    *,
+    hotel_id: UUID,
+    plan: SubscriptionPlan,
+    start: date | None = None,
+    grace_days: int = 7,
+) -> Subscription:
+    """Paid renewal/assignment by the platform.
+
+    Extends from max(requested start / today, current expiry) so renewing
+    early never eats the remaining paid days, and reactivates the hotel so
+    it leaves the expired lists (a manual suspension is left untouched).
+    """
+    hotel = (
+        await db.execute(select(Hotel).where(Hotel.id == hotel_id))
+    ).scalar_one_or_none()
+    if hotel is None:
+        raise NotFoundError("Hotel not found")
+    effective = start or date.today()
+    current = await get_active_subscription(db, hotel_id)
+    if (
+        current is not None
+        and current.status != "suspended"
+        and current.expiry_date > effective
+    ):
+        effective = current.expiry_date
+    sub = await assign_plan(
+        db,
+        hotel_id=hotel_id,
+        plan=plan,
+        start=effective,
+        grace_days=grace_days,
+        trial=False,
+    )
+    if hotel.status in ("trial", "expired"):
+        hotel.status = "active"
+    return sub
+
+
 async def get_plan_by_code(db: AsyncSession, code: str) -> SubscriptionPlan:
     result = await db.execute(select(SubscriptionPlan).where(SubscriptionPlan.code == code))
     plan = result.scalar_one_or_none()
@@ -199,7 +239,7 @@ async def decide_renewal_request(
         )
     plan = await get_plan(db, req.plan_id)
     if approve:
-        await assign_plan(db, hotel_id=req.hotel_id, plan=plan, trial=False)
+        await renew_subscription(db, hotel_id=req.hotel_id, plan=plan)
     req.status = "approved" if approve else "rejected"
     req.decided_at = utcnow()
     req.decided_by_id = decided_by_id

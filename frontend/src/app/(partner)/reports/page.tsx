@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
@@ -80,6 +81,9 @@ function defaultRange() {
   return { from: toLocalDate(from), to: toLocalDate(to) };
 }
 
+/** Client-side rows per page for the report tables. */
+const TABLE_PAGE_SIZE = 10;
+
 function ReportsContent() {
   const t = useTranslations("reports");
   const tn = useTranslations("nav");
@@ -89,7 +93,15 @@ function ReportsContent() {
   const initial = useMemo(defaultRange, []);
   const [fromDate, setFromDate] = useState(initial.from);
   const [toDate, setToDate] = useState(initial.to);
+  const [roomUtilPage, setRoomUtilPage] = useState(1);
+  const [gstPage, setGstPage] = useState(1);
   const qs = `from_date=${fromDate}&to_date=${toDate}`;
+
+  // Reset table pagination when the date range changes.
+  useEffect(() => {
+    setRoomUtilPage(1);
+    setGstPage(1);
+  }, [qs]);
 
   const occupancy = useQuery({
     queryKey: ["report-occ", activeHotelId, qs],
@@ -251,7 +263,7 @@ function ReportsContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {roomUtil.data.items.map((row) => (
+                  {paginate(roomUtil.data.items, roomUtilPage, TABLE_PAGE_SIZE).map((row) => (
                     <TableRow key={row.room_number}>
                       <TableCell className="font-medium">{row.room_number}</TableCell>
                       <TableCell>{row.room_type_name}</TableCell>
@@ -273,6 +285,12 @@ function ReportsContent() {
                   ))}
                 </TableBody>
               </Table>
+              <PaginationFooter
+                page={roomUtilPage}
+                total={roomUtil.data.items.length}
+                pageSize={TABLE_PAGE_SIZE}
+                onPageChange={setRoomUtilPage}
+              />
             </div>
           </section>
         )}
@@ -285,9 +303,9 @@ function ReportsContent() {
               <div className="flex items-center gap-3">
                 <p className="text-xs text-muted-foreground">
                   {t("gstTotals", {
-                    taxable: gstRows.data.total_taxable,
-                    gst: gstRows.data.total_gst,
-                    total: gstRows.data.total_amount,
+                    taxable: fmtINR(gstRows.data.total_taxable),
+                    gst: fmtINR(gstRows.data.total_gst),
+                    total: fmtINR(gstRows.data.total_amount),
                   })}
                 </p>
                 <button
@@ -314,7 +332,7 @@ function ReportsContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {gstRows.data.items.map((row) => (
+                  {paginate(gstRows.data.items, gstPage, TABLE_PAGE_SIZE).map((row) => (
                     <TableRow key={row.invoice_number}>
                       <TableCell className="font-medium">{row.booking_number}</TableCell>
                       <TableCell>{row.guest_name}</TableCell>
@@ -330,6 +348,12 @@ function ReportsContent() {
                   ))}
                 </TableBody>
               </Table>
+              <PaginationFooter
+                page={gstPage}
+                total={gstRows.data.items.length}
+                pageSize={TABLE_PAGE_SIZE}
+                onPageChange={setGstPage}
+              />
             </div>
           </section>
         )}
@@ -349,12 +373,13 @@ function ReportCard({
   error: boolean;
   children: React.ReactNode;
 }) {
+  const tc = useTranslations("common");
   return (
     <div className="rounded-lg border bg-card p-5">
       <h2 className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">{title}</h2>
       <div className="mt-3">
         {loading && <Skeleton className="h-10" />}
-        {error && <p className="text-sm text-danger">Error</p>}
+        {error && <p className="text-sm text-danger">{tc("error")}</p>}
         {children}
       </div>
     </div>

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import { StatusBadge } from "@/components/feedback/status-badge";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -28,6 +29,7 @@ function DailyClosingContent() {
   const queryClient = useQueryClient();
   const [notes, setNotes] = useState("");
   const [reopenId, setReopenId] = useState<string | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
   const reopenConfirm = useConfirmDialog();
 
   const today = useQuery({
@@ -74,12 +76,22 @@ function DailyClosingContent() {
         {today.isLoading && <Skeleton className="h-48" />}
         {(today.isError || history.isError) && (
           <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {tc("error")}
+            {tc("error")}{" "}
+            <button
+              type="button"
+              className="underline"
+              onClick={() => {
+                if (today.isError) today.refetch();
+                if (history.isError) history.refetch();
+              }}
+            >
+              {tc("retry")}
+            </button>
           </p>
         )}
         {!today.isLoading && !today.isError && !row && (
           <p className="py-6 text-center text-sm text-muted-foreground">
-            No closing record for today yet.
+            {t("noClosingToday")}
           </p>
         )}
         {row && (
@@ -124,14 +136,23 @@ function DailyClosingContent() {
           </section>
         )}
         {history.data && history.data.length > 1 && (
-          <ul className="mt-6 space-y-2 text-sm">
-            {history.data.map((h) => (
-              <li key={h.id} className="flex justify-between rounded-lg border bg-card px-4 py-2">
-                <span>{fmtApiDate(h.business_date)}</span>
-                <span>{h.status}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-6">
+            <ul className="space-y-2 text-sm">
+              {paginate(history.data, historyPage, 10).map((h) => (
+                <li key={h.id} className="flex justify-between rounded-lg border bg-card px-4 py-2">
+                  <span>{fmtApiDate(h.business_date)}</span>
+                  <span>{h.status}</span>
+                </li>
+              ))}
+            </ul>
+            <PaginationFooter
+              page={historyPage}
+              total={history.data.length}
+              pageSize={10}
+              onPageChange={setHistoryPage}
+              className="border-t-0 px-0"
+            />
+          </div>
         )}
         <ConfirmDialog
           open={reopenConfirm.open}

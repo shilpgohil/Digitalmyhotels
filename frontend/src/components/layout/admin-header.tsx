@@ -13,7 +13,8 @@ export function AdminHeader() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
-      router.push(`/admin/hotels?q=${encodeURIComponent(query.trim())}`);
+      // filter=all → search across every hotel, not just active ones.
+      router.push(`/admin/hotels?filter=all&q=${encodeURIComponent(query.trim())}`);
     }
   };
 

@@ -237,6 +237,8 @@ export default function AddHotelPage() {
 
   const mutation = useMutation({
     mutationFn: async () => {
+      // Optional steps that failed — surfaced as a warning after creation.
+      const failedSteps: string[] = [];
       // Step 1: create hotel + owner
       const hotel = await apiFetch<HotelOut>("/api/v1/super-admin/hotels", {
         method: "POST",
@@ -264,6 +266,7 @@ export default function AddHotelPage() {
           });
         } catch {
           // Non-critical; owner can set UPI later in settings
+          failedSteps.push(t("upiSetup"));
         }
       }
 
@@ -288,17 +291,21 @@ export default function AddHotelPage() {
                 room_number: room.room_number,
                 room_type_id: rt.id,
                 bed_type: room.bed_type || null,
+                max_adults: room.max_adults,
+                max_children: room.max_children,
               },
               hotelId: hotel.id,
             });
           }
         } catch {
           // Non-critical; owner can add rooms later
+          failedSteps.push(t("roomInventorySetup"));
         }
       }
 
       // Step 4 (optional): create service items
       const validServices = services.filter((s) => s.name.trim() && s.price.trim());
+      let serviceFailed = false;
       for (const svc of validServices) {
         try {
           await apiFetch("/api/v1/hotels/me/services", {
@@ -308,13 +315,18 @@ export default function AddHotelPage() {
           });
         } catch {
           // Non-critical
+          serviceFailed = true;
         }
       }
+      if (serviceFailed) failedSteps.push(t("specialRequirements"));
 
-      return hotel;
+      return { hotel, failedSteps };
     },
-    onSuccess: () => {
+    onSuccess: ({ failedSteps }) => {
       toast.success(t("hotelCreated"));
+      if (failedSteps.length > 0) {
+        toast.warning(`${t("optionalStepsFailed")}: ${failedSteps.join(", ")}`);
+      }
       queryClient.invalidateQueries({ queryKey: ["admin-hotels-list"] });
       queryClient.invalidateQueries({ queryKey: ["platform-dashboard"] });
       router.push("/admin/hotels");

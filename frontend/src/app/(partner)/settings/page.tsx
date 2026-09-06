@@ -622,8 +622,9 @@ function UpiConfigPanel() {
   const logoMutation = useMutation({
     mutationFn: async (file: File) => {
       // Client-side compression before upload (Phase 0.4: every image upload
-      // site compresses — logos don't need more than 800px JPEG).
-      const { compressLogo } = await import("@/lib/compress-image");
+      // site compresses — logos don't need more than 800px JPEG). Compression
+      // happens ONLY here (not in the input onChange) so the JPEG is encoded
+      // once; on failure fall back to the original and let the backend cap it.
       const upload = await compressLogo(file).catch(() => file);
       const formData = new FormData();
       formData.append("file", upload);
@@ -713,12 +714,9 @@ function UpiConfigPanel() {
             accept="image/png,image/jpeg,image/webp"
             className="sr-only"
             disabled={logoMutation.isPending}
-            onChange={async (e) => {
+            onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) {
-                const compressed = await compressLogo(file);
-                logoMutation.mutate(compressed);
-              }
+              if (file) logoMutation.mutate(file);
               e.target.value = "";
             }}
           />

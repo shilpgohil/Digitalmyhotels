@@ -38,6 +38,8 @@ function RegistrationsContent() {
     onSuccess: () => {
       toast.success(t("approved"));
       queryClient.invalidateQueries({ queryKey: ["admin-hotels-registrations"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels-list"] });
       queryClient.invalidateQueries({ queryKey: ["platform-dashboard"] });
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
