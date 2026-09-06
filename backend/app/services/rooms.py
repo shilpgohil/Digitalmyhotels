@@ -27,6 +27,38 @@ from app.services.audit import write_audit
 
 _ACTIVE_BOOKING_STATUSES = ("pending", "confirmed", "checked_in")
 
+# Statuses that would make a room look vacant / bookable.
+_FREEING_STATUSES = frozenset(
+    {
+        RoomStatus.AVAILABLE.value,
+        RoomStatus.CLEAN_READY.value,
+    }
+)
+
+
+async def has_in_house_guest(
+    db: AsyncSession, hotel_id: UUID, room_id: UUID
+) -> bool:
+    """True if a checked-in booking currently occupies this room.
+
+    Occupancy is defined by the booking workflow, not by the room.status
+    column — staff can walk an occupied room through cleaning, but the
+    guest is still in-house until checkout.
+    """
+    result = await db.execute(
+        select(Booking.id)
+        .join(BookingRoom, BookingRoom.booking_id == Booking.id)
+        .where(
+            Booking.hotel_id == hotel_id,
+            Booking.status == "checked_in",
+            BookingRoom.hotel_id == hotel_id,
+            BookingRoom.room_id == room_id,
+            BookingRoom.is_current.is_(True),
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None
+
 
 def _room_out(room: Room) -> RoomOut:
     return RoomOut(
@@ -343,7 +375,23 @@ async def update_room_status(
             code="workflow_status",
         )
     assert_transition(old_status, body.status)
+    hotel_id = tenant.require_hotel()
+    if body.status in _FREEING_STATUSES and await has_in_house_guest(
+        db, hotel_id, room.id
+    ):
+        raise ValidationAppError(
+            "A guest is still checked in to this room. It cannot be marked "
+            "available until they check out.",
+            code="room_has_in_house_guest",
+        )
     room.status = body.status
+
+    # Manual "needs cleaning" (including stayover) opens a housekeeping task
+    # so staff can Start → Complete without a second create step.
+    if body.status == RoomStatus.CLEANING_REQUIRED.value:
+        from app.services.housekeeping import ensure_task_for_room
+
+        await ensure_task_for_room(db, hotel_id=hotel_id, room_id=room.id)
 
     # Manual move to Available/Clean & Ready makes any open cleaning task
     # stale ("Start cleaning" shown for an already-ready room). Auto-cancel

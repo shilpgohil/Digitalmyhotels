@@ -65,8 +65,8 @@ async def _hotel_status_counts(db: AsyncSession) -> dict[str, int]:
     """Single-pass hotel counts with subscription-aware expiry semantics."""
     latest = _latest_sub_sq()
     sub_expired = _sub_expired_cond(latest)
-    expired_cond = or_(Hotel.status == "expired", sub_expired)
-    one = literal_column("1")
+    expired_cond = or_(Hotel.status == "expired", sub_expired)  # type: ignore[arg-type]
+    one: object = literal_column("1")
     row = (await db.execute(
         select(
             func.count().label("total"),
@@ -159,16 +159,31 @@ async def list_hotels(
     q: str | None = None,
     limit: int = 20,
     offset: int = 0,
+    recent_days: int | None = None,
 ) -> HotelAdminListOut:
     base = select(Hotel).order_by(Hotel.created_at.desc())
-    if status == "expired":
-        # Subscription-aware: hotels whose latest subscription lapsed past its
-        # grace period (or manually marked expired). Hotel.status alone is
-        # never updated automatically on expiry.
+    # Active + expired lists are subscription-aware: Hotel.status is never
+    # flipped automatically when a plan lapses, so Active must exclude
+    # lapsed hotels and Expired must include them.
+    if status in {"expired", "active"}:
         latest = _latest_sub_sq()
-        base = base.outerjoin(latest, latest.c.hotel_id == Hotel.id).where(
-            or_(Hotel.status == "expired", _sub_expired_cond(latest))
-        )
+        base = base.outerjoin(latest, latest.c.hotel_id == Hotel.id)
+        if status == "expired":
+            base = base.where(or_(Hotel.status == "expired", _sub_expired_cond(latest)))  # type: ignore[arg-type]
+            if recent_days is not None:
+                cutoff = date.today() - timedelta(days=recent_days)
+                base = base.where(latest.c.expiry_date >= cutoff)
+        else:
+            # "not expired": either no subscription (coalesce → True) or
+            # expiry + grace >= today, avoiding not_() on an untyped expr.
+            not_expired = func.coalesce(
+                or_(
+                    latest.c.status == "suspended",
+                    latest.c.expiry_date + latest.c.grace_days >= func.current_date(),
+                ),
+                True,
+            )
+            base = base.where(and_(Hotel.status == "active", not_expired))
     elif status:
         base = base.where(Hotel.status == status)
     if q:
@@ -303,6 +318,7 @@ async def create_hotel_with_owner(
         email=str(body.owner_email),
         password=body.owner_password,
         full_name=body.owner_full_name,
+        phone=body.owner_phone or None,
         must_reset_password=True,
     )
     role_result = await db.execute(select(Role).where(Role.code == RoleCode.OWNER.value))
@@ -314,8 +330,9 @@ async def create_hotel_with_owner(
             user_id=owner.id, hotel_id=hotel.id, role_id=role.id, status="active"
         )
     )
-    plan = await get_plan_by_code(db, body.plan_code)
-    await assign_plan(db, hotel_id=hotel.id, plan=plan, trial=True)
+    if body.plan_code:
+        plan = await get_plan_by_code(db, body.plan_code)
+        await assign_plan(db, hotel_id=hotel.id, plan=plan, trial=True)
     await write_audit(
         db,
         action="platform.hotel_created",

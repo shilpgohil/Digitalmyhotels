@@ -165,7 +165,10 @@ class CreateHotelRequest(BaseModel):
     owner_full_name: str = Field(min_length=2, max_length=200)
     owner_email: EmailStr
     owner_password: str = Field(min_length=8)
-    plan_code: str = "standard"
+    owner_phone: str | None = None
+    # plan_code is optional; if omitted the hotel is created in "trial" state
+    # without a subscription row (admin assigns a plan later via RenewDialog).
+    plan_code: str | None = None
     access_mode: str = "full"
 
 

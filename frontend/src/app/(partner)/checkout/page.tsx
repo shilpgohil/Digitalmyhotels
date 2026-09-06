@@ -272,12 +272,13 @@ function CheckoutContent() {
     queryKey: ["hotel-qr-png", activeHotelId],
     queryFn: async () => {
       const token = getAccessToken();
-      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image`, {
+      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${Date.now()}`, {
         headers: {
           Authorization: `Bearer ${token ?? ""}`,
           "X-Hotel-Id": activeHotelId ?? "",
         },
         credentials: "include",
+        cache: "no-store",
       });
       if (!resp.ok) return null;
       const blob = await resp.blob();

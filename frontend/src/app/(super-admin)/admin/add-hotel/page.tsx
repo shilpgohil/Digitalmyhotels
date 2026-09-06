@@ -5,20 +5,15 @@
  *
  * Sections:
  *  1. Access Permissions   (hotel feature mode: full | checkin_only)
- *  2. Property Identity    (name, phone, address, GSTIN, email)
- *  3. Create Property User (owner name, email, temp password)
- *  4. UPI Payment Setup    (optional, configured after creation)
- *  5. Room Inventory Setup (optional, add rooms after creation)
- *  6. Special Requirements (optional, service items after creation)
- *  7. Emergency & Vehicle  (feature toggles stored on hotel settings)
- *
- * Strategy: create the hotel first (POST /super-admin/hotels), then call
- * optional sub-APIs (UPI, rooms, service items) sequentially.  If optional
- * steps fail the hotel still exists; the owner can complete setup in the
- * partner portal.
+ *  2. Property Identity    (name, city, state, phone, address, GSTIN, email, logo)
+ *  3. Create Property User (owner name, phone, email, temp password)
+ *  4. UPI Payment Setup    (optional)
+ *  5. Room Inventory Setup (optional)
+ *  6. Special Requirements (optional)
+ *  7. Emergency & Vehicle  (feature toggles)
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -26,6 +21,7 @@ import { toast } from "sonner";
 import {
   ChevronDown,
   ChevronUp,
+  ImagePlus,
   Plus,
   Trash2,
   Shield,
@@ -39,7 +35,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { apiFetch, ApiError } from "@/lib/api/client";
+import { apiFetch, ApiError, API_BASE } from "@/lib/api/client";
+import { getAccessToken } from "@/lib/auth/session";
+import { compressLogo } from "@/lib/compress-image";
 import type { HotelOut } from "@/types/hotel";
 import { cn } from "@/lib/utils";
 
@@ -200,20 +198,26 @@ export default function AddHotelPage() {
   const tc = useTranslations("common");
   const router = useRouter();
   const queryClient = useQueryClient();
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // --- Section 1: Access Permissions ---
   const [accessMode, setAccessMode] = useState<"full" | "checkin_only">("full");
 
   // --- Section 2: Property Identity ---
   const [hotelName, setHotelName] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [gstin, setGstin] = useState("");
   const [email, setEmail] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   // --- Section 3: Owner ---
   const [ownerName, setOwnerName] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
+  const [ownerPhone, setOwnerPhone] = useState("");
   const [ownerPassword, setOwnerPassword] = useState("");
 
   // --- Section 4: UPI (optional) ---
@@ -225,9 +229,7 @@ export default function AddHotelPage() {
   ]);
 
   // --- Section 6: Special requirements ---
-  const [services, setServices] = useState<ServiceItem[]>([
-    { name: "", price: "" },
-  ]);
+  const [services, setServices] = useState<ServiceItem[]>([]);
 
   // --- Section 7: Feature toggles ---
   const [emergencyEnabled, setEmergencyEnabled] = useState(true);
@@ -237,13 +239,15 @@ export default function AddHotelPage() {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      // Optional steps that failed — surfaced as a warning after creation.
       const failedSteps: string[] = [];
-      // Step 1: create hotel + owner
+
+      // Step 1: create hotel + owner (no plan_code → admin assigns plan later)
       const hotel = await apiFetch<HotelOut>("/api/v1/super-admin/hotels", {
         method: "POST",
         body: {
           name: hotelName.trim(),
+          city: city.trim() || null,
+          state: state.trim() || null,
           phone: phone.trim() || null,
           address: address.trim() || null,
           email: email.trim() || null,
@@ -251,12 +255,36 @@ export default function AddHotelPage() {
           owner_full_name: ownerName.trim(),
           owner_email: ownerEmail.trim(),
           owner_password: ownerPassword,
-          plan_code: "standard",
+          owner_phone: ownerPhone.trim() || null,
           access_mode: accessMode,
+          // plan_code intentionally omitted → hotel created without subscription
+          // Admin assigns plan later via RenewDialog
         },
       });
 
-      // Step 2 (optional): set UPI
+      // Step 2 (optional): upload hotel logo
+      if (logoFile) {
+        try {
+          const compressed = await compressLogo(logoFile).catch(() => logoFile);
+          const formData = new FormData();
+          formData.append("file", compressed);
+          const token = getAccessToken();
+          const headers: Record<string, string> = { Accept: "application/json" };
+          if (token) headers.Authorization = `Bearer ${token}`;
+          headers["X-Hotel-Id"] = hotel.id;
+          const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-config/logo`, {
+            method: "PUT",
+            headers,
+            body: formData,
+            credentials: "include",
+          });
+          if (!resp.ok) failedSteps.push("Logo upload");
+        } catch {
+          failedSteps.push("Logo upload");
+        }
+      }
+
+      // Step 3 (optional): set UPI
       if (upiId.trim()) {
         try {
           await apiFetch("/api/v1/hotels/me/payment-config", {
@@ -265,12 +293,11 @@ export default function AddHotelPage() {
             hotelId: hotel.id,
           });
         } catch {
-          // Non-critical; owner can set UPI later in settings
           failedSteps.push(t("upiSetup"));
         }
       }
 
-      // Step 3 (optional): create room type + rooms
+      // Step 4 (optional): create room type + rooms
       const validRooms = rooms.filter((r) => r.room_number.trim() && r.room_type.trim());
       if (validRooms.length > 0) {
         try {
@@ -298,12 +325,11 @@ export default function AddHotelPage() {
             });
           }
         } catch {
-          // Non-critical; owner can add rooms later
           failedSteps.push(t("roomInventorySetup"));
         }
       }
 
-      // Step 4 (optional): create service items
+      // Step 5 (optional): create service items
       const validServices = services.filter((s) => s.name.trim() && s.price.trim());
       let serviceFailed = false;
       for (const svc of validServices) {
@@ -314,11 +340,26 @@ export default function AddHotelPage() {
             hotelId: hotel.id,
           });
         } catch {
-          // Non-critical
           serviceFailed = true;
         }
       }
       if (serviceFailed) failedSteps.push(t("specialRequirements"));
+
+      // Step 6 (optional): save feature toggle settings
+      if (!emergencyEnabled || !vehicleEnabled) {
+        try {
+          await apiFetch("/api/v1/hotels/me/settings", {
+            method: "PATCH",
+            body: {
+              collect_emergency_contact: emergencyEnabled,
+              collect_vehicle_details: vehicleEnabled,
+            },
+            hotelId: hotel.id,
+          });
+        } catch {
+          // Non-critical
+        }
+      }
 
       return { hotel, failedSteps };
     },
@@ -328,6 +369,7 @@ export default function AddHotelPage() {
         toast.warning(`${t("optionalStepsFailed")}: ${failedSteps.join(", ")}`);
       }
       queryClient.invalidateQueries({ queryKey: ["admin-hotels-list"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels"] });
       queryClient.invalidateQueries({ queryKey: ["platform-dashboard"] });
       router.push("/admin/hotels");
     },
@@ -358,8 +400,16 @@ export default function AddHotelPage() {
     setServices((prev) => prev.filter((_, i) => i !== idx));
   const addService = () => setServices((prev) => [...prev, { name: "", price: "" }]);
 
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoFile(file);
+    const url = URL.createObjectURL(file);
+    setLogoPreview(url);
+  };
+
   return (
-    <main className="p-6 space-y-4 max-w-3xl mx-auto pb-12">
+    <main className="p-6 space-y-4 max-w-3xl mx-auto pb-20">
       {/* Page title */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">{t("addNewHotel")}</h1>
@@ -415,8 +465,26 @@ export default function AddHotelPage() {
               id="ah-name"
               value={hotelName}
               onChange={(e) => setHotelName(e.target.value)}
-              placeholder="e.g. Lotus Place Hotel"
+              placeholder="e.g. Grand Horizon Enterprises"
               required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ah-city">City</Label>
+            <Input
+              id="ah-city"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="Mumbai"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ah-state">State</Label>
+            <Input
+              id="ah-state"
+              value={state}
+              onChange={(e) => setState(e.target.value)}
+              placeholder="Maharashtra"
             />
           </div>
           <div className="space-y-1.5">
@@ -458,6 +526,49 @@ export default function AddHotelPage() {
               maxLength={15}
             />
           </div>
+          {/* Hotel Logo */}
+          <div className="space-y-1.5">
+            <Label>{t("hotelLogo")}</Label>
+            <div className="flex items-center gap-3">
+              {logoPreview ? (
+                <img
+                  src={logoPreview}
+                  alt="Logo preview"
+                  className="h-14 w-14 rounded-lg object-cover border border-border"
+                />
+              ) : (
+                <div className="flex size-14 items-center justify-center rounded-lg border border-dashed border-border bg-muted/30">
+                  <ImagePlus className="size-5 text-muted-foreground" aria-hidden />
+                </div>
+              )}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  className="inline-flex h-8 items-center rounded-lg border border-border bg-white px-3 text-xs font-medium hover:bg-muted transition-colors"
+                >
+                  {logoPreview ? t("changeLogo") : t("uploadLogo")}
+                </button>
+                {logoPreview && (
+                  <button
+                    type="button"
+                    onClick={() => { setLogoFile(null); setLogoPreview(null); }}
+                    className="ml-2 text-xs text-muted-foreground hover:text-danger"
+                  >
+                    {tc("delete")}
+                  </button>
+                )}
+                <p className="mt-1 text-[11px] text-muted-foreground">PNG, JPG, WebP • max 5 MB</p>
+              </div>
+            </div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="sr-only"
+              onChange={handleLogoChange}
+            />
+          </div>
         </div>
       </Section>
 
@@ -492,6 +603,16 @@ export default function AddHotelPage() {
                 onChange={(e) => setOwnerName(e.target.value)}
                 placeholder="Full Name"
                 required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ah-owner-phone">{t("phoneNumber")}</Label>
+              <Input
+                id="ah-owner-phone"
+                value={ownerPhone}
+                onChange={(e) => setOwnerPhone(e.target.value)}
+                placeholder="+91 XXXXXXXXXX"
+                inputMode="tel"
               />
             </div>
             <div className="space-y-1.5">
@@ -606,7 +727,7 @@ export default function AddHotelPage() {
                 <Input
                   type="number"
                   min={0}
-                  step="0.01"
+                  step="1"
                   value={svc.price}
                   onChange={(e) => updateService(idx, "price", e.target.value)}
                   placeholder="500"
@@ -684,8 +805,8 @@ export default function AddHotelPage() {
         </div>
       )}
 
-      {/* Actions */}
-      <div className="flex items-center justify-end gap-3 pt-2">
+      {/* Sticky bottom action bar */}
+      <div className="fixed bottom-0 inset-x-0 z-10 flex items-center justify-end gap-3 border-t border-border bg-white px-8 py-3 shadow-md">
         <Button
           type="button"
           variant="outline"
@@ -696,17 +817,9 @@ export default function AddHotelPage() {
         </Button>
         <Button
           type="button"
-          variant="outline"
           disabled={mutation.isPending || !canSubmit}
           onClick={() => mutation.mutate()}
-        >
-          {t("saveDraft")}
-        </Button>
-        <Button
-          type="button"
-          disabled={mutation.isPending || !canSubmit}
-          onClick={() => mutation.mutate()}
-          className="bg-[#7a6540] hover:bg-[#6a5535] text-white"
+          className="bg-navy-900 hover:bg-navy-800 text-white"
         >
           {mutation.isPending ? tc("saving") : t("addHotelBtn")}
         </Button>

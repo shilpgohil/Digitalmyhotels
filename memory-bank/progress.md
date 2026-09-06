@@ -1,5 +1,11 @@
 # Progress — DigitalMyHotels
 
+## Super Admin + Mode B picker (2026-09-06) — in working tree, not committed
+- Advance-booking check-in times use DateTimePicker (same custom 24h panel as walk-in).
+- Admin nav dual-highlight fixed (pathname+searchParams). Active hotels exclude
+  subscription-lapsed rows. Recently Expired uses `recent_days=30`.
+- Admin lists: error/retry, Total Hotels meta columns, clickable dashboard cards.
+
 ## Client-feedback master fix plan (2026-09-04) — COMPLETE & DEPLOYED
 - All phases of memory-bank/MASTER_FIX_PLAN.md shipped in 6 commits (9c4ca86..2ae9ccf) and verified
   live on Render (deploy c166f66) + Vercel. Suite: 125 backend tests, tsc/eslint/build clean,

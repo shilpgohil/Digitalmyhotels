@@ -41,13 +41,24 @@ TRANSITIONS: dict[RoomStatus, frozenset[RoomStatus]] = {
         {RoomStatus.CLEANING_REQUIRED}
     ),
     RoomStatus.CLEANING_REQUIRED: frozenset(
-        {RoomStatus.CLEANING_IN_PROGRESS, RoomStatus.MAINTENANCE, RoomStatus.OUT_OF_SERVICE}
+        {
+            RoomStatus.CLEANING_IN_PROGRESS,
+            RoomStatus.MAINTENANCE,
+            RoomStatus.OUT_OF_SERVICE,
+            # Stayover clean: guest still in-house → restore Occupied.
+            RoomStatus.OCCUPIED,
+        }
     ),
     RoomStatus.CLEANING_IN_PROGRESS: frozenset(
-        {RoomStatus.CLEAN_READY, RoomStatus.INSPECTION_REQUIRED, RoomStatus.MAINTENANCE}
+        {
+            RoomStatus.CLEAN_READY,
+            RoomStatus.INSPECTION_REQUIRED,
+            RoomStatus.MAINTENANCE,
+            RoomStatus.OCCUPIED,
+        }
     ),
     RoomStatus.CLEAN_READY: frozenset(
-        {RoomStatus.AVAILABLE, RoomStatus.INSPECTION_REQUIRED}
+        {RoomStatus.AVAILABLE, RoomStatus.INSPECTION_REQUIRED, RoomStatus.OCCUPIED}
     ),
     RoomStatus.INSPECTION_REQUIRED: frozenset(
         {RoomStatus.AVAILABLE, RoomStatus.CLEANING_REQUIRED, RoomStatus.MAINTENANCE}

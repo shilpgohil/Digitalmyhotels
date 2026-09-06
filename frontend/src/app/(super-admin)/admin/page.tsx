@@ -33,15 +33,16 @@ interface StatCard {
   iconBg: string;
   iconColor: string;
   format?: "currency";
+  href?: string;
 }
 
 const STAT_CARDS: StatCard[] = [
-  { key: "totalHotels",      icon: LayoutGrid,   iconBg: "bg-amber-50",   iconColor: "text-amber-500" },
-  { key: "activeHotels",     icon: CheckCircle,  iconBg: "bg-green-50",   iconColor: "text-green-500" },
+  { key: "totalHotels",      icon: LayoutGrid,   iconBg: "bg-amber-50",   iconColor: "text-amber-500", href: "/admin/hotels?filter=all" },
+  { key: "activeHotels",     icon: CheckCircle,  iconBg: "bg-green-50",   iconColor: "text-green-500", href: "/admin/hotels" },
   { key: "todayCheckins",    icon: Calendar,     iconBg: "bg-blue-50",    iconColor: "text-blue-500" },
   { key: "totalRevenue",     icon: IndianRupee,  iconBg: "bg-amber-50",   iconColor: "text-amber-600", format: "currency" },
-  { key: "recentlyExpiredCard", icon: AlertTriangle, iconBg: "bg-orange-50", iconColor: "text-orange-500" },
-  { key: "expiredHotels",    icon: XCircle,      iconBg: "bg-red-50",     iconColor: "text-red-500" },
+  { key: "recentlyExpiredCard", icon: AlertTriangle, iconBg: "bg-orange-50", iconColor: "text-orange-500", href: "/admin/expired" },
+  { key: "expiredHotels",    icon: XCircle,      iconBg: "bg-red-50",     iconColor: "text-red-500", href: "/admin/expired?filter=all" },
 ];
 
 function fmtRevenue(v: number | string): string {
@@ -63,7 +64,7 @@ export default function AdminDashboardPage() {
   const expired = useQuery({
     queryKey: ["admin-hotels", "expired"],
     queryFn: () =>
-      apiFetch<HotelAdminListOut>("/api/v1/super-admin/hotels?status=expired&limit=5"),
+      apiFetch<HotelAdminListOut>("/api/v1/super-admin/hotels?status=expired&recent_days=30&limit=5"),
   });
   const recent = useQuery({
     queryKey: ["admin-hotels", "recent"],
@@ -138,21 +139,29 @@ export default function AdminDashboardPage() {
             const raw = statValues[card.key] ?? 0;
             const display =
               card.format === "currency" ? fmtRevenue(raw) : String(raw);
-            return (
-              <div key={card.key} className="rounded-xl border bg-white p-5 shadow-sm">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      {t(card.key as Parameters<typeof t>[0])}
-                    </p>
-                    <p className="mt-1.5 text-2xl font-bold text-foreground tabular-nums">
-                      {display}
-                    </p>
-                  </div>
-                  <div className={`flex size-10 items-center justify-center rounded-full ${card.iconBg}`}>
-                    <Icon className={`size-5 ${card.iconColor}`} aria-hidden />
-                  </div>
+            const inner = (
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t(card.key as Parameters<typeof t>[0])}
+                  </p>
+                  <p className="mt-1.5 text-2xl font-bold text-foreground tabular-nums">
+                    {display}
+                  </p>
                 </div>
+                <div className={`flex size-10 items-center justify-center rounded-full ${card.iconBg}`}>
+                  <Icon className={`size-5 ${card.iconColor}`} aria-hidden />
+                </div>
+              </div>
+            );
+            const cardClass = "rounded-xl border bg-white p-5 shadow-sm";
+            return card.href ? (
+              <Link key={card.key} href={card.href} className={`${cardClass} transition-colors hover:border-gold-400`}>
+                {inner}
+              </Link>
+            ) : (
+              <div key={card.key} className={cardClass}>
+                {inner}
               </div>
             );
           })}
@@ -272,7 +281,7 @@ export default function AdminDashboardPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <Link
-                        href={`/admin/hotels`}
+                        href={`/admin/hotels?filter=all&q=${encodeURIComponent(h.name)}`}
                         className="text-xs font-medium text-gold-600 hover:underline"
                       >
                         {t("view")}
@@ -345,7 +354,7 @@ export default function AdminDashboardPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <Link
-                        href={`/admin/hotels`}
+                        href={`/admin/hotels?filter=all&q=${encodeURIComponent(h.name)}`}
                         className="text-xs font-medium text-gold-600 hover:underline"
                       >
                         {t("view")}

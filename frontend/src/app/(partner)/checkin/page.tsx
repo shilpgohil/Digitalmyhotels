@@ -69,7 +69,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
-import { TimeInput } from "@/components/ui/time-input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GuestPicker } from "@/components/guests/guest-picker";
@@ -78,6 +77,7 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE, ApiError, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
+import { useImageEditor } from "@/components/media/image-editor";
 import { compressDocument } from "@/lib/compress-image";
 import { fmtApiDate, fmtINR, localToday, localTomorrow } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
@@ -977,6 +977,7 @@ function DocUpload({
 }) {
   const t = useTranslations("checkin");
   const { activeHotelId } = useAuth();
+  const { edit } = useImageEditor();
   const [uploaded, setUploaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [ocrRunning, setOcrRunning] = useState(false);
@@ -1014,23 +1015,24 @@ function DocUpload({
 
   const onFile = async (file: File | undefined) => {
     if (!file || !guestId) return;
+    const edited = await edit(file, { aspect: side === "selfie" ? "square" : "free" });
+    if (!edited) return;
     setBusy(true);
     // Show local preview immediately — before upload
-    const previewUrl = URL.createObjectURL(file);
+    const previewUrl = URL.createObjectURL(edited);
     setPreview(previewUrl);
     try {
-      const compressed = await compressDocument(file);
+      const compressed = await compressDocument(edited);
 
-      // Run OCR in parallel with upload — on the ORIGINAL file, not the
-      // compressed one: OCR accuracy depends on resolution, while the upload
-      // uses the compressed copy to save bandwidth/storage.
+      // Run OCR on the edited photo (crop/rotate is the region staff chose).
+      // Upload still uses the compressed copy.
       // Front → full extraction (name, DOB, gender, ID number, address).
       // Back  → address-only (Aadhar address lives on the back face; we only
       //          surface it if the callback is wired by the parent).
       if ((side === "front" || side === "back") && onOcrResult) {
         setOcrRunning(true);
         const { parseIdDocument } = await import("@/lib/id-ocr");
-        parseIdDocument(file, idType ?? "Aadhar Card", side)
+        parseIdDocument(edited, idType ?? "Aadhar Card", side)
           .then((result) => {
             if (side === "back") {
               // Back face: surface address + pincode only — don't overwrite
@@ -1286,6 +1288,7 @@ function QueuedDocUpload({
   readonly onOriginal?: (side: DocSide, file: File) => void;
 }) {
   const t = useTranslations("checkin");
+  const { edit } = useImageEditor();
   const [queued, setQueued] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -1296,11 +1299,13 @@ function QueuedDocUpload({
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
-    const previewUrl = URL.createObjectURL(file);
+    const edited = await edit(file, { aspect: side === "selfie" ? "square" : "free" });
+    if (!edited) return;
+    const previewUrl = URL.createObjectURL(edited);
     setPreview(previewUrl);
-    onOriginal?.(side, file);
+    onOriginal?.(side, edited);
     try {
-      const compressed = await compressDocument(file);
+      const compressed = await compressDocument(edited);
       onQueued(side, compressed);
       setQueued(true);
     } catch {
@@ -2242,11 +2247,11 @@ function CheckinForm({
   const [vehMake, setVehMake] = useState("");
   const [parkingSlot, setParkingSlot] = useState(booking.parking_slot ?? "");
 
-  // ── Early check-in (auto-computed from check-in time) ──
+  // ── Stay dates + times (same custom DateTimePicker as walk-in) ──
+  const [checkInDate, setCheckInDate] = useState(booking.check_in_date ?? "");
+  const [checkOutDate, setCheckOutDate] = useState(booking.check_out_date ?? "");
   const [checkInTime, setCheckInTime] = useState(booking.check_in_time?.slice(0, 5) ?? "");
   const [earlyFee, setEarlyFee] = useState(0);
-
-  // ── Expected checkout time — staff correction sent as check_out_time ──
   const [checkOutTime, setCheckOutTime] = useState(
     booking.check_out_time?.slice(0, 5) ?? "",
   );
@@ -2306,6 +2311,15 @@ function CheckinForm({
     Number.parseFloat(gstSettings.data?.default_cgst_rate ?? "0") +
     Number.parseFloat(gstSettings.data?.default_sgst_rate ?? "0") || 5;
 
+  // Prefill hotel standard times when the booking has none — keeps the
+  // custom picker from opening on an empty native clock.
+  useEffect(() => {
+    const s = checkinSettings.data;
+    if (!s) return;
+    setCheckInTime((t) => t || s.check_in_time?.slice(0, 5) || "");
+    setCheckOutTime((t) => t || s.check_out_time?.slice(0, 5) || "");
+  }, [checkinSettings.data]);
+
   // Auto early check-in fee — recomputed whenever check-in time changes.
   useEffect(() => {
     const s = checkinSettings.data;
@@ -2325,12 +2339,13 @@ function CheckinForm({
     queryKey: ["hotel-qr-png", activeHotelId],
     queryFn: async () => {
       const token = getAccessToken();
-      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image`, {
+      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${Date.now()}`, {
         headers: {
           Authorization: `Bearer ${token ?? ""}`,
           "X-Hotel-Id": activeHotelId ?? "",
         },
         credentials: "include",
+        cache: "no-store",
       });
       if (!resp.ok) return null;
       const blob = await resp.blob();
@@ -2495,6 +2510,18 @@ function CheckinForm({
       }
       if (totalAdults !== booking.adults) bookingPatch.adults = totalAdults;
       if (totalChildren !== booking.children) bookingPatch.children = totalChildren;
+      if (checkInDate && checkInDate !== booking.check_in_date) {
+        bookingPatch.check_in_date = checkInDate;
+      }
+      if (checkOutDate && checkOutDate !== booking.check_out_date) {
+        bookingPatch.check_out_date = checkOutDate;
+      }
+      if (checkInTime && checkInTime !== (booking.check_in_time?.slice(0, 5) ?? "")) {
+        bookingPatch.check_in_time = checkInTime;
+      }
+      if (checkOutTime && checkOutTime !== (booking.check_out_time?.slice(0, 5) ?? "")) {
+        bookingPatch.check_out_time = checkOutTime;
+      }
       if (Object.keys(bookingPatch).length > 0) {
         await api(`/api/v1/bookings/${booking.id}`, {
           method: "PATCH",
@@ -2599,28 +2626,23 @@ function CheckinForm({
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("bookingNumber")}</Label>
               <p className="mt-1 font-semibold text-foreground">{booking.booking_number}</p>
             </div>
-            <div>
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("checkinDate")}</Label>
-              <p className="mt-1">{fmtApiDate(booking.check_in_date)}</p>
-            </div>
-            <div>
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("checkoutDate")}</Label>
-              <p className="mt-1">{fmtApiDate(booking.check_out_date)}</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("checkinTime")}</Label>
-              <TimeInput
-                value={checkInTime}
-                onChange={setCheckInTime}
-                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("checkinDateTime")}</Label>
+              <DateTimePicker
+                dateValue={checkInDate}
+                timeValue={checkInTime}
+                onDateChange={setCheckInDate}
+                onTimeChange={setCheckInTime}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("checkoutTime")}</Label>
-              <TimeInput
-                value={checkOutTime}
-                onChange={setCheckOutTime}
-                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("checkoutDateTime")}</Label>
+              <DateTimePicker
+                dateValue={checkOutDate}
+                timeValue={checkOutTime}
+                onDateChange={setCheckOutDate}
+                onTimeChange={setCheckOutTime}
+                min={checkInDate}
               />
             </div>
             <div className="space-y-1.5">
@@ -3660,12 +3682,13 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     queryKey: ["hotel-qr-png", activeHotelId],
     queryFn: async () => {
       const token = getAccessToken();
-      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image`, {
+      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${Date.now()}`, {
         headers: {
           Authorization: `Bearer ${token ?? ""}`,
           "X-Hotel-Id": activeHotelId ?? "",
         },
         credentials: "include",
+        cache: "no-store",
       });
       if (!resp.ok) return null;
       const blob = await resp.blob();

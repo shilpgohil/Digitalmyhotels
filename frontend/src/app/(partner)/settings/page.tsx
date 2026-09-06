@@ -20,6 +20,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { ApiError, API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { compressLogo } from "@/lib/compress-image";
+import { useImageEditor } from "@/components/media/image-editor";
 import { fmtINR } from "@/lib/formatting";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { cn } from "@/lib/utils";
@@ -580,6 +581,7 @@ function UpiConfigPanel() {
   const api = useApi();
   const queryClient = useQueryClient();
   const { activeHotelId } = useAuth();
+  const { edit } = useImageEditor();
 
   const config = useQuery({
     queryKey: ["payment-config", activeHotelId],
@@ -612,6 +614,7 @@ function UpiConfigPanel() {
       const prevVersion = data.qr_version;
       // Optimistically update config version in cache immediately.
       queryClient.setQueryData(["payment-config", activeHotelId], result);
+      queryClient.invalidateQueries({ queryKey: ["hotel-qr-png"] });
       // Then wait for the QR to regenerate.
       void pollForQr(prevVersion);
     },
@@ -654,6 +657,7 @@ function UpiConfigPanel() {
       queryClient.setQueryData(["payment-config", activeHotelId], result);
       // Refresh the sidebar brand logo (PartnerBrand caches the blob URL).
       queryClient.invalidateQueries({ queryKey: ["hotel-logo", activeHotelId] });
+      queryClient.invalidateQueries({ queryKey: ["hotel-qr-png"] });
       void pollForQr(prevVersion);
     },
     onError: (error) =>
@@ -716,8 +720,11 @@ function UpiConfigPanel() {
             disabled={logoMutation.isPending}
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) logoMutation.mutate(file);
               e.target.value = "";
+              if (!file) return;
+              void edit(file, { aspect: "square" }).then((framed) => {
+                if (framed) logoMutation.mutate(framed);
+              });
             }}
           />
         </div>
@@ -746,10 +753,14 @@ function QrPreview({ qrVersion, updating = false }: { readonly qrVersion: number
       const token = getAccessToken();
       if (token) headers.Authorization = `Bearer ${token}`;
       if (activeHotelId) headers["X-Hotel-Id"] = activeHotelId;
-      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image`, {
-        headers,
-        credentials: "include",
-      });
+      const resp = await fetch(
+        `${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${qrVersion}`,
+        {
+          headers,
+          credentials: "include",
+          cache: "no-store",
+        },
+      );
       if (!resp.ok || cancelled) return;
       objectUrl = URL.createObjectURL(await resp.blob());
       if (!cancelled) setSrc(objectUrl);

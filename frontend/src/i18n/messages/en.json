@@ -23,6 +23,13 @@
     "requiredField": "This field is required",
     "unauthorized": "You do not have permission to view this page"
   },
+  "imageEditor": {
+    "title": "Edit Photo",
+    "usePhoto": "Use Photo",
+    "rotateLeft": "Rotate left",
+    "rotateRight": "Rotate right",
+    "reset": "Reset"
+  },
   "auth": {
     "loginTitle": "Login",
     "loginSubtitle": "Welcome back! Sign in to access your dashboard.",
@@ -1061,7 +1068,15 @@
     "saveDraft": "Save Draft",
     "addHotelBtn": "Add Hotel",
     "noHotels": "No hotels found.",
-    "page": "Page"
+    "page": "Page",
+    "loadFailed": "Could not load hotels. Please try again.",
+    "totalHotelsList": "Total Hotels List",
+    "activeHotelsList": "Active Hotels List",
+    "expiredListTitle": "Expired Hotels List",
+    "allExpiredTitle": "Expired Hotels",
+    "hotelLogo": "Hotel Logo",
+    "uploadLogo": "Upload Logo",
+    "changeLogo": "Change Logo"
   },
   "roomPicker": {
     "filterLabel": "Filter rooms by status",

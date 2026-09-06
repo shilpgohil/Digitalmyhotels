@@ -36,6 +36,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE, ApiError, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { compressReceipt } from "@/lib/compress-image";
+import { useImageEditor } from "@/components/media/image-editor";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { ListOut } from "@/types/hotel";
@@ -678,6 +679,7 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
   const tc = useTranslations("common");
   const api = useApi();
   const { activeHotelId } = useAuth();
+  const { edit } = useImageEditor();
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [expenseDate, setExpenseDate] = useState(localToday);
@@ -832,13 +834,19 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
             className="mt-1 block w-full text-sm text-muted-foreground file:mr-2 file:rounded-lg file:border file:border-input file:bg-transparent file:px-2.5 file:py-1 file:text-sm file:text-foreground"
             onChange={(e) => {
               const f = e.target.files?.[0] ?? null;
+              e.target.value = "";
               // PDFs bypass client-side compression, so enforce the backend's
               // 5 MB attachment cap here for an immediate, clear error instead
               // of a failed upload after the expense is already created.
               if (f && f.type === "application/pdf" && f.size > 5 * 1024 * 1024) {
                 toast.error(t("receiptTooLarge"));
-                e.target.value = "";
                 setReceiptFile(null);
+                return;
+              }
+              if (f && f.type.startsWith("image/")) {
+                void edit(f, { aspect: "free" }).then((framed) => {
+                  if (framed) setReceiptFile(framed);
+                });
                 return;
               }
               setReceiptFile(f);

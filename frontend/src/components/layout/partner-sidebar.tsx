@@ -304,9 +304,10 @@ export function PartnerBrand() {
       const token = getAccessToken();
       if (token) headers.Authorization = `Bearer ${token}`;
       if (activeHotelId) headers["X-Hotel-Id"] = activeHotelId;
-      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/logo/image`, {
+      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/logo/image?v=${Date.now()}`, {
         headers,
         credentials: "include",
+        cache: "no-store",
       });
       if (!resp.ok) return null;
       return URL.createObjectURL(await resp.blob());

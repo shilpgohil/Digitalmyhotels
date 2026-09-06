@@ -23,6 +23,13 @@
     "requiredField": "यह फ़ील्ड आवश्यक है",
     "unauthorized": "आपको यह पृष्ठ देखने की अनुमति नहीं है"
   },
+  "imageEditor": {
+    "title": "फ़ोटो संपादित करें",
+    "usePhoto": "फ़ोटो उपयोग करें",
+    "rotateLeft": "बाएँ घुमाएँ",
+    "rotateRight": "दाएँ घुमाएँ",
+    "reset": "रीसेट"
+  },
   "auth": {
     "loginTitle": "लॉगिन",
     "loginSubtitle": "वापस स्वागत है! अपने डैशबोर्ड तक पहुँचने के लिए साइन इन करें।",
@@ -1061,7 +1068,15 @@
     "saveDraft": "ड्राफ्ट सहेजें",
     "addHotelBtn": "होटल जोड़ें",
     "noHotels": "कोई होटल नहीं मिला।",
-    "page": "पृष्ठ"
+    "page": "पृष्ठ",
+    "loadFailed": "होटल लोड नहीं हो सके। कृपया पुनः प्रयास करें।",
+    "totalHotelsList": "कुल होटल सूची",
+    "activeHotelsList": "सक्रिय होटल सूची",
+    "expiredListTitle": "समाप्त होटल सूची",
+    "allExpiredTitle": "समाप्त होटल",
+    "hotelLogo": "होटल लोगो",
+    "uploadLogo": "लोगो अपलोड करें",
+    "changeLogo": "लोगो बदलें"
   },
   "roomPicker": {
     "filterLabel": "कमरों को स्थिति के अनुसार फ़िल्टर करें",

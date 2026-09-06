@@ -46,10 +46,18 @@ async def list_hotels(
     q: str | None = Query(default=None, max_length=100),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    recent_days: int | None = Query(default=None, ge=1, le=365),
     _user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> HotelAdminListOut:
-    return await admin_service.list_hotels(db, status=status, q=q, limit=limit, offset=offset)
+    return await admin_service.list_hotels(
+        db,
+        status=status,
+        q=q,
+        limit=limit,
+        offset=offset,
+        recent_days=recent_days,
+    )
 
 
 @router.post("/hotels", response_model=HotelOut, status_code=201)

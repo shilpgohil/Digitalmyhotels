@@ -264,10 +264,14 @@ function AdvanceBookingContent() {
         if (token) headers.Authorization = `Bearer ${token}`;
         if (activeHotelId) headers["X-Hotel-Id"] = activeHotelId;
 
-        const response = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image`, {
-          headers,
-          credentials: "include",
-        });
+        const response = await fetch(
+          `${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${Date.now()}`,
+          {
+            headers,
+            credentials: "include",
+            cache: "no-store",
+          },
+        );
 
         if (cancelled) return;
 

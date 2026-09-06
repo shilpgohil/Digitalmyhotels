@@ -291,7 +291,7 @@ async def get_hotel_logo_image(
     return Response(
         content=data,
         media_type=_image_media_type(hotel.logo_object_key),
-        headers={"Cache-Control": "private, max-age=60"},
+        headers={"Cache-Control": "private, no-store"},
     )
 
 
@@ -396,7 +396,7 @@ async def get_gallery_image(
     return Response(
         content=data,
         media_type=_image_media_type(image.object_key),
-        headers={"Cache-Control": "private, max-age=60"},
+        headers={"Cache-Control": "private, no-store"},
     )
 
 
@@ -528,5 +528,5 @@ async def get_payment_qr_image(
     return Response(
         content=png,
         media_type="image/png",
-        headers={"Cache-Control": "private, max-age=60"},
+        headers={"Cache-Control": "private, no-store"},
     )

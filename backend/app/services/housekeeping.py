@@ -95,13 +95,12 @@ async def ensure_task_for_room(
 
 _OPEN_TASK_STATUSES = ("cleaning_required", "cleaning_in_progress", "inspection_required")
 
-# Room states in which an open cleaning task no longer makes sense: the room
-# is already usable (or has a guest in it) so "Start cleaning" would be stale.
-# Maintenance/out-of-service rooms KEEP their tasks — cleaning resumes after.
+# Room states in which an open cleaning task no longer makes sense.
+# Occupied is NOT listed: a stayover clean (guest still in-house) is valid
+# and must not be auto-cancelled. Reserved rooms cancel — no stayover there.
 _TASK_STALE_ROOM_STATUSES = (
     RoomStatus.AVAILABLE.value,
     RoomStatus.CLEAN_READY.value,
-    RoomStatus.OCCUPIED.value,
     RoomStatus.RESERVED.value,
 )
 
@@ -165,8 +164,13 @@ async def start_task(
     if task.status not in ("cleaning_required", "inspection_required"):
         raise ValidationAppError("Task cannot be started", code="invalid_hk_transition")
     room = await _room(db, hotel_id, task.room_id)
-    assert_transition(room.status, RoomStatus.CLEANING_IN_PROGRESS)
-    room.status = RoomStatus.CLEANING_IN_PROGRESS.value
+    from app.services.rooms import has_in_house_guest
+
+    # Stayover clean: guest is still checked in — keep the room Occupied so
+    # the front desk / current-guests board does not show a vacant room.
+    if not await has_in_house_guest(db, hotel_id, room.id):
+        assert_transition(room.status, RoomStatus.CLEANING_IN_PROGRESS)
+        room.status = RoomStatus.CLEANING_IN_PROGRESS.value
     task.status = "cleaning_in_progress"
     task.started_at = _now()
     task.assigned_to_id = body.assigned_to_id or tenant.user_id
@@ -204,14 +208,24 @@ async def complete_task(
     if task.status not in ("cleaning_in_progress", "cleaning_required"):
         raise ValidationAppError("Task cannot be completed", code="invalid_hk_transition")
     room = await _room(db, hotel_id, task.room_id)
-    # Cleaning completion → Available (SRS).
-    if room.status == RoomStatus.CLEANING_REQUIRED.value:
-        assert_transition(room.status, RoomStatus.CLEANING_IN_PROGRESS)
-        room.status = RoomStatus.CLEANING_IN_PROGRESS.value
-    assert_transition(room.status, RoomStatus.CLEAN_READY)
-    room.status = RoomStatus.CLEAN_READY.value
-    assert_transition(room.status, RoomStatus.AVAILABLE)
-    room.status = RoomStatus.AVAILABLE.value
+    from app.services.rooms import has_in_house_guest
+
+    in_house = await has_in_house_guest(db, hotel_id, room.id)
+    if in_house:
+        # Stayover: cleaning finished, guest is still here — restore Occupied
+        # even if staff walked the room through cleaning_* statuses.
+        if room.status != RoomStatus.OCCUPIED.value:
+            assert_transition(room.status, RoomStatus.OCCUPIED)
+            room.status = RoomStatus.OCCUPIED.value
+    else:
+        # Checkout clean → Available (SRS).
+        if room.status == RoomStatus.CLEANING_REQUIRED.value:
+            assert_transition(room.status, RoomStatus.CLEANING_IN_PROGRESS)
+            room.status = RoomStatus.CLEANING_IN_PROGRESS.value
+        assert_transition(room.status, RoomStatus.CLEAN_READY)
+        room.status = RoomStatus.CLEAN_READY.value
+        assert_transition(room.status, RoomStatus.AVAILABLE)
+        room.status = RoomStatus.AVAILABLE.value
     task.status = "completed"
     task.completed_at = _now()
     await db.flush()
@@ -301,8 +315,17 @@ async def resolve_maintenance(
     if record.status == "resolved":
         return record
     room = await _room(db, hotel_id, record.room_id)
-    assert_transition(room.status, RoomStatus.AVAILABLE)
-    room.status = RoomStatus.AVAILABLE.value
+    from app.services.rooms import has_in_house_guest
+
+    if await has_in_house_guest(db, hotel_id, room.id):
+        # Should be rare (maintenance is blocked from Occupied) — never free
+        # a room that still has a checked-in guest.
+        if room.status != RoomStatus.OCCUPIED.value:
+            assert_transition(room.status, RoomStatus.OCCUPIED)
+            room.status = RoomStatus.OCCUPIED.value
+    else:
+        assert_transition(room.status, RoomStatus.AVAILABLE)
+        room.status = RoomStatus.AVAILABLE.value
     record.status = "resolved"
     record.resolved_at = _now()
     await db.flush()

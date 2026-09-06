@@ -1,25 +1,29 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch } from "@/lib/api/client";
 import { fmtApiDate } from "@/lib/formatting";
 import type { HotelAdminListOut } from "@/types/money";
 import { RenewDialog } from "@/components/admin/renew-dialog";
+import { AdminListError, AdminListLoading } from "@/components/admin/admin-list-state";
 
 const PAGE_SIZE = 10;
 
 function ExpiredContent() {
   const t = useTranslations("admin");
   const tc = useTranslations("common");
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  const isAll = searchParams.get("filter") === "all";
 
   const hotels = useQuery({
-    queryKey: ["admin-hotels-expired", search, page],
+    queryKey: ["admin-hotels-expired", search, page, isAll],
     queryFn: () => {
       const params = new URLSearchParams({
         status: "expired",
@@ -27,9 +31,11 @@ function ExpiredContent() {
         offset: String(page * PAGE_SIZE),
       });
       if (search) params.set("q", search);
+      if (!isAll) params.set("recent_days", "30");
       return apiFetch<HotelAdminListOut>(`/api/v1/super-admin/hotels?${params}`);
     },
     staleTime: 30_000,
+    retry: 1,
   });
 
   const total = hotels.data?.total ?? 0;
@@ -38,13 +44,15 @@ function ExpiredContent() {
   return (
     <main className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">{t("recentlyExpired")}</h1>
+        <h1 className="text-2xl font-bold text-foreground">
+          {isAll ? t("allExpiredTitle") : t("recentlyExpired")}
+        </h1>
         <p className="mt-0.5 text-sm text-muted-foreground">{t("dashboardSubtitle")}</p>
       </div>
 
       <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b gap-4">
-          <h2 className="font-semibold text-foreground shrink-0">Expired Hotels List</h2>
+          <h2 className="font-semibold text-foreground shrink-0">{t("expiredListTitle")}</h2>
           <div className="relative max-w-xs w-full">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <input
@@ -57,11 +65,11 @@ function ExpiredContent() {
           </div>
         </div>
 
-        {hotels.isLoading ? (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}
-          </div>
-        ) : (
+        {hotels.isLoading && <AdminListLoading />}
+        {hotels.isError && !hotels.isLoading && (
+          <AdminListError onRetry={() => hotels.refetch()} />
+        )}
+        {!hotels.isLoading && !hotels.isError && (
           <table className="w-full text-sm">
             <thead className="bg-muted/30">
               <tr>
@@ -96,7 +104,12 @@ function ExpiredContent() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-gold-600">{t("view")}</span>
+                      <Link
+                        href={`/admin/hotels?filter=all&q=${encodeURIComponent(h.name)}`}
+                        className="text-xs font-medium text-gold-600 hover:underline"
+                      >
+                        {t("view")}
+                      </Link>
                       <RenewDialog hotel={h} />
                     </div>
                   </td>

@@ -32,6 +32,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { ApiError, API_BASE, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { compressImage, compressLogo } from "@/lib/compress-image";
+import { useImageEditor } from "@/components/media/image-editor";
 import { cn } from "@/lib/utils";
 import type {
   GstSettingsOut,
@@ -166,7 +167,11 @@ function AuthedImage({
       const token = getAccessToken();
       if (token) headers.Authorization = `Bearer ${token}`;
       if (activeHotelId) headers["X-Hotel-Id"] = activeHotelId;
-      const resp = await fetch(`${API_BASE}${path}`, { headers, credentials: "include" });
+      const resp = await fetch(`${API_BASE}${path}?v=${version}`, {
+        headers,
+        credentials: "include",
+        cache: "no-store",
+      });
       if (!resp.ok || cancelled) return;
       objectUrl = URL.createObjectURL(await resp.blob());
       if (!cancelled) setSrc(objectUrl);
@@ -228,6 +233,7 @@ function EditHotelContent() {
   const api = useApi();
   const queryClient = useQueryClient();
   const { activeHotelId, can } = useAuth();
+  const { edit } = useImageEditor();
   const canGst = can(PERMISSIONS.gstManage);
 
   // ── Queries ────────────────────────────────────────────────────────────
@@ -656,7 +662,17 @@ function EditHotelContent() {
   const loading = hotel.isLoading || settings.isLoading || rooms.isLoading;
 
   const onLogoFile = (file: File | undefined) => {
-    if (file) logoMutation.mutate(file);
+    if (!file) return;
+    void edit(file, { aspect: "square" }).then((framed) => {
+      if (framed) logoMutation.mutate(framed);
+    });
+  };
+
+  const onGalleryFile = (position: number, file: File | undefined) => {
+    if (!file) return;
+    void edit(file, { aspect: "free" }).then((framed) => {
+      if (framed) galleryUpload.mutate({ position, file: framed });
+    });
   };
 
   const filledPositions = new Set(gallery.data?.map((g) => g.position) ?? []);
@@ -786,7 +802,7 @@ function EditHotelContent() {
                               onDrop={(e) => {
                                 e.preventDefault();
                                 const file = e.dataTransfer.files?.[0];
-                                if (file) galleryUpload.mutate({ position: pos, file });
+                                if (file) onGalleryFile(pos, file);
                               }}
                             >
                               <ImagePlus
@@ -809,7 +825,7 @@ function EditHotelContent() {
                                 disabled={galleryUpload.isPending}
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
-                                  if (file) galleryUpload.mutate({ position: pos, file });
+                                  if (file) onGalleryFile(pos, file);
                                   e.target.value = "";
                                 }}
                               />

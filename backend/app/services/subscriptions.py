@@ -60,8 +60,19 @@ async def assert_transactions_allowed(db: AsyncSession, hotel_id: UUID) -> None:
 
 
 async def list_plans(db: AsyncSession) -> list[SubscriptionPlan]:
+    """Partner-facing catalogue: active, priced plans only.
+
+    Legacy trial/standard rows stay in the table for existing subscriptions
+    but are hidden here (is_active=False) so the Choose Your Plan page
+    shows the current Figma tiers.
+    """
     result = await db.execute(
-        select(SubscriptionPlan).order_by(SubscriptionPlan.price.asc())
+        select(SubscriptionPlan)
+        .where(
+            SubscriptionPlan.is_active.is_(True),
+            SubscriptionPlan.price > 0,
+        )
+        .order_by(SubscriptionPlan.duration_days.asc())
     )
     return list(result.scalars().all())
 

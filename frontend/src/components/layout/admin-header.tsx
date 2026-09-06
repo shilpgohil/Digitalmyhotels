@@ -20,9 +20,9 @@ export function AdminHeader() {
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-white px-6">
-      {/* Search */}
-      <form onSubmit={handleSearch} className="flex-1 max-w-xs">
-        <div className="relative">
+      <form onSubmit={handleSearch} className="flex-1 flex justify-center">
+
+        <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <input
             type="search"

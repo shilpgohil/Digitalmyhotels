@@ -153,7 +153,17 @@ function RoomStatusMenuItems({
   return (
     <>
       <DropdownMenuLabel>{t("changeStatus")}</DropdownMenuLabel>
-      {MANUAL_STATUSES.filter((s) => s !== currentStatus).map((status) => (
+      {MANUAL_STATUSES.filter((s) => {
+        if (s === currentStatus) return false;
+        // Occupied rooms stay occupied until checkout — never offer Available.
+        if (
+          currentStatus === "occupied" &&
+          (s === "available" || s === "clean_ready")
+        ) {
+          return false;
+        }
+        return true;
+      }).map((status) => (
         <DropdownMenuItem key={status} onClick={() => onSelect(status)}>
           {t(`status_${status}`)}
         </DropdownMenuItem>

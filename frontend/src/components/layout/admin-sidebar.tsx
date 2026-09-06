@@ -1,7 +1,8 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   LayoutDashboard,
@@ -18,30 +19,39 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
 
 const NAV_ITEMS = [
-  { href: "/admin", labelKey: "dashboard", icon: LayoutDashboard, exact: true },
+  { href: "/admin", labelKey: "dashboard", icon: LayoutDashboard },
   { href: "/admin/add-hotel", labelKey: "addNewHotel", icon: PlusCircle },
-  { href: "/admin/hotels?filter=all", labelKey: "totalHotelsNav", icon: Hotel, match: "/admin/hotels" },
-  { href: "/admin/hotels", labelKey: "activeHotelsNav", icon: CheckCircle, exact: true },
+  { href: "/admin/hotels?filter=all", labelKey: "totalHotelsNav", icon: Hotel },
+  { href: "/admin/hotels", labelKey: "activeHotelsNav", icon: CheckCircle },
   { href: "/admin/expired", labelKey: "recentlyExpiredNav", icon: Clock },
   { href: "/admin/registrations", labelKey: "recentRegistrationsNav", icon: UserPlus },
-  { href: "/admin/expired?filter=all", labelKey: "expiredHotelsNav", icon: XCircle, match: "/admin/expired" },
+  { href: "/admin/expired?filter=all", labelKey: "expiredHotelsNav", icon: XCircle },
 ] as const;
 
-export function AdminSidebar() {
+function hrefIsActive(pathname: string, filter: string | null, href: string): boolean {
+  const [path, qs] = href.split("?");
+  const hrefFilter = qs ? new URLSearchParams(qs).get("filter") : null;
+
+  if (path === "/admin") return pathname === "/admin";
+  if (pathname !== path) return false;
+  if (path === "/admin/hotels" || path === "/admin/expired") {
+    if (hrefFilter === "all") return filter === "all";
+    return filter !== "all";
+  }
+  return true;
+}
+
+function AdminSidebarInner() {
   const t = useTranslations("admin");
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { logout } = useAuth();
-
-  const isActive = (item: { href: string; exact?: boolean; match?: string }) => {
-    const target = item.match ?? item.href.split("?")[0];
-    if (item.exact) return pathname === target;
-    return pathname.startsWith(target);
-  };
+  const filter = searchParams.get("filter");
+  const settingsActive = pathname.startsWith("/admin/plans");
 
   return (
     <aside className="flex h-full w-60 flex-col bg-white border-r border-border">
-      {/* Brand */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-border">
         <div className="flex size-10 items-center justify-center rounded-lg bg-gold-500 shrink-0">
           <Hotel className="size-5 text-navy-900" aria-hidden />
@@ -54,11 +64,10 @@ export function AdminSidebar() {
         </div>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-0.5">
           {NAV_ITEMS.map((item) => {
-            const active = isActive(item);
+            const active = hrefIsActive(pathname, filter, item.href);
             const Icon = item.icon;
             return (
               <li key={item.href + item.labelKey}>
@@ -80,11 +89,15 @@ export function AdminSidebar() {
         </ul>
       </nav>
 
-      {/* Bottom actions */}
       <div className="border-t border-border px-3 py-4 space-y-0.5">
         <Link
           href="/admin/plans"
-          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-gold-50 hover:text-gold-700 transition-colors"
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+            settingsActive
+              ? "bg-gold-500 text-navy-900"
+              : "text-foreground hover:bg-gold-50 hover:text-gold-700",
+          )}
         >
           <Settings className="size-4 shrink-0" aria-hidden />
           {t("settings")}
@@ -99,5 +112,13 @@ export function AdminSidebar() {
         </button>
       </div>
     </aside>
+  );
+}
+
+export function AdminSidebar() {
+  return (
+    <Suspense fallback={<aside className="h-full w-60 border-r border-border bg-white" />}>
+      <AdminSidebarInner />
+    </Suspense>
   );
 }

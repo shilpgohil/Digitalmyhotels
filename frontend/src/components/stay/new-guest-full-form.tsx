@@ -28,6 +28,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { useImageEditor } from "@/components/media/image-editor";
 import { AlertTriangle, BadgeCheck, Camera, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -228,6 +229,7 @@ function QueuedDocUpload({
   readonly onOriginal?: (side: DocSide, file: File) => void;
 }) {
   const t = useTranslations("checkin");
+  const { edit } = useImageEditor();
   const [queued, setQueued] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -240,11 +242,13 @@ function QueuedDocUpload({
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
-    const previewUrl = URL.createObjectURL(file);
+    const edited = await edit(file, { aspect: side === "selfie" ? "square" : "free" });
+    if (!edited) return;
+    const previewUrl = URL.createObjectURL(edited);
     setPreview(previewUrl);
-    onOriginal?.(side, file);
+    onOriginal?.(side, edited);
     try {
-      const compressed = await compressDocument(file);
+      const compressed = await compressDocument(edited);
       onQueued(side, compressed);
       setQueued(true);
     } catch {

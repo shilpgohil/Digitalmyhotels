@@ -1,5 +1,17 @@
 # Active Context — DigitalMyHotels
 
+## Current focus (2026-09-06 evening — Super Admin + Mode B picker)
+- Re-verified last batch: occupancy is booking-in-house (not room.status); stayover clean
+  stays Occupied; checkout clean still goes Available. Plans seed + logo cache-bust +
+  iPhone crop editor remain correct and are still uncommitted with this wave.
+- Mode B (advance booking → check-in) now uses DateTimePicker, not native TimeInput.
+- Super Admin: sidebar highlight uses `?filter=` so only one of Total/Active and
+  Recently Expired/Expired is gold. Active list excludes lapsed subscriptions.
+  Recently Expired = last 30 days; Expired Hotels = all expired. Lists show a
+  real error+retry instead of endless skeletons. Total Hotels adds plan/expiry/status.
+- Still open vs Figma: Add New Hotel wizard depth (logo/gallery/GST/draft), hotel
+  detail/View page, serif titles, notification bell, mobile admin drawer.
+
 ## Current focus (MASTER FIX PLAN COMPLETE + DEPLOYED, 2026-09-04 night)
 - ALL PHASES of memory-bank/MASTER_FIX_PLAN.md are done and LIVE in production (commits 9c4ca86 →
   2ae9ccf on master; Render deploy c166f66 confirmed live via API). See that file's Progress section

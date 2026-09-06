@@ -6,10 +6,16 @@ import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api/client";
-import type { HotelAdminListOut } from "@/types/money";
+import { fmtApiDate } from "@/lib/formatting";
+import type { HotelAdminListOut, HotelAdminOut } from "@/types/money";
 import { RenewDialog } from "@/components/admin/renew-dialog";
+import {
+  AdminListError,
+  AdminListLoading,
+  HotelStatusBadge,
+  hotelDisplayStatus,
+} from "@/components/admin/admin-list-state";
 
 const PAGE_SIZE = 10;
 
@@ -22,16 +28,15 @@ function HotelsContent() {
   const [search, setSearch] = useState(() => searchParams.get("q") ?? "");
   const [page, setPage] = useState(0);
   const filter = searchParams.get("filter");
+  const isTotal = filter === "all";
 
-  // The header search navigates to /admin/hotels?q=… — when this page is
-  // already mounted only the URL changes, so mirror the param into state.
   const qParam = searchParams.get("q") ?? "";
   useEffect(() => {
     setSearch(qParam);
     setPage(0);
   }, [qParam]);
 
-  const status = filter === "all" ? undefined : "active";
+  const status = isTotal ? undefined : "active";
 
   const hotels = useQuery({
     queryKey: ["admin-hotels-list", search, page, status],
@@ -44,6 +49,7 @@ function HotelsContent() {
       return apiFetch<HotelAdminListOut>(`/api/v1/super-admin/hotels?${params}`);
     },
     staleTime: 30_000,
+    retry: 1,
   });
 
   const statusMutation = useMutation({
@@ -61,7 +67,10 @@ function HotelsContent() {
 
   const total = hotels.data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
-  const pageTitle = filter === "all" ? t("totalHotelsNav") : t("activeHotelsNav");
+  const pageTitle = isTotal ? t("totalHotelsNav") : t("activeHotelsNav");
+  const columns = isTotal
+    ? [t("hotelName"), t("owner"), t("city"), t("contactNumber"), t("subscriptionPlan"), t("expiryDate"), "Status", tc("actions")]
+    : [t("hotelName"), t("owner"), t("city"), t("contactNumber"), tc("actions")];
 
   return (
     <main className="p-6 space-y-6">
@@ -71,10 +80,9 @@ function HotelsContent() {
       </div>
 
       <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-        {/* Table header with search */}
         <div className="flex items-center justify-between px-5 py-4 border-b gap-4">
           <h2 className="font-semibold text-foreground shrink-0">
-            {filter === "all" ? t("totalHotelsNav") : t("activeHotelsNav")} List
+            {isTotal ? t("totalHotelsList") : t("activeHotelsList")}
           </h2>
           <div className="relative max-w-xs w-full">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -91,16 +99,15 @@ function HotelsContent() {
           </div>
         </div>
 
-        {/* Table */}
-        {hotels.isLoading ? (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}
-          </div>
-        ) : (
+        {hotels.isLoading && <AdminListLoading />}
+        {hotels.isError && !hotels.isLoading && (
+          <AdminListError onRetry={() => hotels.refetch()} />
+        )}
+        {!hotels.isLoading && !hotels.isError && (
           <table className="w-full text-sm">
             <thead className="bg-muted/30">
               <tr>
-                {[t("hotelName"), t("owner"), t("city"), t("contactNumber"), tc("actions")].map((h) => (
+                {columns.map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
                     {h}
                   </th>
@@ -109,57 +116,19 @@ function HotelsContent() {
             </thead>
             <tbody>
               {(hotels.data?.items ?? []).map((h) => (
-                <tr key={h.id} className="border-t hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                        <span className="text-xs font-semibold">{h.name.slice(0, 1).toUpperCase()}</span>
-                      </div>
-                      <span className="font-medium">{h.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{h.owner_name ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{h.city ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground tabular-nums">{h.phone ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      {h.status !== "suspended" ? (
-                        <>
-                          <span className="inline-flex h-7 items-center rounded-lg bg-green-600 px-3 text-xs font-semibold text-white">
-                            Active
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => statusMutation.mutate({ id: h.id, next: "suspended" })}
-                            disabled={statusMutation.isPending}
-                            className="inline-flex h-7 items-center rounded-lg bg-red-500 px-3 text-xs font-semibold text-white hover:bg-red-600 transition-colors disabled:opacity-50"
-                          >
-                            {t("deactivate")}
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="inline-flex h-7 items-center rounded-lg bg-muted px-3 text-xs font-semibold text-muted-foreground">
-                            Inactive
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => statusMutation.mutate({ id: h.id, next: "active" })}
-                            disabled={statusMutation.isPending}
-                            className="inline-flex h-7 items-center rounded-lg bg-green-600 px-3 text-xs font-semibold text-white hover:bg-green-700 transition-colors disabled:opacity-50"
-                          >
-                            {t("activate")}
-                          </button>
-                        </>
-                      )}
-                      <RenewDialog hotel={h} />
-                    </div>
-                  </td>
-                </tr>
+                <HotelRow
+                  key={h.id}
+                  hotel={h}
+                  showMeta={isTotal}
+                  pending={statusMutation.isPending}
+                  onStatus={(next) => statusMutation.mutate({ id: h.id, next })}
+                  deactivateLabel={t("deactivate")}
+                  activateLabel={t("activate")}
+                />
               ))}
-              {(hotels.data?.items ?? []).length === 0 && !hotels.isLoading && (
+              {(hotels.data?.items ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={columns.length} className="px-4 py-10 text-center text-sm text-muted-foreground">
                     {t("noHotels")}
                   </td>
                 </tr>
@@ -168,69 +137,170 @@ function HotelsContent() {
           </table>
         )}
 
-        {/* Pagination */}
         {total > PAGE_SIZE && (
-          <div className="flex items-center justify-between px-5 py-3 border-t">
-            <span className="text-sm text-muted-foreground">
-              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} {tc("of")} {total}
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-                className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors"
-                aria-label={tc("previous")}
-              >
-                <ChevronLeft className="size-4" />
-              </button>
-              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                const pageNum = i;
-                return (
-                  <button
-                    key={pageNum}
-                    type="button"
-                    onClick={() => setPage(pageNum)}
-                    className={`flex size-8 items-center justify-center rounded-lg text-sm border transition-colors ${
-                      page === pageNum
-                        ? "bg-navy-900 text-white border-navy-900"
-                        : "border-border hover:bg-muted"
-                    }`}
-                  >
-                    {pageNum + 1}
-                  </button>
-                );
-              })}
-              {totalPages > 5 && (
-                <>
-                  <span className="px-1 text-muted-foreground">…</span>
-                  <button
-                    type="button"
-                    onClick={() => setPage(totalPages - 1)}
-                    className={`flex size-8 items-center justify-center rounded-lg text-sm border transition-colors ${
-                      page === totalPages - 1
-                        ? "bg-navy-900 text-white border-navy-900"
-                        : "border-border hover:bg-muted"
-                    }`}
-                  >
-                    {totalPages}
-                  </button>
-                </>
-              )}
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={page >= totalPages - 1}
-                className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors"
-                aria-label={tc("next")}
-              >
-                <ChevronRight className="size-4" />
-              </button>
-            </div>
-          </div>
+          <AdminPager
+            page={page}
+            total={total}
+            totalPages={totalPages}
+            pageSize={PAGE_SIZE}
+            onPage={setPage}
+          />
         )}
       </div>
     </main>
+  );
+}
+
+function HotelRow({
+  hotel,
+  showMeta,
+  pending,
+  onStatus,
+  deactivateLabel,
+  activateLabel,
+}: {
+  readonly hotel: HotelAdminOut;
+  readonly showMeta: boolean;
+  readonly pending: boolean;
+  readonly onStatus: (next: string) => void;
+  readonly deactivateLabel: string;
+  readonly activateLabel: string;
+}) {
+  const kind = hotelDisplayStatus(hotel);
+  return (
+    <tr className="border-t hover:bg-muted/20 transition-colors">
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+            <span className="text-xs font-semibold">{hotel.name.slice(0, 1).toUpperCase()}</span>
+          </div>
+          <span className="font-medium">{hotel.name}</span>
+        </div>
+      </td>
+      <td className="px-4 py-3 text-muted-foreground">{hotel.owner_name ?? "—"}</td>
+      <td className="px-4 py-3 text-muted-foreground">{hotel.city ?? "—"}</td>
+      <td className="px-4 py-3 text-muted-foreground tabular-nums">{hotel.phone ?? "—"}</td>
+      {showMeta && (
+        <>
+          <td className="px-4 py-3 text-muted-foreground">{hotel.subscription_plan_name ?? "—"}</td>
+          <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+            {hotel.expiry_date ? fmtApiDate(hotel.expiry_date) : "—"}
+          </td>
+          <td className="px-4 py-3">
+            <HotelStatusBadge hotel={hotel} />
+          </td>
+        </>
+      )}
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          {kind === "suspended" && (
+            <>
+              {!showMeta && <HotelStatusBadge hotel={hotel} />}
+              <button
+                type="button"
+                onClick={() => onStatus("active")}
+                disabled={pending}
+                className="inline-flex h-7 items-center rounded-lg bg-green-600 px-3 text-xs font-semibold text-white hover:bg-green-700 transition-colors disabled:opacity-50"
+              >
+                {activateLabel}
+              </button>
+            </>
+          )}
+          {kind === "expired" && <RenewDialog hotel={hotel} />}
+          {(kind === "active" || kind === "trial") && (
+            <>
+              {!showMeta && (
+                <span className="inline-flex h-7 items-center rounded-lg bg-[#a08236] px-3 text-xs font-semibold text-white">
+                  Active
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => onStatus("suspended")}
+                disabled={pending}
+                className="inline-flex h-7 items-center rounded-lg bg-red-500 px-3 text-xs font-semibold text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                {deactivateLabel}
+              </button>
+              <RenewDialog hotel={hotel} />
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function AdminPager({
+  page,
+  total,
+  totalPages,
+  pageSize,
+  onPage,
+}: {
+  readonly page: number;
+  readonly total: number;
+  readonly totalPages: number;
+  readonly pageSize: number;
+  readonly onPage: (fn: (p: number) => number) => void;
+}) {
+  const tc = useTranslations("common");
+  return (
+    <div className="flex items-center justify-between px-5 py-3 border-t">
+      <span className="text-sm text-muted-foreground">
+        {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} {tc("of")} {total}
+      </span>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onPage((p) => Math.max(0, p - 1))}
+          disabled={page === 0}
+          className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors"
+          aria-label={tc("previous")}
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => onPage(() => i)}
+            className={`flex size-8 items-center justify-center rounded-lg text-sm border transition-colors ${
+              page === i
+                ? "bg-navy-900 text-white border-navy-900"
+                : "border-border hover:bg-muted"
+            }`}
+          >
+            {i + 1}
+          </button>
+        ))}
+        {totalPages > 5 && (
+          <>
+            <span className="px-1 text-muted-foreground">…</span>
+            <button
+              type="button"
+              onClick={() => onPage(() => totalPages - 1)}
+              className={`flex size-8 items-center justify-center rounded-lg text-sm border transition-colors ${
+                page === totalPages - 1
+                  ? "bg-navy-900 text-white border-navy-900"
+                  : "border-border hover:bg-muted"
+              }`}
+            >
+              {totalPages}
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={() => onPage((p) => Math.min(totalPages - 1, p + 1))}
+          disabled={page >= totalPages - 1}
+          className="flex size-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors"
+          aria-label={tc("next")}
+        >
+          <ChevronRight className="size-4" />
+        </button>
+      </div>
+    </div>
   );
 }
 

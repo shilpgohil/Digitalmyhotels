@@ -1,12 +1,13 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api/client";
+import { AdminListError, AdminListLoading } from "@/components/admin/admin-list-state";
 import { fmtDate } from "@/lib/formatting";
 import type { HotelAdminListOut } from "@/types/money";
 
@@ -30,6 +31,7 @@ function RegistrationsContent() {
       return apiFetch<HotelAdminListOut>(`/api/v1/super-admin/hotels?${params}`);
     },
     staleTime: 30_000,
+    retry: 1,
   });
 
   const approveMutation = useMutation({
@@ -70,11 +72,11 @@ function RegistrationsContent() {
           </div>
         </div>
 
-        {hotels.isLoading ? (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}
-          </div>
-        ) : (
+        {hotels.isLoading && <AdminListLoading />}
+        {hotels.isError && !hotels.isLoading && (
+          <AdminListError onRetry={() => hotels.refetch()} />
+        )}
+        {!hotels.isLoading && !hotels.isError && (
           <table className="w-full text-sm">
             <thead className="bg-muted/30">
               <tr>
@@ -116,7 +118,12 @@ function RegistrationsContent() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-gold-600">{t("view")}</span>
+                      <Link
+                        href={`/admin/hotels?filter=all&q=${encodeURIComponent(h.name)}`}
+                        className="text-xs font-medium text-gold-600 hover:underline"
+                      >
+                        {t("view")}
+                      </Link>
                       {h.status !== "active" && (
                         <button
                           type="button"

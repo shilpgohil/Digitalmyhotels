@@ -19,6 +19,11 @@ class TestCoreLifecycle:
         assert can_transition(RoomStatus.CLEANING_IN_PROGRESS, RoomStatus.CLEAN_READY)
         assert can_transition(RoomStatus.CLEAN_READY, RoomStatus.AVAILABLE)
 
+    def test_stayover_clean_can_return_to_occupied(self) -> None:
+        assert can_transition(RoomStatus.CLEANING_REQUIRED, RoomStatus.OCCUPIED)
+        assert can_transition(RoomStatus.CLEANING_IN_PROGRESS, RoomStatus.OCCUPIED)
+        assert can_transition(RoomStatus.CLEAN_READY, RoomStatus.OCCUPIED)
+
     def test_occupied_room_cannot_jump_to_available(self) -> None:
         assert not can_transition(RoomStatus.OCCUPIED, RoomStatus.AVAILABLE)
         with pytest.raises(ConflictError):
