@@ -5,6 +5,20 @@ import { useTranslations } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+  CartesianGrid,
+} from "recharts";
+import {
   LayoutGrid,
   CheckCircle,
   Calendar,
@@ -16,10 +30,19 @@ import {
   RefreshCw,
   FileBarChart2,
   Settings,
+  TrendingUp,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { fmtApiDate, fmtDate, fmtINR } from "@/lib/formatting";
+
+interface PlatformTrendItem {
+  month: string;
+  hotels_added: number;
+  revenue: string;
+  checkins: number;
+}
+interface PlatformTrendOut { items: PlatformTrendItem[] }
 import type {
   HotelAdminListOut,
   PlatformDashboardOut,
@@ -60,7 +83,15 @@ export default function AdminDashboardPage() {
   const dash = useQuery({
     queryKey: ["platform-dashboard"],
     queryFn: () => apiFetch<PlatformDashboardOut>("/api/v1/super-admin/dashboard"),
+    refetchInterval: 60_000,
   });
+
+  const platformTrend = useQuery({
+    queryKey: ["platform-trend"],
+    queryFn: () => apiFetch<PlatformTrendOut>("/api/v1/super-admin/dashboard/trend?months=6"),
+    staleTime: 5 * 60_000,
+  });
+
   const expired = useQuery({
     queryKey: ["admin-hotels", "expired"],
     queryFn: () =>
@@ -167,6 +198,92 @@ export default function AdminDashboardPage() {
           })}
         </div>
       )}
+
+      {/* ── Platform Trend Charts ─────────────────────────────────────────── */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Hotel Status Donut */}
+        {dash.data && (
+          <div className="rounded-xl border bg-white p-5 shadow-sm">
+            <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
+              <LayoutGrid className="size-4 text-amber-500" aria-hidden />
+              {t("hotelStatusDistribution")}
+            </h2>
+            <div className="flex items-center gap-4">
+              <ResponsiveContainer width={170} height={170}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: t("activeHotels"), value: dash.data.active_hotels, fill: "#166534" },
+                      { name: t("trialHotels"), value: dash.data.trial_hotels, fill: "#a08236" },
+                      { name: t("expiredHotels"), value: dash.data.expired_hotels, fill: "#991b1b" },
+                      { name: t("suspendedHotels"), value: dash.data.inactive_hotels, fill: "#475569" },
+                    ].filter((d) => d.value > 0)}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={48}
+                    outerRadius={78}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {[
+                      { name: t("activeHotels"), value: dash.data.active_hotels, fill: "#166534" },
+                      { name: t("trialHotels"), value: dash.data.trial_hotels, fill: "#a08236" },
+                      { name: t("expiredHotels"), value: dash.data.expired_hotels, fill: "#991b1b" },
+                      { name: t("suspendedHotels"), value: dash.data.inactive_hotels, fill: "#475569" },
+                    ].filter((d) => d.value > 0).map((entry, idx) => (
+                      <Cell key={idx} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <ul className="flex-1 space-y-2 text-xs">
+                {[
+                  { label: t("activeHotels"), count: dash.data.active_hotels, color: "#166534" },
+                  { label: t("trialHotels"), count: dash.data.trial_hotels, color: "#a08236" },
+                  { label: t("expiredHotels"), count: dash.data.expired_hotels, color: "#991b1b" },
+                  { label: t("suspendedHotels"), count: dash.data.inactive_hotels, color: "#475569" },
+                ].map((row) => (
+                  <li key={row.label} className="flex items-center gap-2">
+                    <span className="size-2.5 shrink-0 rounded-full" style={{ background: row.color }} />
+                    <span className="text-muted-foreground">{row.label}</span>
+                    <span className="ml-auto font-semibold tabular-nums">{row.count}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+        {dash.isLoading && <Skeleton className="h-48 rounded-xl" />}
+
+        {/* Monthly Hotel Growth + Check-ins Line Chart */}
+        <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
+            <TrendingUp className="size-4 text-amber-500" aria-hidden />
+            {t("monthlyGrowth")}
+          </h2>
+          {platformTrend.isLoading && <Skeleton className="h-40 w-full" />}
+          {platformTrend.data && (
+            <ResponsiveContainer width="100%" height={170}>
+              <BarChart
+                data={platformTrend.data.items.map((d) => ({
+                  month: d.month.slice(5),   // "MM"
+                  hotels: d.hotels_added,
+                  checkins: d.checkins,
+                }))}
+                margin={{ top: 0, right: 4, left: -8, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <Bar dataKey="hotels" name={t("hotelsAdded")} fill="#a08236" radius={[3, 3, 0, 0]} maxBarSize={24} />
+                <Bar dataKey="checkins" name={t("todayCheckins")} fill="#1e3a5f" radius={[3, 3, 0, 0]} maxBarSize={24} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
 
       {/* Pending subscription renewal requests (partner paid → verify & approve) */}
       <section className="rounded-xl border bg-white shadow-sm overflow-hidden">

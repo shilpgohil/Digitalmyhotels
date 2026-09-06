@@ -16,12 +16,18 @@ from app.models.invoice import Invoice
 from app.models.payment import HotelCharge, Payment, Refund
 from app.models.room import Room, RoomType
 from app.schemas.ops import (
+    ArrivalsItem,
+    ArrivalsOut,
+    DailyTrendItem,
+    DailyTrendOut,
     ExpenseReportOut,
     GstBookingRowOut,
     GstByBookingOut,
     GstReportOut,
+    MonthlyTrendItem,
     OccupancyReportOut,
     PaymentMethodReportOut,
+    PlatformTrendOut,
     RestaurantBillingOut,
     RestaurantBillingRowOut,
     RevenueReportOut,
@@ -447,3 +453,250 @@ async def gst_summary(
         igst=money(row[3]),
         invoice_count=int(row[4] or 0),
     )
+
+
+# ── Dashboard trend endpoints ────────────────────────────────────────────────
+
+async def daily_revenue_trend(
+    db: AsyncSession,
+    tenant: TenantContext,
+    *,
+    days: int = 14,
+) -> DailyTrendOut:
+    """Per-day revenue + check-in/out counts for the past N days (hotel tz).
+
+    Uses a LEFT JOIN against a generated series so every day in the window
+    appears — even days with zero activity.
+    """
+    from datetime import UTC, datetime
+    from zoneinfo import ZoneInfo
+
+    from app.models.booking import CheckIn, CheckOut
+
+    hotel_id = tenant.require_hotel()
+    days = max(1, min(days, 60))
+
+    # Determine hotel timezone for date grouping.
+    from app.models.hotel import Hotel
+    hotel_tz_str: str = (
+        await db.scalar(select(Hotel.timezone).where(Hotel.id == hotel_id))
+    ) or "Asia/Kolkata"
+    try:
+        tz = ZoneInfo(hotel_tz_str)
+    except (KeyError, ValueError):
+        tz = ZoneInfo("Asia/Kolkata")
+
+    # Window: today inclusive back N−1 days.
+    today_local = datetime.now(tz).date()
+    window_start = today_local - timedelta(days=days - 1)
+
+    # Revenue per local day.
+    rev_rows = (
+        await db.execute(
+            select(
+                func.date(func.timezone(hotel_tz_str, Payment.paid_at)).label("d"),
+                func.coalesce(func.sum(Payment.amount), 0).label("rev"),
+            ).where(
+                Payment.hotel_id == hotel_id,
+                Payment.status == "completed",
+                func.date(func.timezone(hotel_tz_str, Payment.paid_at)) >= window_start,
+            ).group_by("d")
+        )
+    ).all()
+    rev_by_date: dict[date, Decimal] = {r.d: money(r.rev) for r in rev_rows}
+
+    # Check-ins per local day.
+    ci_rows = (
+        await db.execute(
+            select(
+                func.date(func.timezone(hotel_tz_str, CheckIn.checked_in_at)).label("d"),
+                func.count().label("cnt"),
+            ).where(
+                CheckIn.hotel_id == hotel_id,
+                func.date(func.timezone(hotel_tz_str, CheckIn.checked_in_at)) >= window_start,
+            ).group_by("d")
+        )
+    ).all()
+    ci_by_date: dict[date, int] = {r.d: int(r.cnt) for r in ci_rows}
+
+    # Check-outs per local day.
+    co_rows = (
+        await db.execute(
+            select(
+                func.date(func.timezone(hotel_tz_str, CheckOut.checked_out_at)).label("d"),
+                func.count().label("cnt"),
+            ).where(
+                CheckOut.hotel_id == hotel_id,
+                func.date(func.timezone(hotel_tz_str, CheckOut.checked_out_at)) >= window_start,
+            ).group_by("d")
+        )
+    ).all()
+    co_by_date: dict[date, int] = {r.d: int(r.cnt) for r in co_rows}
+
+    items: list[DailyTrendItem] = []
+    for i in range(days):
+        d = window_start + timedelta(days=i)
+        items.append(
+            DailyTrendItem(
+                date=d,
+                revenue=rev_by_date.get(d, Decimal("0.00")),
+                checkins=ci_by_date.get(d, 0),
+                checkouts=co_by_date.get(d, 0),
+            )
+        )
+    return DailyTrendOut(
+        items=items,
+        total_revenue=money(sum(it.revenue for it in items)),
+        total_checkins=sum(it.checkins for it in items),
+        total_checkouts=sum(it.checkouts for it in items),
+    )
+
+
+async def arrivals_today(
+    db: AsyncSession,
+    tenant: TenantContext,
+) -> ArrivalsOut:
+    """Confirmed bookings with check_in_date = today (hotel tz), not yet checked in."""
+    from datetime import UTC, datetime
+    from zoneinfo import ZoneInfo
+
+    hotel_id = tenant.require_hotel()
+    from app.models.hotel import Hotel
+
+    hotel_tz_str = (
+        await db.scalar(select(Hotel.timezone).where(Hotel.id == hotel_id))
+    ) or "Asia/Kolkata"
+    try:
+        tz = ZoneInfo(hotel_tz_str)
+    except (KeyError, ValueError):
+        tz = ZoneInfo("Asia/Kolkata")
+    today_local = datetime.now(tz).date()
+
+    rows = (
+        await db.execute(
+            select(Booking)
+            .where(
+                Booking.hotel_id == hotel_id,
+                Booking.status == "confirmed",
+                Booking.check_in_date == today_local,
+            )
+            .order_by(Booking.check_in_time.asc().nulls_last())
+            .limit(20)
+        )
+    ).scalars().all()
+
+    # Batch rooms.
+    booking_ids = [b.id for b in rows]
+    room_rows: list = []
+    if booking_ids:
+        from app.models.room import Room
+
+        room_rows = (
+            await db.execute(
+                select(BookingRoom.booking_id, Room.room_number)
+                .join(Room, Room.id == BookingRoom.room_id)
+                .where(
+                    BookingRoom.booking_id.in_(booking_ids),
+                    BookingRoom.is_current.is_(True),
+                )
+            )
+        ).all()  # type: ignore[assignment]
+    rooms_by_booking: dict = {}
+    for bk_id, rnum in room_rows:
+        rooms_by_booking.setdefault(bk_id, []).append(rnum)
+
+    # Batch guests.
+    guest_ids = {b.primary_guest_id for b in rows if b.primary_guest_id}
+    guests: dict = {}
+    if guest_ids:
+        guests = {
+            g.id: g.full_name
+            for g in (
+                await db.execute(select(Guest).where(Guest.id.in_(guest_ids)))
+            ).scalars().all()
+        }
+
+    items: list[ArrivalsItem] = [
+        ArrivalsItem(
+            booking_id=str(b.id),
+            booking_number=b.booking_number,
+            guest_name=guests.get(b.primary_guest_id, "—") if b.primary_guest_id else "—",
+            rooms=rooms_by_booking.get(b.id, []),
+            check_in_time=b.check_in_time,
+            advance_paid=b.advance_amount,
+            due_amount=b.due_amount,
+        )
+        for b in rows
+    ]
+    return ArrivalsOut(items=items, total=len(items))
+
+
+async def platform_monthly_trend(
+    db: AsyncSession,
+    *,
+    months: int = 6,
+) -> PlatformTrendOut:
+    """Per-month hotel additions + check-ins + revenue for the super-admin dashboard.
+
+    No tenant context — this is a platform-wide aggregate.
+    """
+    from app.models.booking import CheckIn
+    from app.models.hotel import Hotel
+    from app.models.payment import Payment
+
+    months = max(1, min(months, 24))
+
+    # First day of the window (months ago).
+    from datetime import date as _date, datetime
+
+    now = datetime.now()
+    # Build the months list (YYYY-MM strings, newest last).
+    items: list[MonthlyTrendItem] = []
+    for i in range(months - 1, -1, -1):
+        # Month N months before current.
+        y = now.year
+        m = now.month - i
+        while m <= 0:
+            m += 12
+            y -= 1
+        month_str = f"{y:04d}-{m:02d}"
+        month_start = _date(y, m, 1)
+        import calendar
+
+        month_end = _date(y, m, calendar.monthrange(y, m)[1])
+
+        # Hotels created in this month.
+        hotels_added = int(
+            await db.scalar(
+                select(func.count()).select_from(Hotel).where(
+                    func.date(Hotel.created_at) >= month_start,
+                    func.date(Hotel.created_at) <= month_end,
+                )
+            )
+            or 0
+        )
+        # Revenue across all hotels in this month.
+        rev = money(
+            await db.scalar(
+                select(func.coalesce(func.sum(Payment.amount), 0)).where(
+                    Payment.status == "completed",
+                    func.date(Payment.paid_at) >= month_start,
+                    func.date(Payment.paid_at) <= month_end,
+                )
+            )
+            or 0
+        )
+        # Check-ins across all hotels.
+        ci = int(
+            await db.scalar(
+                select(func.count()).select_from(CheckIn).where(
+                    func.date(CheckIn.checked_in_at) >= month_start,
+                    func.date(CheckIn.checked_in_at) <= month_end,
+                )
+            )
+            or 0
+        )
+        items.append(
+            MonthlyTrendItem(month=month_str, hotels_added=hotels_added, revenue=rev, checkins=ci)
+        )
+    return PlatformTrendOut(items=items)

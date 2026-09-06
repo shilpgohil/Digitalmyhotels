@@ -1,5 +1,20 @@
 # Active Context — DigitalMyHotels
 
+## Current Guests 422 root cause (2026-09-06 late night) — FIXED 3305ac4 (live)
+- SYMPTOM: Current Guests showed "Something went wrong Retry" persistently.
+- FALSE LEADS: migration window, missing booking columns — production Neon was
+  verified healthy (alembic head e3f5a2c1b8d9, columns exist, service function
+  runs clean against prod data for all 3 hotels).
+- REAL CAUSE: commit 7400467 changed the page to fetch ?limit=200, but the
+  route validated Query(le=100) → permanent 422 on every request. The page's
+  error state hid the message behind a generic "Something went wrong".
+- FIX: checkins.py le=100→200 (matches rooms endpoint); error state now shows
+  the real ApiError message. VERIFIED live: limit=200 returns 401 (auth), not 422.
+- LESSON: when the frontend fetches with an explicit limit, check the route's
+  le= cap. Error states must surface ApiError.message, never only tc("error").
+- Diagnostic tooling: Render API key + Neon URL are in backend/scripts/_render_*.py;
+  deploys can be checked via api.render.com /services/srv-dabgrve10ojc73a9uj8g/deploys.
+
 ## Current focus (2026-09-06 night — remaining items + notifications) — COMMITTED 9d25bf9
 
 Commit 9d25bf9 (pushed):

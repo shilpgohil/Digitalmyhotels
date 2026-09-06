@@ -10,6 +10,8 @@ from app.core.permissions import Permission
 from app.core.tenant import TenantContext
 from app.db.session import get_db
 from app.schemas.ops import (
+    ArrivalsOut,
+    DailyTrendOut,
     ExpenseReportOut,
     GstByBookingOut,
     GstReportOut,
@@ -103,3 +105,25 @@ async def room_utilization(
     db: AsyncSession = Depends(get_db),
 ) -> RoomUtilizationOut:
     return await reports_service.room_utilization(db, tenant, from_date, to_date)
+
+
+# ── Dashboard trend endpoints ─────────────────────────────────────────────────
+
+
+@router.get("/revenue/trend", response_model=DailyTrendOut)
+async def revenue_trend(
+    days: int = Query(default=14, ge=1, le=60),
+    tenant: TenantContext = Depends(require_permissions(Permission.REPORTS_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> DailyTrendOut:
+    """Per-day revenue + check-in/out counts for the hotel dashboard trend chart."""
+    return await reports_service.daily_revenue_trend(db, tenant, days=days)
+
+
+@router.get("/arrivals-today", response_model=ArrivalsOut)
+async def arrivals_today(
+    tenant: TenantContext = Depends(require_permissions(Permission.BOOKINGS_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> ArrivalsOut:
+    """Confirmed bookings arriving today (not yet checked in)."""
+    return await reports_service.arrivals_today(db, tenant)

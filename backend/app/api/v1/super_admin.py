@@ -9,6 +9,7 @@ from app.api.deps import require_super_admin
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.hotel import HotelOut
+from app.schemas.ops import PlatformTrendOut
 from app.schemas.platform import (
     CreateHotelRequest,
     HotelAdminListOut,
@@ -20,6 +21,7 @@ from app.schemas.platform import (
     SubscriptionPlanCreate,
     SubscriptionPlanOut,
 )
+from app.services import reports as reports_service
 from app.services import subscriptions as sub_service
 from app.services import super_admin as admin_service
 from app.services.audit import write_audit
@@ -38,6 +40,16 @@ async def platform_dashboard(
     db: AsyncSession = Depends(get_db),
 ) -> PlatformDashboardOut:
     return await admin_service.dashboard(db)
+
+
+@router.get("/dashboard/trend", response_model=PlatformTrendOut)
+async def platform_trend(
+    months: int = Query(default=6, ge=1, le=24),
+    _user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> PlatformTrendOut:
+    """Monthly hotel growth + revenue + check-ins for the super-admin dashboard chart."""
+    return await reports_service.platform_monthly_trend(db, months=months)
 
 
 @router.get("/hotels", response_model=HotelAdminListOut)

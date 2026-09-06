@@ -120,6 +120,48 @@ class OccupancyReportOut(BaseModel):
     occupancy_percent: Decimal
 
 
+class DailyTrendItem(BaseModel):
+    """One day's revenue + activity — used on the hotel dashboard."""
+    date: date
+    revenue: Decimal
+    checkins: int
+    checkouts: int
+
+
+class DailyTrendOut(BaseModel):
+    items: list[DailyTrendItem]
+    total_revenue: Decimal
+    total_checkins: int
+    total_checkouts: int
+
+
+class MonthlyTrendItem(BaseModel):
+    """One month's platform stats — used on the super-admin dashboard."""
+    month: str           # "YYYY-MM"
+    hotels_added: int
+    revenue: Decimal
+    checkins: int
+
+
+class PlatformTrendOut(BaseModel):
+    items: list[MonthlyTrendItem]
+
+
+class ArrivalsItem(BaseModel):
+    booking_id: str
+    booking_number: str
+    guest_name: str
+    rooms: list[str]
+    check_in_time: str | None
+    advance_paid: Decimal
+    due_amount: Decimal
+
+
+class ArrivalsOut(BaseModel):
+    items: list[ArrivalsItem]
+    total: int
+
+
 class RevenueReportOut(BaseModel):
     from_date: date
     to_date: date
