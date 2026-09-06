@@ -208,16 +208,29 @@ function PaymentBar({ label, amount, pct, color }: { label: string; amount: numb
 }
 
 // ── Custom tooltips ────────────────────────────────────────────────────────────
-function RevTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
+function RevTooltip({ active, payload, label }: {
+  active?: boolean;
+  payload?: { name: string; value: number | undefined; color: string }[];
+  label?: string;
+}) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border bg-white px-3 py-2 text-xs shadow-md">
       <p className="mb-1 font-semibold">{label}</p>
-      {payload.map((p) => (
-        <p key={p.name} style={{ color: p.color }}>
-          {p.name === "revenue" ? fmtINR(p.value) : p.name === "occupancy_pct" ? `${p.value.toFixed(0)}% occ` : `${p.value} guests`}
-        </p>
-      ))}
+      {payload.map((entry) => {
+        const v = entry.value ?? 0;
+        const text =
+          entry.name === "revenue"
+            ? fmtINR(v)
+            : entry.name === "occupancy_pct"
+              ? `${v.toFixed(0)}% occupied`
+              : `${v} check-ins`;
+        return (
+          <p key={entry.name} style={{ color: entry.color }}>
+            {text}
+          </p>
+        );
+      })}
     </div>
   );
 }
@@ -303,17 +316,10 @@ export default function DashboardPage() {
     return d.guest_mix.filter((g) => g.count > 0);
   }, [d]);
 
-  if (!d && !dash.isLoading) {
-    // No REPORTS_VIEW permission — show basic layout
-    return (
-      <>
-        <PartnerHeader title={tn("dashboard")} subtitle={tn("frontDesk")} />
-        <main className="flex-1 overflow-y-auto p-6">
-          <p className="text-sm text-muted-foreground">{tc("unauthorized")}</p>
-        </main>
-      </>
-    );
-  }
+  // When dashboard data isn't available (loading or no REPORTS_VIEW permission),
+  // we still render the page — sections are individually guarded and show
+  // skeletons while loading, or are hidden when permissions are absent.
+  // Do NOT return early with an error message here.
 
   return (
     <>

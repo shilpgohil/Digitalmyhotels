@@ -855,7 +855,11 @@ async def smart_dashboard(
     for i in range(30):
         d = window_start + timedelta(days=i)
         occ = occ_by_date.get(d, 0)
-        occ_pct = money(Decimal(occ) * 100 / Decimal(total_rooms) if total_rooms else Decimal("0"))
+        # Cap at 100 — occ_by_date sums Booking.room_count which in rare
+        # edge-cases can exceed total_rooms (e.g. mid-day overlaps or data
+        # corrections). A chart > 100% is misleading.
+        raw_pct = Decimal(occ) * 100 / Decimal(total_rooms) if total_rooms else Decimal("0")
+        occ_pct = money(min(raw_pct, Decimal("100")))
         trend_30d.append(TrendPoint30(
             date=d,
             revenue=rev_by_date.get(d, Decimal("0")),
@@ -866,25 +870,37 @@ async def smart_dashboard(
 
     # ── KPIs: 30-day window ─────────────────────────────────────────────────
     total_rev_30 = money(sum(it.revenue for it in trend_30d))
-    total_ci_30 = sum(it.checkins for it in trend_30d)
 
-    # ADR: total room revenue / occupied room-nights in window
+    # ADR (Average Daily Rate) = billed revenue / room-nights occupied.
+    # We use Booking.total_amount (billed, not collected) so the rate reflects
+    # what guests were charged per room-night — consistent with industry ADR.
+    # Room-nights = Booking.room_count × nights within window (not just room_count).
+    total_billed_30 = money(sum(
+        b.total_amount
+        for b in bookings_in_window
+        if b.check_out_date > b.check_in_date
+    ))
     total_occ_nights = sum(
         max(b.room_count, 1) * max((
             min(b.check_out_date, today) - max(b.check_in_date, window_start)
         ).days, 0)
         for b in bookings_in_window
     )
-    adr = money(total_rev_30 / Decimal(total_occ_nights) if total_occ_nights else Decimal("0"))
+    adr = money(total_billed_30 / Decimal(total_occ_nights) if total_occ_nights else Decimal("0"))
 
     # RevPAR: revenue / (total_rooms × 30 days)
     revpar = money(total_rev_30 / Decimal(total_rooms * 30) if total_rooms else Decimal("0"))
 
-    # ALOS: average length of stay for checked-out bookings this window
+    # ALOS: average length of stay for checked-out bookings this window.
+    # BUG-FIX: EXTRACT(day FROM AGE(date, date)) extracts only the "day"
+    # component of a year-month-day interval, which is 0 for stays that span
+    # a full calendar month (e.g. Jan 15 → Mar 15 = "2 mons 0 days" → day=0).
+    # Correct approach: subtract the two DATE values directly — PostgreSQL
+    # returns an INTEGER (total calendar days) when subtracting dates.
     alos_rows = (await db.execute(
         select(
             func.avg(
-                func.extract("day", func.age(Booking.check_out_date, Booking.check_in_date))
+                Booking.check_out_date - Booking.check_in_date
             ).label("alos")
         ).where(
             Booking.hotel_id == hotel_id,
@@ -894,11 +910,12 @@ async def smart_dashboard(
     )).scalar_one()
     alos = money(Decimal(str(alos_rows or "0")))
 
-    # Average booking lead time (days between booking creation and check-in)
+    # Average booking lead time (days between booking creation and check-in).
+    # Same fix: use date subtraction, not EXTRACT(day FROM AGE(...)).
     lead_rows = (await db.execute(
         select(
             func.avg(
-                func.extract("day", func.age(Booking.check_in_date, func.date(Booking.created_at)))
+                Booking.check_in_date - func.date(Booking.created_at)
             ).label("lead")
         ).where(
             Booking.hotel_id == hotel_id,
@@ -928,7 +945,8 @@ async def smart_dashboard(
         if confirmed_plus_ns else Decimal("0")
     )
 
-    # WoW: prior 30-day window revenue
+    # WoW: prior 30-day window revenue for RevPAR comparison.
+    # prior_occ_nights_q removed — was computed but never used.
     prior_rev = money(await db.scalar(
         select(func.coalesce(func.sum(Payment.amount), 0)).where(
             Payment.hotel_id == hotel_id,
@@ -937,14 +955,6 @@ async def smart_dashboard(
             local_date(Payment.paid_at) < window_start,
         )
     ) or 0)
-    prior_occ_nights_q = (await db.execute(
-        select(func.coalesce(func.sum(Booking.room_count), 0)).where(
-            Booking.hotel_id == hotel_id,
-            Booking.status.in_(("confirmed", "checked_in", "checked_out")),
-            Booking.check_in_date >= prev_window_start,
-            Booking.check_out_date <= window_start,
-        )
-    )).scalar_one() or 0
     prior_revpar = money(
         Decimal(str(prior_rev)) / Decimal(total_rooms * 30) if total_rooms else Decimal("0")
     )
@@ -966,6 +976,9 @@ async def smart_dashboard(
     )
 
     # ── Guest mix (30 days) ─────────────────────────────────────────────────
+    # BUG-FIX: include only checked_in and checked_out bookings (actual guests
+    # who stayed or are staying). Including "confirmed" future bookings inflates
+    # the counts and skews the mix chart with guests who haven't arrived yet.
     mix_rows = (await db.execute(
         select(
             func.coalesce(Booking.guest_type, "Other").label("gt"),
@@ -973,7 +986,7 @@ async def smart_dashboard(
             func.coalesce(func.sum(Booking.total_amount), 0).label("rev"),
         ).where(
             Booking.hotel_id == hotel_id,
-            Booking.status.in_(("checked_in", "checked_out", "confirmed")),
+            Booking.status.in_(("checked_in", "checked_out")),
             Booking.check_in_date >= window_start,
         ).group_by("gt").order_by(func.count().desc())
     )).all()
@@ -983,12 +996,19 @@ async def smart_dashboard(
     ]
 
     # ── Room-type revenue (30 days) ─────────────────────────────────────────
+    # BUG-FIX: room_nights must be room_count × stay_length, not just SUM(room_count).
+    # A 2-room 3-night booking contributes 6 room-nights, not 2.
+    # PostgreSQL: DATE - DATE returns INTEGER (days), so room_count * (checkout - checkin)
+    # gives the correct room-night count per booking.
     rt_rows = (await db.execute(
         select(
             RoomType.name.label("rt_name"),
             func.coalesce(func.sum(Booking.total_amount), 0).label("rev"),
-            func.count(Booking.id.distinct()).label("bookings"),
-            func.coalesce(func.sum(Booking.room_count), 0).label("room_nights"),
+            func.coalesce(
+                func.sum(
+                    Booking.room_count * (Booking.check_out_date - Booking.check_in_date)
+                ), 0
+            ).label("room_nights"),
         )
         .join(BookingRoom, BookingRoom.booking_id == Booking.id)
         .join(RoomType, RoomType.id == BookingRoom.room_type_id)
@@ -1002,8 +1022,12 @@ async def smart_dashboard(
         RoomTypeRevenue(
             room_type=r.rt_name,
             revenue=money(r.rev),
-            room_nights=int(r.room_nights),
-            adr=money(Decimal(str(r.rev)) / Decimal(str(r.room_nights)) if r.room_nights else Decimal("0")),
+            room_nights=max(int(r.room_nights), 0),
+            adr=money(
+                Decimal(str(r.rev)) / Decimal(str(r.room_nights))
+                if r.room_nights and int(r.room_nights) > 0
+                else Decimal("0")
+            ),
         )
         for r in rt_rows
     ]
