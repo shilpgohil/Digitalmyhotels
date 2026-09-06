@@ -35,6 +35,20 @@ async def payment_summary(
 
     hotel_id = tenant.require_hotel()
 
+    # Use the hotel's local timezone for date comparisons so "today" on the
+    # dashboard means today in India, not today in UTC.  Without this,
+    # payments made before 05:30 IST (midnight UTC) are attributed to the
+    # previous UTC day, causing the "today" filter to miss them.
+    from app.models.hotel import Hotel
+
+    hotel_tz = (
+        await db.scalar(select(Hotel.timezone).where(Hotel.id == hotel_id))
+    ) or "Asia/Kolkata"
+
+    def _local_date(col):  # type: ignore[no-untyped-def]
+        """Extract the date in the hotel's local timezone from a timestamptz column."""
+        return func.date(func.timezone(hotel_tz, col))
+
     # Single query: all payment sums in one pass using conditional aggregation.
     pay_stmt = select(
         func.coalesce(func.sum(Payment.amount), 0).label("total"),
@@ -45,23 +59,28 @@ async def payment_summary(
             func.sum(case((Payment.method == "upi", Payment.amount), else_=0)), 0
         ).label("upi"),
         func.coalesce(
+            func.sum(case(
+                (Payment.method.notin_(["cash", "upi"]), Payment.amount), else_=0
+            )), 0
+        ).label("other"),
+        func.coalesce(
             func.sum(case((Payment.purpose == "deposit", Payment.amount), else_=0)), 0
         ).label("deposits"),
     ).where(Payment.hotel_id == hotel_id, Payment.status == "completed")
     if from_date:
-        pay_stmt = pay_stmt.where(func.date(Payment.paid_at) >= from_date)
+        pay_stmt = pay_stmt.where(_local_date(Payment.paid_at) >= from_date)
     if to_date:
-        pay_stmt = pay_stmt.where(func.date(Payment.paid_at) <= to_date)
+        pay_stmt = pay_stmt.where(_local_date(Payment.paid_at) <= to_date)
     pay_row = (await db.execute(pay_stmt)).one()
 
-    # Refunds in one query.
+    # Refunds in one query — also use hotel-local timezone.
     ref_stmt = select(
         func.coalesce(func.sum(Refund.amount), 0).label("total")
     ).where(Refund.hotel_id == hotel_id, Refund.status == "completed")
     if from_date:
-        ref_stmt = ref_stmt.where(func.date(Refund.refunded_at) >= from_date)
+        ref_stmt = ref_stmt.where(_local_date(Refund.refunded_at) >= from_date)
     if to_date:
-        ref_stmt = ref_stmt.where(func.date(Refund.refunded_at) <= to_date)
+        ref_stmt = ref_stmt.where(_local_date(Refund.refunded_at) <= to_date)
     ref_row = (await db.execute(ref_stmt)).one()
 
     # Booking counts + status amounts in one query using conditional
@@ -113,6 +132,7 @@ async def payment_summary(
         total_collected=money(pay_row.total),
         cash=money(pay_row.cash),
         upi=money(pay_row.upi),
+        other=money(pay_row.other),
         refunds=money(ref_row.total),
         deposits=money(pay_row.deposits),
         paid_bookings=int(count_row.paid),

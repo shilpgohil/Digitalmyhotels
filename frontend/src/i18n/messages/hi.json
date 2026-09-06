@@ -193,6 +193,8 @@
     "upi": "UPI",
     "todayTotal": "कुल संग्रह",
     "noPaymentsToday": "आज कोई भुगतान नहीं।",
+    "otherMethods": "कार्ड / अन्य",
+    "refundsDeducted": "रिफ़ंड: {amount} काटा",
     "roomStatusBreakdown": "कमरे की स्थिति",
     "revenueTrend": "14-दिन की आय",
     "totalN": "कुल:"

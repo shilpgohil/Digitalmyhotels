@@ -100,6 +100,9 @@ interface PaymentSummary {
   total_collected: string;
   cash: string;
   upi: string;
+  /** card + bank_transfer + other methods combined */
+  other: string;
+  refunds: string;
 }
 
 // ── Donut chart colours ──────────────────────────────────────────────────────
@@ -125,6 +128,35 @@ function fmtRev(n: number): string {
   if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
   if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
   return `₹${n}`;
+}
+
+// ── Payment method progress bar ──────────────────────────────────────────────
+function PaymentBar({
+  label,
+  amount,
+  pct,
+  color,
+}: {
+  label: string;
+  amount: number;
+  pct: number;
+  color: string;
+}) {
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between text-xs">
+        <span className="font-medium">{label}</span>
+        <span className="tabular-nums">{fmtINR(amount)}</span>
+      </div>
+      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${color}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">{pct}%</p>
+    </div>
+  );
 }
 
 // ── Custom tooltip for bar chart ─────────────────────────────────────────────
@@ -233,12 +265,19 @@ export default function DashboardPage() {
   const totalRooms = summary.data?.total ?? 0;
   const occupiedCount = (summary.data?.counts?.occupied ?? 0);
   const occupancy = totalRooms > 0 ? Math.round((occupiedCount / totalRooms) * 100) : 0;
+  // Use total_collected as the authoritative total — it includes ALL methods
+  // (cash + upi + card + bank_transfer + other). Computing totals from only
+  // cash + upi was wrong and caused apparent "missing" UPI amounts when card
+  // or bank_transfer payments existed.
   const todayRevenue = Number.parseFloat(todayPayments.data?.total_collected ?? "0");
   const todayCash = Number.parseFloat(todayPayments.data?.cash ?? "0");
   const todayUpi = Number.parseFloat(todayPayments.data?.upi ?? "0");
-  const todayTotal = todayCash + todayUpi;
+  const todayOther = Number.parseFloat(todayPayments.data?.other ?? "0");
+  const todayRefunds = Number.parseFloat(todayPayments.data?.refunds ?? "0");
+  const todayTotal = todayRevenue; // use API total, not cash+upi sum
   const cashPct = todayTotal > 0 ? Math.round((todayCash / todayTotal) * 100) : 0;
-  const upiPct = 100 - cashPct;
+  const upiPct = todayTotal > 0 ? Math.round((todayUpi / todayTotal) * 100) : 0;
+  const otherPct = Math.max(0, 100 - cashPct - upiPct);
 
   // Donut data
   const donutData = useMemo(() => {
@@ -455,34 +494,36 @@ export default function DashboardPage() {
               </h2>
               {todayPayments.isLoading && <Skeleton className="h-24 w-full" />}
               {todayPayments.data && (
-                <div className="space-y-4">
-                  <div>
-                    <div className="mb-1 flex items-center justify-between text-xs">
-                      <span className="font-medium">{t("cash")}</span>
-                      <span className="tabular-nums">{fmtINR(todayCash)}</span>
-                    </div>
-                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gold-500 transition-all"
-                        style={{ width: `${cashPct}%` }}
-                      />
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">{cashPct}%</p>
-                  </div>
-                  <div>
-                    <div className="mb-1 flex items-center justify-between text-xs">
-                      <span className="font-medium">{t("upi")}</span>
-                      <span className="tabular-nums">{fmtINR(todayUpi)}</span>
-                    </div>
-                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-navy-700 transition-all"
-                        style={{ width: `${upiPct}%` }}
-                      />
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">{upiPct}%</p>
-                  </div>
-                  <div className="border-t pt-3">
+                <div className="space-y-3">
+                  {/* Cash row */}
+                  <PaymentBar
+                    label={t("cash")}
+                    amount={todayCash}
+                    pct={cashPct}
+                    color="bg-gold-500"
+                  />
+                  {/* UPI row */}
+                  <PaymentBar
+                    label={t("upi")}
+                    amount={todayUpi}
+                    pct={upiPct}
+                    color="bg-navy-700"
+                  />
+                  {/* Other (card / bank transfer / etc.) */}
+                  {todayOther > 0 && (
+                    <PaymentBar
+                      label={t("otherMethods")}
+                      amount={todayOther}
+                      pct={otherPct}
+                      color="bg-slate-400"
+                    />
+                  )}
+                  {todayRefunds > 0 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      {t("refundsDeducted", { amount: fmtINR(todayRefunds) })}
+                    </p>
+                  )}
+                  <div className="border-t pt-2">
                     <div className="flex items-center justify-between text-xs font-semibold">
                       <span>{t("todayTotal")}</span>
                       <span className="tabular-nums text-gold-700">{fmtINR(todayTotal)}</span>

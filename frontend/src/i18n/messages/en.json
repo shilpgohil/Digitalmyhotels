@@ -193,6 +193,8 @@
     "upi": "UPI",
     "todayTotal": "Total Collected",
     "noPaymentsToday": "No payments recorded today.",
+    "otherMethods": "Card / Other",
+    "refundsDeducted": "Refunds: {amount} deducted",
     "roomStatusBreakdown": "Room Status",
     "revenueTrend": "14-Day Revenue Trend",
     "totalN": "Total:"

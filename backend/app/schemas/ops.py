@@ -162,6 +162,77 @@ class ArrivalsOut(BaseModel):
     total: int
 
 
+# ── Smart Dashboard full payload ──────────────────────────────────────────────
+
+class SmartInsight(BaseModel):
+    """A rule-generated natural language insight for the hotel dashboard."""
+
+    id: str                # stable string id for deduplication on frontend
+    level: str             # "alert" | "warning" | "success" | "info"
+    icon: str              # lucide-react icon name used on frontend
+    title: str
+    body: str              # the full insight sentence
+    metric: str | None = None   # optional highlighted metric (e.g. "₹12,400")
+    link: str | None = None     # deep-link for "take action" CTA
+
+
+class HotelKpis(BaseModel):
+    """Core hotel KPIs for the trailing 30-day window."""
+
+    revpar: Decimal          # Revenue Per Available Room  = revenue / total_rooms
+    adr: Decimal             # Average Daily Rate          = revenue / occupied_room_nights
+    alos: Decimal            # Average Length of Stay      = total_nights / bookings
+    lead_days: Decimal       # Average booking lead time (days: booking_date → check_in_date)
+    no_show_rate: Decimal    # No-show % out of all confirmed+noshow bookings
+    # Week-on-week % change for display (positive = better, negative = worse)
+    revpar_wow: Decimal      # RevPAR vs same window 7 days prior
+    revenue_wow: Decimal     # Revenue % change vs last week
+
+
+class TrendPoint30(BaseModel):
+    date: date
+    revenue: Decimal
+    checkins: int
+    checkouts: int
+    occupancy_pct: Decimal   # % of rooms occupied that night
+
+
+class GuestMixItem(BaseModel):
+    guest_type: str          # "Business" | "Leisure" | etc.
+    count: int
+    revenue: Decimal
+
+
+class RoomTypeRevenue(BaseModel):
+    room_type: str
+    revenue: Decimal
+    room_nights: int
+    adr: Decimal
+
+
+class WeekPatternItem(BaseModel):
+    dow: str                 # "Mon" | "Tue" etc.
+    avg_checkins: Decimal
+    avg_revenue: Decimal
+
+
+class SmartDashboardOut(BaseModel):
+    """Single-call response for the hotel dashboard — all insight data."""
+
+    insights: list[SmartInsight]
+    kpis: HotelKpis
+    trend_30d: list[TrendPoint30]
+    guest_mix: list[GuestMixItem]
+    room_type_revenue: list[RoomTypeRevenue]
+    week_pattern: list[WeekPatternItem]
+    today_occupancy_pct: Decimal
+    total_rooms: int
+    available_rooms: int
+    in_house_count: int
+    arrivals_today: int
+    overdue_count: int
+
+
 class RevenueReportOut(BaseModel):
     from_date: date
     to_date: date
