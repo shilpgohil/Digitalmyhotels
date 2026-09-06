@@ -1015,7 +1015,12 @@ function DocUpload({
 
   const onFile = async (file: File | undefined) => {
     if (!file || !guestId) return;
-    const edited = await edit(file, { aspect: side === "selfie" ? "square" : "free" });
+    // Selfie: 1000px (face recognition doesn't need more).
+    // ID docs: 1800px (Tesseract OCR works best at full card resolution).
+    const edited = await edit(file, {
+      aspect: side === "selfie" ? "square" : "free",
+      maxDimension: side === "selfie" ? 1000 : 1800,
+    });
     if (!edited) return;
     setBusy(true);
     // Show local preview immediately — before upload
@@ -1299,7 +1304,10 @@ function QueuedDocUpload({
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
-    const edited = await edit(file, { aspect: side === "selfie" ? "square" : "free" });
+    const edited = await edit(file, {
+      aspect: side === "selfie" ? "square" : "free",
+      maxDimension: side === "selfie" ? 1000 : 1800,
+    });
     if (!edited) return;
     const previewUrl = URL.createObjectURL(edited);
     setPreview(previewUrl);

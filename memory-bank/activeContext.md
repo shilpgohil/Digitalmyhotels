@@ -1,5 +1,29 @@
 # Active Context — DigitalMyHotels
 
+## Current focus (2026-09-06 evening — 9-06 client bugs) — COMMITTED 338107b
+
+Commit 338107b (pushed):
+- Expenses create_expense: IntegrityError → 400 ValidationAppError (was 500)
+- Check-in UPI QR: 56×56 → 72×72 (30% larger per client request)
+- Notifications dropdown: 26rem → 32rem wide, max-height 60vh
+
+Most 9-06-2026 client bug screenshots were already addressed in e1d2ebb:
+- Room Status left panel removed
+- No-show tab on Completed Bookings removed
+- Dashboard in-house has dropdown actions
+- Payment Details filter bar exists
+- Team Members has phone column + password toggle
+- Shift Handover is already flat table + single row form
+- Advance Booking uses NewGuestFullForm (Aadhaar flow)
+
+Still open / next items:
+- Current Guests View popup: show All Customer identity + additional guests + Aadhaar docs
+- Restaurant Billing: show actual GST amount per row (currently 0% because charge category has no GST config)
+- Checkout "Special Requirements" label / contact number display
+- Additional Guests edit in check-in (add edit button per co-guest card)
+- Completed Bookings: foreign guest details + "Hi" indicator removal
+- Partner sidebar: "Logged in as X" should show role/designation below name
+
 ## Current focus (2026-09-06 evening — Super Admin + Mode B picker) — COMMITTED e1d2ebb
 - Re-verified last batch: occupancy is booking-in-house (not room.status); stayover clean
   stays Occupied; checkout clean still goes Available. Plans seed + logo cache-bust +

@@ -26,9 +26,10 @@
   "imageEditor": {
     "title": "Edit Photo",
     "usePhoto": "Use Photo",
-    "rotateLeft": "Rotate left",
-    "rotateRight": "Rotate right",
-    "reset": "Reset"
+    "rotateLeft": "Rotate 90° left",
+    "rotateRight": "Rotate 90° right",
+    "reset": "Reset",
+    "dragZoomHint": "Drag to reposition · scroll to zoom"
   },
   "auth": {
     "loginTitle": "Login",

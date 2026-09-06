@@ -242,7 +242,10 @@ function QueuedDocUpload({
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
-    const edited = await edit(file, { aspect: side === "selfie" ? "square" : "free" });
+    const edited = await edit(file, {
+      aspect: side === "selfie" ? "square" : "free",
+      maxDimension: side === "selfie" ? 1000 : 1800,
+    });
     if (!edited) return;
     const previewUrl = URL.createObjectURL(edited);
     setPreview(previewUrl);

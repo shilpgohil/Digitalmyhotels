@@ -26,9 +26,10 @@
   "imageEditor": {
     "title": "फ़ोटो संपादित करें",
     "usePhoto": "फ़ोटो उपयोग करें",
-    "rotateLeft": "बाएँ घुमाएँ",
-    "rotateRight": "दाएँ घुमाएँ",
-    "reset": "रीसेट"
+    "rotateLeft": "90° बाएँ घुमाएँ",
+    "rotateRight": "90° दाएँ घुमाएँ",
+    "reset": "रीसेट",
+    "dragZoomHint": "खींचें · स्क्रॉल से ज़ूम करें"
   },
   "auth": {
     "loginTitle": "लॉगिन",

@@ -38,6 +38,7 @@ import { Label } from "@/components/ui/label";
 import { apiFetch, ApiError, API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { compressLogo } from "@/lib/compress-image";
+import { useImageEditor } from "@/components/media/image-editor";
 import type { HotelOut } from "@/types/hotel";
 import { cn } from "@/lib/utils";
 
@@ -199,6 +200,7 @@ export default function AddHotelPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const { edit } = useImageEditor();
 
   // --- Section 1: Access Permissions ---
   const [accessMode, setAccessMode] = useState<"full" | "checkin_only">("full");
@@ -400,11 +402,14 @@ export default function AddHotelPage() {
     setServices((prev) => prev.filter((_, i) => i !== idx));
   const addService = () => setServices((prev) => [...prev, { name: "", price: "" }]);
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
-    setLogoFile(file);
-    const url = URL.createObjectURL(file);
+    const edited = await edit(file, { aspect: "square", maxDimension: 900 });
+    if (!edited) return;
+    setLogoFile(edited);
+    const url = URL.createObjectURL(edited);
     setLogoPreview(url);
   };
 

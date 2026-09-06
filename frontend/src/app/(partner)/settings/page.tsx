@@ -722,7 +722,7 @@ function UpiConfigPanel() {
               const file = e.target.files?.[0];
               e.target.value = "";
               if (!file) return;
-              void edit(file, { aspect: "square" }).then((framed) => {
+              void edit(file, { aspect: "square", maxDimension: 900 }).then((framed) => {
                 if (framed) logoMutation.mutate(framed);
               });
             }}

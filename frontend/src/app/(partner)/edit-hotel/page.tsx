@@ -663,14 +663,14 @@ function EditHotelContent() {
 
   const onLogoFile = (file: File | undefined) => {
     if (!file) return;
-    void edit(file, { aspect: "square" }).then((framed) => {
+    void edit(file, { aspect: "square", maxDimension: 900 }).then((framed) => {
       if (framed) logoMutation.mutate(framed);
     });
   };
 
   const onGalleryFile = (position: number, file: File | undefined) => {
     if (!file) return;
-    void edit(file, { aspect: "free" }).then((framed) => {
+    void edit(file, { aspect: "free", maxDimension: 1600 }).then((framed) => {
       if (framed) galleryUpload.mutate({ position, file: framed });
     });
   };

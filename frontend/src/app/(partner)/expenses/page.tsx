@@ -844,7 +844,7 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
                 return;
               }
               if (f && f.type.startsWith("image/")) {
-                void edit(f, { aspect: "free" }).then((framed) => {
+                void edit(f, { aspect: "free", maxDimension: 1400 }).then((framed) => {
                   if (framed) setReceiptFile(framed);
                 });
                 return;
