@@ -43,6 +43,7 @@ import {
   Camera,
   Car,
   Clock,
+  Copy,
   Globe,
   ChevronDown,
   ChevronUp,
@@ -50,6 +51,7 @@ import {
   FileText,
   LogIn,
   Minus,
+  Pencil,
   Phone,
   Plus,
   Search,
@@ -801,6 +803,100 @@ function ForeignGuestSection({
 }
 
 /** Collapsible section wrapper. */
+/**
+ * UPI QR panel — shared by both check-in flows (client 9-06: 30% bigger QR,
+ * same treatment as the checkout page: h-56 image + permission-gated UPI ID
+ * with a copy button).
+ */
+function UpiQrBlock({
+  qrUrl,
+  loading,
+}: {
+  /** Blob URL of the hotel QR PNG (null/undefined when not configured). */
+  readonly qrUrl: string | null | undefined;
+  readonly loading: boolean;
+}) {
+  const t = useTranslations("checkin");
+  const tp = useTranslations("checkoutPage");
+  const tc = useTranslations("common");
+  const api = useApi();
+  const { activeHotelId, can } = useAuth();
+  // Raw UPI ID is restricted — workers may see the QR but never the raw ID.
+  const canViewUpiId = can(PERMISSIONS.hotelViewUpiId);
+
+  const qrInfoQuery = useQuery({
+    queryKey: ["hotel-qr-info", activeHotelId],
+    queryFn: () =>
+      api<{ payment_label?: string | null }>("/api/v1/hotels/me/payment-qr"),
+    enabled: !!activeHotelId && !!qrUrl,
+    staleTime: 60_000,
+  });
+
+  const upiConfigQuery = useQuery({
+    queryKey: ["hotel-payment-config", activeHotelId],
+    queryFn: () =>
+      api<{ upi_id: string | null; config_version: number; has_logo: boolean; qr_version: number }>(
+        "/api/v1/hotels/me/payment-config",
+      ),
+    enabled: !!activeHotelId && canViewUpiId && !!qrUrl,
+    staleTime: 300_000,
+  });
+
+  const copyUpiId = async () => {
+    const upi = upiConfigQuery.data?.upi_id;
+    if (!upi) return;
+    try {
+      await navigator.clipboard.writeText(upi);
+      toast.success(tp("upiIdCopied"));
+    } catch {
+      toast.error(tc("error"));
+    }
+  };
+
+  if (loading) return <Skeleton className="h-56 w-56 rounded-lg" />;
+  if (!qrUrl) {
+    // Fetched but no image (404 / not configured / error).
+    return (
+      <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+        {t("qrNotConfiguredInfo")}
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col items-start gap-2">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={qrUrl}
+        alt={tp("upiQrAlt")}
+        className="h-56 w-56 rounded-lg border object-contain"
+      />
+      <p className="text-sm font-semibold text-navy-900">
+        {qrInfoQuery.data?.payment_label ?? tp("scanToPay")}
+      </p>
+      {/* UPI ID — restricted to owner/admin (canViewUpiId) */}
+      {canViewUpiId && upiConfigQuery.data?.upi_id && (
+        <div className="flex items-center gap-2 rounded-lg border border-dashed border-gold-400 bg-gold-50 px-3 py-2">
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gold-700">
+            {tp("upiId")}
+          </span>
+          <span className="select-all font-mono text-sm font-semibold text-navy-900">
+            {upiConfigQuery.data.upi_id}
+          </span>
+          <button
+            type="button"
+            onClick={() => void copyUpiId()}
+            aria-label={tp("copyUpiId")}
+            title={tp("copyUpiId")}
+            className="flex size-7 shrink-0 items-center justify-center rounded-md text-gold-700 transition-colors hover:bg-gold-100"
+          >
+            <Copy className="size-3.5" aria-hidden />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Section({
   icon: Icon,
   title,
@@ -1280,12 +1376,15 @@ function QueuedDocUpload({
  */
 function NewGuestForm({
   initialPhone = "",
+  initial,
   confirmLabel,
   pending = false,
   onConfirm,
 }: {
   /** Seeds the mobile field (e.g. the phone that was searched with no match). */
   readonly initialPhone?: string;
+  /** Pre-fills the whole form — used to EDIT an already-resolved co-guest. */
+  readonly initial?: Partial<GuestCreatePayload>;
   readonly confirmLabel: string;
   /** Disables the confirm button while the parent is creating the guest. */
   readonly pending?: boolean;
@@ -1312,6 +1411,7 @@ function NewGuestForm({
     id_proof_type: "Aadhar Card",
     id_number: "",
     postal_code: "",
+    ...initial,
   });
 
   const set = (k: keyof GuestCreatePayload, v: string) =>
@@ -1494,6 +1594,11 @@ function AdditionalGuestEntry({
   const [resolved, setResolved] = useState<ResolvedCoGuest | null>(null);
   const [mode, setMode] = useState<"search" | "form">("search");
   const [docs, setDocs] = useState<{ side: DocSide; file: File }[]>([]);
+  // Edit mode — re-opens the guest form pre-filled with the resolved guest.
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  /** Full details of an existing guest (from /autofill) — used to pre-fill edits. */
+  const [autofill, setAutofill] = useState<GuestAutofill | null>(null);
 
   // Foreign guest (Form C) — same fields as the primary guest's section.
   const [fgEnabled, setFgEnabled] = useState(false);
@@ -1537,6 +1642,7 @@ function AdditionalGuestEntry({
         docs: [],
         foreign_guest: buildForeignGuestPayload(fgEnabled, fgForm),
       };
+      setAutofill(full);
       setResolved(resolved);
       onResolved(resolved);
       setSearchResults([]);
@@ -1555,6 +1661,143 @@ function AdditionalGuestEntry({
     }
   };
 
+  /** Pre-fill the guest form when editing a resolved co-guest. */
+  const buildEditInitial = (): Partial<GuestCreatePayload> => {
+    if (resolved?.guest_id.startsWith("__new__")) {
+      const nf = (resolved as ResolvedCoGuest & { _newForm?: GuestCreatePayload })._newForm;
+      if (nf) return { ...nf };
+    }
+    if (autofill) {
+      return {
+        full_name: autofill.full_name,
+        phone: autofill.phone,
+        email: autofill.email ?? "",
+        address: autofill.address ?? "",
+        city: autofill.city ?? "",
+        state: autofill.state ?? "",
+        country: autofill.country ?? "India",
+        postal_code: autofill.postal_code ?? "",
+        gender: autofill.gender ?? "",
+        date_of_birth: autofill.date_of_birth ?? "",
+        id_proof_type: autofill.id_proof_type ?? "Aadhar Card",
+        // Full ID number is never returned by the API (only last4) — leave
+        // blank; it is only PATCHed when staff types a new one.
+        id_number: "",
+      };
+    }
+    return { full_name: resolved?.full_name ?? "" };
+  };
+
+  /**
+   * Save edited co-guest details.
+   *  • Pending-creation guest (__new__) → just update the queued _newForm.
+   *  • Existing guest → PATCH /api/v1/guests/{guest_id} immediately.
+   */
+  const handleEditConfirm = async (
+    form: GuestCreatePayload,
+    formDocs: { side: DocSide; file: File }[],
+  ) => {
+    if (!resolved) return;
+    // Docs queued in the edit form replace same-side queued docs.
+    const mergedDocs = [
+      ...docs.filter((d) => !formDocs.some((f) => f.side === d.side)),
+      ...formDocs,
+    ];
+
+    if (resolved.guest_id.startsWith("__new__")) {
+      const updated: ResolvedCoGuest & { _newForm?: GuestCreatePayload } = {
+        ...resolved,
+        full_name: form.full_name.trim() || resolved.full_name,
+        docs: mergedDocs,
+      };
+      updated._newForm = { ...form };
+      setDocs(mergedDocs);
+      setResolved(updated);
+      onResolved(updated);
+      setEditing(false);
+      toast.success(t("guestUpdated"));
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const body: Record<string, string> = {};
+      if (form.full_name.trim()) body.full_name = form.full_name.trim();
+      if (form.phone.trim()) body.phone = form.phone.trim();
+      if (form.email?.trim()) body.email = form.email.trim();
+      if (form.address?.trim()) body.address = form.address.trim();
+      if (form.city?.trim()) body.city = form.city.trim();
+      if (form.state?.trim()) body.state = form.state.trim();
+      if (form.country?.trim()) body.country = form.country.trim();
+      if (form.postal_code?.trim()) body.postal_code = form.postal_code.trim();
+      if (form.gender?.trim()) body.gender = form.gender.trim();
+      if (form.date_of_birth?.trim()) body.date_of_birth = form.date_of_birth.trim();
+      if (form.id_proof_type?.trim()) body.id_proof_type = form.id_proof_type.trim();
+      if (form.id_number?.trim()) body.id_number = form.id_number.trim();
+      await api(`/api/v1/guests/${resolved.guest_id}`, { method: "PATCH", body });
+
+      const updated = {
+        ...resolved,
+        full_name: form.full_name.trim() || resolved.full_name,
+        docs: mergedDocs,
+      };
+      setDocs(mergedDocs);
+      setResolved(updated);
+      onResolved(updated);
+      // Keep the pre-fill fresh for a subsequent edit.
+      setAutofill((prev) =>
+        prev
+          ? {
+              ...prev,
+              full_name: body.full_name ?? prev.full_name,
+              phone: body.phone ?? prev.phone,
+              email: body.email ?? prev.email,
+              address: body.address ?? prev.address,
+              city: body.city ?? prev.city,
+              state: body.state ?? prev.state,
+              country: body.country ?? prev.country,
+              postal_code: body.postal_code ?? prev.postal_code,
+              gender: body.gender ?? prev.gender,
+              date_of_birth: body.date_of_birth ?? prev.date_of_birth,
+              id_proof_type: body.id_proof_type ?? prev.id_proof_type,
+            }
+          : prev,
+      );
+      setEditing(false);
+      toast.success(t("guestUpdated"));
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : tc("error"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Edit mode — re-open the guest form pre-filled ──────────────────────────
+  if (resolved && editing) {
+    return (
+      <div className="rounded-xl border bg-muted/30 p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            {t("editGuest")}
+          </p>
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            {tc("cancel")}
+          </button>
+        </div>
+        <NewGuestForm
+          initial={buildEditInitial()}
+          confirmLabel={t("saveGuest")}
+          pending={saving}
+          onConfirm={(form, formDocs) => void handleEditConfirm(form, formDocs)}
+        />
+      </div>
+    );
+  }
+
   if (resolved) {
     return (
       <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
@@ -1563,19 +1806,30 @@ function AdditionalGuestEntry({
             <BadgeCheck className="size-4 text-green-600" aria-hidden />
             <span className="text-sm font-semibold">{resolved.full_name}</span>
         </div>
-          <button
-            type="button"
-            onClick={() => {
-              setResolved(null);
-              setSearchPhone("");
-              setSearchResults([]);
-              onRemove();
-            }}
-            className="text-danger hover:opacity-70"
-            aria-label={t("removeGuest")}
-          >
-            <Trash2 className="size-4" aria-hidden />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="p-1 text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={t("editGuest")}
+              title={t("editGuest")}
+            >
+              <Pencil className="size-4" aria-hidden />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setResolved(null);
+                setSearchPhone("");
+                setSearchResults([]);
+                onRemove();
+              }}
+              className="p-1 text-danger hover:opacity-70"
+              aria-label={t("removeGuest")}
+            >
+              <Trash2 className="size-4" aria-hidden />
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <QueuedDocUpload side="front" label={t("uploadFront")} onQueued={handleQueueDoc} />
@@ -2030,6 +2284,8 @@ function CheckinForm({
         check_out_time: string;
         early_checkin_fee_per_hour?: string;
         early_checkin_grace_minutes?: number;
+        collect_emergency_contact?: boolean;
+        collect_vehicle_details?: boolean;
       }>("/api/v1/hotels/me/settings"),
     enabled: !!activeHotelId,
     staleTime: 5 * 60_000,
@@ -2367,12 +2623,12 @@ function CheckinForm({
                 className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               />
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("guestTypeLabel")}</Label>
               <select
                 value={pgPurpose}
                 onChange={(e) => setPgPurpose(e.target.value)}
-                className="mt-1 h-8 w-full rounded-lg border border-input bg-background px-2 text-sm"
+                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
                 <option value="">{t("select")}</option>
                 <option value="Business">{t("purpose_business")}</option>
@@ -2383,9 +2639,9 @@ function CheckinForm({
               </select>
             </div>
             {pgPurpose === "Business" && (
-              <div className="sm:col-span-2">
+              <div className="space-y-1.5 sm:col-span-2">
                 <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("company")}</Label>
-                <Input className="mt-1" value={pgCompany} onChange={(e) => setPgCompany(e.target.value)} placeholder={t("companyPlaceholder")} />
+                <Input value={pgCompany} onChange={(e) => setPgCompany(e.target.value)} placeholder={t("companyPlaceholder")} />
               </div>
             )}
           </div>
@@ -2820,22 +3076,11 @@ function CheckinForm({
                 </select>
                 {showQrCheckin && (
                   <div className="mt-2">
-                    {qrImageQueryCheckin.data ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={qrImageQueryCheckin.data}
-                        alt="UPI QR code"
-                        className="h-36 w-36 rounded-lg object-contain border"
-                      />
-                    ) : qrImageQueryCheckin.isLoading ? (
-                      <Skeleton className="h-36 w-36 rounded-lg" />
-                    ) : (
-                      // Fetched but no image (404 / not configured / error).
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-                        {t("qrNotConfiguredInfo")}
-                      </div>
-                    )}
-            </div>
+                    <UpiQrBlock
+                      qrUrl={qrImageQueryCheckin.data}
+                      loading={qrImageQueryCheckin.isLoading}
+                    />
+                  </div>
                 )}
           </div>
               <div className="space-y-1">
@@ -2880,7 +3125,8 @@ function CheckinForm({
         </div>
       </Section>
 
-      {/* ── 7. Emergency Contact ──────────────────────────────────────────── */}
+      {/* ── 7. Emergency Contact (hidden when disabled in Edit Hotel) ────── */}
+      {checkinSettings.data?.collect_emergency_contact !== false && (
       <Section icon={AlertTriangle} title={t("emergencyContact")} subtitle={t("optional")} defaultOpen={false}>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
@@ -2897,8 +3143,10 @@ function CheckinForm({
           </div>
         </div>
       </Section>
+      )}
 
-      {/* ── 8. Vehicle Details ────────────────────────────────────────────── */}
+      {/* ── 8. Vehicle Details (hidden when disabled in Edit Hotel) ──────── */}
+      {checkinSettings.data?.collect_vehicle_details !== false && (
       <Section icon={Car} title={t("vehicleDetails")} subtitle={t("optional")} defaultOpen={false}>
         <div className="grid gap-3 sm:grid-cols-4">
           <div className="space-y-1.5">
@@ -2941,6 +3189,7 @@ function CheckinForm({
           </div>
         </div>
       </Section>
+      )}
 
       {/* Early check-in fee is now auto-computed and shown in the Booking Details banner above. */}
 
@@ -3097,6 +3346,8 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         check_out_time: string;
         early_checkin_fee_per_hour?: string;
         early_checkin_grace_minutes?: number;
+        collect_emergency_contact?: boolean;
+        collect_vehicle_details?: boolean;
       }>("/api/v1/hotels/me/settings"),
     enabled: !!activeHotelId,
     staleTime: 5 * 60_000,
@@ -4361,21 +4612,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               </select>
               {showQr && (
                 <div className="mt-2">
-                  {qrImageQuery.data ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={qrImageQuery.data}
-                      alt="UPI QR code"
-                      className="h-36 w-36 rounded-lg object-contain border"
-                    />
-                  ) : qrImageQuery.isLoading ? (
-                    <Skeleton className="h-36 w-36 rounded-lg" />
-                  ) : (
-                    // Fetched but no image (404 / not configured / error).
-                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-                      {t("qrNotConfiguredInfo")}
-                    </div>
-                  )}
+                  <UpiQrBlock
+                    qrUrl={qrImageQuery.data}
+                    loading={qrImageQuery.isLoading}
+                  />
                 </div>
               )}
             </div>
@@ -4401,7 +4641,8 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           </div>
       </Section>
 
-      {/* ── 7. Emergency Contact ──────────────────────────────────────────── */}
+      {/* ── 7. Emergency Contact (hidden when disabled in Edit Hotel) ────── */}
+      {settings.data?.collect_emergency_contact !== false && (
       <Section icon={AlertTriangle} title={t("emergencyContact")} subtitle={t("optional")} defaultOpen={false}>
         <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
@@ -4418,8 +4659,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           </div>
         </div>
       </Section>
+      )}
 
-      {/* ── 8. Vehicle Details ────────────────────────────────────────────── */}
+      {/* ── 8. Vehicle Details (hidden when disabled in Edit Hotel) ──────── */}
+      {settings.data?.collect_vehicle_details !== false && (
       <Section icon={Car} title={t("vehicleDetails")} subtitle={t("optional")} defaultOpen={false}>
         <div className="grid gap-3 sm:grid-cols-4">
           <div className="space-y-1.5">
@@ -4462,6 +4705,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           </div>
         </div>
       </Section>
+      )}
 
       {/* ── Footer: Terms + Check In ──────────────────────────────────────── */}
       <div ref={termsSectionRef} className="rounded-xl border bg-white shadow-sm px-5 py-4 space-y-4">

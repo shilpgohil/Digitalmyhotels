@@ -29,6 +29,7 @@ import {
   FileText,
   Minus,
   Plus,
+  UserPlus,
   UserRound,
 } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
@@ -37,13 +38,19 @@ import { Input } from "@/components/ui/input";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Label } from "@/components/ui/label";
 import { GuestPicker } from "@/components/guests/guest-picker";
+import { NewGuestFullForm, type QueuedDoc } from "@/components/stay/new-guest-full-form";
 import { RoomAvailabilityPicker } from "@/components/rooms/room-availability-picker";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
-import { ApiError, API_BASE } from "@/lib/api/client";
+import { ApiError, API_BASE, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { localToday, localTomorrow } from "@/lib/formatting";
-import type { BookingOut, RoomRateOverride } from "@/types/stay";
+import type {
+  BookingOut,
+  GuestCreatePayload,
+  GuestOut,
+  RoomRateOverride,
+} from "@/types/stay";
 import type { RoomAvailabilityOut, RoomAvailableItem } from "@/types/hotel";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -148,6 +155,8 @@ function AdvanceBookingContent() {
   const { activeHotelId } = useAuth();
   // Shared strings with the check-in page (date/time labels, day use, rates).
   const t = useTranslations("checkin");
+  const tg = useTranslations("guestPicker");
+  const tc = useTranslations("common");
 
   // ── 1. Booking details ──
   const [checkIn, setCheckIn] = useState(localToday);
@@ -158,6 +167,61 @@ function AdvanceBookingContent() {
 
   // ── 2. Guest ──
   const [guest, setGuest] = useState<{ id: string; full_name: string } | null>(null);
+  // Full Aadhaar-upload creation form (same UX as check-in's walk-in flow) —
+  // opened when GuestPicker's search finds no match and staff clicks
+  // "Create new guest". Replaces the old inline mini-form.
+  const [showNewGuest, setShowNewGuest] = useState(false);
+  const [newGuestPhone, setNewGuestPhone] = useState("");
+
+  // Creates the guest, then uploads the queued ID docs (front/back/selfie).
+  // Doc uploads are NON-blocking — same convention as check-in: the booking
+  // can proceed while docs upload; failures toast individually.
+  const createGuest = useMutation({
+    mutationFn: async ({
+      form,
+      docs,
+    }: {
+      form: GuestCreatePayload;
+      docs: QueuedDoc[];
+    }) => {
+      const created = await api<GuestOut>("/api/v1/guests", {
+        method: "POST",
+        body: {
+          full_name: form.full_name.trim(),
+          phone: form.phone.trim(),
+          email: form.email?.trim() || undefined,
+          address: form.address?.trim() || undefined,
+          city: form.city?.trim() || undefined,
+          state: form.state?.trim() || undefined,
+          country: form.country?.trim() || undefined,
+          postal_code: form.postal_code?.trim() || undefined,
+          gender: form.gender?.trim() || undefined,
+          date_of_birth: form.date_of_birth?.trim() || undefined,
+          id_proof_type: form.id_proof_type?.trim() || undefined,
+          id_number: form.id_number?.trim() || undefined,
+        },
+      });
+      for (const doc of docs) {
+        const fd = new FormData();
+        fd.append("side", doc.side);
+        fd.append("document_type", "id_proof");
+        fd.append("file", doc.file);
+        apiUpload(`/api/v1/guests/${created.id}/documents`, fd, {
+          hotelId: activeHotelId ?? undefined,
+        }).catch((err: unknown) => {
+          console.warn("[advance-booking] guest doc upload:", err);
+          toast.error(t("uploadFailed"));
+        });
+      }
+      return created;
+    },
+    onSuccess: (created) => {
+      setShowNewGuest(false);
+      setGuest({ id: created.id, full_name: created.full_name });
+      toast.success(tg("guestCreated"));
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
+  });
 
   // ── 3. Rooms ──
   const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
@@ -452,10 +516,37 @@ function AdvanceBookingContent() {
 
           {/* ── 2. Guest ───────────────────────────────────────────────── */}
           <Card icon={UserRound} title="Guest" subtitle="Search an existing guest or create a new one">
-            <GuestPicker
-              selected={guest?.id ? guest : null}
-              onSelected={(g) => setGuest(g.id ? g : null)}
-            />
+            <div className="space-y-4">
+              <GuestPicker
+                selected={guest?.id ? guest : null}
+                onSelected={(g) => {
+                  setGuest(g.id ? g : null);
+                  if (g.id) setShowNewGuest(false);
+                }}
+                onCreateNew={(searchedPhone) => {
+                  // Client flow: no mini-form — open the full Aadhaar-upload
+                  // guest creation form (same UX as Guest Check-in).
+                  setNewGuestPhone(searchedPhone);
+                  setShowNewGuest(true);
+                }}
+              />
+              {showNewGuest && !guest?.id && (
+                <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+                    <UserPlus className="size-3.5" aria-hidden />
+                    {tg("newGuest")}
+                  </p>
+                  <NewGuestFullForm
+                    key={newGuestPhone}
+                    initialPhone={newGuestPhone}
+                    confirmLabel={t("createGuestAction")}
+                    pending={createGuest.isPending}
+                    onConfirm={(form, docs) => createGuest.mutate({ form, docs })}
+                    onCancel={() => setShowNewGuest(false)}
+                  />
+                </div>
+              )}
+            </div>
           </Card>
 
           {/* ── 3. Room Information ────────────────────────────────────── */}

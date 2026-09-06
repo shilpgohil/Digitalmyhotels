@@ -49,6 +49,13 @@ class ServiceItemUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class HotelImageOut(ORMModel):
+    """Gallery slot — object key intentionally excluded (same rule as logo)."""
+
+    id: UUID
+    position: int
+
+
 class HotelUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=200)
     address_line1: str | None = Field(default=None, max_length=255)
@@ -80,6 +87,8 @@ class HotelSettingsOut(ORMModel):
     early_checkin_fee_per_hour: Decimal = Decimal("0.00")
     late_checkout_fee_per_hour: Decimal = Decimal("0.00")
     access_mode: str = "full"
+    collect_emergency_contact: bool = True
+    collect_vehicle_details: bool = True
 
 
 class HotelSettingsUpdate(BaseModel):
@@ -94,6 +103,8 @@ class HotelSettingsUpdate(BaseModel):
     late_checkout_grace_minutes: int | None = Field(default=None, ge=0, le=720)
     early_checkin_fee_per_hour: Decimal | None = Field(default=None, ge=0)
     late_checkout_fee_per_hour: Decimal | None = Field(default=None, ge=0)
+    collect_emergency_contact: bool | None = None
+    collect_vehicle_details: bool | None = None
 
 
 class GstSettingsOut(ORMModel):

@@ -4,8 +4,9 @@ import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Paperclip, Plus } from "lucide-react";
+import { CalendarDays, CalendarRange, ListChecks, Paperclip, Plus, Wallet } from "lucide-react";
 import { fmtApiDate, fmtINR, localToday } from "@/lib/formatting";
+import { cn } from "@/lib/utils";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +39,12 @@ import { compressReceipt } from "@/lib/compress-image";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { ListOut } from "@/types/hotel";
-import type { ExpenseCategoryOut, ExpenseOut, RecurringExpenseOut } from "@/types/money";
+import type {
+  ExpenseCategoryOut,
+  ExpenseOut,
+  ExpenseSummaryOut,
+  RecurringExpenseOut,
+} from "@/types/money";
 import { RequirePermission } from "@/components/auth/require-permission";
 
 interface VendorOut {
@@ -47,6 +53,38 @@ interface VendorOut {
   phone: string | null;
   gstin: string | null;
   is_active: boolean;
+}
+
+/** Time-period chips above the stat cards (per Figma). */
+const PERIODS = ["all", "today", "last5", "month", "year"] as const;
+type Period = (typeof PERIODS)[number];
+
+function ymd(d: Date): string {
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, "0"),
+    String(d.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+/** From/to filter dates for a period chip, in the user's local timezone. */
+function periodRange(period: Period): { from: string; to: string } {
+  const today = localToday();
+  switch (period) {
+    case "today":
+      return { from: today, to: today };
+    case "last5": {
+      const d = new Date();
+      d.setDate(d.getDate() - 4);
+      return { from: ymd(d), to: today };
+    }
+    case "month":
+      return { from: `${today.slice(0, 8)}01`, to: today };
+    case "year":
+      return { from: `${today.slice(0, 4)}-01-01`, to: today };
+    default:
+      return { from: "", to: "" };
+  }
 }
 
 const TONE: Record<string, "neutral" | "info" | "success" | "danger" | "warning"> = {
@@ -70,6 +108,24 @@ function ExpensesContent() {
   const [toDate, setToDate] = useState("");
   const [filterCategoryId, setFilterCategoryId] = useState("");
   const [filterMethod, setFilterMethod] = useState("");
+  // Which time-period chip is active; null = manual dates entered.
+  const [period, setPeriod] = useState<Period | null>("all");
+
+  const selectPeriod = (p: Period) => {
+    setPeriod(p);
+    const { from, to } = periodRange(p);
+    setFromDate(from);
+    setToDate(to);
+  };
+  // Manual date edits deselect the chips.
+  const setFromDateManual = (v: string) => {
+    setFromDate(v);
+    setPeriod(null);
+  };
+  const setToDateManual = (v: string) => {
+    setToDate(v);
+    setPeriod(null);
+  };
 
   const filterQs = [
     fromDate && `from_date=${fromDate}`,
@@ -84,6 +140,13 @@ function ExpensesContent() {
     queryKey: ["expense-categories", activeHotelId],
     queryFn: () => api<ExpenseCategoryOut[]>("/api/v1/expenses/categories"),
     enabled: !!activeHotelId && can(PERMISSIONS.expensesCreate),
+  });
+
+  const summary = useQuery({
+    // Prefixed with ["expenses", hotelId] so invalidate() refreshes it too.
+    queryKey: ["expenses", activeHotelId, "summary"],
+    queryFn: () => api<ExpenseSummaryOut>("/api/v1/expenses/summary"),
+    enabled: !!activeHotelId,
   });
 
   const expenses = useQuery({
@@ -141,6 +204,79 @@ function ExpensesContent() {
           )}
         </div>
 
+        {/* Time-period chips (per Figma) — set the from/to filter dates */}
+        <div className="mb-4 inline-flex flex-wrap gap-1 rounded-lg border bg-card p-1">
+          {PERIODS.map((p) => (
+            <button
+              key={p}
+              type="button"
+              aria-pressed={period === p}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                period === p
+                  ? "bg-navy-900 text-white"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+              onClick={() => selectPeriod(p)}
+            >
+              {t(`period_${p}`)}
+            </button>
+          ))}
+        </div>
+
+        {/* Stat cards (per Figma: total dark, today red, month gold, entries navy) */}
+        <section aria-label={t("statTotal")} className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+          {summary.isLoading &&
+            [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
+          {summary.data &&
+            (
+              [
+                {
+                  key: "total",
+                  labelKey: "statTotal",
+                  icon: Wallet,
+                  className: "bg-navy-950 text-white",
+                  value: fmtINR(summary.data.total_amount),
+                },
+                {
+                  key: "today",
+                  labelKey: "statToday",
+                  icon: CalendarDays,
+                  className: "bg-danger text-white",
+                  value: fmtINR(summary.data.today_amount),
+                },
+                {
+                  key: "month",
+                  labelKey: "statMonth",
+                  icon: CalendarRange,
+                  className: "bg-gold-500 text-navy-900",
+                  value: fmtINR(summary.data.month_amount),
+                },
+                {
+                  key: "entries",
+                  labelKey: "statEntries",
+                  icon: ListChecks,
+                  className: "bg-navy-800 text-white",
+                  value: String(summary.data.entries),
+                },
+              ] as const
+            ).map((card) => {
+              const Icon = card.icon;
+              return (
+                <div
+                  key={card.key}
+                  className={cn("relative overflow-hidden rounded-lg p-4", card.className)}
+                >
+                  <Icon className="absolute right-3 bottom-3 size-8 opacity-25" aria-hidden />
+                  <p className="text-2xl font-semibold tabular-nums">{card.value}</p>
+                  <p className="mt-1 text-xs font-medium tracking-wide uppercase opacity-80">
+                    {t(card.labelKey)}
+                  </p>
+                </div>
+              );
+            })}
+        </section>
+
         {/* Inline add-expense card (replaces the old dialog, per Figma) */}
         {can(PERMISSIONS.expensesCreate) && <InlineAddExpense onDone={invalidate} />}
 
@@ -148,11 +284,11 @@ function ExpensesContent() {
         <div className="mb-4 flex flex-wrap items-end gap-3">
           <div>
             <Label>{t("fromDate")}</Label>
-            <DatePicker className="mt-1" value={fromDate} onChange={setFromDate} />
+            <DatePicker className="mt-1" value={fromDate} onChange={setFromDateManual} />
           </div>
           <div>
             <Label>{t("toDate")}</Label>
-            <DatePicker className="mt-1" value={toDate} onChange={setToDate} />
+            <DatePicker className="mt-1" value={toDate} onChange={setToDateManual} />
           </div>
           {(categories.data?.length ?? 0) > 0 && (
             <div className="min-w-40">
@@ -194,6 +330,7 @@ function ExpensesContent() {
                 setToDate("");
                 setFilterCategoryId("");
                 setFilterMethod("");
+                setPeriod("all");
               }}
             >
               {t("clearFilters")}
@@ -591,7 +728,12 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
             hotelId: activeHotelId ?? undefined,
           });
         } catch (err) {
-          toast.error(err instanceof ApiError ? err.message : t("receiptUploadFailed"));
+          // Keep the "expense saved" context AND the API's specific reason.
+          toast.error(
+            err instanceof ApiError
+              ? `${t("receiptUploadFailed")} — ${err.message}`
+              : t("receiptUploadFailed"),
+          );
         }
       }
       return expense;

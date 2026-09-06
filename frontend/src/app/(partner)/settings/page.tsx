@@ -651,6 +651,8 @@ function UpiConfigPanel() {
       toast.success(t("logoUploaded"));
       const prevVersion = data.qr_version;
       queryClient.setQueryData(["payment-config", activeHotelId], result);
+      // Refresh the sidebar brand logo (PartnerBrand caches the blob URL).
+      queryClient.invalidateQueries({ queryKey: ["hotel-logo", activeHotelId] });
       void pollForQr(prevVersion);
     },
     onError: (error) =>

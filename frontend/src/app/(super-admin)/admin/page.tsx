@@ -20,7 +20,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { fmtDate, fmtINR } from "@/lib/formatting";
-import type { HotelAdminOut, PlatformDashboardOut } from "@/types/money";
+import type {
+  HotelAdminOut,
+  PlatformDashboardOut,
+  RenewalRequestAdminListOut,
+} from "@/types/money";
 import { RenewDialog } from "@/components/admin/renew-dialog";
 
 interface HotelList {
@@ -85,6 +89,26 @@ export default function AdminDashboardPage() {
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
   });
 
+  const renewals = useQuery({
+    queryKey: ["admin-renewal-requests"],
+    queryFn: () =>
+      apiFetch<RenewalRequestAdminListOut>(
+        "/api/v1/super-admin/renewal-requests?status=pending",
+      ),
+  });
+
+  const decideRenewal = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: "approve" | "reject" }) =>
+      apiFetch(`/api/v1/super-admin/renewal-requests/${id}/${action}`, { method: "POST" }),
+    onSuccess: (_data, vars) => {
+      toast.success(vars.action === "approve" ? t("renewalApproved") : t("renewalRejected"));
+      queryClient.invalidateQueries({ queryKey: ["admin-renewal-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-dashboard"] });
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
+  });
+
   const statValues: Record<string, number | string> = dash.data
     ? {
         totalHotels: dash.data.total_hotels,
@@ -138,6 +162,77 @@ export default function AdminDashboardPage() {
           })}
         </div>
       )}
+
+      {/* Pending subscription renewal requests (partner paid → verify & approve) */}
+      <section className="rounded-xl border bg-white shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h2 className="font-semibold text-foreground">{t("renewalRequests")}</h2>
+          {(renewals.data?.total ?? 0) > 0 && (
+            <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+              {renewals.data?.total}
+            </span>
+          )}
+        </div>
+        {renewals.isLoading && (
+          <div className="space-y-2 p-4">
+            {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
+          </div>
+        )}
+        {!renewals.isLoading && (
+          <table className="w-full text-sm">
+            <thead className="bg-muted/30">
+              <tr>
+                {[t("hotelName"), t("subscriptionPlan"), t("amount"), t("requestDate"), tc("actions")].map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(renewals.data?.items ?? []).map((r) => (
+                <tr key={r.id} className="border-t hover:bg-muted/20 transition-colors">
+                  <td className="px-4 py-3 font-medium">{r.hotel_name}</td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {r.plan_name} — {r.duration_days} {t("days")}
+                  </td>
+                  <td className="px-4 py-3 font-medium tabular-nums">{fmtINR(r.amount)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+                    {fmtDate(r.created_at)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => decideRenewal.mutate({ id: r.id, action: "approve" })}
+                        disabled={decideRenewal.isPending}
+                        className="inline-flex h-7 items-center rounded-lg bg-green-600 px-3 text-xs font-semibold text-white hover:bg-green-700 transition-colors disabled:opacity-50"
+                      >
+                        {t("approve")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => decideRenewal.mutate({ id: r.id, action: "reject" })}
+                        disabled={decideRenewal.isPending}
+                        className="inline-flex h-7 items-center rounded-lg border border-red-300 px-3 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                      >
+                        {t("rejectRequest")}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {(renewals.data?.items ?? []).length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                    {t("noRenewalRequests")}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
+      </section>
 
       {/* Recently Expired Hotels table */}
       <section className="rounded-xl border bg-white shadow-sm overflow-hidden">

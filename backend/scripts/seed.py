@@ -115,9 +115,38 @@ async def seed() -> None:
                 )
             )
 
+        # Legacy plans — kept for existing subscriptions/hotel-creation defaults,
+        # but hidden from the partner "Choose Your Plan" page (is_active=False).
         for code, name, price, days, trial in (
             ("trial", "Trial", Decimal("0.00"), 14, 14),
             ("standard", "Standard", Decimal("4999.00"), 365, 14),
+        ):
+            existing_plan = (
+                await db.execute(
+                    select(SubscriptionPlan).where(SubscriptionPlan.code == code)
+                )
+            ).scalar_one_or_none()
+            if existing_plan is None:
+                db.add(
+                    SubscriptionPlan(
+                        code=code,
+                        name=name,
+                        price=price,
+                        duration_days=days,
+                        trial_days=trial,
+                        is_active=False,
+                    )
+                )
+            elif existing_plan.is_active:
+                existing_plan.is_active = False
+
+        # Figma pricing tiers (Sep 2026 redesign) — shown on the partner plan
+        # page sorted by duration; 12 Months carries the "Best Value" ribbon.
+        for code, name, price, days in (
+            ("plan-1m", "1 Month", Decimal("499.00"), 30),
+            ("plan-3m", "3 Months", Decimal("1299.00"), 90),
+            ("plan-6m", "6 Months", Decimal("2499.00"), 180),
+            ("plan-12m", "12 Months", Decimal("4499.00"), 365),
         ):
             existing_plan = await db.execute(
                 select(SubscriptionPlan).where(SubscriptionPlan.code == code)
@@ -129,7 +158,7 @@ async def seed() -> None:
                         name=name,
                         price=price,
                         duration_days=days,
-                        trial_days=trial,
+                        trial_days=14,
                     )
                 )
 

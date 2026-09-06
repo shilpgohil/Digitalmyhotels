@@ -125,6 +125,15 @@ class ExpenseListOut(BaseModel):
     total: int
 
 
+class ExpenseSummaryOut(BaseModel):
+    """Stat-card totals (rejected expenses excluded)."""
+
+    total_amount: Decimal
+    today_amount: Decimal
+    month_amount: Decimal
+    entries: int
+
+
 class RecurringExpenseOut(ORMModel):
     id: UUID
     name: str

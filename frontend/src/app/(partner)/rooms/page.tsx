@@ -1,25 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, MoreHorizontal, MoreVertical, LayoutGrid, List } from "lucide-react";
-import { PartnerHeader } from "@/components/layout/partner-header";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+  MoreHorizontal,
+  MoreVertical,
+  LayoutGrid,
+  List,
+  Building2,
+  DoorOpen,
+  DoorClosed,
+  Bookmark,
+  Sparkles,
+  Wrench,
+  SquarePen,
+} from "lucide-react";
+import { PartnerHeader } from "@/components/layout/partner-header";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,10 +40,82 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/client";
-import { fmtINR } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
-import type { ListOut, RoomOut, RoomStatus, RoomTypeOut } from "@/types/hotel";
+import type { ListOut, RoomOut, RoomStatus } from "@/types/hotel";
 import { RequirePermission } from "@/components/auth/require-permission";
+
+/**
+ * Stat cards shown above the room grid (per the "Room Status - Meridian Court"
+ * figma). Colors/classes mirror the dashboard's stat-card row. `statuses` is
+ * the group of room statuses counted by the card (null = all rooms), and
+ * `filter` is the grid filter applied when the card is clicked — the same
+ * status the matching filter chip uses ("all" clears the filter).
+ */
+const STAT_CARDS: Array<{
+  key: string;
+  labelKey: string;
+  /** Which i18n namespace the label lives in. */
+  labelNs: "rooms" | "dashboard";
+  icon: React.ComponentType<{ className?: string }>;
+  className: string;
+  statuses: RoomStatus[] | null;
+  filter: RoomStatus | "all";
+}> = [
+  {
+    key: "total",
+    labelKey: "statTotal",
+    labelNs: "rooms",
+    icon: Building2,
+    className: "bg-navy-900 text-white",
+    statuses: null,
+    filter: "all",
+  },
+  {
+    key: "booked",
+    labelKey: "statBooked",
+    labelNs: "rooms",
+    icon: DoorClosed,
+    className: "bg-danger text-white",
+    statuses: ["occupied"],
+    filter: "occupied",
+  },
+  {
+    key: "available",
+    labelKey: "available",
+    labelNs: "dashboard",
+    icon: DoorOpen,
+    className: "bg-success text-white",
+    statuses: ["available", "clean_ready"],
+    filter: "available",
+  },
+  {
+    key: "reserved",
+    labelKey: "reserved",
+    labelNs: "dashboard",
+    icon: Bookmark,
+    className: "bg-info text-white",
+    statuses: ["reserved"],
+    filter: "reserved",
+  },
+  {
+    key: "cleaning",
+    labelKey: "cleaning",
+    labelNs: "dashboard",
+    icon: Sparkles,
+    className: "bg-warning text-white",
+    statuses: ["cleaning_required", "cleaning_in_progress", "inspection_required"],
+    filter: "cleaning_required",
+  },
+  {
+    key: "maintenance",
+    labelKey: "maintenance",
+    labelNs: "dashboard",
+    icon: Wrench,
+    className: "bg-navy-700 text-white",
+    statuses: ["maintenance", "out_of_service"],
+    filter: "maintenance",
+  },
+];
 
 const GRID_FILTERS: Array<RoomStatus | "all"> = [
   "all",
@@ -94,6 +166,7 @@ function RoomsContent() {
   const t = useTranslations("rooms");
   const tn = useTranslations("nav");
   const tc = useTranslations("common");
+  const td = useTranslations("dashboard");
   const api = useApi();
   const queryClient = useQueryClient();
   const { activeHotelId, can } = useAuth();
@@ -105,15 +178,23 @@ function RoomsContent() {
     queryFn: () => api<ListOut<RoomOut>>("/api/v1/rooms?limit=200"),
     enabled: !!activeHotelId,
   });
-  const types = useQuery({
-    queryKey: ["room-types", activeHotelId],
-    queryFn: () => api<ListOut<RoomTypeOut>>("/api/v1/rooms/types?include_inactive=true"),
-    enabled: !!activeHotelId,
-  });
+
+  /** Room counts per status, derived from the already-fetched rooms list. */
+  const statusCounts = useMemo(() => {
+    const counts: Partial<Record<RoomStatus, number>> = {};
+    for (const room of rooms.data?.items ?? []) {
+      counts[room.status] = (counts[room.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [rooms.data]);
+
+  const cardValue = (statuses: RoomStatus[] | null) =>
+    statuses === null
+      ? (rooms.data?.items.length ?? 0)
+      : statuses.reduce((sum, status) => sum + (statusCounts[status] ?? 0), 0);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["room-types", activeHotelId] });
     queryClient.invalidateQueries({ queryKey: ["room-status-summary", activeHotelId] });
   };
 
@@ -136,21 +217,62 @@ function RoomsContent() {
     <>
       <PartnerHeader title={t("title")} subtitle={tn("property")} />
       <main className="flex-1 overflow-y-auto p-6">
-        <Tabs defaultValue="rooms">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <TabsList>
-              <TabsTrigger value="rooms">{t("roomsTab")}</TabsTrigger>
-              <TabsTrigger value="types">{t("typesTab")}</TabsTrigger>
-            </TabsList>
-            {can(PERMISSIONS.roomsManage) && (
-              <div className="flex gap-2">
-                <CreateRoomTypeDialog onCreated={invalidate} />
-                <CreateRoomDialog types={types.data?.items ?? []} onCreated={invalidate} />
-              </div>
-            )}
+        {/* Rooms & room types are managed on the Edit Hotel page — this page
+            only shows live status (client request, 09/2026). */}
+        {can(PERMISSIONS.hotelManageSettings) && (
+          <div className="mb-4 flex justify-end">
+            <Link
+              href="/edit-hotel"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium hover:bg-muted"
+            >
+              <SquarePen className="size-4" aria-hidden />
+              {t("manageInEditHotel")}
+            </Link>
           </div>
+        )}
 
-          <TabsContent value="rooms" className="mt-4">
+        <div>
+            {/* Stat cards (figma: Room Status - Meridian Court) */}
+            <section
+              aria-label={t("statTotal")}
+              className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6"
+            >
+              {rooms.isLoading &&
+                STAT_CARDS.map((card) => (
+                  <Skeleton key={card.key} className="h-28 rounded-lg" />
+                ))}
+              {rooms.data &&
+                STAT_CARDS.map((card) => {
+                  const Icon = card.icon;
+                  const label =
+                    card.labelNs === "rooms" ? t(card.labelKey) : td(card.labelKey);
+                  return (
+                    <button
+                      key={card.key}
+                      type="button"
+                      onClick={() => setGridFilter(card.filter)}
+                      aria-pressed={gridFilter === card.filter}
+                      className={cn(
+                        "relative overflow-hidden rounded-lg p-4 text-left transition-shadow",
+                        card.className,
+                        gridFilter === card.filter && "ring-2 ring-gold-500 ring-offset-2",
+                      )}
+                    >
+                      <Icon
+                        className="absolute right-3 bottom-3 size-8 opacity-25"
+                        aria-hidden
+                      />
+                      <p className="text-3xl font-semibold tabular-nums">
+                        {cardValue(card.statuses)}
+                      </p>
+                      <p className="mt-1 text-xs font-medium tracking-wide uppercase opacity-80">
+                        {label}
+                      </p>
+                    </button>
+                  );
+                })}
+            </section>
+
             {/* View toggle + status filter chips (grid mode) */}
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap gap-1.5">
@@ -312,48 +434,7 @@ function RoomsContent() {
               )}
             </div>
             )}
-          </TabsContent>
-
-          <TabsContent value="types" className="mt-4">
-            <div className="rounded-lg border bg-card">
-              {types.isLoading && <TableSkeleton rows={3} />}
-              {types.isError && <ErrorRow onRetry={() => types.refetch()} />}
-              {types.data && types.data.items.length === 0 && (
-                <p className="p-10 text-center text-sm text-muted-foreground">
-                  {t("noTypes")}
-                </p>
-              )}
-              {types.data && types.data.items.length > 0 && (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-navy-900 hover:bg-navy-900">
-                      <TableHead className="text-white">{t("typeCode")}</TableHead>
-                      <TableHead className="text-white">{t("typeName")}</TableHead>
-                      <TableHead className="text-white">{t("basePrice")}</TableHead>
-                      <TableHead className="text-white">{t("hourlyRate")}</TableHead>
-                      <TableHead className="text-white">{t("extraGuestPrice")}</TableHead>
-                      <TableHead className="text-white">{t("maxOccupancy")}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {types.data.items.map((type) => (
-                      <TableRow key={type.id}>
-                        <TableCell className="font-mono text-xs">{type.code}</TableCell>
-                        <TableCell className="font-medium">{type.name}</TableCell>
-                        <TableCell>{fmtINR(type.base_price)}</TableCell>
-                        <TableCell>
-                          {type.hourly_rate ? `${fmtINR(type.hourly_rate)}/hr` : "—"}
-                        </TableCell>
-                        <TableCell>{fmtINR(type.extra_guest_price)}</TableCell>
-                        <TableCell>{type.max_occupancy}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
-          </TabsContent>
-        </Tabs>
+        </div>
       </main>
     </>
   );
@@ -378,203 +459,6 @@ function ErrorRow({ onRetry }: { onRetry: () => void }) {
         {tc("retry")}
       </button>
     </div>
-  );
-}
-
-function CreateRoomTypeDialog({ onCreated }: { onCreated: () => void }) {
-  const t = useTranslations("rooms");
-  const tc = useTranslations("common");
-  const api = useApi();
-  const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const mutation = useMutation({
-    mutationFn: (form: FormData) =>
-      api<RoomTypeOut>("/api/v1/rooms/types", {
-        method: "POST",
-        body: {
-          code: String(form.get("code")).trim().toUpperCase(),
-          name: String(form.get("name")).trim(),
-          base_price: String(form.get("base_price")),
-          extra_guest_price: String(form.get("extra_guest_price") || "0"),
-          hourly_rate: form.get("hourly_rate") ? String(form.get("hourly_rate")) : null,
-          max_occupancy: Number(form.get("max_occupancy") || 2),
-        },
-      }),
-    onSuccess: () => {
-      toast.success(t("typeCreated"));
-      setOpen(false);
-      setError(null);
-      onCreated();
-    },
-    onError: (err) => setError(err instanceof ApiError ? err.message : tc("error")),
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium hover:bg-muted"
-      >
-        <Plus className="size-4" aria-hidden />
-        {t("addRoomType")}
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t("addRoomType")}</DialogTitle>
-        </DialogHeader>
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            mutation.mutate(new FormData(e.currentTarget));
-          }}
-        >
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="rt-code">{t("typeCode")}</Label>
-              <Input id="rt-code" name="code" required maxLength={64} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="rt-name">{t("typeName")}</Label>
-              <Input id="rt-name" name="name" required maxLength={120} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="rt-price">{t("basePrice")}</Label>
-              <Input id="rt-price" name="base_price" type="number" min="0" step="0.01" required />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="rt-extra">{t("extraGuestPrice")}</Label>
-              <Input id="rt-extra" name="extra_guest_price" type="number" min="0" step="0.01" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="rt-hourly">{t("hourlyRate")}</Label>
-              <Input id="rt-hourly" name="hourly_rate" type="number" min="0" step="1" placeholder={t("hourlyRateHint")} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="rt-occ">{t("maxOccupancy")}</Label>
-              <Input id="rt-occ" name="max_occupancy" type="number" min="1" max="20" defaultValue={2} />
-            </div>
-          </div>
-          {error && (
-            <p className="text-sm text-danger" role="alert">
-              {error}
-            </p>
-          )}
-          <DialogFooter>
-            <DialogClose className="inline-flex h-8 items-center rounded-lg border border-border px-2.5 text-sm hover:bg-muted">
-              {tc("cancel")}
-            </DialogClose>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? tc("saving") : tc("save")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function CreateRoomDialog({
-  types,
-  onCreated,
-}: {
-  types: RoomTypeOut[];
-  onCreated: () => void;
-}) {
-  const t = useTranslations("rooms");
-  const tc = useTranslations("common");
-  const api = useApi();
-  const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const mutation = useMutation({
-    mutationFn: (form: FormData) =>
-      api<RoomOut>("/api/v1/rooms", {
-        method: "POST",
-        body: {
-          room_number: String(form.get("room_number")).trim(),
-          floor: String(form.get("floor") || "").trim() || null,
-          room_type_id: String(form.get("room_type_id")),
-          amenities: String(form.get("amenities") || "")
-            .split(",")
-            .map((a) => a.trim())
-            .filter(Boolean),
-        },
-      }),
-    onSuccess: () => {
-      toast.success(t("roomCreated"));
-      setOpen(false);
-      setError(null);
-      onCreated();
-    },
-    onError: (err) => setError(err instanceof ApiError ? err.message : tc("error")),
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/80">
-        <Plus className="size-4" aria-hidden />
-        {t("addRoom")}
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t("addRoom")}</DialogTitle>
-        </DialogHeader>
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            mutation.mutate(new FormData(e.currentTarget));
-          }}
-        >
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="r-number">{t("roomNumber")}</Label>
-              <Input id="r-number" name="room_number" required maxLength={32} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="r-floor">{t("floor")}</Label>
-              <Input id="r-floor" name="floor" maxLength={32} />
-            </div>
-            <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="r-type">{t("roomType")}</Label>
-              <select
-                id="r-type"
-                name="room_type_id"
-                required
-                className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
-              >
-                <option value="">—</option>
-                {types
-                  .filter((type) => type.is_active)
-                  .map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.name} ({fmtINR(type.base_price)})
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="r-amenities">{t("amenities")}</Label>
-              <Input id="r-amenities" name="amenities" placeholder="AC, WiFi, TV" />
-            </div>
-          </div>
-          {error && (
-            <p className="text-sm text-danger" role="alert">
-              {error}
-            </p>
-          )}
-          <DialogFooter>
-            <DialogClose className="inline-flex h-8 items-center rounded-lg border border-border px-2.5 text-sm hover:bg-muted">
-              {tc("cancel")}
-            </DialogClose>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? tc("saving") : tc("save")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
 

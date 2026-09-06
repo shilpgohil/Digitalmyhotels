@@ -46,6 +46,8 @@ class RoomOut(ORMModel):
     room_number: str
     floor: str | None
     bed_type: str | None = None
+    max_adults: int | None = None
+    max_children: int | None = None
     status: str
     is_active: bool
     notes: str | None
@@ -58,6 +60,8 @@ class RoomCreate(BaseModel):
     room_number: str = Field(min_length=1, max_length=32)
     floor: str | None = Field(default=None, max_length=32)
     bed_type: str | None = Field(default=None, max_length=40)
+    max_adults: int | None = Field(default=None, ge=0, le=20)
+    max_children: int | None = Field(default=None, ge=0, le=20)
     room_type_id: UUID
     notes: str | None = Field(default=None, max_length=2000)
     amenities: list[str] = Field(default_factory=list, max_length=30)
@@ -67,6 +71,8 @@ class RoomUpdate(BaseModel):
     room_number: str | None = Field(default=None, min_length=1, max_length=32)
     floor: str | None = Field(default=None, max_length=32)
     bed_type: str | None = Field(default=None, max_length=40)
+    max_adults: int | None = Field(default=None, ge=0, le=20)
+    max_children: int | None = Field(default=None, ge=0, le=20)
     room_type_id: UUID | None = None
     notes: str | None = Field(default=None, max_length=2000)
     is_active: bool | None = None

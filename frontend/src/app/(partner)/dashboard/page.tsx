@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -16,6 +17,8 @@ import {
   Users,
   Wallet,
   Zap,
+  MoreVertical,
+  Eye,
 } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,6 +31,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PaymentStatusBadge } from "@/components/stay/booking-badges";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -97,6 +106,8 @@ export default function DashboardPage() {
   const t = useTranslations("dashboard");
   const tn = useTranslations("nav");
   const tc = useTranslations("common");
+  const ts = useTranslations("stay");
+  const router = useRouter();
   const api = useApi();
   const { activeHotelId, can } = useAuth();
 
@@ -180,8 +191,10 @@ export default function DashboardPage() {
                         <TableHead className="text-white">{t("colBooking")}</TableHead>
                         <TableHead className="text-white">{t("colGuest")}</TableHead>
                         <TableHead className="text-white">{t("colRoom")}</TableHead>
+                        <TableHead className="text-white">{t("colCheckin")}</TableHead>
                         <TableHead className="text-white">{t("colCheckout")}</TableHead>
                         <TableHead className="text-white">{t("colPayment")}</TableHead>
+                        <TableHead className="text-right text-white">{tc("actions")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -190,11 +203,45 @@ export default function DashboardPage() {
                           <TableCell className="font-medium">{guest.booking_number}</TableCell>
                           <TableCell>{guest.primary_guest_name}</TableCell>
                           <TableCell>{guest.rooms.join(", ")}</TableCell>
-                          <TableCell className="text-muted-foreground">
+                          <TableCell className="whitespace-nowrap text-muted-foreground">
+                            {fmtApiDate(guest.check_in_date)}
+                            {guest.check_in_time ? `, ${guest.check_in_time}` : ""}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-muted-foreground">
                             {fmtApiDate(guest.check_out_date)}
+                            {guest.check_out_time ? `, ${guest.check_out_time}` : ""}
                           </TableCell>
                           <TableCell>
                             <PaymentStatusBadge status={guest.payment_status} />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger
+                                className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"
+                                aria-label={tc("actions")}
+                              >
+                                <MoreVertical className="size-4" aria-hidden />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => router.push("/current-guests")}
+                                >
+                                  <Eye className="size-4" aria-hidden />
+                                  {tc("view")}
+                                </DropdownMenuItem>
+                                {can(PERMISSIONS.checkout) && (
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={() =>
+                                      router.push(`/checkout?booking=${guest.booking_id}`)
+                                    }
+                                  >
+                                    <LogOut className="size-4" aria-hidden />
+                                    {ts("checkOutAction")}
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       ))}

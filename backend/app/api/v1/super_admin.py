@@ -13,6 +13,8 @@ from app.schemas.platform import (
     CreateHotelRequest,
     HotelAdminListOut,
     PlatformDashboardOut,
+    RenewalRequestAdminListOut,
+    RenewalRequestAdminOut,
     SubscriptionAssign,
     SubscriptionOut,
     SubscriptionPlanCreate,
@@ -21,6 +23,7 @@ from app.schemas.platform import (
 from app.services import subscriptions as sub_service
 from app.services import super_admin as admin_service
 from app.services.audit import write_audit
+from app.services.notifications import create_notification
 
 router = APIRouter(prefix="/super-admin", tags=["super-admin"])
 
@@ -136,3 +139,117 @@ async def assign_subscription(
         correlation_id=_correlation(request),
     )
     return SubscriptionOut.model_validate(sub)
+
+
+@router.get("/renewal-requests", response_model=RenewalRequestAdminListOut)
+async def list_renewal_requests(
+    status: str | None = Query(default="pending"),
+    _user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> RenewalRequestAdminListOut:
+    rows = await sub_service.list_renewal_requests(db, status=status)
+    items = [
+        RenewalRequestAdminOut(
+            id=req.id,
+            hotel_id=req.hotel_id,
+            hotel_name=hotel.name,
+            plan_id=plan.id,
+            plan_name=plan.name,
+            duration_days=plan.duration_days,
+            amount=req.amount,
+            status=req.status,
+            created_at=req.created_at,
+            decided_at=req.decided_at,
+        )
+        for req, hotel, plan in rows
+    ]
+    return RenewalRequestAdminListOut(items=items, total=len(items))
+
+
+async def _decide_renewal(
+    db: AsyncSession,
+    request_id: UUID,
+    *,
+    approve: bool,
+    user: User,
+    correlation_id: str | None,
+) -> RenewalRequestAdminOut:
+    from sqlalchemy import select
+
+    from app.models.hotel import Hotel
+
+    req, plan = await sub_service.decide_renewal_request(
+        db, request_id, approve=approve, decided_by_id=user.id
+    )
+    hotel = (await db.execute(select(Hotel).where(Hotel.id == req.hotel_id))).scalar_one()
+    verb = "approved" if approve else "rejected"
+    await write_audit(
+        db,
+        action=f"platform.renewal_request_{verb}",
+        entity_type="subscription_renewal_request",
+        entity_id=req.id,
+        actor_id=user.id,
+        hotel_id=req.hotel_id,
+        after={"plan_code": plan.code, "amount": str(req.amount)},
+        correlation_id=correlation_id,
+    )
+    # Tell the partner the outcome (finance category, deep link to the plan page).
+    if approve:
+        title = "Subscription renewed"
+        body = (
+            f"Your payment for the {plan.name} plan was confirmed. "
+            "Your subscription is now active."
+        )
+    else:
+        title = "Renewal request rejected"
+        body = (
+            f"Your renewal request for the {plan.name} plan could not be verified. "
+            "Please contact the DigitalMyHotels team."
+        )
+    await create_notification(
+        db,
+        hotel_id=req.hotel_id,
+        user_id=None,
+        type=f"subscription.renewal_{verb}",
+        category="finance",
+        title=title,
+        body=body,
+        deep_link="/plan",
+        payload={"renewal_request_id": str(req.id), "plan_code": plan.code},
+    )
+    return RenewalRequestAdminOut(
+        id=req.id,
+        hotel_id=req.hotel_id,
+        hotel_name=hotel.name,
+        plan_id=plan.id,
+        plan_name=plan.name,
+        duration_days=plan.duration_days,
+        amount=req.amount,
+        status=req.status,
+        created_at=req.created_at,
+        decided_at=req.decided_at,
+    )
+
+
+@router.post("/renewal-requests/{request_id}/approve", response_model=RenewalRequestAdminOut)
+async def approve_renewal_request(
+    request_id: UUID,
+    request: Request,
+    user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> RenewalRequestAdminOut:
+    return await _decide_renewal(
+        db, request_id, approve=True, user=user, correlation_id=_correlation(request)
+    )
+
+
+@router.post("/renewal-requests/{request_id}/reject", response_model=RenewalRequestAdminOut)
+async def reject_renewal_request(
+    request_id: UUID,
+    request: Request,
+    user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> RenewalRequestAdminOut:
+    return await _decide_renewal(
+        db, request_id, approve=False, user=user, correlation_id=_correlation(request)
+    )

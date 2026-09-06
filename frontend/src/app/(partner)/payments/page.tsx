@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -28,15 +28,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StatusBadge } from "@/components/feedback/status-badge";
+import { PaymentStatusBadge } from "@/components/stay/booking-badges";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
-import { fmtINR } from "@/lib/formatting";
+import { fmtINR, localToday } from "@/lib/formatting";
+import { cn } from "@/lib/utils";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { ListOut } from "@/types/hotel";
 import type { BookingOut } from "@/types/stay";
-import type { ChargeOut, LedgerOut, PaymentOut } from "@/types/money";
+import type {
+  BillingHistoryOut,
+  ChargeOut,
+  LedgerOut,
+  PaymentOut,
+} from "@/types/money";
 
 interface PaymentSummary {
   total_collected: string;
@@ -47,20 +54,90 @@ interface PaymentSummary {
   paid_bookings: number;
   partial_bookings: number;
   unpaid_bookings: number;
+  /** ₹ collected on fully-paid bookings. */
+  paid_amount: string;
+  /** ₹ remaining due on partially-paid bookings. */
+  partial_amount: string;
+  /** ₹ due on unpaid bookings. */
+  pending_amount: string;
+}
+
+type QuickRange = "all" | "today" | "last5" | "month" | "year";
+type PaymentMode = "" | "cash" | "upi" | "card" | "bank_transfer" | "other";
+
+/** Billing History page size (figma shows a compact paginated table). */
+const BILLING_PAGE_SIZE = 10;
+
+/** Format a Date as local YYYY-MM-DD (avoids UTC off-by-one, same as localToday). */
+function toLocalIso(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+/** Compute from/to dates for a quick-filter chip. */
+function rangeFor(range: QuickRange): { from: string; to: string } {
+  const now = new Date();
+  const today = localToday();
+  switch (range) {
+    case "today":
+      return { from: today, to: today };
+    case "last5": {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 4);
+      return { from: toLocalIso(d), to: today };
+    }
+    case "month":
+      return { from: toLocalIso(new Date(now.getFullYear(), now.getMonth(), 1)), to: today };
+    case "year":
+      return { from: toLocalIso(new Date(now.getFullYear(), 0, 1)), to: today };
+    default:
+      return { from: "", to: "" };
+  }
 }
 
 function PaymentsContent() {
   const t = useTranslations("money");
+  const tb = useTranslations("bookings");
   const tn = useTranslations("nav");
   const tc = useTranslations("common");
   const api = useApi();
   const { activeHotelId, can } = useAuth();
   const queryClient = useQueryClient();
   const [bookingId, setBookingId] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
   const [correctTarget, setCorrectTarget] = useState<PaymentOut | null>(null);
   const [refundTarget, setRefundTarget] = useState<PaymentOut | null>(null);
+
+  // Draft filters (edited in the filter bar) vs applied filters (drive the
+  // queries). "Apply" commits the draft; "Clear" resets both.
+  const [quickRange, setQuickRange] = useState<QuickRange>("all");
+  const [draftFrom, setDraftFrom] = useState("");
+  const [draftTo, setDraftTo] = useState("");
+  const [draftMode, setDraftMode] = useState<PaymentMode>("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [mode, setMode] = useState<PaymentMode>("");
+  const [billingPage, setBillingPage] = useState(0);
+
+  const applyFilters = () => {
+    setFromDate(draftFrom);
+    setToDate(draftTo);
+    setMode(draftMode);
+  };
+  const clearFilters = () => {
+    setQuickRange("all");
+    setDraftFrom("");
+    setDraftTo("");
+    setDraftMode("");
+    setFromDate("");
+    setToDate("");
+    setMode("");
+  };
+
+  // Reset Billing History pagination when applied filters change.
+  useEffect(() => {
+    setBillingPage(0);
+  }, [fromDate, toDate, mode]);
 
   const rangeQs = `${fromDate ? `&from_date=${fromDate}` : ""}${toDate ? `&to_date=${toDate}` : ""}`;
 
@@ -74,6 +151,16 @@ function PaymentsContent() {
     queryKey: ["payment-summary", activeHotelId, rangeQs],
     queryFn: () =>
       api<PaymentSummary>(`/api/v1/payments/summary?${rangeQs.replace(/^&/, "")}`),
+    enabled: !!activeHotelId,
+  });
+
+  const billingQs = rangeQs + (mode ? `&payment_mode=${mode}` : "");
+  const billing = useQuery({
+    queryKey: ["billing-history", activeHotelId, billingQs, billingPage],
+    queryFn: () =>
+      api<BillingHistoryOut>(
+        `/api/v1/payments/billing-history?limit=${BILLING_PAGE_SIZE}&offset=${billingPage * BILLING_PAGE_SIZE}${billingQs}`,
+      ),
     enabled: !!activeHotelId,
   });
 
@@ -101,6 +188,7 @@ function PaymentsContent() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["payments", activeHotelId] });
     queryClient.invalidateQueries({ queryKey: ["payment-summary", activeHotelId] });
+    queryClient.invalidateQueries({ queryKey: ["billing-history", activeHotelId] });
     queryClient.invalidateQueries({ queryKey: ["charges", activeHotelId] });
     queryClient.invalidateQueries({ queryKey: ["ledger", activeHotelId] });
     queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
@@ -112,68 +200,218 @@ function PaymentsContent() {
     <>
       <PartnerHeader title={t("paymentsTitle")} subtitle={tn("money")} />
       <main className="flex-1 overflow-y-auto p-6">
-        {/* Date filters */}
-        <div className="mb-4 flex flex-wrap items-end gap-3">
-          <div>
-            <Label>{t("fromDate")}</Label>
-            <DatePicker
-              className="mt-1"
-              value={fromDate}
-              onChange={setFromDate}
-            />
+        {/* ── Filter bar: quick chips + dates + payment mode + apply/clear ── */}
+        <div className="mb-4 rounded-lg border bg-card p-4">
+          <div className="mb-3 flex flex-wrap gap-2">
+            {(
+              [
+                ["all", tb("allTime")],
+                ["today", tb("today")],
+                ["last5", tb("last5Days")],
+                ["month", tb("thisMonth")],
+                ["year", tb("thisYear")],
+              ] as [QuickRange, string][]
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  setQuickRange(value);
+                  const { from, to } = rangeFor(value);
+                  setDraftFrom(from);
+                  setDraftTo(to);
+                }}
+                className={cn(
+                  "inline-flex items-center rounded-full border px-3 py-1.5 text-sm transition-colors",
+                  quickRange === value
+                    ? "border-gold-500 bg-gold-500 font-medium text-navy-900"
+                    : "border-border text-muted-foreground hover:border-gold-500 hover:text-gold-600",
+                )}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          <div>
-            <Label>{t("toDate")}</Label>
-            <DatePicker
-              className="mt-1"
-              value={toDate}
-              onChange={setToDate}
-            />
-          </div>
-          {(fromDate || toDate) && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                setFromDate("");
-                setToDate("");
-              }}
-            >
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <Label>{t("fromDate")}</Label>
+              <DatePicker
+                className="mt-1 w-40"
+                value={draftFrom}
+                onChange={(v) => {
+                  setQuickRange("all");
+                  setDraftFrom(v);
+                }}
+              />
+            </div>
+            <div>
+              <Label>{t("toDate")}</Label>
+              <DatePicker
+                className="mt-1 w-40"
+                value={draftTo}
+                onChange={(v) => {
+                  setQuickRange("all");
+                  setDraftTo(v);
+                }}
+              />
+            </div>
+            <div>
+              <Label>{t("paymentModeFilter")}</Label>
+              <select
+                className="mt-1 h-8 w-40 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                value={draftMode}
+                onChange={(e) => setDraftMode(e.target.value as PaymentMode)}
+              >
+                <option value="">{t("allModes")}</option>
+                <option value="cash">{t("cash")}</option>
+                <option value="upi">{t("upi")}</option>
+                <option value="card">{t("card")}</option>
+                <option value="bank_transfer">{t("bankTransfer")}</option>
+                <option value="other">{t("otherMethod")}</option>
+              </select>
+            </div>
+            <Button onClick={applyFilters}>{t("applyFilters")}</Button>
+            <Button variant="outline" onClick={clearFilters}>
               {t("clearFilters")}
             </Button>
-          )}
+          </div>
         </div>
 
-        {/* Summary cards — paid/partial/pending are booking counts (the API
-            exposes counts, not amounts, for those statuses). */}
+        {/* Summary cards — all six show ₹ amounts (client Figma). */}
         {summary.data && (
           <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             {(
-              // 4th element: booking count for status cards (the API exposes
-              // booking counts — not amounts or payment counts — for these).
               [
-                ["totalCollected", fmtINR(summary.data.total_collected), "bg-navy-900 text-white", null],
-                ["paidCard", String(summary.data.paid_bookings), "bg-green-800 text-white", summary.data.paid_bookings],
-                ["cash", fmtINR(summary.data.cash), "bg-gold-500 text-navy-900", null],
-                ["upi", fmtINR(summary.data.upi), "bg-success text-white", null],
-                ["partialCard", String(summary.data.partial_bookings), "bg-amber-700 text-white", summary.data.partial_bookings],
-                ["pendingCard", String(summary.data.unpaid_bookings), "bg-danger text-white", summary.data.unpaid_bookings],
+                ["totalCollected", fmtINR(summary.data.total_collected), "bg-navy-900 text-white"],
+                ["paidCard", fmtINR(summary.data.paid_amount), "bg-green-800 text-white"],
+                ["cash", fmtINR(summary.data.cash), "bg-gold-500 text-navy-900"],
+                ["upi", fmtINR(summary.data.upi), "bg-success text-white"],
+                ["partialCard", fmtINR(summary.data.partial_amount), "bg-amber-700 text-white"],
+                ["pendingCard", fmtINR(summary.data.pending_amount), "bg-danger text-white"],
               ] as const
-            ).map(([key, value, className, bookingCount]) => (
+            ).map(([key, value, className]) => (
               <div key={key} className={`rounded-lg p-4 ${className}`}>
                 <p className="text-[10px] font-semibold uppercase tracking-widest opacity-80">
                   {t(key)}
                 </p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-                {bookingCount !== null && (
-                  <p className="text-[10px] font-medium opacity-80">
-                    {t("bookingsCountLabel", { count: bookingCount })}
-                  </p>
-                )}
               </div>
             ))}
           </div>
         )}
 
+        {/* ── Billing History: one row per booking (figma redesign) ── */}
+        <section className="rounded-lg border bg-card">
+          <h2 className="px-4 pt-4 text-sm font-semibold">{t("billingHistory")}</h2>
+          {billing.isLoading && <Skeleton className="m-4 h-48" />}
+          {billing.isError && (
+            <p className="p-4 text-sm text-danger">
+              {tc("error")}{" "}
+              <button className="underline" onClick={() => billing.refetch()}>
+                {tc("retry")}
+              </button>
+            </p>
+          )}
+          {billing.data && billing.data.items.length === 0 && (
+            <p className="p-6 text-sm text-muted-foreground">{t("noBillingRows")}</p>
+          )}
+          {billing.data && billing.data.items.length > 0 && (
+            <>
+              <div className="mt-3 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-navy-900 hover:bg-navy-900">
+                      <TableHead className="text-white">{t("colBooking")}</TableHead>
+                      <TableHead className="text-white">{t("colGuest")}</TableHead>
+                      <TableHead className="text-white">{t("colRoomRent")}</TableHead>
+                      <TableHead className="text-white">{t("colTax")}</TableHead>
+                      <TableHead className="text-white">{t("colDiscount")}</TableHead>
+                      <TableHead className="text-white">{t("colAdvance")}</TableHead>
+                      <TableHead className="text-white">{t("colBalance")}</TableHead>
+                      <TableHead className="text-white">{t("colMode")}</TableHead>
+                      <TableHead className="text-white">{t("colStatus")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {billing.data.items.map((row) => (
+                      <TableRow key={row.booking_id}>
+                        <TableCell className="font-medium">{row.booking_number}</TableCell>
+                        <TableCell>{row.guest_name ?? "—"}</TableCell>
+                        <TableCell className="tabular-nums">{fmtINR(row.room_rent)}</TableCell>
+                        <TableCell className="tabular-nums">{fmtINR(row.gst)}</TableCell>
+                        <TableCell className="tabular-nums">{fmtINR(row.discount)}</TableCell>
+                        <TableCell className="tabular-nums">{fmtINR(row.advance)}</TableCell>
+                        <TableCell
+                          className={cn(
+                            "tabular-nums font-semibold",
+                            Number(row.balance) > 0 ? "text-danger" : "text-success",
+                          )}
+                        >
+                          {fmtINR(row.balance)}
+                        </TableCell>
+                        <TableCell>
+                          {row.mode
+                            ? t(
+                                (
+                                  {
+                                    cash: "cash",
+                                    upi: "upi",
+                                    card: "card",
+                                    bank_transfer: "bankTransfer",
+                                    other: "otherMethod",
+                                  } as Record<string, string>
+                                )[row.mode] ?? "otherMethod",
+                              )
+                            : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <PaymentStatusBadge status={row.payment_status} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3 text-sm text-muted-foreground">
+                <span>
+                  {t("showingEntries", {
+                    from: billingPage * BILLING_PAGE_SIZE + 1,
+                    to: Math.min(
+                      (billingPage + 1) * BILLING_PAGE_SIZE,
+                      billing.data.total,
+                    ),
+                    total: billing.data.total,
+                  })}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={billingPage === 0}
+                    onClick={() => setBillingPage((p) => p - 1)}
+                  >
+                    {t("previousPage")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={(billingPage + 1) * BILLING_PAGE_SIZE >= billing.data.total}
+                    onClick={() => setBillingPage((p) => p + 1)}
+                  >
+                    {t("nextPage")}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </section>
+
+        {/* ── Payment transactions: raw payments with Correct / Refund ── */}
+        <details className="mt-6 rounded-lg border bg-card">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">
+            {t("paymentTransactions")}
+          </summary>
+          <div className="border-t p-4">
         <div className="mb-4 flex flex-wrap items-end gap-3">
           <div className="min-w-56">
             <Label>{t("selectBooking")}</Label>
@@ -273,53 +511,6 @@ function PaymentsContent() {
           </section>
         )}
 
-        {/* Billing history per booking */}
-        {bookings.data && bookings.data.items.length > 0 && (
-          <section className="mt-6 rounded-lg border bg-card">
-            <h2 className="px-4 pt-4 text-sm font-semibold">{t("billingHistory")}</h2>
-            <div className="mt-3 overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-navy-900 hover:bg-navy-900">
-                    <TableHead className="text-white">{t("colBooking")}</TableHead>
-                    <TableHead className="text-white">{t("colGuest")}</TableHead>
-                    <TableHead className="text-white">{t("colTotal")}</TableHead>
-                    <TableHead className="text-white">{t("colTax")}</TableHead>
-                    <TableHead className="text-white">{t("colAdvance")}</TableHead>
-                    <TableHead className="text-white">{t("colBalance")}</TableHead>
-                    <TableHead className="text-white">{t("colStatus")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bookings.data.items.slice(0, 20).map((b) => (
-                    <TableRow key={b.id}>
-                      <TableCell className="font-medium">{b.booking_number}</TableCell>
-                      <TableCell>{b.primary_guest_name ?? "—"}</TableCell>
-                      <TableCell className="tabular-nums">{fmtINR(b.total_amount)}</TableCell>
-                      <TableCell className="tabular-nums">{fmtINR(b.tax_amount)}</TableCell>
-                      <TableCell className="tabular-nums">{fmtINR(b.advance_amount)}</TableCell>
-                      <TableCell className="tabular-nums font-medium">{fmtINR(b.due_amount)}</TableCell>
-                      <TableCell>
-                        <StatusBadge
-                          tone={
-                            b.payment_status === "paid"
-                              ? "success"
-                              : b.payment_status === "partial"
-                                ? "warning"
-                                : "danger"
-                          }
-                        >
-                          {b.payment_status}
-                        </StatusBadge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </section>
-        )}
-
         {ledger.data && (
           <section className="mt-6 rounded-lg border bg-card p-4">
             <div className="mb-3 flex items-center justify-between">
@@ -340,6 +531,8 @@ function PaymentsContent() {
             </ul>
           </section>
         )}
+          </div>
+        </details>
 
         {correctTarget && (
           <CorrectPaymentDialog

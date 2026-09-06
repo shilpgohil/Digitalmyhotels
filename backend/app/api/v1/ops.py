@@ -10,6 +10,7 @@ from app.api.deps import require_permissions
 from app.core.permissions import Permission
 from app.core.tenant import TenantContext
 from app.db.session import get_db
+from app.models.ops import ShiftHandover
 from app.schemas.ops import (
     DailyClosingClose,
     DailyClosingOut,
@@ -24,6 +25,14 @@ router = APIRouter(prefix="/ops", tags=["operations"])
 
 def _correlation(request: Request) -> str | None:
     return getattr(request.state, "correlation_id", None)
+
+
+def _handover_out(row: ShiftHandover) -> ShiftHandoverOut:
+    """Serialize a handover, surfacing the free-text `to_name` stored in snapshot."""
+    out = ShiftHandoverOut.model_validate(row)
+    snapshot = row.snapshot or {}
+    out.to_name = snapshot.get("to_name")
+    return out
 
 
 @router.get("/daily-closing", response_model=list[DailyClosingOut])
@@ -79,7 +88,7 @@ async def list_handovers(
     db: AsyncSession = Depends(get_db),
 ) -> list[ShiftHandoverOut]:
     items = await ops_service.list_handovers(db, tenant)
-    return [ShiftHandoverOut.model_validate(i) for i in items]
+    return [_handover_out(i) for i in items]
 
 
 @router.post("/shift-handover", response_model=ShiftHandoverOut, status_code=201)
@@ -92,7 +101,7 @@ async def create_handover(
     row = await ops_service.create_handover(
         db, tenant, body, correlation_id=_correlation(request)
     )
-    return ShiftHandoverOut.model_validate(row)
+    return _handover_out(row)
 
 
 @router.post("/shift-handover/{handover_id}/confirm", response_model=ShiftHandoverOut)
@@ -105,4 +114,4 @@ async def confirm_handover(
     row = await ops_service.confirm_handover(
         db, tenant, handover_id, correlation_id=_correlation(request)
     )
-    return ShiftHandoverOut.model_validate(row)
+    return _handover_out(row)

@@ -13,7 +13,9 @@ import { LocaleSwitcher } from "@/components/layout/locale-switcher";
 import { AUTH_RETURN_KEY } from "@/components/auth/require-auth";
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  // Accepts an email address OR a phone number — the backend decides based
+  // on the presence of "@". Field name stays "email" for API compatibility.
+  email: z.string().min(1),
   password: z.string().min(1),
 });
 
@@ -95,7 +97,7 @@ export default function LoginPage() {
           {/* Email / Username */}
           <div className="space-y-1.5">
             <label htmlFor="email" className="block text-sm font-medium text-foreground">
-              {t("email")}
+              {t("emailOrPhone")}
             </label>
             <div className="relative">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
@@ -103,9 +105,9 @@ export default function LoginPage() {
               </span>
               <input
                 id="email"
-                type="email"
-                autoComplete="email"
-                placeholder={t("emailPlaceholder")}
+                type="text"
+                autoComplete="username"
+                placeholder={t("emailOrPhonePlaceholder")}
                 aria-invalid={!!form.formState.errors.email}
                 disabled={submitting}
                 {...form.register("email")}

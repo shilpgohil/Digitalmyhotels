@@ -80,6 +80,13 @@ class HotelSettings(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     # "full" = all features; "checkin_only" = restrict to check-in/out (no expenses).
     access_mode: Mapped[str] = mapped_column(String(32), default="full", nullable=False)
+    # Check-in form feature flags (Edit Hotel — Emergency & Vehicle toggles).
+    collect_emergency_contact: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    collect_vehicle_details: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
 
     hotel: Mapped[Hotel] = relationship(back_populates="settings")
 
@@ -98,6 +105,21 @@ class HotelServiceItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class HotelImage(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Property gallery photo — max 5 per hotel, one per position slot (0–4)."""
+
+    __tablename__ = "hotel_images"
+    __table_args__ = (
+        UniqueConstraint("hotel_id", "position", name="uq_hotel_image_hotel_position"),
+    )
+
+    hotel_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("hotels.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    object_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
 class HotelPaymentConfig(Base, UUIDPrimaryKeyMixin, TimestampMixin):

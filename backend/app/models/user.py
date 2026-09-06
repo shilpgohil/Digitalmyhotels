@@ -25,6 +25,10 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "users"
 
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
+    # Stored normalized (digits only, country code stripped — see
+    # app.schemas.guest.normalize_phone). A partial unique index
+    # ix_users_phone (WHERE phone IS NOT NULL) is created in migration
+    # b6a4996f6748 so staff can log in by phone.
     phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)

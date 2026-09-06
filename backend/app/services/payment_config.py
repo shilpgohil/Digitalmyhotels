@@ -159,6 +159,15 @@ async def _load_logo(config: HotelPaymentConfig) -> bytes | None:
         return None
 
 
+async def render_qr_png_async(payload: str, logo_bytes: bytes | None = None) -> bytes:
+    """Public QR renderer — offloads CPU-bound Pillow work to a thread executor.
+
+    Reused by the platform subscription payment QR (no logo compositing).
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _render_qr_png, payload, logo_bytes)
+
+
 def _render_qr_png(payload: str, logo_bytes: bytes | None) -> bytes:
     import qrcode
     from PIL import Image

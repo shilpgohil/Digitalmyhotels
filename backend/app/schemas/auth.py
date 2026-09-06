@@ -9,7 +9,10 @@ class ORMModel(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    # Kept as "email" for backward compatibility with existing clients, but
+    # accepts either an email address or a phone number (phone-first team
+    # accounts). Validation/lookup happens in auth_service.authenticate_user.
+    email: str = Field(min_length=1, max_length=320)
     password: str = Field(min_length=1)
     hotel_id: UUID | None = None
 

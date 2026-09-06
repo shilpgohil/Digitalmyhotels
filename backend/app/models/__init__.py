@@ -12,7 +12,12 @@ from app.models.hotel import Hotel, HotelPaymentConfig, HotelServiceItem, HotelS
 from app.models.invoice import GstSettings, Invoice, InvoiceItem
 from app.models.ops import DailyClosing, HousekeepingTask, MaintenanceRecord, ShiftHandover
 from app.models.payment import GuestBookingLedger, HotelCharge, Payment, Refund
-from app.models.platform import Notification, Subscription, SubscriptionPlan
+from app.models.platform import (
+    Notification,
+    Subscription,
+    SubscriptionPlan,
+    SubscriptionRenewalRequest,
+)
 from app.models.room import Room, RoomAmenity, RoomType
 from app.models.user import HotelMembership, RefreshToken, Role, User
 
@@ -56,6 +61,7 @@ __all__ = [
     "ShiftHandover",
     "SubscriptionPlan",
     "Subscription",
+    "SubscriptionRenewalRequest",
     "Notification",
     "AuditLog",
 ]

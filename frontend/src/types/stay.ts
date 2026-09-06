@@ -121,7 +121,10 @@ export interface CurrentGuestOut {
   booking_number: string;
   primary_guest_name: string;
   primary_guest_phone_masked: string;
+  primary_guest_phone?: string | null;
   rooms: string[];
+  /** Room status per current room, aligned with `rooms` by index. */
+  room_statuses?: string[];
   checked_in_at: string;
   expected_checkout_at: string | null;
   check_in_date: string;

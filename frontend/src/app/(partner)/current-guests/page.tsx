@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -42,7 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PaymentStatusBadge } from "@/components/stay/booking-badges";
-import { StatusBadge } from "@/components/feedback/status-badge";
+import { StatusBadge, ROOM_STATUS_TONE } from "@/components/feedback/status-badge";
 import { fmtDateTime, fmtDate, fmtApiDate, fmtINR } from "@/lib/formatting";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/lib/api/use-api";
@@ -69,6 +69,9 @@ function isCheckoutOverdue(date: string, time?: string | null): boolean {
   return new Date(y, m - 1, d, hh || 0, mm || 0).getTime() < Date.now();
 }
 
+/** Client-side page size for the current-guests table (figma pagination footer). */
+const PAGE_SIZE = 10;
+
 /** Day use (same check-in/out date) with both times known. */
 function isDayUseWithTimes(b: BookingOut): boolean {
   return (
@@ -81,23 +84,37 @@ function CurrentGuestsContent() {
   const tb = useTranslations("bookings");
   const tn = useTranslations("nav");
   const tc = useTranslations("common");
+  const tr = useTranslations("rooms");
   const api = useApi();
   const queryClient = useQueryClient();
   const { activeHotelId, can } = useAuth();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const router = useRouter();
   const [transferTarget, setTransferTarget] = useState<CurrentGuestOut | null>(null);
   const [viewTarget, setViewTarget] = useState<CurrentGuestOut | null>(null);
   const [editTarget, setEditTarget] = useState<CurrentGuestOut | null>(null);
+  // When set, the stay-detail dialog auto-triggers the registration print as
+  // soon as the booking detail loads (row "Print" action).
+  const [autoPrint, setAutoPrint] = useState(false);
 
   const guests = useQuery({
     queryKey: ["current-guests", activeHotelId, search],
     queryFn: () =>
       api<ListOut<CurrentGuestOut>>(
-        `/api/v1/current-guests?limit=50${search ? `&q=${encodeURIComponent(search)}` : ""}`,
+        `/api/v1/current-guests?limit=200${search ? `&q=${encodeURIComponent(search)}` : ""}`,
       ),
     enabled: !!activeHotelId,
   });
+
+  // Client-side pagination over the (already search-filtered) full list.
+  const allItems = guests.data?.items ?? [];
+  const totalPages = Math.max(1, Math.ceil(allItems.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = allItems.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  );
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
@@ -115,7 +132,10 @@ function CurrentGuestsContent() {
             placeholder={tb("searchPlaceholder")}
             className="max-w-xs"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
         <div className="rounded-lg border bg-card">
@@ -145,7 +165,9 @@ function CurrentGuestsContent() {
                 <TableRow className="bg-navy-900 hover:bg-navy-900">
                   <TableHead className="text-white">{tb("bookingNumber")}</TableHead>
                   <TableHead className="text-white">{tb("guest")}</TableHead>
+                  <TableHead className="text-white">{t("mobile")}</TableHead>
                   <TableHead className="text-white">{tb("roomsCol")}</TableHead>
+                  <TableHead className="text-white">{t("roomStatus")}</TableHead>
                   <TableHead className="text-white">{t("checkedInAt")}</TableHead>
                   <TableHead className="text-white">{t("expectedCheckout")}</TableHead>
                   <TableHead className="text-white">{tb("payment")}</TableHead>
@@ -154,19 +176,21 @@ function CurrentGuestsContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {guests.data.items.map((entry) => (
+                {pageItems.map((entry) => (
                   <TableRow key={entry.booking_id}>
                     <TableCell className="font-medium">{entry.booking_number}</TableCell>
                     <TableCell>
                       <span className="font-medium">{entry.primary_guest_name}</span>
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {entry.primary_guest_phone_masked}
-                      </span>
                       {entry.guest_count > 1 && (
                         <span className="ml-2 text-xs text-muted-foreground">
                           +{entry.guest_count - 1}
                         </span>
                       )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
+                      {entry.primary_guest_phone ||
+                        entry.primary_guest_phone_masked ||
+                        "—"}
                     </TableCell>
                     <TableCell>
                       {entry.rooms.map((room) => (
@@ -177,6 +201,23 @@ function CurrentGuestsContent() {
                           {room}
                         </span>
                       ))}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const statuses = Array.from(
+                          new Set((entry.room_statuses ?? []).filter(Boolean)),
+                        );
+                        if (statuses.length === 0) return "—";
+                        return statuses.map((status) => (
+                          <StatusBadge
+                            key={status}
+                            tone={ROOM_STATUS_TONE[status] ?? "neutral"}
+                            className="mr-1"
+                          >
+                            {tr(`status_${status}`)}
+                          </StatusBadge>
+                        ));
+                      })()}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground text-xs">
                       {fmtDateTime(entry.checked_in_at)}
@@ -203,9 +244,23 @@ function CurrentGuestsContent() {
                           <MoreVertical className="size-4" aria-hidden />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setViewTarget(entry)}>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setAutoPrint(false);
+                              setViewTarget(entry);
+                            }}
+                          >
                             <Eye className="size-4" aria-hidden />
                             {tc("view")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setAutoPrint(true);
+                              setViewTarget(entry);
+                            }}
+                          >
+                            <Printer className="size-4" aria-hidden />
+                            {t("printAction")}
                           </DropdownMenuItem>
                           {can(PERMISSIONS.bookingsManage) && (
                             <DropdownMenuItem onClick={() => setEditTarget(entry)}>
@@ -238,9 +293,47 @@ function CurrentGuestsContent() {
               </TableBody>
             </Table>
           )}
+          {guests.data && allItems.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
+              <p className="text-sm text-muted-foreground">
+                {t("showingActiveGuests", {
+                  shown: pageItems.length,
+                  total: allItems.length,
+                })}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage(currentPage - 1)}
+                >
+                  {tc("previous")}
+                </Button>
+                <span className="text-sm tabular-nums">
+                  {tc("page")} {currentPage}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage(currentPage + 1)}
+                >
+                  {tc("next")}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
-        <StayDetailDialog entry={viewTarget} onClose={() => setViewTarget(null)} />
+        <StayDetailDialog
+          entry={viewTarget}
+          autoPrint={autoPrint}
+          onClose={() => {
+            setViewTarget(null);
+            setAutoPrint(false);
+          }}
+        />
         <EditStayDialog
           entry={editTarget}
           onClose={() => setEditTarget(null)}
@@ -258,9 +351,12 @@ function CurrentGuestsContent() {
 
 function StayDetailDialog({
   entry,
+  autoPrint = false,
   onClose,
 }: {
   entry: CurrentGuestOut | null;
+  /** Trigger the registration print automatically once the detail loads. */
+  autoPrint?: boolean;
   onClose: () => void;
 }) {
   const t = useTranslations("stay");
@@ -299,7 +395,7 @@ function StayDetailDialog({
     return keys[m] ? tm(keys[m]) : m;
   };
 
-  const printRegistration = () => {
+  const printRegistration = useCallback(() => {
     const b = booking.data;
     if (!b || !entry) return;
     const win = window.open("", "_blank", "width=800,height=900");
@@ -338,7 +434,21 @@ function StayDetailDialog({
       <div class="sign"><div>${t("guestSignature")}</div><div>${t("frontDeskSignature")}</div></div>
       <script>window.print()</script></body></html>`);
     win.document.close();
-  };
+  }, [booking.data, entry, t, tb]);
+
+  // Row "Print" action: fire the registration print as soon as the booking
+  // detail is available — once per opened entry.
+  const printedForRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!entry) {
+      printedForRef.current = null;
+      return;
+    }
+    if (!autoPrint || !booking.data) return;
+    if (printedForRef.current === entry.booking_id) return;
+    printedForRef.current = entry.booking_id;
+    printRegistration();
+  }, [autoPrint, booking.data, entry, printRegistration]);
 
   const b = booking.data;
 

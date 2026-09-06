@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import {
   BedDouble,
@@ -54,6 +55,32 @@ interface Props {
    * The picker watches this value and calls refetch() when it changes.
    */
   readonly refreshKey?: number;
+}
+
+// ─── Status filter chips (client 9-06) ───────────────────────────────────────
+
+type RoomFilter = "all" | "available" | "reserved" | "occupied" | "cleaning" | "maintenance";
+
+/** Categorise a bookable room's live status into a filter bucket. */
+function availableFilterCategory(status: string): RoomFilter {
+  switch (status) {
+    case "occupied":             return "occupied";
+    case "reserved":             return "reserved";
+    case "cleaning_required":
+    case "cleaning_in_progress":
+    case "inspection_required":  return "cleaning";
+    default:                     return "available"; // available / clean_ready
+  }
+}
+
+/** Categorise an unavailable room's reason into a filter bucket. */
+function unavailableFilterCategory(reason: string): RoomFilter {
+  switch (reason) {
+    case "booked":   return "reserved";
+    case "occupied": return "occupied";
+    case "cleaning": return "cleaning";
+    default:         return "maintenance"; // maintenance / out_of_service
+  }
 }
 
 /** Format ISO date string as a human-readable short date. */
@@ -203,7 +230,10 @@ export function RoomAvailabilityPicker({
 }: Props) {
   const api = useApi();
   const { activeHotelId } = useAuth();
+  const t = useTranslations("roomPicker");
   const [showUnavailable, setShowUnavailable] = useState(false);
+  // Display-only status filter — never affects selection state (client 9-06).
+  const [filter, setFilter] = useState<RoomFilter>("all");
 
   // Same-day (check-in === check-out) is a valid day-use booking.
   const datesValid = !!(
@@ -318,19 +348,66 @@ export function RoomAvailabilityPicker({
     return a.room_number.localeCompare(b.room_number, undefined, { numeric: true });
   });
 
+  // ── Display-only filtering (available-first sorting is preserved) ──────────
+  const filteredAvailable =
+    filter === "all"
+      ? available
+      : available.filter((r) => availableFilterCategory(r.status) === filter);
+  const filteredComingSoon =
+    filter === "all"
+      ? comingSoon
+      : comingSoon.filter((r) => unavailableFilterCategory(r.unavailable_reason) === filter);
+  const filteredNotBookable =
+    filter === "all"
+      ? notBookable
+      : notBookable.filter((r) => unavailableFilterCategory(r.unavailable_reason) === filter);
+
+  const filterChips: { key: RoomFilter; label: string }[] = [
+    { key: "all",         label: t("filterAll") },
+    { key: "available",   label: t("filterAvailable") },
+    { key: "reserved",    label: t("filterReserved") },
+    { key: "occupied",    label: t("filterOccupied") },
+    { key: "cleaning",    label: t("filterCleaning") },
+    { key: "maintenance", label: t("filterMaintenance") },
+  ];
+
   return (
     <div className="space-y-4">
       {/* ── Available rooms ───────────────────────────────────────────────── */}
       <div>
-        <div className="flex items-center justify-end mb-2 flex-wrap gap-2">
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+          {/* Status filter chips — display-only, selection is untouched */}
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("filterLabel")}>
+            {filterChips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                aria-pressed={filter === chip.key}
+                onClick={() => setFilter(chip.key)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                  filter === chip.key
+                    ? "border-navy-900 bg-navy-900 text-white"
+                    : "border-border bg-background hover:bg-muted",
+                )}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
           <span className={cn(
             "rounded-full px-2 py-0.5 text-[10px] font-bold",
-            available.length > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600",
+            filteredAvailable.length > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600",
           )}>
-            {available.length} room{available.length !== 1 ? "s" : ""}
+            {filteredAvailable.length} room{filteredAvailable.length !== 1 ? "s" : ""}
           </span>
         </div>
 
+        {available.length > 0 && filteredAvailable.length === 0 && (
+          <p className="rounded-xl border border-dashed border-border px-4 py-3 text-xs text-muted-foreground">
+            {t("filterNoRooms")}
+          </p>
+        )}
         {available.length === 0 ? (
           <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
             No rooms available for these dates.
@@ -342,7 +419,7 @@ export function RoomAvailabilityPicker({
           </div>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {available.map((room) => (
+            {filteredAvailable.map((room) => (
               <AvailableChip
                 key={room.id}
                 room={room}
@@ -356,7 +433,7 @@ export function RoomAvailabilityPicker({
       </div>
 
       {/* ── Coming soon (booked / cleaning / occupied) ─────────────────────── */}
-      {comingSoon.length > 0 && (
+      {filteredComingSoon.length > 0 && (
         <div>
           <button
             type="button"
@@ -366,10 +443,10 @@ export function RoomAvailabilityPicker({
             <span className="flex items-center gap-2">
               <Clock className="size-3.5 text-orange-500" aria-hidden />
               <span>
-                {comingSoon.length} room{comingSoon.length !== 1 ? "s" : ""} booked for these dates
+                {filteredComingSoon.length} room{filteredComingSoon.length !== 1 ? "s" : ""} booked for these dates
               </span>
               <span className="text-[10px] text-muted-foreground font-normal">
-                — earliest free: {fmtDate(comingSoon[0]?.occupied_until)}
+                — earliest free: {fmtDate(filteredComingSoon[0]?.occupied_until)}
               </span>
             </span>
             {showUnavailable
@@ -379,7 +456,7 @@ export function RoomAvailabilityPicker({
 
           {showUnavailable && (
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {comingSoon.map((room) => (
+              {filteredComingSoon.map((room) => (
                 <UnavailableCard key={room.id} room={room} />
               ))}
             </div>
@@ -388,13 +465,13 @@ export function RoomAvailabilityPicker({
       )}
 
       {/* ── Not bookable (maintenance / OOS) ──────────────────────────────── */}
-      {notBookable.length > 0 && (
+      {filteredNotBookable.length > 0 && (
         <div>
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">
             Unavailable — Maintenance / Out of service
           </p>
           <div className="grid gap-1.5 sm:grid-cols-2">
-            {notBookable.map((room) => (
+            {filteredNotBookable.map((room) => (
               <UnavailableCard key={room.id} room={room} />
             ))}
           </div>

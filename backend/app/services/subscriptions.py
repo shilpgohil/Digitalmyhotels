@@ -6,8 +6,13 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import ForbiddenError, NotFoundError
-from app.models.platform import Subscription, SubscriptionPlan
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError, utcnow
+from app.models.hotel import Hotel
+from app.models.platform import (
+    Subscription,
+    SubscriptionPlan,
+    SubscriptionRenewalRequest,
+)
 
 
 async def get_active_subscription(
@@ -100,3 +105,103 @@ async def get_plan(db: AsyncSession, plan_id: UUID) -> SubscriptionPlan:
     if plan is None:
         raise NotFoundError("Subscription plan not found")
     return plan
+
+
+# ── Renewal requests (partner pays platform UPI → super admin verifies) ──────
+
+
+async def create_renewal_request(
+    db: AsyncSession,
+    *,
+    hotel_id: UUID,
+    plan: SubscriptionPlan,
+    requested_by_id: UUID,
+    note: str | None = None,
+) -> SubscriptionRenewalRequest:
+    pending = await db.scalar(
+        select(SubscriptionRenewalRequest.id).where(
+            SubscriptionRenewalRequest.hotel_id == hotel_id,
+            SubscriptionRenewalRequest.status == "pending",
+        )
+    )
+    if pending is not None:
+        raise ConflictError(
+            "A renewal request is already pending for this hotel.",
+            code="renewal_request_pending",
+        )
+    req = SubscriptionRenewalRequest(
+        hotel_id=hotel_id,
+        plan_id=plan.id,
+        amount=plan.price,  # snapshot — plan may be repriced later
+        status="pending",
+        requested_by_id=requested_by_id,
+        note=note,
+    )
+    db.add(req)
+    await db.flush()
+    return req
+
+
+async def get_latest_renewal_request(
+    db: AsyncSession, hotel_id: UUID
+) -> SubscriptionRenewalRequest | None:
+    result = await db.execute(
+        select(SubscriptionRenewalRequest)
+        .where(SubscriptionRenewalRequest.hotel_id == hotel_id)
+        .order_by(SubscriptionRenewalRequest.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def list_renewal_requests(
+    db: AsyncSession, *, status: str | None = None
+) -> list[tuple[SubscriptionRenewalRequest, Hotel, SubscriptionPlan]]:
+    query = (
+        select(SubscriptionRenewalRequest, Hotel, SubscriptionPlan)
+        .join(Hotel, Hotel.id == SubscriptionRenewalRequest.hotel_id)
+        .join(SubscriptionPlan, SubscriptionPlan.id == SubscriptionRenewalRequest.plan_id)
+        .order_by(SubscriptionRenewalRequest.created_at.desc())
+        .limit(200)
+    )
+    if status:
+        query = query.where(SubscriptionRenewalRequest.status == status)
+    result = await db.execute(query)
+    return list(result.tuples().all())
+
+
+async def get_renewal_request(
+    db: AsyncSession, request_id: UUID
+) -> SubscriptionRenewalRequest:
+    result = await db.execute(
+        select(SubscriptionRenewalRequest).where(
+            SubscriptionRenewalRequest.id == request_id
+        )
+    )
+    req = result.scalar_one_or_none()
+    if req is None:
+        raise NotFoundError("Renewal request not found")
+    return req
+
+
+async def decide_renewal_request(
+    db: AsyncSession,
+    request_id: UUID,
+    *,
+    approve: bool,
+    decided_by_id: UUID,
+) -> tuple[SubscriptionRenewalRequest, SubscriptionPlan]:
+    """Approve (assign the plan via the standard super-admin flow) or reject."""
+    req = await get_renewal_request(db, request_id)
+    if req.status != "pending":
+        raise ConflictError(
+            "Renewal request was already decided.", code="renewal_request_decided"
+        )
+    plan = await get_plan(db, req.plan_id)
+    if approve:
+        await assign_plan(db, hotel_id=req.hotel_id, plan=plan, trial=False)
+    req.status = "approved" if approve else "rejected"
+    req.decided_at = utcnow()
+    req.decided_by_id = decided_by_id
+    await db.flush()
+    return req, plan

@@ -10,10 +10,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/feedback/status-badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
-import { fmtINR } from "@/lib/formatting";
+import { fmtDateTime, fmtINR } from "@/lib/formatting";
 import type { ShiftHandoverOut } from "@/types/money";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -27,6 +35,7 @@ function ShiftHandoverContent() {
   const queryClient = useQueryClient();
   const [opening, setOpening] = useState("0");
   const [closing, setClosing] = useState("0");
+  const [toName, setToName] = useState("");
   const [notes, setNotes] = useState("");
 
   const items = useQuery({
@@ -39,7 +48,12 @@ function ShiftHandoverContent() {
     mutationFn: () =>
       api("/api/v1/ops/shift-handover", {
         method: "POST",
-        body: { opening_cash: opening, closing_cash: closing, notes: notes || null },
+        body: {
+          opening_cash: opening,
+          closing_cash: closing,
+          to_name: toName.trim() || null,
+          notes: notes || null,
+        },
       }),
     onSuccess: () => {
       toast.success(t("handoverCreated"));
@@ -61,17 +75,37 @@ function ShiftHandoverContent() {
     <>
       <PartnerHeader title={t("handoverTitle")} subtitle={tn("operations")} />
       <main className="flex-1 overflow-y-auto p-6">
-        <section className="mb-6 max-w-md rounded-lg border bg-card p-5">
-          <div className="grid gap-3">
-            <div>
+        {/* Create form — single horizontal row (wraps on small screens). */}
+        <section className="mb-6 rounded-lg border bg-card p-5">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-36">
               <Label>{t("openingCash")}</Label>
-              <Input className="mt-1" value={opening} onChange={(e) => setOpening(e.target.value)} />
+              <Input
+                className="mt-1"
+                inputMode="decimal"
+                value={opening}
+                onChange={(e) => setOpening(e.target.value)}
+              />
             </div>
-            <div>
+            <div className="w-36">
               <Label>{t("closingCash")}</Label>
-              <Input className="mt-1" value={closing} onChange={(e) => setClosing(e.target.value)} />
+              <Input
+                className="mt-1"
+                inputMode="decimal"
+                value={closing}
+                onChange={(e) => setClosing(e.target.value)}
+              />
             </div>
-            <div>
+            <div className="w-48 min-w-40 flex-1">
+              <Label>{t("handoverTo")}</Label>
+              <Input
+                className="mt-1"
+                maxLength={200}
+                value={toName}
+                onChange={(e) => setToName(e.target.value)}
+              />
+            </div>
+            <div className="w-56 min-w-44 flex-1">
               <Label>{t("notes")}</Label>
               <Input className="mt-1" value={notes} onChange={(e) => setNotes(e.target.value)} />
             </div>
@@ -88,28 +122,53 @@ function ShiftHandoverContent() {
         )}
         {items.data && items.data.length === 0 && (
           <p className="py-6 text-center text-sm text-muted-foreground">
-            No handovers yet.
+            {t("noHandovers")}
           </p>
         )}
-        <ul className="space-y-2">
-          {items.data?.map((h) => (
-            <li key={h.id} className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
-              <div className="text-sm">
-                <p>
-                  {t("openingCash")} {fmtINR(h.opening_cash)} → {t("closingCash")} {fmtINR(h.closing_cash)}
-                </p>
-                <StatusBadge tone={h.confirmed ? "success" : "warning"}>
-                  {h.confirmed ? t("confirmed") : t("pending")}
-                </StatusBadge>
-              </div>
-              {!h.confirmed && (
-                <Button size="sm" onClick={() => confirm.mutate(h.id)}>
-                  {t("confirmHandover")}
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
+        {items.data && items.data.length > 0 && (
+          <div className="overflow-x-auto rounded-lg border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-navy-900 hover:bg-navy-900">
+                  <TableHead className="text-white">{t("dateTime")}</TableHead>
+                  <TableHead className="text-white">{t("handoverName")}</TableHead>
+                  <TableHead className="text-white">{t("openingCash")}</TableHead>
+                  <TableHead className="text-white">{t("closingCash")}</TableHead>
+                  <TableHead className="text-white">{t("notes")}</TableHead>
+                  <TableHead className="text-white">{t("status")}</TableHead>
+                  <TableHead className="text-right text-white">{tc("actions")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.data.map((h) => (
+                  <TableRow key={h.id}>
+                    <TableCell className="whitespace-nowrap">
+                      {fmtDateTime(h.created_at)}
+                    </TableCell>
+                    <TableCell className="font-medium">{h.to_name ?? "—"}</TableCell>
+                    <TableCell className="tabular-nums">{fmtINR(h.opening_cash)}</TableCell>
+                    <TableCell className="tabular-nums">{fmtINR(h.closing_cash)}</TableCell>
+                    <TableCell className="max-w-64 truncate text-muted-foreground">
+                      {h.notes ?? "—"}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge tone={h.confirmed ? "success" : "warning"}>
+                        {h.confirmed ? t("confirmed") : t("pending")}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {!h.confirmed && (
+                        <Button size="sm" onClick={() => confirm.mutate(h.id)}>
+                          {t("confirmHandover")}
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </main>
     </>
   );

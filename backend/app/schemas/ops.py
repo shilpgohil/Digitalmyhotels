@@ -81,6 +81,9 @@ class ShiftHandoverOut(ORMModel):
     id: UUID
     from_user_id: UUID
     to_user_id: UUID | None
+    # Free-text "handover to" name (client Figma). Persisted in the snapshot
+    # JSONB (no dedicated column) and populated by the API layer.
+    to_name: str | None = None
     opening_cash: Decimal
     closing_cash: Decimal
     payments_collected: Decimal
@@ -95,6 +98,7 @@ class ShiftHandoverOut(ORMModel):
 
 class ShiftHandoverCreate(BaseModel):
     to_user_id: UUID | None = None
+    to_name: str | None = Field(default=None, max_length=200)
     opening_cash: Decimal = Field(ge=0)
     closing_cash: Decimal = Field(ge=0)
     notes: str | None = Field(default=None, max_length=2000)

@@ -10,6 +10,7 @@ from app.core.permissions import Permission
 from app.core.tenant import TenantContext
 from app.db.session import get_db
 from app.schemas.payment import (
+    BillingHistoryOut,
     LedgerEntryOut,
     LedgerOut,
     PaymentCorrection,
@@ -61,6 +62,31 @@ async def payment_summary(
         tenant,
         from_date=_date.fromisoformat(from_date) if from_date else None,
         to_date=_date.fromisoformat(to_date) if to_date else None,
+    )
+
+
+@router.get("/billing-history", response_model=BillingHistoryOut)
+async def billing_history(
+    from_date: str | None = Query(default=None),
+    to_date: str | None = Query(default=None),
+    payment_mode: str | None = Query(
+        default=None, pattern="^(cash|upi|card|bank_transfer|other)$"
+    ),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    tenant: TenantContext = Depends(require_permissions(Permission.PAYMENTS_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> BillingHistoryOut:
+    from datetime import date as _date
+
+    return await payments_service.billing_history(
+        db,
+        tenant,
+        from_date=_date.fromisoformat(from_date) if from_date else None,
+        to_date=_date.fromisoformat(to_date) if to_date else None,
+        payment_mode=payment_mode,
+        limit=limit,
+        offset=offset,
     )
 
 

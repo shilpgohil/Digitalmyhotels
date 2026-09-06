@@ -17,12 +17,27 @@ from app.core.security import (
     verify_password,
 )
 from app.models.user import HotelMembership, RefreshToken, User
+from app.schemas.guest import normalize_phone
 from app.services.audit import write_audit
 
 
-async def authenticate_user(db: AsyncSession, email: str, password: str) -> User:
-    result = await db.execute(select(User).where(User.email == email.lower().strip()))
-    user = result.scalar_one_or_none()
+async def authenticate_user(db: AsyncSession, identifier: str, password: str) -> User:
+    """Authenticate by email OR phone.
+
+    The identifier is treated as an email when it contains "@"; otherwise it
+    is normalized (digits only, country code stripped) and matched against
+    User.phone. Email login behaves exactly as before.
+    """
+    identifier = identifier.strip()
+    user: User | None = None
+    if "@" in identifier:
+        result = await db.execute(select(User).where(User.email == identifier.lower()))
+        user = result.scalar_one_or_none()
+    else:
+        normalized = normalize_phone(identifier)
+        if normalized:
+            result = await db.execute(select(User).where(User.phone == normalized))
+            user = result.scalar_one_or_none()
     if user is None or not verify_password(password, user.password_hash):
         raise UnauthorizedError("Invalid email or password", code="invalid_credentials")
     if not user.is_active:
@@ -150,11 +165,21 @@ async def create_user(
     existing = await db.execute(select(User).where(User.email == email_norm))
     if existing.scalar_one_or_none():
         raise ValidationAppError("Email already registered", code="email_taken")
+    phone_norm: str | None = None
+    if phone:
+        phone_norm = normalize_phone(phone)
+        if not phone_norm:
+            raise ValidationAppError("Invalid phone number", code="invalid_phone")
+        existing_phone = await db.execute(select(User).where(User.phone == phone_norm))
+        if existing_phone.scalar_one_or_none():
+            raise ValidationAppError(
+                "Phone number already registered", code="phone_taken"
+            )
     if len(password) < 8:
         raise ValidationAppError("Password must be at least 8 characters")
     user = User(
         email=email_norm,
-        phone=phone,
+        phone=phone_norm,
         full_name=full_name.strip(),
         password_hash=hash_password(password),
         is_super_admin=is_super_admin,

@@ -64,7 +64,11 @@ async def payment_summary(
         ref_stmt = ref_stmt.where(func.date(Refund.refunded_at) <= to_date)
     ref_row = (await db.execute(ref_stmt)).one()
 
-    # Booking counts in one query using conditional aggregation.
+    # Booking counts + status amounts in one query using conditional
+    # aggregation. Amounts mirror the count definitions exactly:
+    #   paid_amount    — collected (total − due) on fully-paid bookings
+    #   partial_amount — remaining due on partially-paid bookings
+    #   pending_amount — due on unpaid bookings
     count_stmt = select(
         func.count(case(
             (Booking.payment_status == "paid", literal_column("1"))
@@ -75,6 +79,30 @@ async def payment_summary(
         func.count(case(
             (Booking.payment_status == "unpaid", literal_column("1"))
         )).label("unpaid"),
+        func.coalesce(
+            func.sum(case(
+                (
+                    Booking.payment_status == "paid",
+                    Booking.total_amount - Booking.due_amount,
+                ),
+                else_=0,
+            )),
+            0,
+        ).label("paid_amount"),
+        func.coalesce(
+            func.sum(case(
+                (Booking.payment_status == "partial", Booking.due_amount),
+                else_=0,
+            )),
+            0,
+        ).label("partial_amount"),
+        func.coalesce(
+            func.sum(case(
+                (Booking.payment_status == "unpaid", Booking.due_amount),
+                else_=0,
+            )),
+            0,
+        ).label("pending_amount"),
     ).where(
         Booking.hotel_id == hotel_id,
         Booking.status.notin_(("cancelled", "no_show")),
@@ -90,7 +118,108 @@ async def payment_summary(
         paid_bookings=int(count_row.paid),
         partial_bookings=int(count_row.partial),
         unpaid_bookings=int(count_row.unpaid),
+        paid_amount=money(count_row.paid_amount),
+        partial_amount=money(count_row.partial_amount),
+        pending_amount=money(count_row.pending_amount),
     )
+
+
+async def billing_history(
+    db: AsyncSession,
+    tenant: TenantContext,
+    *,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    payment_mode: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """Booking-level billing rows for the partner Payments page.
+
+    One row per booking (cancelled/no-show excluded): room rent (pre-tax,
+    pre-discount subtotal), GST, discount, advance collected (advance +
+    security deposit), balance due, and the most recent completed payment's
+    method. Date filters apply to the booking check-in date.
+    """
+    from sqlalchemy import func
+
+    from app.models.guest import Guest
+    from app.schemas.payment import BillingHistoryOut, BillingHistoryRow
+
+    hotel_id = tenant.require_hotel()
+
+    # Correlated subquery: method of the latest completed payment per booking.
+    latest_method = (
+        select(Payment.method)
+        .where(
+            Payment.booking_id == Booking.id,
+            Payment.hotel_id == hotel_id,
+            Payment.status == "completed",
+        )
+        .order_by(Payment.paid_at.desc())
+        .limit(1)
+        .correlate(Booking)
+        .scalar_subquery()
+    )
+
+    stmt = (
+        select(
+            Booking.id,
+            Booking.booking_number,
+            Guest.full_name.label("guest_name"),
+            Booking.total_amount,
+            Booking.tax_amount,
+            Booking.discount_amount,
+            Booking.advance_amount,
+            Booking.security_deposit,
+            Booking.due_amount,
+            Booking.payment_status,
+            latest_method.label("mode"),
+        )
+        .join(Guest, Guest.id == Booking.primary_guest_id, isouter=True)
+        .where(
+            Booking.hotel_id == hotel_id,
+            Booking.status.notin_(("cancelled", "no_show")),
+        )
+    )
+    if from_date:
+        stmt = stmt.where(Booking.check_in_date >= from_date)
+    if to_date:
+        stmt = stmt.where(Booking.check_in_date <= to_date)
+    if payment_mode:
+        stmt = stmt.where(latest_method == payment_mode)
+
+    total = (
+        await db.execute(select(func.count()).select_from(stmt.subquery()))
+    ).scalar_one()
+    rows = (
+        await db.execute(
+            stmt.order_by(Booking.check_in_date.desc(), Booking.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+
+    items = [
+        BillingHistoryRow(
+            booking_id=r.id,
+            booking_number=r.booking_number,
+            guest_name=r.guest_name,
+            # total_amount already includes charges + tax − discount, so the
+            # pre-tax/pre-discount room+charge subtotal is total − tax + discount.
+            room_rent=money(
+                max(r.total_amount - r.tax_amount + r.discount_amount, Decimal("0"))
+            ),
+            gst=money(r.tax_amount),
+            discount=money(r.discount_amount),
+            advance=money(r.advance_amount + r.security_deposit),
+            balance=money(r.due_amount),
+            mode=r.mode,
+            payment_status=r.payment_status,
+        )
+        for r in rows
+    ]
+    return BillingHistoryOut(items=items, total=total)
 
 
 async def collect_payment(

@@ -68,6 +68,10 @@ class Room(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     room_number: Mapped[str] = mapped_column(String(32), nullable=False)
     floor: Mapped[str | None] = mapped_column(String(32), nullable=True)
     bed_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # Per-room occupancy limits (Edit Hotel page). NULL = fall back to the
+    # room type's max_occupancy.
+    max_adults: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_children: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(
         String(40), default="available", nullable=False, index=True
     )

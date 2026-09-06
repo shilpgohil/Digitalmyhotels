@@ -37,12 +37,35 @@ class LocalStorage(StorageBackend):
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
+    @staticmethod
+    def _map_os_error(exc: OSError) -> Exception:
+        """Map filesystem errors to typed AppErrors (client bug: a read-only or
+        full disk surfaced as a generic 500 'An unexpected error occurred.')."""
+        from app.core.errors import AppError
+
+        return AppError(
+            "storage_unavailable",
+            "File storage is temporarily unavailable — the record was saved, "
+            "but the file could not be stored. Please retry the upload.",
+            status_code=503,
+        )
+
     async def put_bytes(self, *, key: str, data: bytes, content_type: str) -> str:
-        self._path(key).write_bytes(data)
+        try:
+            self._path(key).write_bytes(data)
+        except OSError as exc:
+            raise self._map_os_error(exc) from exc
         return key
 
     async def get_bytes(self, key: str) -> bytes:
-        return self._path(key).read_bytes()
+        try:
+            return self._path(key).read_bytes()
+        except FileNotFoundError as exc:
+            from app.core.errors import NotFoundError
+
+            raise NotFoundError("Object not found in storage") from exc
+        except OSError as exc:
+            raise self._map_os_error(exc) from exc
 
     async def delete(self, key: str) -> None:
         path = self._path(key)

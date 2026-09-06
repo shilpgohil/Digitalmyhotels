@@ -34,6 +34,8 @@ def _room_out(room: Room) -> RoomOut:
         room_number=room.room_number,
         floor=room.floor,
         bed_type=room.bed_type,
+        max_adults=room.max_adults,
+        max_children=room.max_children,
         status=room.status,
         is_active=room.is_active,
         notes=room.notes,
@@ -197,6 +199,8 @@ async def create_room(
         room_number=body.room_number,
         floor=body.floor,
         bed_type=body.bed_type,
+        max_adults=body.max_adults,
+        max_children=body.max_children,
         notes=body.notes,
         status=RoomStatus.AVAILABLE.value,
     )
@@ -269,6 +273,54 @@ async def update_room(
             correlation_id=correlation_id,
         )
     return _room_out(await get_room(db, tenant, room.id))
+
+
+async def delete_room(
+    db: AsyncSession,
+    tenant: TenantContext,
+    room_id: UUID,
+    *,
+    correlation_id: str | None = None,
+) -> None:
+    """Hard-delete a room. Refused if any booking ever referenced it."""
+    room = await get_room(db, tenant, room_id)
+
+    booked = await db.execute(
+        select(func.count())
+        .select_from(BookingRoom)
+        .where(BookingRoom.room_id == room.id)
+    )
+    if booked.scalar_one() > 0:
+        raise ConflictError(
+            "Room has bookings and cannot be deleted. Mark it inactive instead.",
+            code="room_has_bookings",
+        )
+
+    room_number = room.room_number
+    try:
+        await db.delete(room)
+        await db.flush()
+    except Exception as exc:  # FK from housekeeping/payment history etc.
+        from sqlalchemy.exc import IntegrityError
+
+        if isinstance(exc, IntegrityError):
+            raise ConflictError(
+                "Room is referenced by other records and cannot be deleted. "
+                "Mark it inactive instead.",
+                code="room_in_use",
+            ) from exc
+        raise
+
+    await write_audit(
+        db,
+        action="rooms.deleted",
+        entity_type="room",
+        entity_id=room_id,
+        actor_id=tenant.user_id,
+        hotel_id=tenant.hotel_id,
+        before={"room_number": room_number},
+        correlation_id=correlation_id,
+    )
 
 
 async def update_room_status(

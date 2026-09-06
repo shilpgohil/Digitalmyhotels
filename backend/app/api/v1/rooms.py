@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permissions
@@ -169,6 +169,19 @@ async def update_room(
     return await rooms_service.update_room(
         db, tenant, room_id, body, correlation_id=_correlation(request)
     )
+
+
+@router.delete("/{room_id}", status_code=204, response_class=Response)
+async def delete_room(
+    room_id: UUID,
+    request: Request,
+    tenant: TenantContext = Depends(require_permissions(Permission.ROOMS_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    await rooms_service.delete_room(
+        db, tenant, room_id, correlation_id=_correlation(request)
+    )
+    return Response(status_code=204)
 
 
 @router.put("/{room_id}/status", response_model=RoomOut)

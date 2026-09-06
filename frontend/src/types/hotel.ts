@@ -33,6 +33,13 @@ export interface HotelSettingsOut {
   early_checkin_fee_per_hour: string;
   late_checkout_fee_per_hour: string;
   access_mode: "full" | "checkin_only";
+  collect_emergency_contact: boolean;
+  collect_vehicle_details: boolean;
+}
+
+export interface HotelImageOut {
+  id: string;
+  position: number;
 }
 
 export interface GstSettingsOut {
@@ -79,6 +86,8 @@ export interface RoomOut {
   room_number: string;
   floor: string | null;
   bed_type: string | null;
+  max_adults: number | null;
+  max_children: number | null;
   status: RoomStatus;
   is_active: boolean;
   notes: string | null;

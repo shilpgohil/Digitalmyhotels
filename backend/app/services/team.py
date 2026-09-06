@@ -11,6 +11,7 @@ from app.core.permissions import RoleCode
 from app.core.security import hash_password
 from app.core.tenant import TenantContext
 from app.models.user import HotelMembership, Role, User
+from app.schemas.guest import normalize_phone
 from app.schemas.team import TeamMemberCreate, TeamMemberOut, TeamMemberUpdate
 from app.services.audit import write_audit
 from app.services.auth import create_user
@@ -96,9 +97,25 @@ async def create_team_member(
             "This role cannot be created by a hotel owner", code="role_not_creatable"
         )
     role = await _get_role(db, role_code.value)
+    phone_norm = normalize_phone(body.phone) if body.phone else None
+    email = body.email
+    if not email:
+        # Phone-first accounts (no email in the client's create form):
+        # User.email is NOT NULL + unique, so when the owner omits the email
+        # we store a SYNTHETIC internal address derived from the normalized
+        # phone. It is never used for sending mail — "noemail.example" is a
+        # reserved, non-routable domain — it only satisfies the schema
+        # constraint. (".local" would be rejected by pydantic EmailStr as a
+        # special-use domain, so ".example" is used instead.)
+        if not phone_norm:
+            raise ValidationAppError(
+                "A valid phone number is required when email is not provided",
+                code="invalid_phone",
+            )
+        email = f"phone+{phone_norm}@noemail.example"
     user = await create_user(
         db,
-        email=body.email,
+        email=email,
         password=body.password,
         full_name=body.full_name,
         phone=body.phone,
@@ -116,7 +133,7 @@ async def create_team_member(
         entity_id=membership.id,
         actor_id=tenant.user_id,
         hotel_id=hotel_id,
-        after={"email": body.email, "role": role_code.value},
+        after={"email": email, "phone": phone_norm, "role": role_code.value},
         correlation_id=correlation_id,
     )
     membership.user = user
@@ -144,8 +161,18 @@ async def update_team_member(
         membership.user.full_name = body.full_name
         changes["full_name"] = body.full_name
     if body.phone is not None:
-        membership.user.phone = body.phone
-        changes["phone"] = body.phone
+        phone_norm = normalize_phone(body.phone)
+        if not phone_norm:
+            raise ValidationAppError("Invalid phone number", code="invalid_phone")
+        dup = await db.execute(
+            select(User).where(User.phone == phone_norm, User.id != membership.user_id)
+        )
+        if dup.scalar_one_or_none():
+            raise ValidationAppError(
+                "Phone number already registered", code="phone_taken"
+            )
+        membership.user.phone = phone_norm
+        changes["phone"] = phone_norm
     if body.role_code is not None:
         role_code = RoleCode(body.role_code)
         if role_code not in CREATABLE_ROLES:

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   LogIn,
@@ -27,10 +28,15 @@ import {
   UtensilsCrossed,
   ReceiptText,
   Landmark,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
+import { useApi } from "@/lib/api/use-api";
+import { API_BASE } from "@/lib/api/client";
+import { getAccessToken } from "@/lib/auth/session";
 import { PERMISSIONS, type PermissionCode } from "@/lib/permissions";
+import type { HotelOut } from "@/types/hotel";
 
 interface NavItem {
   href: string;
@@ -112,6 +118,12 @@ const SECTIONS: NavSection[] = [
         labelKey: "housekeeping",
         icon: Sparkles,
         permission: PERMISSIONS.housekeepingManage,
+      },
+      {
+        href: "/edit-hotel",
+        labelKey: "editHotel",
+        icon: Building2,
+        permission: PERMISSIONS.hotelManageSettings,
       },
     ],
   },
@@ -254,15 +266,73 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
   );
 }
 
-/** Brand block shared by the desktop sidebar and the mobile drawer header. */
+/** Monogram of the hotel name's initials, e.g. "MC" for "Meridian Court". */
+function hotelInitials(name: string): string {
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? "")
+    .join("");
+  return initials || "DM";
+}
+
+/**
+ * Brand block shared by the desktop sidebar and the mobile drawer header.
+ * Shows the active hotel's name and uploaded logo (client request, 09/2026);
+ * falls back to the product name / a name monogram while loading or when no
+ * logo has been uploaded yet.
+ */
 export function PartnerBrand() {
+  const api = useApi();
+  const { activeHotelId } = useAuth();
+
+  // Same query key as Edit Hotel / Settings so the name updates instantly
+  // after a profile save (those pages invalidate ["hotel", activeHotelId]).
+  const hotel = useQuery({
+    queryKey: ["hotel", activeHotelId],
+    queryFn: () => api<HotelOut>("/api/v1/hotels/me"),
+    enabled: !!activeHotelId,
+  });
+
+  // Protected image bytes → blob URL (same pattern as the payment-QR fetches).
+  // Returns null on 404 (no logo uploaded) so the monogram fallback shows.
+  const logo = useQuery({
+    queryKey: ["hotel-logo", activeHotelId],
+    queryFn: async () => {
+      const headers: Record<string, string> = {};
+      const token = getAccessToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      if (activeHotelId) headers["X-Hotel-Id"] = activeHotelId;
+      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/logo/image`, {
+        headers,
+        credentials: "include",
+      });
+      if (!resp.ok) return null;
+      return URL.createObjectURL(await resp.blob());
+    },
+    enabled: !!activeHotelId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const hotelName = hotel.data?.name?.trim() || "DigitalMyHotels";
+
   return (
     <div className="flex items-center gap-3 px-5 py-5">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-gold-500 font-display text-sm font-bold text-navy-900">
-        DM
+      <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gold-500 font-display text-sm font-bold text-navy-900">
+        {logo.data ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logo.data}
+            alt={hotelName}
+            className="size-full bg-white object-contain"
+          />
+        ) : (
+          hotelInitials(hotelName)
+        )}
       </div>
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-white">DigitalMyHotels</p>
+        <p className="truncate text-sm font-semibold text-white">{hotelName}</p>
         <p className="truncate text-[10px] tracking-widest uppercase">
           Front Desk Suite
         </p>
@@ -273,7 +343,11 @@ export function PartnerBrand() {
 
 export function PartnerSidebar() {
   const t = useTranslations("nav");
-  const { user, can } = useAuth();
+  const { user, can, memberships, activeHotelId } = useAuth();
+
+  // Designation shown under the user's name (client request, 09/2026) —
+  // the role held at the active hotel, e.g. "Hotel Owner" / "Manager".
+  const roleName = memberships.find((m) => m.hotel_id === activeHotelId)?.role_name;
 
   return (
     <aside
@@ -308,6 +382,9 @@ export function PartnerSidebar() {
               {t("loggedInAs")}
             </p>
             <p className="truncate text-sm font-medium text-white">{user?.full_name}</p>
+            {roleName && (
+              <p className="truncate text-xs opacity-70">{roleName}</p>
+            )}
           </div>
         </div>
       </div>

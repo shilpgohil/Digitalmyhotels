@@ -136,7 +136,12 @@ class CurrentGuestOut(BaseModel):
     booking_number: str
     primary_guest_name: str
     primary_guest_phone_masked: str
+    # Full (unmasked) phone: this endpoint is staff-only and other staff
+    # surfaces (checkout, booking detail) already expose the full number.
+    primary_guest_phone: str | None = None
     rooms: list[str]
+    # Room status per current room, aligned with `rooms` by index.
+    room_statuses: list[str] = Field(default_factory=list)
     checked_in_at: datetime
     expected_checkout_at: datetime | None
     check_in_date: date

@@ -405,11 +405,13 @@ async def list_current_guests(
             if br.is_current:
                 all_room_ids.add(br.room_id)
     room_numbers_by_id: dict[UUID, str] = {}
+    room_status_by_id: dict[UUID, str] = {}
     if all_room_ids:
         r_rows = (await db.execute(
-            select(Room.id, Room.room_number).where(Room.id.in_(all_room_ids))
+            select(Room.id, Room.room_number, Room.status).where(Room.id.in_(all_room_ids))
         )).all()
         room_numbers_by_id = {row.id: row.room_number for row in r_rows}
+        room_status_by_id = {row.id: row.status for row in r_rows}
 
     # Batch 4: registration counts per booking.
     reg_count_rows = (await db.execute(
@@ -488,11 +490,13 @@ async def list_current_guests(
     for booking in bookings:
         checkin = checkins_by_booking.get(booking.id)
         guest = guests_by_id.get(booking.primary_guest_id) if booking.primary_guest_id else None
-        room_nums = [
-            room_numbers_by_id[br.room_id]
+        current_room_ids = [
+            br.room_id
             for br in booking.rooms
             if br.is_current and br.room_id in room_numbers_by_id
         ]
+        room_nums = [room_numbers_by_id[rid] for rid in current_room_ids]
+        room_statuses = [room_status_by_id.get(rid, "") for rid in current_room_ids]
         gst_due, gst_status = _gst_inclusive_due(booking)
         items.append(
             CurrentGuestOut(
@@ -500,7 +504,9 @@ async def list_current_guests(
                 booking_number=booking.booking_number,
                 primary_guest_name=guest.full_name if guest else "—",
                 primary_guest_phone_masked=_mask(guest.normalized_phone) if guest else "",
+                primary_guest_phone=guest.normalized_phone if guest else None,
                 rooms=room_nums,
+                room_statuses=room_statuses,
                 checked_in_at=checkin.checked_in_at if checkin else booking.created_at,
                 expected_checkout_at=checkin.expected_checkout_at if checkin else None,
                 check_in_date=booking.check_in_date,

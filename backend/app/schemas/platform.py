@@ -79,6 +79,48 @@ class SubscriptionOut(ORMModel):
     block_transactions_after_expiry: bool
 
 
+class RenewalRequestCreate(BaseModel):
+    plan_id: UUID
+    note: str | None = Field(default=None, max_length=500)
+
+
+class RenewalRequestOut(ORMModel):
+    id: UUID
+    hotel_id: UUID
+    plan_id: UUID
+    amount: Decimal
+    status: str
+    note: str | None
+    created_at: datetime
+    decided_at: datetime | None
+
+
+class RenewalRequestAdminOut(BaseModel):
+    id: UUID
+    hotel_id: UUID
+    hotel_name: str
+    plan_id: UUID
+    plan_name: str
+    duration_days: int
+    amount: Decimal
+    status: str
+    created_at: datetime
+    decided_at: datetime | None = None
+
+
+class RenewalRequestAdminListOut(BaseModel):
+    items: list[RenewalRequestAdminOut]
+    total: int
+
+
+class SubscriptionPaymentInfoOut(BaseModel):
+    """Platform collection UPI details for the renewal payment modal."""
+
+    configured: bool
+    upi_id: str | None = None
+    payee_name: str | None = None
+
+
 class SubscriptionAssign(BaseModel):
     plan_id: UUID
     start_date: date | None = None

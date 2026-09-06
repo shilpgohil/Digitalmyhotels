@@ -17,6 +17,7 @@ from app.schemas.expense import (
     ExpenseListOut,
     ExpenseOut,
     ExpenseRejectRequest,
+    ExpenseSummaryOut,
     RecurringExpenseCreate,
     RecurringExpenseOut,
     VendorCreate,
@@ -109,6 +110,16 @@ async def run_recurring(
 
 
 # --- Expenses -------------------------------------------------------------------
+
+
+@router.get("/summary", response_model=ExpenseSummaryOut)
+async def expense_summary(
+    tenant: TenantContext = Depends(require_permissions(Permission.EXPENSES_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> ExpenseSummaryOut:
+    """Stat-card totals: all-time / today / this-month amounts + entry count."""
+    data = await expenses_service.expense_summary(db, tenant)
+    return ExpenseSummaryOut.model_validate(data)
 
 
 @router.get("", response_model=ExpenseListOut)

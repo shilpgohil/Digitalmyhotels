@@ -12,6 +12,25 @@ export interface PaymentOut {
   correction_reason: string | null;
 }
 
+/** One booking-level row in the Payments page "Billing History" table. */
+export interface BillingHistoryRow {
+  booking_id: string;
+  booking_number: string;
+  guest_name: string | null;
+  room_rent: string;
+  gst: string;
+  discount: string;
+  advance: string;
+  balance: string;
+  mode: string | null;
+  payment_status: string;
+}
+
+export interface BillingHistoryOut {
+  items: BillingHistoryRow[];
+  total: number;
+}
+
 export interface ChargeOut {
   id: string;
   booking_id: string;
@@ -96,6 +115,14 @@ export interface ExpenseCategoryOut {
   is_active: boolean;
 }
 
+/** Stat-card totals for the expenses page (rejected excluded). */
+export interface ExpenseSummaryOut {
+  total_amount: string;
+  today_amount: string;
+  month_amount: string;
+  entries: number;
+}
+
 export interface RecurringExpenseOut {
   id: string;
   name: string;
@@ -149,6 +176,8 @@ export interface DailyClosingOut {
 
 export interface ShiftHandoverOut {
   id: string;
+  /** Free-text "handover to" full name (may be absent on older rows). */
+  to_name: string | null;
   opening_cash: string;
   closing_cash: string;
   payments_collected: string;
@@ -251,4 +280,42 @@ export interface SubscriptionPlanOut {
   duration_days: number;
   trial_days: number;
   is_active: boolean;
+}
+
+/** Partner-side renewal request (subscription payment awaiting verification). */
+export interface RenewalRequestOut {
+  id: string;
+  hotel_id: string;
+  plan_id: string;
+  amount: string;
+  status: "pending" | "approved" | "rejected";
+  note: string | null;
+  created_at: string;
+  decided_at: string | null;
+}
+
+/** Super-admin view of a renewal request (with hotel/plan labels). */
+export interface RenewalRequestAdminOut {
+  id: string;
+  hotel_id: string;
+  hotel_name: string;
+  plan_id: string;
+  plan_name: string;
+  duration_days: number;
+  amount: string;
+  status: string;
+  created_at: string;
+  decided_at: string | null;
+}
+
+export interface RenewalRequestAdminListOut {
+  items: RenewalRequestAdminOut[];
+  total: number;
+}
+
+/** Platform collection UPI details for the renewal payment modal. */
+export interface SubscriptionPaymentInfoOut {
+  configured: boolean;
+  upi_id: string | null;
+  payee_name: string | null;
 }

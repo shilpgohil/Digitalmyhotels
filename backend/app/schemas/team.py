@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
 class TeamMemberOut(BaseModel):
@@ -21,10 +21,18 @@ class TeamMemberOut(BaseModel):
 
 class TeamMemberCreate(BaseModel):
     full_name: str = Field(min_length=2, max_length=200)
-    email: EmailStr
+    # Phone-first accounts: email is optional, but at least one of
+    # email/phone must be provided (client Figma has no email field).
+    email: EmailStr | None = None
     phone: str | None = Field(default=None, max_length=32)
     role_code: str = Field(pattern="^(manager|admin|housekeeping)$")
     password: str = Field(min_length=8, max_length=128)
+
+    @model_validator(mode="after")
+    def _require_email_or_phone(self) -> "TeamMemberCreate":
+        if not self.email and not (self.phone and self.phone.strip()):
+            raise ValueError("Either email or phone is required")
+        return self
 
 
 class TeamMemberUpdate(BaseModel):

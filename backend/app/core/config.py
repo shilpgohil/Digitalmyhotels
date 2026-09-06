@@ -33,6 +33,12 @@ class Settings(BaseSettings):
 
     upi_encryption_key: str = Field(default="dev-fernet-key-replace-with-real-fernet-key==")
 
+    # Platform collection UPI — where partners pay subscription renewals.
+    # Empty = unconfigured: the renewal payment QR endpoint returns 404 and the
+    # frontend falls back to "contact the DigitalMyHotels team" instructions.
+    platform_upi_id: str = ""
+    platform_upi_payee_name: str = ""
+
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 
     storage_backend: Literal["local", "r2", "b2"] = "local"

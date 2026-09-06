@@ -110,6 +110,27 @@ class LedgerOut(BaseModel):
     balance: Decimal
 
 
+class BillingHistoryRow(BaseModel):
+    """One booking-level row for the Billing History table (whole rupees)."""
+
+    booking_id: UUID
+    booking_number: str
+    guest_name: str | None
+    room_rent: Decimal
+    gst: Decimal
+    discount: Decimal
+    advance: Decimal
+    balance: Decimal
+    # Method of the most recent completed payment — None when nothing collected.
+    mode: str | None
+    payment_status: str
+
+
+class BillingHistoryOut(BaseModel):
+    items: list[BillingHistoryRow]
+    total: int
+
+
 class PaymentSummaryOut(BaseModel):
     total_collected: Decimal
     cash: Decimal
@@ -119,3 +140,8 @@ class PaymentSummaryOut(BaseModel):
     paid_bookings: int
     partial_bookings: int
     unpaid_bookings: int
+    # ₹ amounts matching the booking-count definitions above (whole rupees):
+    # collected on paid bookings, remaining due on partial, due on unpaid.
+    paid_amount: Decimal = Decimal("0")
+    partial_amount: Decimal = Decimal("0")
+    pending_amount: Decimal = Decimal("0")

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, ValidationAppError
@@ -142,6 +143,60 @@ async def list_expenses(
         .offset(offset)
     )
     return list(result.scalars().all()), total
+
+
+async def expense_summary(
+    db: AsyncSession, tenant: TenantContext
+) -> dict[str, object]:
+    """Totals for the stat cards: all-time / today / this-month / entry count.
+
+    Rejected expenses are excluded. 'Today' and 'this month' are calendar
+    boundaries in the HOTEL's timezone (expense_date is a plain date, so only
+    the boundary dates need timezone awareness — same approach as reports).
+    """
+    hotel_id = tenant.require_hotel()
+
+    from app.models.hotel import Hotel
+
+    hotel_tz = (
+        await db.execute(select(Hotel.timezone).where(Hotel.id == hotel_id))
+    ).scalar_one_or_none() or "Asia/Kolkata"
+    try:
+        tz = ZoneInfo(hotel_tz)
+    except (KeyError, ValueError):
+        tz = ZoneInfo("Asia/Kolkata")
+    today = datetime.now(tz).date()
+    month_start = today.replace(day=1)
+
+    row = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(Expense.amount), 0),
+                func.coalesce(
+                    func.sum(
+                        case((Expense.expense_date == today, Expense.amount), else_=0)
+                    ),
+                    0,
+                ),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (Expense.expense_date >= month_start, Expense.amount),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ),
+                func.count(Expense.id),
+            ).where(Expense.hotel_id == hotel_id, Expense.status != "rejected")
+        )
+    ).one()
+    return {
+        "total_amount": row[0],
+        "today_amount": row[1],
+        "month_amount": row[2],
+        "entries": row[3],
+    }
 
 
 async def create_expense(

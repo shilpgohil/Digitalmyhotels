@@ -82,12 +82,31 @@ function normalizeGender(raw: string): string {
   return raw;
 }
 
+// Leading/trailing tokens that are OCR noise or honorifics, never part of the
+// actual name (client bug: a guest was saved as "HI Mukesh Rawat" from a stray
+// OCR token). Deliberately conservative — real short name parts like "Md" are
+// NOT in this list.
+const NAME_NOISE_TOKENS = new Set([
+  "hi", "ho", "hl", "ii", "ll", "rn", "vi", "yi", "el", "iv",
+  "shri", "shree", "smt", "mr", "mrs", "ms", "sri",
+]);
+
 /** Clean OCR artefacts from a name string. */
 function cleanName(raw: string): string {
-  return raw
+  const base = raw
     .replace(/[^A-Za-z ]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+  const tokens = base.split(" ");
+  // Strip noise/honorific tokens from the front and back, but never shrink the
+  // name below two words (so a legit 2-word name is always preserved intact).
+  while (tokens.length > 2 && NAME_NOISE_TOKENS.has(tokens[0].toLowerCase())) {
+    tokens.shift();
+  }
+  while (tokens.length > 2 && NAME_NOISE_TOKENS.has(tokens[tokens.length - 1].toLowerCase())) {
+    tokens.pop();
+  }
+  return tokens.join(" ");
 }
 
 // ─── Per-type field parsers ───────────────────────────────────────────────────

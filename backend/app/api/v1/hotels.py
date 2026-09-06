@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Path, Request, Response, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permissions
@@ -15,6 +15,7 @@ from app.repositories.hotels import (
 from app.schemas.hotel import (
     GstSettingsOut,
     GstSettingsUpdate,
+    HotelImageOut,
     HotelOut,
     HotelSettingsOut,
     HotelSettingsUpdate,
@@ -34,6 +35,41 @@ router = APIRouter(prefix="/hotels", tags=["hotels"])
 
 def _correlation(request: Request) -> str | None:
     return getattr(request.state, "correlation_id", None)
+
+
+# Property gallery: max 5 photos, one per position slot 0–4.
+GALLERY_MAX_SLOTS = 5
+_ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp"}
+_MAX_IMAGE_BYTES = 5 * 1024 * 1024
+
+
+def _validate_gallery_image(content_type: str, data: bytes) -> None:
+    from io import BytesIO
+
+    from PIL import Image, UnidentifiedImageError
+
+    from app.core.errors import ValidationAppError
+
+    if content_type not in _ALLOWED_IMAGE_TYPES:
+        raise ValidationAppError(
+            "Image must be PNG, JPEG or WebP", code="invalid_image_type"
+        )
+    if len(data) > _MAX_IMAGE_BYTES:
+        raise ValidationAppError("Image must be 5 MB or smaller", code="image_too_large")
+    try:
+        with Image.open(BytesIO(data)) as img:
+            img.verify()
+    except UnidentifiedImageError as exc:
+        raise ValidationAppError("File is not a valid image", code="invalid_image") from exc
+
+
+def _image_media_type(object_key: str) -> str:
+    key = object_key.lower()
+    if key.endswith(".png"):
+        return "image/png"
+    if key.endswith(".webp"):
+        return "image/webp"
+    return "image/jpeg"
 
 
 @router.get("/me", response_model=HotelOut)
@@ -232,6 +268,179 @@ async def update_my_gst(
             correlation_id=_correlation(request),
         )
     return GstSettingsOut.model_validate(gst)
+
+
+# --- Hotel logo + property gallery ----------------------------------------------
+
+
+@router.get("/me/logo/image")
+async def get_hotel_logo_image(
+    tenant: TenantContext = Depends(require_permissions(Permission.HOTEL_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    from app.core.errors import NotFoundError
+    from app.integrations.storage.base import get_storage
+
+    hotel = await get_hotel(db, tenant.require_hotel())
+    if not hotel.logo_object_key:
+        raise NotFoundError("Hotel logo is not configured", code="logo_not_configured")
+    try:
+        data = await get_storage().get_bytes(hotel.logo_object_key)
+    except FileNotFoundError as exc:
+        raise NotFoundError("Hotel logo is not available", code="logo_missing") from exc
+    return Response(
+        content=data,
+        media_type=_image_media_type(hotel.logo_object_key),
+        headers={"Cache-Control": "private, max-age=60"},
+    )
+
+
+@router.get("/me/gallery", response_model=list[HotelImageOut])
+async def list_gallery(
+    tenant: TenantContext = Depends(require_permissions(Permission.HOTEL_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> list[HotelImageOut]:
+    from sqlalchemy import select
+
+    from app.models.hotel import HotelImage
+
+    result = await db.execute(
+        select(HotelImage)
+        .where(HotelImage.hotel_id == tenant.require_hotel())
+        .order_by(HotelImage.position)
+    )
+    return [HotelImageOut.model_validate(i) for i in result.scalars().all()]
+
+
+@router.put("/me/gallery/{position}", response_model=HotelImageOut)
+async def upload_gallery_image(
+    request: Request,
+    position: int = Path(ge=0, le=GALLERY_MAX_SLOTS - 1),
+    file: UploadFile = File(...),
+    tenant: TenantContext = Depends(require_permissions(Permission.HOTEL_MANAGE_SETTINGS)),
+    db: AsyncSession = Depends(get_db),
+) -> HotelImageOut:
+    from sqlalchemy import select
+
+    from app.integrations.storage.base import get_storage, new_object_key
+    from app.models.hotel import HotelImage
+
+    data = await file.read()
+    content_type = file.content_type or "application/octet-stream"
+    _validate_gallery_image(content_type, data)
+
+    hotel_id = tenant.require_hotel()
+    storage = get_storage()
+    key = new_object_key(f"hotels/{hotel_id}/gallery", file.filename or "photo.jpg")
+    await storage.put_bytes(key=key, data=data, content_type=content_type)
+
+    result = await db.execute(
+        select(HotelImage).where(
+            HotelImage.hotel_id == hotel_id, HotelImage.position == position
+        )
+    )
+    image = result.scalar_one_or_none()
+    old_key = image.object_key if image else None
+    if image is None:
+        image = HotelImage(hotel_id=hotel_id, position=position, object_key=key)
+        db.add(image)
+    else:
+        image.object_key = key
+    await db.flush()
+
+    # Replaced slot — remove the orphaned object (best effort).
+    if old_key:
+        try:
+            await storage.delete(old_key)
+        except Exception:  # noqa: BLE001 — stale object is not worth failing the upload
+            pass
+
+    await write_audit(
+        db,
+        action="hotel.gallery_image_uploaded",
+        entity_type="hotel_image",
+        entity_id=image.id,
+        actor_id=tenant.user_id,
+        hotel_id=hotel_id,
+        after={"position": position},
+        correlation_id=_correlation(request),
+    )
+    return HotelImageOut.model_validate(image)
+
+
+@router.get("/me/gallery/{position}/image")
+async def get_gallery_image(
+    position: int = Path(ge=0, le=GALLERY_MAX_SLOTS - 1),
+    tenant: TenantContext = Depends(require_permissions(Permission.HOTEL_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    from sqlalchemy import select
+
+    from app.core.errors import NotFoundError
+    from app.integrations.storage.base import get_storage
+    from app.models.hotel import HotelImage
+
+    result = await db.execute(
+        select(HotelImage).where(
+            HotelImage.hotel_id == tenant.require_hotel(),
+            HotelImage.position == position,
+        )
+    )
+    image = result.scalar_one_or_none()
+    if image is None:
+        raise NotFoundError("No image at this gallery position", code="image_not_found")
+    try:
+        data = await get_storage().get_bytes(image.object_key)
+    except FileNotFoundError as exc:
+        raise NotFoundError("Gallery image is not available", code="image_missing") from exc
+    return Response(
+        content=data,
+        media_type=_image_media_type(image.object_key),
+        headers={"Cache-Control": "private, max-age=60"},
+    )
+
+
+@router.delete("/me/gallery/{position}", status_code=204, response_class=Response)
+async def delete_gallery_image(
+    request: Request,
+    position: int = Path(ge=0, le=GALLERY_MAX_SLOTS - 1),
+    tenant: TenantContext = Depends(require_permissions(Permission.HOTEL_MANAGE_SETTINGS)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    from sqlalchemy import select
+
+    from app.core.errors import NotFoundError
+    from app.integrations.storage.base import get_storage
+    from app.models.hotel import HotelImage
+
+    hotel_id = tenant.require_hotel()
+    result = await db.execute(
+        select(HotelImage).where(
+            HotelImage.hotel_id == hotel_id, HotelImage.position == position
+        )
+    )
+    image = result.scalar_one_or_none()
+    if image is None:
+        raise NotFoundError("No image at this gallery position", code="image_not_found")
+    object_key = image.object_key
+    image_id = image.id
+    await db.delete(image)
+    await db.flush()
+    try:
+        await get_storage().delete(object_key)
+    except Exception:  # noqa: BLE001 — orphaned object is not worth failing the delete
+        pass
+    await write_audit(
+        db,
+        action="hotel.gallery_image_deleted",
+        entity_type="hotel_image",
+        entity_id=image_id,
+        actor_id=tenant.user_id,
+        hotel_id=hotel_id,
+        before={"position": position},
+        correlation_id=_correlation(request),
+    )
+    return Response(status_code=204)
 
 
 # --- UPI payment configuration -------------------------------------------------

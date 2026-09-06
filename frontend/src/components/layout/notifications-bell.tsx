@@ -344,7 +344,7 @@ export function NotificationsBell() {
 
       <DropdownMenuContent
         align="end"
-        className="flex w-[340px] flex-col overflow-hidden p-0 shadow-lg"
+        className="flex w-[26rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden p-0 shadow-lg"
         sideOffset={6}
       >
         {/* Header */}
@@ -374,7 +374,7 @@ export function NotificationsBell() {
 
         {/* Category tabs: "All" + one tab per category present in the data */}
         {all.length > 0 && (
-          <div className="flex gap-1 overflow-x-auto border-b px-2 py-1.5">
+          <div className="flex gap-1 overflow-x-auto border-b px-2 py-1.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {[
               ["all", null] as const,
               ...grouped.map(([cat, items]) => [cat, items] as const),

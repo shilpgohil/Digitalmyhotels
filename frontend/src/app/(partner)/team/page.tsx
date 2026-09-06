@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, MoreVertical, KeyRound, Ban, CheckCircle2 } from "lucide-react";
+import { Plus, MoreVertical, KeyRound, Ban, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -108,6 +108,7 @@ function TeamContent() {
               <TableHeader>
                 <TableRow className="bg-navy-900 hover:bg-navy-900">
                   <TableHead className="text-white">{t("name")}</TableHead>
+                  <TableHead className="text-white">{t("phone")}</TableHead>
                   <TableHead className="text-white">{t("email")}</TableHead>
                   <TableHead className="text-white">{t("role")}</TableHead>
                   <TableHead className="text-white">{t("status")}</TableHead>
@@ -119,6 +120,7 @@ function TeamContent() {
                 {team.data.items.map((member) => (
                   <TableRow key={member.membership_id}>
                     <TableCell className="font-medium">{member.full_name}</TableCell>
+                    <TableCell className="text-muted-foreground">{member.phone || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{member.email}</TableCell>
                     <TableCell>{member.role_name}</TableCell>
                     <TableCell>
@@ -197,6 +199,7 @@ function CreateMemberDialog({ onCreated }: { onCreated: () => void }) {
   const api = useApi();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const mutation = useMutation({
     mutationFn: (form: FormData) =>
@@ -204,7 +207,7 @@ function CreateMemberDialog({ onCreated }: { onCreated: () => void }) {
         method: "POST",
         body: {
           full_name: String(form.get("full_name")).trim(),
-          email: String(form.get("email")).trim(),
+          email: String(form.get("email") || "").trim() || null,
           phone: String(form.get("phone") || "").trim() || null,
           role_code: String(form.get("role_code")),
           password: String(form.get("password")),
@@ -242,12 +245,12 @@ function CreateMemberDialog({ onCreated }: { onCreated: () => void }) {
               <Input id="tm-name" name="full_name" required minLength={2} maxLength={200} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="tm-email">{t("email")}</Label>
-              <Input id="tm-email" name="email" type="email" required />
+              <Label htmlFor="tm-phone">{t("phone")}</Label>
+              <Input id="tm-phone" name="phone" type="tel" required maxLength={32} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="tm-phone">{t("phone")}</Label>
-              <Input id="tm-phone" name="phone" maxLength={32} />
+              <Label htmlFor="tm-email">{t("email")}</Label>
+              <Input id="tm-email" name="email" type="email" placeholder={t("emailOptional")} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tm-role">{t("role")}</Label>
@@ -266,7 +269,29 @@ function CreateMemberDialog({ onCreated }: { onCreated: () => void }) {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tm-password">{t("newPassword")}</Label>
-              <Input id="tm-password" name="password" type="password" required minLength={8} />
+              <div className="relative">
+                <Input
+                  id="tm-password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  minLength={8}
+                  className="pr-9"
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-4" aria-hidden />
+                  ) : (
+                    <Eye className="size-4" aria-hidden />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
           <p className="text-xs text-muted-foreground">{t("temporaryPasswordHint")}</p>

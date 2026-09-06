@@ -300,7 +300,10 @@ async def create_handover(
         notes=body.notes,
         room_issues=body.room_issues,
         pending_issues=body.pending_issues,
-        snapshot={k: str(v) if isinstance(v, Decimal) else v for k, v in snap.items()},
+        snapshot={
+            k: str(v) if isinstance(v, Decimal) else v for k, v in snap.items()
+        }
+        | ({"to_name": body.to_name} if body.to_name else {}),
     )
     db.add(row)
     await db.flush()

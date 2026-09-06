@@ -68,6 +68,12 @@ services:
       - key: UPI_ENCRYPTION_KEY
         sync: false             # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 
+      # ── Platform collection UPI (subscription renewals) ──────────────────
+      - key: PLATFORM_UPI_ID
+        sync: false             # e.g. digitalmyhotels@okaxis — set in dashboard; empty disables in-app Scan & Pay
+      - key: PLATFORM_UPI_PAYEE_NAME
+        sync: false             # e.g. DigitalMyHotels — payee name shown in UPI apps
+
       # ── Storage (Backblaze B2 — Singapore) ───────────────────────────────
       - key: STORAGE_BACKEND
         value: b2
