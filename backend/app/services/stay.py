@@ -247,7 +247,10 @@ async def check_in(
                     description=item.description,
                     quantity=1,
                     rate=item.amount,
-                    apply_gst=False,
+                    # Client requirement (9-06 batch): charges carry GST like
+                    # everything else — Restaurant Billing was showing 0% GST
+                    # because atomic check-in charges skipped it.
+                    apply_gst=True,
                 ),
                 correlation_id=correlation_id,
             )

@@ -20,6 +20,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { toast } from "sonner";
 import {
   BadgeCheck,
+  Copy,
   Download,
   FileText,
   Loader2,
@@ -34,6 +35,7 @@ import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TimeInput } from "@/components/ui/time-input";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -150,6 +152,10 @@ function CheckoutContent() {
 
   // ── Form state ─────────────────────────────────────────────────────────
   const [actualCheckoutTime, setActualCheckoutTime] = useState("");
+  // Editable expected check-out date/time — staff may extend/shorten the
+  // stay right at checkout; PATCHed to the booking before the checkout POST.
+  const [expectedOutDate, setExpectedOutDate] = useState("");
+  const [expectedOutTime, setExpectedOutTime] = useState("");
   const [extras, setExtras] = useState<Record<ExtraChargeKey, string>>({
     restaurant: "",
     damage: "",
@@ -165,6 +171,8 @@ function CheckoutContent() {
 
   const resetForm = () => {
     setActualCheckoutTime(settingsQuery.data?.check_out_time?.slice(0, 5) ?? "");
+    setExpectedOutDate("");
+    setExpectedOutTime("");
     setExtras({ restaurant: "", damage: "", other: "" });
     setPayStatus("paid");
     setPayMethod("cash");
@@ -230,6 +238,15 @@ function CheckoutContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsQuery.data?.check_out_time, entry?.booking_id]);
 
+  // Seed the editable expected check-out date/time from the loaded booking.
+  useEffect(() => {
+    if (bookingQuery.data) {
+      setExpectedOutDate(bookingQuery.data.check_out_date);
+      setExpectedOutTime(bookingQuery.data.check_out_time?.slice(0, 5) ?? "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingQuery.data?.id]);
+
   const showQr = payMethod === "upi" && !!entry;
 
   const qrInfoQuery = useQuery({
@@ -275,6 +292,14 @@ function CheckoutContent() {
   const booking = bookingQuery.data;
   const charges = activeCharges(chargesQuery.data?.items);
 
+  // True when staff changed the expected check-out date/time vs the booking.
+  const expectedOutChanged =
+    !!booking &&
+    !!expectedOutDate &&
+    (expectedOutDate !== booking.check_out_date ||
+      (expectedOutTime !== "" &&
+        expectedOutTime !== (booking.check_out_time?.slice(0, 5) ?? "")));
+
   // Auto-calculate late-checkout fee from the chosen time vs. hotel standard.
   const lateCalc = useMemo(
     () =>
@@ -297,7 +322,7 @@ function CheckoutContent() {
   // Re-fetches when the auto-calculated late fee changes (part of the key);
   // keepPreviousData avoids flicker while a new fee is being priced.
   const previewQuery = useQuery({
-    queryKey: ["settlement", entry?.booking_id, lateFeeNum],
+    queryKey: ["settlement", entry?.booking_id, lateFeeNum, expectedOutDate, expectedOutTime],
     queryFn: () =>
       api<SettlementPreviewOut>(
         `/api/v1/checkouts/${entry!.booking_id}/preview?late_fee=${lateFeeNum.toFixed(2)}`,
@@ -383,6 +408,20 @@ function CheckoutContent() {
     mutationFn: async () => {
       if (!entry) throw new Error("No booking loaded");
 
+      // 0. Persist the edited expected check-out date/time before settling —
+      //    the backend allows check_out_date changes on checked_in bookings.
+      if (expectedOutChanged) {
+        await api(`/api/v1/bookings/${entry.booking_id}`, {
+          method: "PATCH",
+          body: {
+            check_out_date: expectedOutDate,
+            check_out_time: expectedOutTime || null,
+          },
+        });
+        queryClient.invalidateQueries({ queryKey: ["booking-for-checkout", entry.booking_id] });
+        queryClient.invalidateQueries({ queryKey: ["settlement", entry.booking_id] });
+      }
+
       // 1. Post additional charges entered at checkout (before settlement).
       for (const field of EXTRA_CHARGE_FIELDS) {
         const amount = Number.parseFloat(extras[field.key]) || 0;
@@ -395,7 +434,9 @@ function CheckoutContent() {
               description: field.description,
               quantity: 1,
               rate: amount.toFixed(2),
-              apply_gst: false,
+              // Client requirement: extra charges at checkout carry GST too
+              // (Restaurant Billing was showing 0% GST on these).
+              apply_gst: true,
             },
           });
         }
@@ -594,6 +635,18 @@ function CheckoutContent() {
     );
   };
 
+  /** Copy the raw UPI ID (owner/admin only — button lives behind canViewUpiId). */
+  const copyUpiId = async () => {
+    const upi = upiConfigQuery.data?.upi_id;
+    if (!upi) return;
+    try {
+      await navigator.clipboard.writeText(upi);
+      toast.success(tp("upiIdCopied"));
+    } catch {
+      toast.error(tc("error"));
+    }
+  };
+
   const detailsLoading =
     !!entry && (bookingQuery.isLoading || chargesQuery.isLoading || paymentsQuery.isLoading);
   const isPending = checkoutMutation.isPending;
@@ -604,7 +657,7 @@ function CheckoutContent() {
   // UPI QR panel body — loading skeleton, then QR image, then "not configured".
   let upiQrContent: React.ReactNode;
   if (qrImageQuery.isLoading) {
-    upiQrContent = <Skeleton className="h-40 w-40 rounded-lg" />;
+    upiQrContent = <Skeleton className="h-52 w-52 rounded-lg" />;
   } else if (qrImageQuery.data) {
     upiQrContent = (
       <>
@@ -612,7 +665,7 @@ function CheckoutContent() {
         <img
           src={qrImageQuery.data}
           alt={tp("upiQrAlt")}
-          className="h-44 w-44 rounded-lg object-contain"
+          className="h-56 w-56 rounded-lg object-contain"
         />
         <p className="text-center text-sm font-semibold text-navy-900">
           {qrInfoQuery.data?.payment_label ?? tp("scanToPay")}
@@ -626,6 +679,15 @@ function CheckoutContent() {
             <span className="select-all font-mono text-sm font-semibold text-navy-900">
               {upiConfigQuery.data.upi_id}
             </span>
+            <button
+              type="button"
+              onClick={() => void copyUpiId()}
+              aria-label={tp("copyUpiId")}
+              title={tp("copyUpiId")}
+              className="flex size-7 shrink-0 items-center justify-center rounded-md text-gold-700 transition-colors hover:bg-gold-100"
+            >
+              <Copy className="size-3.5" aria-hidden />
+            </button>
           </div>
         )}
       </>
@@ -817,6 +879,16 @@ function CheckoutContent() {
                         <Input value={entry.rooms.join(", ")} readOnly className="bg-muted/40" />
                       </div>
                       <div className="space-y-1.5">
+                        <Label>{t("contactNumber")}</Label>
+                        <Input
+                          value={
+                            booking?.primary_guest_phone ?? entry.primary_guest_phone_masked
+                          }
+                          readOnly
+                          className="bg-muted/40 tabular-nums"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
                         <Label>{tp("actualStayNights")}</Label>
                         <Input
                           value={actualNights(entry.checked_in_at)}
@@ -827,17 +899,24 @@ function CheckoutContent() {
                       <div className="space-y-1.5">
                         <Label>{tb("checkinDate")}</Label>
                         <Input
-                          value={fmtApiDate(booking?.check_in_date)}
+                          value={`${fmtApiDate(booking?.check_in_date)}, ${
+                            booking?.check_in_time?.slice(0, 5) ??
+                            new Date(entry.checked_in_at).toTimeString().slice(0, 5)
+                          }`}
                           readOnly
-                          className="bg-muted/40"
+                          className="bg-muted/40 tabular-nums"
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label>{tp("expectedCheckoutDate")}</Label>
-                        <Input
-                          value={fmtApiDate(booking?.check_out_date ?? entry.check_out_date)}
-                          readOnly
-                          className="bg-muted/40"
+                        <Label htmlFor="co-expected-checkout">{tp("expectedCheckoutDate")}</Label>
+                        <DateTimePicker
+                          id="co-expected-checkout"
+                          dateValue={expectedOutDate}
+                          timeValue={expectedOutTime}
+                          onDateChange={setExpectedOutDate}
+                          onTimeChange={setExpectedOutTime}
+                          min={booking?.check_in_date}
+                          disabled={isPending}
                         />
                       </div>
                       <div className="space-y-1.5">
@@ -861,11 +940,11 @@ function CheckoutContent() {
               </Card>
             )}
 
-            {/* ── Additional Charges ── */}
+            {/* ── Special Requirements (extra charges entered at checkout) ── */}
             {!done && (
               <Card>
                 <CardHeader>
-                  <CardTitle>{tp("additionalCharges")}</CardTitle>
+                  <CardTitle>{tp("specialRequirements")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {!entry ? (
@@ -961,12 +1040,21 @@ function CheckoutContent() {
                             </span>
                           </div>
                         )}
-                        {extrasTotal > 0 && (
-                          <div className="flex justify-between px-3 py-2">
-                            <span className="text-muted-foreground">{tp("newChargesAtCheckout")}</span>
-                            <span className="font-medium tabular-nums">{fmtMoney(extrasTotal)}</span>
-                          </div>
-                        )}
+                        {/* New charges entered this checkout — one line per
+                            non-zero entry (math unchanged; display only). */}
+                        {EXTRA_CHARGE_FIELDS.map((field) => {
+                          const amount = Math.max(
+                            Number.parseFloat(extras[field.key]) || 0,
+                            0,
+                          );
+                          if (amount <= 0) return null;
+                          return (
+                            <div key={field.key} className="flex justify-between px-3 py-2">
+                              <span className="text-muted-foreground">{tp(field.labelKey)}</span>
+                              <span className="font-medium tabular-nums">{fmtMoney(amount)}</span>
+                            </div>
+                          );
+                        })}
                         <div className="flex justify-between px-3 py-2">
                           <span className="text-muted-foreground">{tp("advancePayment")}</span>
                           <span className="font-medium text-green-700 tabular-nums">

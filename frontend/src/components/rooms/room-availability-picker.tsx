@@ -307,7 +307,16 @@ export function RoomAvailabilityPicker({
     );
   }
 
-  const available = data?.available ?? [];
+  // Client (9-06): rooms physically ready NOW (available/clean) come first so
+  // staff always see the immediately usable rooms before the "will be ready
+  // later" ones (reserved/occupied-but-free-for-dates/cleaning).
+  const _READY_NOW = new Set(["available", "clean_ready"]);
+  const available = [...(data?.available ?? [])].sort((a, b) => {
+    const aReady = _READY_NOW.has(a.status) ? 0 : 1;
+    const bReady = _READY_NOW.has(b.status) ? 0 : 1;
+    if (aReady !== bReady) return aReady - bReady;
+    return a.room_number.localeCompare(b.room_number, undefined, { numeric: true });
+  });
 
   return (
     <div className="space-y-4">

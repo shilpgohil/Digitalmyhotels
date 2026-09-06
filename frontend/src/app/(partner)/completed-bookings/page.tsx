@@ -507,10 +507,11 @@ function CompletedBookingsContent() {
     enabled: !!activeHotelId,
   });
 
+  // Client (9-06 batch): No-show tab removed — no-show bookings still exist in
+  // the data model, they just aren't a separate tab here.
   const statusChips: { value: CompletedStatus; label: string }[] = [
     { value: "checked_out", label: t("status_checked_out") },
     { value: "cancelled", label: t("status_cancelled") },
-    { value: "no_show", label: t("status_no_show") },
   ];
 
   const quickChips: { value: QuickRange; label: string }[] = [

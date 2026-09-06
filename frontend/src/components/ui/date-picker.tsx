@@ -42,6 +42,14 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ] as const;
 
+// Year options for the header dropdown: 1900 → current year + 5, rendered
+// newest-first (friendlier for DOB + booking use).
+const YEAR_MAX = new Date().getFullYear() + 5;
+const YEAR_OPTIONS: readonly number[] = Array.from(
+  { length: YEAR_MAX - 1900 + 1 },
+  (_, i) => YEAR_MAX - i,
+);
+
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
@@ -236,9 +244,32 @@ export function DatePicker({
             >
               <ChevronLeft className="size-4" />
             </button>
-            <span className="text-sm font-semibold tabular-nums">
-              {MONTH_NAMES[viewMonth]} {viewYear}
-            </span>
+            <div className="flex items-center gap-1">
+              <select
+                value={viewMonth}
+                onChange={(e) => setViewMonth(Number(e.target.value))}
+                aria-label="Month"
+                className="cursor-pointer rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold hover:border-input focus:outline-none focus:ring-2 focus:ring-gold-500/20"
+              >
+                {MONTH_NAMES.map((m, i) => (
+                  <option key={m} value={i}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={viewYear}
+                onChange={(e) => setViewYear(Number(e.target.value))}
+                aria-label="Year"
+                className="cursor-pointer rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold tabular-nums hover:border-input focus:outline-none focus:ring-2 focus:ring-gold-500/20"
+              >
+                {YEAR_OPTIONS.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
               type="button"
               onClick={nextMonth}

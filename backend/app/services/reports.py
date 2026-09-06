@@ -299,6 +299,16 @@ async def restaurant_billing(
             .limit(500)
         )
     ).all()
+    # Convert charged_on to the HOTEL's local date (audit finding: showing
+    # the raw UTC date put late-evening IST charges on the wrong day —
+    # exactly what the client red-boxed in the Date column).
+    from zoneinfo import ZoneInfo
+
+    try:
+        _tz = ZoneInfo(hotel_tz)
+    except (KeyError, ValueError):
+        _tz = ZoneInfo("Asia/Kolkata")
+
     items: list[RestaurantBillingRowOut] = []
     for charge, booking_number, guest_name in rows:
         rate = (
@@ -314,7 +324,7 @@ async def restaurant_billing(
                 gst_rate=rate,
                 gst_payable=charge.tax_amount,
                 final_price=charge.total_amount,
-                charged_on=charge.created_at.date(),
+                charged_on=charge.created_at.astimezone(_tz).date(),
             )
         )
     return RestaurantBillingOut(
