@@ -20,6 +20,7 @@ from app.schemas.ops import (
     RestaurantBillingOut,
     RevenueReportOut,
     RoomUtilizationOut,
+    SmartDashboardOut,
 )
 from app.services import reports as reports_service
 
@@ -127,3 +128,17 @@ async def arrivals_today(
 ) -> ArrivalsOut:
     """Confirmed bookings arriving today (not yet checked in)."""
     return await reports_service.arrivals_today(db, tenant)
+
+
+@router.get("/smart-dashboard", response_model=SmartDashboardOut)
+async def smart_dashboard(
+    tenant: TenantContext = Depends(require_permissions(Permission.REPORTS_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> SmartDashboardOut:
+    """Single-call endpoint powering the hotel's smart dashboard.
+
+    Returns KPIs (RevPAR/ADR/ALOS), 30-day daily trends, guest-mix,
+    room-type revenue breakdown, weekly patterns, and rule-generated
+    insight sentences — all in one request so the dashboard loads fast.
+    """
+    return await reports_service.smart_dashboard(db, tenant)

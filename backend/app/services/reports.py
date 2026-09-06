@@ -24,10 +24,17 @@ from app.schemas.ops import (
     GstBookingRowOut,
     GstByBookingOut,
     GstReportOut,
+    GuestMixItem,
+    HotelKpis,
     MonthlyTrendItem,
     OccupancyReportOut,
     PaymentMethodReportOut,
     PlatformTrendOut,
+    RoomTypeRevenue,
+    SmartDashboardOut,
+    SmartInsight,
+    TrendPoint30,
+    WeekPatternItem,
     RestaurantBillingOut,
     RestaurantBillingRowOut,
     RevenueReportOut,
@@ -700,3 +707,545 @@ async def platform_monthly_trend(
             MonthlyTrendItem(month=month_str, hotels_added=hotels_added, revenue=rev, checkins=ci)
         )
     return PlatformTrendOut(items=items)
+
+
+# ── Smart Dashboard (single comprehensive endpoint) ───────────────────────────
+
+async def smart_dashboard(
+    db: AsyncSession,
+    tenant: TenantContext,
+) -> SmartDashboardOut:
+    """Return KPIs, trends, mix, and rule-generated insights in one call.
+
+    All data covers the trailing 30 days (and today separately for KPIs),
+    using the hotel's local timezone for date grouping so "today" is always
+    the hotel's calendar today, not UTC today.
+    """
+    from datetime import UTC, datetime
+    from zoneinfo import ZoneInfo
+
+    from sqlalchemy import and_, case
+
+    from app.models.booking import CheckIn, CheckOut
+    from app.models.hotel import Hotel
+
+    hotel_id = tenant.require_hotel()
+
+    # ── Hotel metadata ──────────────────────────────────────────────────────
+    hotel = (await db.execute(select(Hotel).where(Hotel.id == hotel_id))).scalar_one()
+    hotel_tz_str = hotel.timezone or "Asia/Kolkata"
+    try:
+        tz = ZoneInfo(hotel_tz_str)
+    except (KeyError, ValueError):
+        tz = ZoneInfo("Asia/Kolkata")
+    now_local = datetime.now(tz)
+    today = now_local.date()
+    window_start = today - timedelta(days=29)       # 30-day window
+    prev_window_start = window_start - timedelta(days=30)   # prior 30 days for WoW
+
+    def local_date(col):  # type: ignore[no-untyped-def]
+        return func.date(func.timezone(hotel_tz_str, col))
+
+    # ── Total rooms ─────────────────────────────────────────────────────────
+    total_rooms = int(await db.scalar(
+        select(func.count()).select_from(Room).where(
+            Room.hotel_id == hotel_id, Room.is_active.is_(True)
+        )
+    ) or 0)
+
+    # ── Room status counts (live) ───────────────────────────────────────────
+    status_rows = (await db.execute(
+        select(Room.status, func.count().label("cnt")).where(
+            Room.hotel_id == hotel_id, Room.is_active.is_(True)
+        ).group_by(Room.status)
+    )).all()
+    status_counts: dict[str, int] = {r.status: int(r.cnt) for r in status_rows}
+    available_rooms = (status_counts.get("available", 0) + status_counts.get("clean_ready", 0))
+    occupied_rooms = status_counts.get("occupied", 0)
+    today_occ_pct = money(
+        Decimal(occupied_rooms) * 100 / Decimal(total_rooms)
+        if total_rooms else Decimal("0")
+    )
+
+    # ── In-house count ──────────────────────────────────────────────────────
+    in_house_count = int(await db.scalar(
+        select(func.count()).select_from(Booking).where(
+            Booking.hotel_id == hotel_id, Booking.status == "checked_in"
+        )
+    ) or 0)
+
+    # ── Arrivals today (confirmed, not yet checked in) ──────────────────────
+    arrivals_today_count = int(await db.scalar(
+        select(func.count()).select_from(Booking).where(
+            Booking.hotel_id == hotel_id,
+            Booking.status == "confirmed",
+            Booking.check_in_date == today,
+        )
+    ) or 0)
+
+    # ── Overdue checkouts ───────────────────────────────────────────────────
+    overdue_count = int(await db.scalar(
+        select(func.count()).select_from(Booking).where(
+            Booking.hotel_id == hotel_id,
+            Booking.status == "checked_in",
+            Booking.check_out_date < today,
+        )
+    ) or 0)
+
+    # ── 30-day daily revenue + check-ins/outs ───────────────────────────────
+    rev_rows = (await db.execute(
+        select(
+            local_date(Payment.paid_at).label("d"),
+            func.sum(Payment.amount).label("rev"),
+        ).where(
+            Payment.hotel_id == hotel_id,
+            Payment.status == "completed",
+            local_date(Payment.paid_at) >= window_start,
+        ).group_by("d")
+    )).all()
+    rev_by_date: dict[date, Decimal] = {r.d: money(r.rev) for r in rev_rows}
+
+    ci_rows = (await db.execute(
+        select(
+            local_date(CheckIn.checked_in_at).label("d"),
+            func.count().label("cnt"),
+        ).where(
+            CheckIn.hotel_id == hotel_id,
+            local_date(CheckIn.checked_in_at) >= window_start,
+        ).group_by("d")
+    )).all()
+    ci_by_date: dict[date, int] = {r.d: int(r.cnt) for r in ci_rows}
+
+    co_rows = (await db.execute(
+        select(
+            local_date(CheckOut.checked_out_at).label("d"),
+            func.count().label("cnt"),
+        ).where(
+            CheckOut.hotel_id == hotel_id,
+            local_date(CheckOut.checked_out_at) >= window_start,
+        ).group_by("d")
+    )).all()
+    co_by_date: dict[date, int] = {r.d: int(r.cnt) for r in co_rows}
+
+    # ── Nightly occupancy (bookings overlapping each day) ───────────────────
+    # We approximate: for each booking that overlaps the window, mark each
+    # night it spans. This is O(bookings × nights) but the 30-day window keeps it small.
+    bookings_in_window = (await db.execute(
+        select(
+            Booking.check_in_date, Booking.check_out_date, Booking.room_count,
+            Booking.total_amount, Booking.guest_type, Booking.created_at,
+        ).where(
+            Booking.hotel_id == hotel_id,
+            Booking.status.in_(("confirmed", "checked_in", "checked_out")),
+            Booking.check_in_date < today + timedelta(days=1),
+            Booking.check_out_date > window_start,
+        )
+    )).all()
+
+    occ_by_date: dict[date, int] = {}
+    for bk in bookings_in_window:
+        start = max(bk.check_in_date, window_start)
+        end = min(bk.check_out_date, today + timedelta(days=1))
+        d = start
+        while d < end:
+            occ_by_date[d] = occ_by_date.get(d, 0) + max(bk.room_count, 1)
+            d += timedelta(days=1)
+
+    trend_30d: list[TrendPoint30] = []
+    for i in range(30):
+        d = window_start + timedelta(days=i)
+        occ = occ_by_date.get(d, 0)
+        occ_pct = money(Decimal(occ) * 100 / Decimal(total_rooms) if total_rooms else Decimal("0"))
+        trend_30d.append(TrendPoint30(
+            date=d,
+            revenue=rev_by_date.get(d, Decimal("0")),
+            checkins=ci_by_date.get(d, 0),
+            checkouts=co_by_date.get(d, 0),
+            occupancy_pct=occ_pct,
+        ))
+
+    # ── KPIs: 30-day window ─────────────────────────────────────────────────
+    total_rev_30 = money(sum(it.revenue for it in trend_30d))
+    total_ci_30 = sum(it.checkins for it in trend_30d)
+
+    # ADR: total room revenue / occupied room-nights in window
+    total_occ_nights = sum(
+        max(b.room_count, 1) * max((
+            min(b.check_out_date, today) - max(b.check_in_date, window_start)
+        ).days, 0)
+        for b in bookings_in_window
+    )
+    adr = money(total_rev_30 / Decimal(total_occ_nights) if total_occ_nights else Decimal("0"))
+
+    # RevPAR: revenue / (total_rooms × 30 days)
+    revpar = money(total_rev_30 / Decimal(total_rooms * 30) if total_rooms else Decimal("0"))
+
+    # ALOS: average length of stay for checked-out bookings this window
+    alos_rows = (await db.execute(
+        select(
+            func.avg(
+                func.extract("day", func.age(Booking.check_out_date, Booking.check_in_date))
+            ).label("alos")
+        ).where(
+            Booking.hotel_id == hotel_id,
+            Booking.status == "checked_out",
+            Booking.check_out_date >= window_start,
+        )
+    )).scalar_one()
+    alos = money(Decimal(str(alos_rows or "0")))
+
+    # Average booking lead time (days between booking creation and check-in)
+    lead_rows = (await db.execute(
+        select(
+            func.avg(
+                func.extract("day", func.age(Booking.check_in_date, func.date(Booking.created_at)))
+            ).label("lead")
+        ).where(
+            Booking.hotel_id == hotel_id,
+            Booking.check_in_date >= window_start,
+            Booking.status.notin_(("cancelled",)),
+        )
+    )).scalar_one()
+    lead_days = money(Decimal(str(lead_rows or "0")))
+
+    # No-show rate
+    no_show_count = int(await db.scalar(
+        select(func.count()).select_from(Booking).where(
+            Booking.hotel_id == hotel_id,
+            Booking.status == "no_show",
+            Booking.check_in_date >= window_start,
+        )
+    ) or 0)
+    confirmed_plus_ns = int(await db.scalar(
+        select(func.count()).select_from(Booking).where(
+            Booking.hotel_id == hotel_id,
+            Booking.status.in_(("no_show", "checked_in", "checked_out", "confirmed")),
+            Booking.check_in_date >= window_start,
+        )
+    ) or 0)
+    no_show_rate = money(
+        Decimal(no_show_count) * 100 / Decimal(confirmed_plus_ns)
+        if confirmed_plus_ns else Decimal("0")
+    )
+
+    # WoW: prior 30-day window revenue
+    prior_rev = money(await db.scalar(
+        select(func.coalesce(func.sum(Payment.amount), 0)).where(
+            Payment.hotel_id == hotel_id,
+            Payment.status == "completed",
+            local_date(Payment.paid_at) >= prev_window_start,
+            local_date(Payment.paid_at) < window_start,
+        )
+    ) or 0)
+    prior_occ_nights_q = (await db.execute(
+        select(func.coalesce(func.sum(Booking.room_count), 0)).where(
+            Booking.hotel_id == hotel_id,
+            Booking.status.in_(("confirmed", "checked_in", "checked_out")),
+            Booking.check_in_date >= prev_window_start,
+            Booking.check_out_date <= window_start,
+        )
+    )).scalar_one() or 0
+    prior_revpar = money(
+        Decimal(str(prior_rev)) / Decimal(total_rooms * 30) if total_rooms else Decimal("0")
+    )
+    revenue_wow = money(
+        (total_rev_30 - prior_rev) * 100 / prior_rev if prior_rev else Decimal("0")
+    )
+    revpar_wow = money(
+        (revpar - prior_revpar) * 100 / prior_revpar if prior_revpar else Decimal("0")
+    )
+
+    kpis = HotelKpis(
+        revpar=revpar,
+        adr=adr,
+        alos=alos,
+        lead_days=lead_days,
+        no_show_rate=no_show_rate,
+        revpar_wow=revpar_wow,
+        revenue_wow=revenue_wow,
+    )
+
+    # ── Guest mix (30 days) ─────────────────────────────────────────────────
+    mix_rows = (await db.execute(
+        select(
+            func.coalesce(Booking.guest_type, "Other").label("gt"),
+            func.count().label("cnt"),
+            func.coalesce(func.sum(Booking.total_amount), 0).label("rev"),
+        ).where(
+            Booking.hotel_id == hotel_id,
+            Booking.status.in_(("checked_in", "checked_out", "confirmed")),
+            Booking.check_in_date >= window_start,
+        ).group_by("gt").order_by(func.count().desc())
+    )).all()
+    guest_mix = [
+        GuestMixItem(guest_type=r.gt or "Other", count=int(r.cnt), revenue=money(r.rev))
+        for r in mix_rows
+    ]
+
+    # ── Room-type revenue (30 days) ─────────────────────────────────────────
+    rt_rows = (await db.execute(
+        select(
+            RoomType.name.label("rt_name"),
+            func.coalesce(func.sum(Booking.total_amount), 0).label("rev"),
+            func.count(Booking.id.distinct()).label("bookings"),
+            func.coalesce(func.sum(Booking.room_count), 0).label("room_nights"),
+        )
+        .join(BookingRoom, BookingRoom.booking_id == Booking.id)
+        .join(RoomType, RoomType.id == BookingRoom.room_type_id)
+        .where(
+            Booking.hotel_id == hotel_id,
+            Booking.status.in_(("checked_in", "checked_out")),
+            Booking.check_in_date >= window_start,
+        ).group_by(RoomType.name).order_by(func.sum(Booking.total_amount).desc())
+    )).all()
+    room_type_revenue = [
+        RoomTypeRevenue(
+            room_type=r.rt_name,
+            revenue=money(r.rev),
+            room_nights=int(r.room_nights),
+            adr=money(Decimal(str(r.rev)) / Decimal(str(r.room_nights)) if r.room_nights else Decimal("0")),
+        )
+        for r in rt_rows
+    ]
+
+    # ── Week pattern: avg check-ins + revenue by day-of-week ────────────────
+    dow_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    # PostgreSQL EXTRACT(DOW, ...) = 0=Sunday … 6=Saturday; remap to 0=Mon…6=Sun
+    # (use ISODOW: 1=Mon … 7=Sun)
+    dow_rev_rows = (await db.execute(
+        select(
+            func.extract("isodow", local_date(Payment.paid_at)).label("dow"),
+            func.coalesce(func.sum(Payment.amount), 0).label("rev"),
+            func.count().label("cnt"),
+        ).where(
+            Payment.hotel_id == hotel_id,
+            Payment.status == "completed",
+            local_date(Payment.paid_at) >= window_start,
+        ).group_by("dow").order_by("dow")
+    )).all()
+    dow_ci_rows = (await db.execute(
+        select(
+            func.extract("isodow", local_date(CheckIn.checked_in_at)).label("dow"),
+            func.count().label("cnt"),
+        ).where(
+            CheckIn.hotel_id == hotel_id,
+            local_date(CheckIn.checked_in_at) >= window_start,
+        ).group_by("dow").order_by("dow")
+    )).all()
+
+    # Build lookup: isodow (1–7) → (total_rev, cnt_weeks)
+    # 30 days / 7 = ~4 occurrences per weekday
+    weeks_in_window = max(1, 30 // 7)
+    rev_by_dow: dict[int, Decimal] = {}
+    for r in dow_rev_rows:
+        rev_by_dow[int(r.dow)] = money(Decimal(str(r.rev)) / Decimal(weeks_in_window))
+    ci_by_dow_raw: list = list(dow_ci_rows)  # type: ignore[assignment]
+    ci_by_dow: dict[int, int] = {}
+    for r in ci_by_dow_raw:
+        ci_by_dow[int(r.dow)] = int(round(int(r.cnt) / weeks_in_window))
+
+    week_pattern = [
+        WeekPatternItem(
+            dow=dow_names[i],
+            avg_revenue=rev_by_dow.get(i + 1, Decimal("0")),
+            avg_checkins=Decimal(ci_by_dow.get(i + 1, 0)),
+        )
+        for i in range(7)
+    ]
+
+    # ── Smart Insights (rule-based NLG) ─────────────────────────────────────
+    insights: list[SmartInsight] = []
+
+    # Today's revenue
+    today_rev = rev_by_date.get(today, Decimal("0"))
+    yesterday_rev = rev_by_date.get(today - timedelta(days=1), Decimal("0"))
+    week_avg_rev = money(
+        sum(rev_by_date.get(today - timedelta(days=i), Decimal("0")) for i in range(1, 8)) / Decimal(7)
+    )
+
+    if today_rev > 0:
+        if week_avg_rev > 0:
+            pct_vs_avg = int((today_rev - week_avg_rev) * 100 / week_avg_rev)
+            if pct_vs_avg >= 20:
+                insights.append(SmartInsight(
+                    id="rev_above_avg",
+                    level="success",
+                    icon="TrendingUp",
+                    title="Strong Revenue Day",
+                    body=(
+                        f"Today's revenue of ₹{int(today_rev):,} is {pct_vs_avg}% above "
+                        f"your 7-day average (₹{int(week_avg_rev):,}). Great momentum!"
+                    ),
+                    metric=f"₹{int(today_rev):,}",
+                    link="/payments",
+                ))
+            elif pct_vs_avg <= -25:
+                insights.append(SmartInsight(
+                    id="rev_below_avg",
+                    level="warning",
+                    icon="TrendingDown",
+                    title="Below Average Revenue",
+                    body=(
+                        f"Today's revenue (₹{int(today_rev):,}) is {abs(pct_vs_avg)}% below "
+                        f"your 7-day average of ₹{int(week_avg_rev):,}."
+                    ),
+                    metric=f"₹{int(today_rev):,}",
+                    link="/payments",
+                ))
+
+    # Revenue 3-day trend
+    day1 = rev_by_date.get(today, Decimal("0"))
+    day2 = rev_by_date.get(today - timedelta(days=1), Decimal("0"))
+    day3 = rev_by_date.get(today - timedelta(days=2), Decimal("0"))
+    if day1 > day2 > day3 > 0:
+        insights.append(SmartInsight(
+            id="rev_3day_growth",
+            level="success",
+            icon="TrendingUp",
+            title="Revenue Growing",
+            body="Revenue has grown for 3 consecutive days — a positive demand signal.",
+        ))
+
+    # Overdue checkouts
+    if overdue_count > 0:
+        insights.append(SmartInsight(
+            id="overdue_checkouts",
+            level="alert",
+            icon="AlertTriangle",
+            title=f"{overdue_count} Overdue Checkout{'s' if overdue_count > 1 else ''}",
+            body=(
+                f"{overdue_count} guest(s) are past their checkout time. "
+                "Reach out to confirm late departure or start checkout."
+            ),
+            link="/current-guests",
+        ))
+
+    # Low room availability vs arrivals
+    if total_rooms > 0:
+        avail_pct = int(available_rooms * 100 / total_rooms)
+        if avail_pct < 20 and arrivals_today_count > available_rooms:
+            insights.append(SmartInsight(
+                id="low_avail_vs_arrivals",
+                level="alert",
+                icon="AlertOctagon",
+                title="Room Availability Conflict",
+                body=(
+                    f"Only {available_rooms} room(s) available, but {arrivals_today_count} "
+                    "guest(s) arriving today. Check housekeeping status immediately."
+                ),
+                metric=f"{avail_pct}% available",
+                link="/rooms",
+            ))
+        elif avail_pct < 15:
+            insights.append(SmartInsight(
+                id="low_avail",
+                level="warning",
+                icon="BedDouble",
+                title="Low Availability",
+                body=(
+                    f"Only {available_rooms} of {total_rooms} rooms available ({avail_pct}%). "
+                    "Consider whether any rooms can be expedited from housekeeping."
+                ),
+                metric=f"{avail_pct}% free",
+                link="/rooms",
+            ))
+
+    # Arrivals today reminder
+    if arrivals_today_count > 0:
+        insights.append(SmartInsight(
+            id="arrivals_reminder",
+            level="info",
+            icon="CalendarCheck",
+            title=f"{arrivals_today_count} Arriving Today",
+            body=(
+                f"{arrivals_today_count} confirmed guest(s) expected today. "
+                "Ensure rooms are ready and IDs are verified at check-in."
+            ),
+            link="/checkin",
+        ))
+
+    # High occupancy
+    if today_occ_pct >= 90:
+        insights.append(SmartInsight(
+            id="high_occupancy",
+            level="success",
+            icon="Building2",
+            title="Near Full Capacity",
+            body=(
+                f"Running at {int(today_occ_pct)}% occupancy — outstanding! "
+                "Ensure housekeeping is on standby for quick turnovers."
+            ),
+            metric=f"{int(today_occ_pct)}%",
+        ))
+
+    # No-show warning
+    if no_show_rate > 10:
+        insights.append(SmartInsight(
+            id="high_noshow",
+            level="warning",
+            icon="UserX",
+            title="High No-Show Rate",
+            body=(
+                f"{int(no_show_rate)}% of bookings in the last 30 days were no-shows. "
+                "Consider requesting advance payments to reduce no-shows."
+            ),
+            metric=f"{int(no_show_rate)}%",
+        ))
+
+    # RevPAR insight
+    if revpar > 0:
+        wow_str = ""
+        if revpar_wow > 5:
+            wow_str = f" — up {int(revpar_wow)}% vs prior period"
+        elif revpar_wow < -5:
+            wow_str = f" — down {abs(int(revpar_wow))}% vs prior period"
+        insights.append(SmartInsight(
+            id="revpar",
+            level="info" if abs(revpar_wow) <= 5 else ("success" if revpar_wow > 0 else "warning"),
+            icon="IndianRupee",
+            title="RevPAR",
+            body=f"Revenue per available room over 30 days is ₹{int(revpar):,}{wow_str}.",
+            metric=f"₹{int(revpar):,}",
+        ))
+
+    # ALOS insight
+    if alos >= 3:
+        insights.append(SmartInsight(
+            id="alos_long",
+            level="success",
+            icon="CalendarDays",
+            title="Long Average Stay",
+            body=f"Guests are staying an average of {float(alos):.1f} nights — strong occupancy per booking.",
+            metric=f"{float(alos):.1f} nights",
+        ))
+    elif alos > 0 and alos < 1.5:
+        insights.append(SmartInsight(
+            id="alos_short",
+            level="info",
+            icon="CalendarDays",
+            title="Short Average Stay",
+            body=(
+                f"Average stay is {float(alos):.1f} nights. Promoting multi-night packages "
+                "or weekend deals could boost revenue."
+            ),
+            metric=f"{float(alos):.1f} nights",
+        ))
+
+    # Sort: alerts first, then warnings, success, info
+    _level_order = {"alert": 0, "warning": 1, "success": 2, "info": 3}
+    insights.sort(key=lambda x: _level_order.get(x.level, 4))
+
+    return SmartDashboardOut(
+        insights=insights,
+        kpis=kpis,
+        trend_30d=trend_30d,
+        guest_mix=guest_mix,
+        room_type_revenue=room_type_revenue,
+        week_pattern=week_pattern,
+        today_occupancy_pct=today_occ_pct,
+        total_rooms=total_rooms,
+        available_rooms=available_rooms,
+        in_house_count=in_house_count,
+        arrivals_today=arrivals_today_count,
+        overdue_count=overdue_count,
+    )
