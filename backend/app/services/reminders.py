@@ -231,19 +231,21 @@ async def sweep_low_availability(
         if pct >= 20:
             continue  # no alert needed
 
-        # Check if we already fired today for this hotel
-        today_key = now.date().isoformat()
+        # Check if we already fired today for this hotel.
+        # Notification is in app.models.platform (same module as Subscription etc.)
+        from app.models.platform import Notification as _Notif  # noqa: PLC0415
+        from datetime import timezone as _tz_mod  # noqa: PLC0415
+
+        day_start = now.astimezone(_tz_mod.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
         notif_check = await db.execute(
             select(func.count())
-            .select_from(
-                __import__("app.models.notification", fromlist=["Notification"]).Notification
-            )
+            .select_from(_Notif)
             .where(
-                __import__("app.models.notification", fromlist=["Notification"]).Notification.hotel_id == hotel.id,
-                __import__("app.models.notification", fromlist=["Notification"]).Notification.type == NE.LOW_ROOM_AVAILABILITY.value,
-                __import__("app.models.notification", fromlist=["Notification"]).Notification.created_at >= now.replace(
-                    hour=0, minute=0, second=0, microsecond=0,
-                ),
+                _Notif.hotel_id == hotel.id,
+                _Notif.type == NE.LOW_ROOM_AVAILABILITY.value,
+                _Notif.created_at >= day_start,
             )
         )
         if (notif_check.scalar() or 0) > 0:
