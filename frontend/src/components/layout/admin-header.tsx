@@ -2,8 +2,35 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Bell, User } from "lucide-react";
+import { Search, Bell, Menu, User } from "lucide-react";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { useAuth } from "@/lib/auth/auth-context";
+
+/** Hamburger + slide-in drawer with the ADMIN navigation (mobile only).
+ *  Previously mobile had no admin nav at all — and pages that borrowed the
+ *  partner header exposed the HOTEL nav inside the super-admin console. */
+function AdminMobileNav() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex size-9 shrink-0 items-center justify-center rounded-md border text-muted-foreground hover:text-foreground lg:hidden"
+        aria-label="Open admin menu"
+      >
+        <Menu className="size-5" aria-hidden />
+      </button>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="left" className="w-72 gap-0 p-0" aria-label="Admin menu">
+          <SheetTitle className="sr-only">Admin menu</SheetTitle>
+          <AdminSidebar onNavigate={() => setOpen(false)} />
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}
 
 export function AdminHeader() {
   const { user } = useAuth();
@@ -19,7 +46,8 @@ export function AdminHeader() {
   };
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-white px-6">
+    <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-white px-4 lg:px-6">
+      <AdminMobileNav />
       <form onSubmit={handleSearch} className="flex-1 flex justify-center">
 
         <div className="relative w-full max-w-md">

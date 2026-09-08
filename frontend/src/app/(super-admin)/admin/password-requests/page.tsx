@@ -13,7 +13,6 @@ import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { KeyRound } from "lucide-react";
-import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -69,9 +68,13 @@ export default function AdminPasswordRequestsPage() {
   });
 
   return (
-    <>
-      <PartnerHeader title={t("passwordRequestsNav")} subtitle={t("portal")} />
-      <main className="flex-1 overflow-y-auto p-6">
+    <main className="space-y-6 p-6">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-gold-600">
+          {t("portal")}
+        </p>
+        <h1 className="text-2xl font-bold text-foreground">{t("passwordRequestsNav")}</h1>
+      </div>
         <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
           <div className="border-b px-5 py-4">
             <h2 className="flex items-center gap-2 font-semibold">
@@ -162,7 +165,6 @@ export default function AdminPasswordRequestsPage() {
             </ul>
           )}
         </div>
-      </main>
-    </>
+    </main>
   );
 }

@@ -13,7 +13,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { KeyRound, ShieldCheck, Users } from "lucide-react";
-import { PartnerHeader } from "@/components/layout/partner-header";
 import { useAuth } from "@/lib/auth/auth-context";
 
 export const ALL_CUSTOMERS_FLAG = "admin.allCustomersEnabled";
@@ -40,9 +39,13 @@ export default function AdminSettingsPage() {
   };
 
   return (
-    <>
-      <PartnerHeader title={t("settings")} subtitle={t("portal")} />
-      <main className="flex-1 overflow-y-auto p-6 space-y-4 max-w-2xl">
+    <main className="max-w-2xl space-y-4 p-6">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-gold-600">
+          {t("portal")}
+        </p>
+        <h1 className="text-2xl font-bold text-foreground">{t("settings")}</h1>
+      </div>
         {/* Profile */}
         <section className="rounded-xl border bg-white p-5 shadow-sm">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -95,13 +98,17 @@ export default function AdminSettingsPage() {
               role="switch"
               aria-checked={allCustomers}
               onClick={() => toggle(!allCustomers)}
-              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-                allCustomers ? "bg-gold-500" : "bg-muted"
+              className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full border transition-colors ${
+                allCustomers
+                  ? "border-gold-500 bg-gold-500"
+                  : "border-input bg-muted"
               }`}
             >
+              {/* left-0 anchor is required — without it the absolute knob has
+                  no horizontal reference and renders misplaced. */}
               <span
-                className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform ${
-                  allCustomers ? "translate-x-5" : "translate-x-0.5"
+                className={`absolute left-0 top-0.5 size-5 rounded-full bg-white shadow transition-transform ${
+                  allCustomers ? "translate-x-[22px]" : "translate-x-0.5"
                 }`}
               />
             </button>
@@ -115,7 +122,6 @@ export default function AdminSettingsPage() {
             </Link>
           )}
         </section>
-      </main>
-    </>
+    </main>
   );
 }

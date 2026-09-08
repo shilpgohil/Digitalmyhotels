@@ -12,7 +12,6 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { Eye, Search } from "lucide-react";
-import { PartnerHeader } from "@/components/layout/partner-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -74,9 +73,13 @@ export default function AdminCustomersPage() {
   const total = customers.data?.total ?? 0;
 
   return (
-    <>
-      <PartnerHeader title={t("allCustomersSection")} subtitle={t("portal")} />
-      <main className="flex-1 overflow-y-auto p-6">
+    <main className="space-y-6 p-6">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-gold-600">
+          {t("portal")}
+        </p>
+        <h1 className="text-2xl font-bold text-foreground">{t("allCustomersSection")}</h1>
+      </div>
         <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
           <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
             <h2 className="shrink-0 font-semibold">{t("allCustomersList")}</h2>
@@ -210,8 +213,7 @@ export default function AdminCustomersPage() {
           customer={viewing}
           onClose={() => setViewing(null)}
         />
-      </main>
-    </>
+    </main>
   );
 }
 

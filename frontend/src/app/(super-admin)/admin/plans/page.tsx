@@ -14,7 +14,6 @@ import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Pencil, Power } from "lucide-react";
-import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,9 +58,14 @@ export default function AdminPlansPage() {
   });
 
   return (
-    <>
-      <PartnerHeader title={t("plans")} subtitle={t("portal")} />
-      <main className="flex-1 overflow-y-auto p-6">
+    <main className="p-6 space-y-6">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-gold-600">
+          {t("portal")}
+        </p>
+        <h1 className="text-2xl font-bold text-foreground">{t("plans")}</h1>
+      </div>
+      <div>
         {plans.isLoading && (
           <div className="grid gap-3 md:grid-cols-2">
             {[0, 1, 2].map((i) => (
@@ -126,8 +130,8 @@ export default function AdminPlansPage() {
           onClose={() => setEditing(null)}
           onDone={invalidate}
         />
-      </main>
-    </>
+      </div>
+    </main>
   );
 }
 

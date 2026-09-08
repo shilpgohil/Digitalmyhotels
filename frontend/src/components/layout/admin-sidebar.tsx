@@ -48,7 +48,7 @@ function hrefIsActive(pathname: string, filter: string | null, href: string): bo
   return true;
 }
 
-function AdminSidebarInner() {
+function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void }) {
   const t = useTranslations("admin");
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -92,6 +92,7 @@ function AdminSidebarInner() {
               <li key={item.href + item.labelKey}>
                 <Link
                   href={item.href}
+                  onClick={onNavigate}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                     active
@@ -112,6 +113,7 @@ function AdminSidebarInner() {
         {customersEnabled && (
           <Link
             href="/admin/customers"
+            onClick={onNavigate}
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
               customersActive
@@ -125,6 +127,7 @@ function AdminSidebarInner() {
         )}
         <Link
           href="/admin/plans"
+          onClick={onNavigate}
           className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
             plansActive
@@ -137,6 +140,7 @@ function AdminSidebarInner() {
         </Link>
         <Link
           href="/admin/settings"
+          onClick={onNavigate}
           className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
             settingsActive
@@ -160,10 +164,10 @@ function AdminSidebarInner() {
   );
 }
 
-export function AdminSidebar() {
+export function AdminSidebar({ onNavigate }: { readonly onNavigate?: () => void }) {
   return (
     <Suspense fallback={<aside className="h-full w-60 border-r border-border bg-white" />}>
-      <AdminSidebarInner />
+      <AdminSidebarInner onNavigate={onNavigate} />
     </Suspense>
   );
 }
