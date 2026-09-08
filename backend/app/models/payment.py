@@ -59,10 +59,13 @@ class HotelCharge(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 class Payment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "payments"
     __table_args__ = (
-        # Cash and UPI are the core payment methods. Card, bank_transfer and
-        # other are accepted for manual record-keeping only (no gateway integration).
+        # Cash and UPI are the core methods. credit_card/debit_card (client
+        # 9-08 item 14), bank_transfer (shown as "Net Banking") and other are
+        # manual record-keeping only. 'card' is LEGACY — old rows keep it, the
+        # UI no longer offers it.
         CheckConstraint(
-            "method IN ('cash','upi','card','bank_transfer','other')",
+            "method IN ('cash','upi','card','credit_card','debit_card',"
+            "'bank_transfer','other')",
             name="payment_method",
         ),
         CheckConstraint(

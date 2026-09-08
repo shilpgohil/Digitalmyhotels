@@ -346,6 +346,8 @@ function BookingDetailSheet({
       cash: "cash",
       upi: "upi",
       card: "card",
+      credit_card: "creditCard",
+      debit_card: "debitCard",
       bank_transfer: "bankTransfer",
       other: "otherMethod",
     };

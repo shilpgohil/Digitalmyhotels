@@ -98,12 +98,21 @@ async def test_current_guests_response_contract(
 # 3 — Payment method enum contract
 # ---------------------------------------------------------------------------
 
-ACCEPTED_PAYMENT_METHODS = ["cash", "upi", "card", "bank_transfer", "other"]
+# Item 14 (implemented): credit_card + debit_card accepted; "card" stays as
+# a LEGACY value for old rows; Net Banking is stored as bank_transfer.
+ACCEPTED_PAYMENT_METHODS = [
+    "cash",
+    "upi",
+    "card",
+    "credit_card",
+    "debit_card",
+    "bank_transfer",
+    "other",
+]
 
-# These values are requested by the client (screenshot #14, item 14) but are
-# NOT yet accepted by the backend — they are Phase 1 work.  This test
-# documents the current boundary so any accidental silent acceptance is caught.
-UNACCEPTED_PAYMENT_METHODS_PHASE1 = ["credit_card", "debit_card", "net_banking"]
+# "net_banking" is intentionally NOT a stored value — the UI labels
+# bank_transfer as "Net Banking". The raw string must stay rejected.
+UNACCEPTED_PAYMENT_METHODS_PHASE1 = ["net_banking"]
 
 
 async def _seed_booking(client: AsyncClient, headers: dict[str, str]) -> str:
@@ -186,9 +195,8 @@ async def test_payment_method_accepted(
 async def test_payment_method_not_yet_accepted(
     client: AsyncClient, hotel_a: HotelFixture, method: str
 ) -> None:
-    """Values from the Phase-1 expanded enum must currently be REJECTED (422)
-    so we know when Phase 1 actually wires them in.  If this test fails after
-    Phase 1 is implemented, remove or update it.
+    """Values outside the stored enum must be REJECTED (422). "net_banking"
+    is a UI label for bank_transfer, never a stored value.
 
     NOTE: We use a real seeded booking so this test does not depend on
     whether schema validation happens before or after the booking DB lookup.
@@ -211,17 +219,25 @@ async def test_payment_method_not_yet_accepted(
 # 4 — billing-history payment_mode filter contract
 # ---------------------------------------------------------------------------
 
-BILLING_HISTORY_ACCEPTED_MODES = ["cash", "upi", "card", "bank_transfer", "other"]
+BILLING_HISTORY_ACCEPTED_MODES = [
+    "cash",
+    "upi",
+    "card",
+    "credit_card",
+    "debit_card",
+    "bank_transfer",
+    "other",
+]
 
 # Invalid modes that the backend pattern MUST reject with 422.
 # Includes:
-#   - Phase-1 enum values not yet wired in
+#   - "net_banking": UI label only — stored as bank_transfer
 #   - wrong-case "CASH" (pattern is case-sensitive)
 #   - empty string "": sending ?payment_mode= passes "" to FastAPI; the regex
-#     pattern ^(cash|upi|card|bank_transfer|other)$ does not match "" → 422.
-#     This is distinct from omitting the parameter altogether (None → no filter
-#     → 200), which is tested in test_billing_history_no_mode_omitted.
-BILLING_HISTORY_REJECTED_MODES = ["credit_card", "debit_card", "net_banking", "CASH", ""]
+#     pattern does not match "" → 422. This is distinct from omitting the
+#     parameter altogether (None → no filter → 200), which is tested in
+#     test_billing_history_no_mode_omitted.
+BILLING_HISTORY_REJECTED_MODES = ["net_banking", "CASH", ""]
 
 
 @pytest.mark.parametrize("mode", BILLING_HISTORY_ACCEPTED_MODES)

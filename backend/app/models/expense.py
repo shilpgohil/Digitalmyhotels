@@ -58,7 +58,8 @@ class Expense(Base, UUIDPrimaryKeyMixin, TimestampMixin):
             name="expense_status",
         ),
         CheckConstraint(
-            "payment_method IN ('cash','upi','card','bank_transfer','other')",
+            "payment_method IN ('cash','upi','card','credit_card','debit_card',"
+            "'bank_transfer','other')",
             name="expense_payment_method",
         ),
         # Expense reports filter by hotel + date window.

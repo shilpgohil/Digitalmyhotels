@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -10,13 +10,18 @@ import {
   Hotel,
   CheckCircle,
   Clock,
+  CreditCard,
   UserPlus,
+  Users,
   XCircle,
   Settings,
   LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
+
+/** Feature flag key shared with /admin/settings (client 9-08 item 36). */
+const ALL_CUSTOMERS_FLAG = "admin.allCustomersEnabled";
 
 const NAV_ITEMS = [
   { href: "/admin", labelKey: "dashboard", icon: LayoutDashboard },
@@ -48,7 +53,19 @@ function AdminSidebarInner() {
   const router = useRouter();
   const { logout } = useAuth();
   const filter = searchParams.get("filter");
-  const settingsActive = pathname.startsWith("/admin/plans");
+  const plansActive = pathname.startsWith("/admin/plans");
+  const settingsActive = pathname.startsWith("/admin/settings");
+  const customersActive = pathname.startsWith("/admin/customers");
+
+  // All Customers menu appears only when enabled in Settings (item 36).
+  const [customersEnabled, setCustomersEnabled] = useState(false);
+  useEffect(() => {
+    const read = () =>
+      setCustomersEnabled(window.localStorage.getItem(ALL_CUSTOMERS_FLAG) === "1");
+    read();
+    window.addEventListener("storage", read);
+    return () => window.removeEventListener("storage", read);
+  }, []);
 
   return (
     <aside className="flex h-full w-60 flex-col bg-white border-r border-border">
@@ -90,8 +107,34 @@ function AdminSidebarInner() {
       </nav>
 
       <div className="border-t border-border px-3 py-4 space-y-0.5">
+        {customersEnabled && (
+          <Link
+            href="/admin/customers"
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+              customersActive
+                ? "bg-gold-500 text-navy-900"
+                : "text-foreground hover:bg-gold-50 hover:text-gold-700",
+            )}
+          >
+            <Users className="size-4 shrink-0" aria-hidden />
+            {t("allCustomersSection")}
+          </Link>
+        )}
         <Link
           href="/admin/plans"
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+            plansActive
+              ? "bg-gold-500 text-navy-900"
+              : "text-foreground hover:bg-gold-50 hover:text-gold-700",
+          )}
+        >
+          <CreditCard className="size-4 shrink-0" aria-hidden />
+          {t("plans")}
+        </Link>
+        <Link
+          href="/admin/settings"
           className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
             settingsActive

@@ -63,7 +63,16 @@ interface PaymentSummary {
 }
 
 type QuickRange = "all" | "today" | "last5" | "month" | "year";
-type PaymentMode = "" | "cash" | "upi" | "card" | "bank_transfer" | "other";
+// "card" stays as a FILTER option so legacy records remain findable.
+type PaymentMode =
+  | ""
+  | "cash"
+  | "upi"
+  | "card"
+  | "credit_card"
+  | "debit_card"
+  | "bank_transfer"
+  | "other";
 
 /** Billing History page size (figma shows a compact paginated table). */
 const BILLING_PAGE_SIZE = 10;
@@ -265,6 +274,8 @@ function PaymentsContent() {
                 <option value="">{t("allModes")}</option>
                 <option value="cash">{t("cash")}</option>
                 <option value="upi">{t("upi")}</option>
+                <option value="credit_card">{t("creditCard")}</option>
+                <option value="debit_card">{t("debitCard")}</option>
                 <option value="card">{t("card")}</option>
                 <option value="bank_transfer">{t("bankTransfer")}</option>
                 <option value="other">{t("otherMethod")}</option>
@@ -357,6 +368,8 @@ function PaymentsContent() {
                                     cash: "cash",
                                     upi: "upi",
                                     card: "card",
+                                    credit_card: "creditCard",
+                                    debit_card: "debitCard",
                                     bank_transfer: "bankTransfer",
                                     other: "otherMethod",
                                   } as Record<string, string>
@@ -758,7 +771,8 @@ function CollectDialog({ bookingId, onDone }: { bookingId: string; onDone: () =>
             >
               <option value="cash">{t("cash")}</option>
               <option value="upi">{t("upi")}</option>
-              <option value="card">{t("card")}</option>
+              <option value="credit_card">{t("creditCard")}</option>
+              <option value="debit_card">{t("debitCard")}</option>
               <option value="bank_transfer">{t("bankTransfer")}</option>
               <option value="other">{t("otherMethod")}</option>
             </select>

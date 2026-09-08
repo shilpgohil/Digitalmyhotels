@@ -109,7 +109,10 @@ class ExpenseCreate(BaseModel):
     cgst_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
     sgst_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
     igst_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
-    payment_method: str = Field(default="cash", pattern="^(cash|upi|card|bank_transfer|other)$")
+    payment_method: str = Field(
+        default="cash",
+        pattern="^(cash|upi|card|credit_card|debit_card|bank_transfer|other)$",
+    )
     description: str | None = Field(default=None, max_length=2000)
     bill_number: str | None = Field(default=None, max_length=64)
     bill_date: date | None = None

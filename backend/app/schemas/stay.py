@@ -63,7 +63,7 @@ class CheckinPaymentIn(BaseModel):
     staff ticks "Payment collected")."""
 
     amount: Decimal = Field(gt=0)
-    method: str = Field(pattern="^(cash|upi|card|bank_transfer|other)$")
+    method: str = Field(pattern="^(cash|upi|card|credit_card|debit_card|bank_transfer|other)$")
 
 
 class CheckinChargeIn(BaseModel):
@@ -247,7 +247,7 @@ class CheckOutRequest(CheckoutDraft):
     # Collect the server-computed due in one transaction with the checkout.
     collect_payment: bool = False
     payment_method: str | None = Field(
-        default=None, pattern="^(cash|upi|card|bank_transfer|other)$"
+        default=None, pattern="^(cash|upi|card|credit_card|debit_card|bank_transfer|other)$"
     )
     # Checkout with outstanding balance requires explicit authorization.
     allow_due: bool = False

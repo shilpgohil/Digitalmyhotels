@@ -621,10 +621,11 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
   );
 }
 
-const PAYMENT_MODES = ["cash", "upi", "card", "bank_transfer"] as const;
+/** Modes offered when RECORDING an expense (client 9-08 item 14 set). */
+const PAYMENT_MODES = ["cash", "upi", "credit_card", "debit_card", "bank_transfer"] as const;
 
-/** Modes offered by the ledger filter (superset incl. "other" used by the API). */
-const FILTER_MODES: string[] = [...PAYMENT_MODES, "other"];
+/** Ledger filter modes — includes legacy "card" so old rows stay findable. */
+const FILTER_MODES: string[] = [...PAYMENT_MODES, "card", "other"];
 
 /** Fetches the receipt with auth headers and opens it in a new tab. */
 function ViewReceiptButton({ expenseId }: { expenseId: string }) {

@@ -109,6 +109,46 @@ class AdminHotelUpdate(BaseModel):
     owner_phone: str | None = Field(default=None, max_length=32)
 
 
+class AdminCustomerSummaryOut(BaseModel):
+    """Masked cross-hotel customer row (Super Admin All Customers, item 36)."""
+
+    guest_id: UUID
+    full_name: str
+    phone_masked: str
+    hotel_id: UUID
+    hotel_name: str
+    city: str | None
+    id_proof_type: str | None
+    id_last4: str | None
+    created_at: datetime
+
+
+class AdminCustomerListOut(BaseModel):
+    items: list[AdminCustomerSummaryOut]
+    total: int
+
+
+class AdminCustomerDetailOut(BaseModel):
+    """Full profile — served only by the audited detail action."""
+
+    guest_id: UUID
+    full_name: str
+    phone: str | None
+    email: str | None
+    address: str | None
+    city: str | None
+    state: str | None
+    country: str | None
+    postal_code: str | None
+    gender: str | None
+    date_of_birth: date | None
+    id_proof_type: str | None
+    id_last4: str | None
+    hotel_id: UUID
+    hotel_name: str
+    created_at: datetime
+
+
 class SubscriptionOut(ORMModel):
     id: UUID
     hotel_id: UUID

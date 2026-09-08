@@ -70,7 +70,7 @@ async def billing_history(
     from_date: str | None = Query(default=None),
     to_date: str | None = Query(default=None),
     payment_mode: str | None = Query(
-        default=None, pattern="^(cash|upi|card|bank_transfer|other)$"
+        default=None, pattern="^(cash|upi|card|credit_card|debit_card|bank_transfer|other)$"
     ),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),

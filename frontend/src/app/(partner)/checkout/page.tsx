@@ -62,14 +62,20 @@ interface HotelQr {
   payment_label: string;
 }
 
-type PayMethod = "cash" | "upi" | "card" | "bank_transfer" | "other";
+type PayMethod = "cash" | "upi" | "credit_card" | "debit_card" | "bank_transfer" | "other";
 type PayStatus = "pending" | "paid";
 
-/** Payment methods — labels resolved via the money.* translation namespace. */
-const PAY_METHODS: { value: PayMethod; labelKey: "cash" | "upi" | "card" | "bankTransfer" | "otherMethod" }[] = [
+/** Payment methods offered for NEW payments (client 9-08 item 14: Cash, UPI,
+ *  Credit Card, Debit Card, Net Banking, Other). Legacy "card" records stay
+ *  valid and display as "Card" in histories, but it is not offered here. */
+const PAY_METHODS: {
+  value: PayMethod;
+  labelKey: "cash" | "upi" | "creditCard" | "debitCard" | "bankTransfer" | "otherMethod";
+}[] = [
   { value: "cash", labelKey: "cash" },
   { value: "upi", labelKey: "upi" },
-  { value: "card", labelKey: "card" },
+  { value: "credit_card", labelKey: "creditCard" },
+  { value: "debit_card", labelKey: "debitCard" },
   { value: "bank_transfer", labelKey: "bankTransfer" },
   { value: "other", labelKey: "otherMethod" },
 ];

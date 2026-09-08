@@ -213,7 +213,7 @@ interface CheckinDraft {
   specialInstructions: string;
   selectedServices: string[];
   advanceAmount: string;
-  paymentMode: "cash" | "upi" | "card" | "bank_transfer" | "other";
+  paymentMode: "cash" | "upi" | "credit_card" | "debit_card" | "bank_transfer" | "other";
   /** Money state — MUST round-trip or a collected advance silently vanishes
    *  on restore (client-reported). All optional for old-draft compatibility. */
   paymentReceived?: boolean;
@@ -2540,7 +2540,7 @@ function CheckinForm({
   // ── Payment details ──
   const [advanceAmount, setAdvanceAmount] = useState("0");
   const [extraCharges, setExtraCharges] = useState("0");
-  const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card" | "bank_transfer" | "other">("cash");
+  const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "credit_card" | "debit_card" | "bank_transfer" | "other">("cash");
   const [paymentReceived, setPaymentReceived] = useState(false);
 
   // ── Emergency + vehicle ──
@@ -3401,13 +3401,14 @@ function CheckinForm({
                 </Label>
                 <select
                   value={paymentMode}
-                  onChange={(e) => setPaymentMode(e.target.value as "cash" | "upi" | "card" | "bank_transfer" | "other")}
+                  onChange={(e) => setPaymentMode(e.target.value as "cash" | "upi" | "credit_card" | "debit_card" | "bank_transfer" | "other")}
                   className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                   disabled={newAdvance === 0}
                 >
                   <option value="cash">Cash</option>
                   <option value="upi">UPI</option>
-                  <option value="card">Card</option>
+                  <option value="credit_card">Credit Card</option>
+                  <option value="debit_card">Debit Card</option>
                   <option value="bank_transfer">Net Banking</option>
                   <option value="other">Other</option>
                 </select>
@@ -3891,7 +3892,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   // ── 6. Payment (advance collection only — new booking, nothing paid yet) ──
   const [advanceAmount, setAdvanceAmount] = useState("0");
   const [extraCharges, setExtraCharges] = useState("0");
-  const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "card" | "bank_transfer" | "other">("cash");
+  const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "credit_card" | "debit_card" | "bank_transfer" | "other">("cash");
   const [paymentReceived, setPaymentReceived] = useState(false);
   const [earlyFee, setEarlyFee] = useState(0);
   const newAdvance = Number.parseFloat(advanceAmount) || 0;
@@ -4941,13 +4942,14 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               </Label>
               <select
                 value={paymentMode}
-                onChange={(e) => setPaymentMode(e.target.value as "cash" | "upi" | "card" | "bank_transfer" | "other")}
+                onChange={(e) => setPaymentMode(e.target.value as "cash" | "upi" | "credit_card" | "debit_card" | "bank_transfer" | "other")}
                 className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                 disabled={newAdvance === 0}
               >
                 <option value="cash">Cash</option>
                 <option value="upi">UPI</option>
-                <option value="card">Card</option>
+                <option value="credit_card">Credit Card</option>
+                <option value="debit_card">Debit Card</option>
                 <option value="bank_transfer">Net Banking</option>
                 <option value="other">Other</option>
               </select>

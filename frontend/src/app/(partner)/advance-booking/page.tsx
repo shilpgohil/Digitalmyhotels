@@ -73,7 +73,8 @@ function timeToMinutes(t: string): number {
 const PAYMENT_MODES = [
   { value: "cash", label: "Cash" },
   { value: "upi", label: "UPI" },
-  { value: "card", label: "Card" },
+  { value: "credit_card", label: "Credit Card" },
+  { value: "debit_card", label: "Debit Card" },
   { value: "bank_transfer", label: "Net Banking" },
   { value: "other", label: "Other" },
 ];

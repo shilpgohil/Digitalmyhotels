@@ -11,6 +11,9 @@ from app.models.user import User
 from app.schemas.hotel import HotelOut
 from app.schemas.ops import PlatformTrendOut
 from app.schemas.platform import (
+    AdminCustomerDetailOut,
+    AdminCustomerListOut,
+    AdminCustomerSummaryOut,
     AdminHotelDetailOut,
     AdminHotelUpdate,
     CreateHotelRequest,
@@ -128,6 +131,37 @@ async def set_status(
         db, hotel_id, status, actor_id=user.id, correlation_id=_correlation(request)
     )
     return HotelOut.model_validate(hotel)
+
+
+@router.get("/customers", response_model=AdminCustomerListOut)
+async def list_customers(
+    q: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    _user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminCustomerListOut:
+    """Cross-hotel customer search — MASKED summaries only (item 36)."""
+    items, total = await admin_service.search_customers(
+        db, q=q, limit=limit, offset=offset
+    )
+    return AdminCustomerListOut(
+        items=[AdminCustomerSummaryOut(**i) for i in items], total=total
+    )
+
+
+@router.get("/customers/{guest_id}", response_model=AdminCustomerDetailOut)
+async def get_customer(
+    guest_id: UUID,
+    request: Request,
+    user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminCustomerDetailOut:
+    """Explicit AUDITED full-profile view — the only unmasked path (item 36)."""
+    detail = await admin_service.get_customer_detail(
+        db, guest_id, actor_id=user.id, correlation_id=_correlation(request)
+    )
+    return AdminCustomerDetailOut(**detail)
 
 
 @router.get("/plans", response_model=list[SubscriptionPlanOut])

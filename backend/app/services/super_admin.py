@@ -477,6 +477,120 @@ async def update_plan(
     return plan
 
 
+def _mask_phone(phone: str | None) -> str:
+    if not phone:
+        return ""
+    if len(phone) <= 4:
+        return "*" * len(phone)
+    return "*" * (len(phone) - 4) + phone[-4:]
+
+
+async def search_customers(
+    db: AsyncSession,
+    *,
+    q: str | None,
+    limit: int = 20,
+    offset: int = 0,
+) -> tuple[list[dict], int]:
+    """Cross-hotel guest search for Super Admin "All Customers" (item 36).
+
+    Returns MASKED summaries only (name, masked phone, hotel, city, ID last-4).
+    The full profile requires the separate audited detail action.
+    """
+    from app.models.guest import Guest
+    from app.schemas.guest import normalize_phone
+
+    stmt = (
+        select(Guest, Hotel.name.label("hotel_name"))
+        .join(Hotel, Hotel.id == Guest.hotel_id)
+    )
+    if q:
+        normalized = normalize_phone(q)
+        conditions: list = [Guest.full_name.ilike(f"%{q}%")]
+        if normalized:
+            conditions.append(Guest.normalized_phone.contains(normalized))
+        stmt = stmt.where(or_(*conditions))
+    total = int(
+        (
+            await db.execute(select(func.count()).select_from(stmt.subquery()))
+        ).scalar_one()
+    )
+    rows = (
+        await db.execute(
+            stmt.order_by(Guest.full_name).limit(limit).offset(offset)
+        )
+    ).all()
+    items = [
+        {
+            "guest_id": guest.id,
+            "full_name": guest.full_name,
+            "phone_masked": _mask_phone(guest.normalized_phone),
+            "hotel_id": guest.hotel_id,
+            "hotel_name": hotel_name,
+            "city": guest.city,
+            "id_proof_type": guest.id_proof_type,
+            "id_last4": guest.id_last4,
+            "created_at": guest.created_at,
+        }
+        for guest, hotel_name in rows
+    ]
+    return items, total
+
+
+async def get_customer_detail(
+    db: AsyncSession,
+    guest_id: UUID,
+    *,
+    actor_id: UUID,
+    correlation_id: str | None = None,
+) -> dict:
+    """Explicit, AUDITED full-profile view of one customer (item 36).
+
+    This is the only cross-hotel path to a guest's unmasked contact data;
+    every call writes platform.customer_viewed to the audit log.
+    """
+    from app.models.guest import Guest
+
+    row = (
+        await db.execute(
+            select(Guest, Hotel.name.label("hotel_name"))
+            .join(Hotel, Hotel.id == Guest.hotel_id)
+            .where(Guest.id == guest_id)
+        )
+    ).first()
+    if row is None:
+        raise NotFoundError("Customer not found")
+    guest, hotel_name = row
+    await write_audit(
+        db,
+        action="platform.customer_viewed",
+        entity_type="guest",
+        entity_id=guest.id,
+        actor_id=actor_id,
+        hotel_id=guest.hotel_id,
+        after={"hotel": hotel_name, "phone_last4": (guest.normalized_phone or "")[-4:]},
+        correlation_id=correlation_id,
+    )
+    return {
+        "guest_id": guest.id,
+        "full_name": guest.full_name,
+        "phone": guest.normalized_phone,
+        "email": guest.email,
+        "address": guest.address,
+        "city": guest.city,
+        "state": guest.state,
+        "country": guest.country,
+        "postal_code": guest.postal_code,
+        "gender": guest.gender,
+        "date_of_birth": guest.date_of_birth,
+        "id_proof_type": guest.id_proof_type,
+        "id_last4": guest.id_last4,
+        "hotel_id": guest.hotel_id,
+        "hotel_name": hotel_name,
+        "created_at": guest.created_at,
+    }
+
+
 async def set_hotel_status(
     db: AsyncSession,
     hotel_id: UUID,

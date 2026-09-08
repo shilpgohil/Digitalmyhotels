@@ -72,6 +72,53 @@ async def test_admin_hotel_detail_edit_and_owner_phone_backfill(
     assert denied.status_code == 403
 
 
+async def test_all_customers_masked_list_and_audited_detail(
+    client: AsyncClient, hotel_a: HotelFixture, db_session
+) -> None:
+    """Item 36: cross-hotel list is masked; full profile only via the audited
+    detail action; non-super-admins are locked out."""
+    owner_headers = auth_headers(await login(client, *hotel_a.credentials("owner")))
+    created = await client.post(
+        "/api/v1/guests",
+        json={
+            "full_name": "Directory Guest",
+            "phone": "9877700111",
+            "city": "Indore",
+            "id_number": "888877776666",
+        },
+        headers=owner_headers,
+    )
+    assert created.status_code == 201, created.text
+    guest_id = created.json()["id"]
+
+    headers = await _super_admin_headers(client, db_session)
+
+    listed = await client.get(
+        "/api/v1/super-admin/customers?q=Directory", headers=headers
+    )
+    assert listed.status_code == 200, listed.text
+    rows = listed.json()["items"]
+    assert any(r["guest_id"] == guest_id for r in rows)
+    row = next(r for r in rows if r["guest_id"] == guest_id)
+    # Masked summary: no raw phone, no full ID anywhere in the list payload.
+    assert row["phone_masked"].endswith("0111")
+    assert "9877700111" not in listed.text
+    assert "888877776666" not in listed.text
+    assert row["hotel_name"] == hotel_a.hotel.name
+
+    detail = await client.get(
+        f"/api/v1/super-admin/customers/{guest_id}", headers=headers
+    )
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["phone"] == "9877700111"
+    # Full ID number is still never exposed here.
+    assert "888877776666" not in detail.text
+
+    # Hotel owners cannot use the cross-hotel directory.
+    denied = await client.get("/api/v1/super-admin/customers", headers=owner_headers)
+    assert denied.status_code == 403
+
+
 async def test_plan_edit_and_deactivate_never_deletes(
     client: AsyncClient, db_session
 ) -> None:

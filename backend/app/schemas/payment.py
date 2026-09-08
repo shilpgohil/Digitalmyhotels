@@ -44,7 +44,7 @@ class PaymentCreate(BaseModel):
     amount: Decimal = Field(gt=0)
     # cash/upi = core methods. card, bank_transfer, other = manual record only.
     method: str = Field(
-        pattern="^(cash|upi|card|bank_transfer|other)$"
+        pattern="^(cash|upi|card|credit_card|debit_card|bank_transfer|other)$"
     )
     purpose: str = Field(default="stay", pattern="^(advance|stay|deposit|charge|other)$")
     reference: str | None = Field(default=None, max_length=128)
