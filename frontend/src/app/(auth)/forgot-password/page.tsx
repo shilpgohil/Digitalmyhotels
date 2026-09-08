@@ -10,11 +10,36 @@
  * contact so nobody is stranded on a dead form.
  */
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { KeyRound, ShieldCheck, Users } from "lucide-react";
+import { toast } from "sonner";
+import { KeyRound, Send, ShieldCheck, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { apiFetch, ApiError } from "@/lib/api/client";
 
 export default function ForgotPasswordPage() {
   const t = useTranslations("auth");
+  const [identifier, setIdentifier] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await apiFetch("/api/v1/auth/password-reset/request-admin", {
+        method: "POST",
+        body: { identifier: identifier.trim() },
+        skipAuthRetry: true,
+      });
+      setSent(true);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("requestFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-6">
@@ -22,7 +47,38 @@ export default function ForgotPasswordPage() {
         <h1 className="font-display text-2xl text-foreground">{t("resetTitle")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("hierarchicalResetIntro")}</p>
 
-        <div className="mt-6 space-y-3">
+        {/* One-click request — notifies the right administrator (item 34). */}
+        <div className="mt-6 rounded-xl border bg-white p-4 shadow-sm">
+          {sent ? (
+            <p className="text-sm font-medium text-green-700">{t("requestSent")}</p>
+          ) : (
+            <>
+              <Label htmlFor="fp-identifier">{t("requestIdentifierLabel")}</Label>
+              <div className="mt-1.5 flex gap-2">
+                <Input
+                  id="fp-identifier"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder={t("requestIdentifierPlaceholder")}
+                  disabled={busy}
+                />
+                <Button
+                  onClick={() => void submit()}
+                  disabled={busy || identifier.trim().length < 3}
+                  className="shrink-0"
+                >
+                  <Send className="mr-1.5 size-4" aria-hidden />
+                  {t("requestReset")}
+                </Button>
+              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {t("requestIdentifierHint")}
+              </p>
+            </>
+          )}
+        </div>
+
+        <div className="mt-4 space-y-3">
           <div className="flex gap-3 rounded-xl border bg-muted/30 p-4">
             <Users className="mt-0.5 size-5 shrink-0 text-gold-600" aria-hidden />
             <div>

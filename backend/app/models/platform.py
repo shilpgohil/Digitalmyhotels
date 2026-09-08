@@ -126,6 +126,44 @@ class Notification(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
+class PasswordResetRequest(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Hierarchical password-reset request (client 9-08 items 34).
+
+    Staff requests are routed to their hotel's administrators; hotel
+    owner/administrator requests are routed to the platform Super Admin.
+    Resolution happens through the existing manual reset actions, which mark
+    the request completed.
+    """
+
+    __tablename__ = "password_reset_requests"
+    __table_args__ = (
+        CheckConstraint(
+            "audience IN ('hotel_admin','super_admin')",
+            name="pwreq_audience",
+        ),
+        CheckConstraint(
+            "status IN ('pending','completed','dismissed')",
+            name="pwreq_status",
+        ),
+        Index("ix_pwreq_pending", "audience", "status"),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    hotel_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("hotels.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    audience: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False)
+    resolved_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
 class NotificationRead(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     """Per-user read receipt for a notification."""
 

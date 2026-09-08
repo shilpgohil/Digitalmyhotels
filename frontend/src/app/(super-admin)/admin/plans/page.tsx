@@ -181,6 +181,9 @@ function EditPlanDialog({
                 price: String(form.get("price") || plan.price),
                 duration_days: Number(form.get("duration_days") || plan.duration_days),
                 trial_days: Number(form.get("trial_days") ?? plan.trial_days),
+                // Feature list, one per line — rendered verbatim on the
+                // hotel's Choose Your Plan page.
+                description: String(form.get("description") ?? ""),
               },
             });
           }}
@@ -225,6 +228,18 @@ function EditPlanDialog({
                 defaultValue={plan?.trial_days ?? 0}
               />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="pl-features">{t("planFeatures")}</Label>
+            <textarea
+              id="pl-features"
+              name="description"
+              defaultValue={plan?.description ?? ""}
+              rows={6}
+              placeholder={t("planFeaturesPlaceholder")}
+              className="w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-gold-500/30"
+            />
+            <p className="text-xs text-muted-foreground">{t("planFeaturesHint")}</p>
           </div>
           {error && (
             <p className="text-sm text-danger" role="alert">

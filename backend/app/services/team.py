@@ -244,6 +244,10 @@ async def reset_member_password(
     from app.services.auth import _revoke_all_user_refresh_tokens
 
     await _revoke_all_user_refresh_tokens(db, membership.user_id)
+    # Resolve any pending hierarchical reset request for this user.
+    from app.services.password_requests import complete_for_user
+
+    await complete_for_user(db, membership.user_id, resolved_by_id=tenant.user_id)
     await write_audit(
         db,
         action="team.password_reset",

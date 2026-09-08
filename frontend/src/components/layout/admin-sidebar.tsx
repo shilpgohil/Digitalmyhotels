@@ -11,6 +11,7 @@ import {
   CheckCircle,
   Clock,
   CreditCard,
+  KeyRound,
   UserPlus,
   Users,
   XCircle,
@@ -31,6 +32,7 @@ const NAV_ITEMS = [
   { href: "/admin/expired", labelKey: "recentlyExpiredNav", icon: Clock },
   { href: "/admin/registrations", labelKey: "recentRegistrationsNav", icon: UserPlus },
   { href: "/admin/expired?filter=all", labelKey: "expiredHotelsNav", icon: XCircle },
+  { href: "/admin/password-requests", labelKey: "passwordRequestsNav", icon: KeyRound },
 ] as const;
 
 function hrefIsActive(pathname: string, filter: string | null, href: string): boolean {

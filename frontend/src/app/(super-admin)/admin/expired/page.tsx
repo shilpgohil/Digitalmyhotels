@@ -10,6 +10,7 @@ import { apiFetch } from "@/lib/api/client";
 import { fmtApiDate } from "@/lib/formatting";
 import type { HotelAdminListOut } from "@/types/money";
 import { RenewDialog } from "@/components/admin/renew-dialog";
+import { EditHotelDialog } from "@/components/admin/edit-hotel-dialog";
 import { AdminListError, AdminListLoading } from "@/components/admin/admin-list-state";
 
 const PAGE_SIZE = 10;
@@ -110,6 +111,7 @@ function ExpiredContent() {
                       >
                         {t("view")}
                       </Link>
+                      <EditHotelDialog hotelId={h.id} hotelName={h.name} />
                       <RenewDialog hotel={h} />
                     </div>
                   </td>

@@ -331,7 +331,18 @@ function PlanContent() {
                 monthlyPrice !== null && months > 1
                   ? Math.round(monthlyPrice * months - Number.parseFloat(plan.price))
                   : 0;
-              const features = t.raw(`features.${featureTier(months)}`) as string[];
+              // Super Admin-managed feature list (plan.description, one per
+              // line) wins; the i18n defaults remain as fallback so old plans
+              // without content still render (client: plans fully customizable
+              // from the admin, reflected here).
+              const adminFeatures = (plan.description ?? "")
+                .split("\n")
+                .map((line) => line.trim())
+                .filter(Boolean);
+              const features =
+                adminFeatures.length > 0
+                  ? adminFeatures
+                  : (t.raw(`features.${featureTier(months)}`) as string[]);
               return (
                 <div
                   key={plan.id}

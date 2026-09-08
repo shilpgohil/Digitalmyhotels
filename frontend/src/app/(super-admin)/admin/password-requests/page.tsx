@@ -1,0 +1,168 @@
+"use client";
+
+/**
+ * Super Admin — Password Reset Requests (client 9-08 item 34).
+ *
+ * Hotel owners/administrators who forget their password land here: the
+ * super admin issues a temporary password (sessions revoked, change forced
+ * at next login, audited) or dismisses the request.
+ */
+
+import { useState } from "react";
+import { useTranslations } from "next-intl";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { KeyRound } from "lucide-react";
+import { PartnerHeader } from "@/components/layout/partner-header";
+import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/ui/password-input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { apiFetch, ApiError } from "@/lib/api/client";
+import { fmtDateTime } from "@/lib/formatting";
+
+interface ResetRequestRow {
+  id: string;
+  user_id: string;
+  full_name: string;
+  email: string;
+  hotel_id: string | null;
+  hotel_name: string | null;
+  requested_at: string;
+}
+
+export default function AdminPasswordRequestsPage() {
+  const t = useTranslations("admin");
+  const tc = useTranslations("common");
+  const queryClient = useQueryClient();
+  const [passwords, setPasswords] = useState<Record<string, string>>({});
+
+  const requests = useQuery({
+    queryKey: ["admin-password-requests"],
+    queryFn: () =>
+      apiFetch<ResetRequestRow[]>("/api/v1/super-admin/password-requests"),
+    refetchInterval: 60_000,
+  });
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["admin-password-requests"] });
+
+  const resetMutation = useMutation({
+    mutationFn: ({ userId, password }: { userId: string; password: string }) =>
+      apiFetch(`/api/v1/super-admin/users/${userId}/reset-password`, {
+        method: "POST",
+        body: { new_password: password },
+      }),
+    onSuccess: () => {
+      toast.success(t("passwordResetIssued"));
+      invalidate();
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
+  });
+
+  const dismissMutation = useMutation({
+    mutationFn: (requestId: string) =>
+      apiFetch(`/api/v1/super-admin/password-requests/${requestId}/dismiss`, {
+        method: "POST",
+      }),
+    onSuccess: invalidate,
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
+  });
+
+  return (
+    <>
+      <PartnerHeader title={t("passwordRequestsNav")} subtitle={t("portal")} />
+      <main className="flex-1 overflow-y-auto p-6">
+        <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+          <div className="border-b px-5 py-4">
+            <h2 className="flex items-center gap-2 font-semibold">
+              <KeyRound className="size-4 text-gold-600" aria-hidden />
+              {t("passwordRequestsTitle")}
+            </h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {t("passwordRequestsHint")}
+            </p>
+          </div>
+
+          {requests.isLoading && (
+            <div className="space-y-2 p-5">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          )}
+          {requests.isError && (
+            <p className="p-8 text-center text-sm text-danger">
+              {requests.error instanceof ApiError
+                ? requests.error.message
+                : tc("error")}{" "}
+              <button
+                type="button"
+                className="underline"
+                onClick={() => requests.refetch()}
+              >
+                {tc("retry")}
+              </button>
+            </p>
+          )}
+          {requests.data && requests.data.length === 0 && (
+            <p className="p-10 text-center text-sm text-muted-foreground">
+              {t("noPasswordRequests")}
+            </p>
+          )}
+          {requests.data && requests.data.length > 0 && (
+            <ul className="divide-y">
+              {requests.data.map((req) => (
+                <li key={req.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
+                  <div className="min-w-0">
+                    <p className="font-medium">{req.full_name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {req.email}
+                      {req.hotel_name ? ` · ${req.hotel_name}` : ""}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {fmtDateTime(req.requested_at)}
+                    </p>
+                  </div>
+                  <div className="ml-auto flex items-center gap-2">
+                    <div className="w-48">
+                      <PasswordInput
+                        placeholder={t("tempPasswordPlaceholder")}
+                        value={passwords[req.id] ?? ""}
+                        onChange={(e) =>
+                          setPasswords((prev) => ({ ...prev, [req.id]: e.target.value }))
+                        }
+                        minLength={8}
+                      />
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={
+                        (passwords[req.id] ?? "").length < 8 || resetMutation.isPending
+                      }
+                      onClick={() =>
+                        resetMutation.mutate({
+                          userId: req.user_id,
+                          password: passwords[req.id],
+                        })
+                      }
+                    >
+                      {t("issueReset")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={dismissMutation.isPending}
+                      onClick={() => dismissMutation.mutate(req.id)}
+                    >
+                      {t("dismissRequestAdmin")}
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </main>
+    </>
+  );
+}

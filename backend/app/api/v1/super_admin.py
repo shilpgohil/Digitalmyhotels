@@ -133,6 +133,86 @@ async def set_status(
     return HotelOut.model_validate(hotel)
 
 
+@router.get("/password-requests")
+async def list_password_requests(
+    _user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Pending owner/administrator password-reset requests (item 34)."""
+    from app.services.password_requests import list_platform_requests
+
+    return await list_platform_requests(db)
+
+
+@router.post("/password-requests/{request_id}/dismiss")
+async def dismiss_password_request(
+    request_id: UUID,
+    request: Request,
+    user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from app.services.password_requests import dismiss_request
+
+    await dismiss_request(
+        db,
+        request_id,
+        resolved_by_id=user.id,
+        audience="super_admin",
+        correlation_id=_correlation(request),
+    )
+    return {"message": "Request dismissed"}
+
+
+@router.post("/users/{user_id}/reset-password")
+async def reset_hotel_user_password(
+    user_id: UUID,
+    request: Request,
+    body: dict,
+    user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Super Admin resets a hotel owner/administrator's password (item 34).
+
+    Issues the temporary password, revokes every session, forces a change at
+    next login, resolves the pending request and audits the action.
+    """
+    from sqlalchemy import select as _select
+
+    from app.core.errors import NotFoundError, ValidationAppError
+    from app.core.security import hash_password
+    from app.services.auth import _revoke_all_user_refresh_tokens
+    from app.services.password_requests import complete_for_user
+
+    new_password = str(body.get("new_password") or "")
+    if len(new_password) < 8:
+        raise ValidationAppError(
+            "Password must be at least 8 characters", code="password_too_short"
+        )
+    target = (
+        await db.execute(_select(User).where(User.id == user_id))
+    ).scalar_one_or_none()
+    if target is None:
+        raise NotFoundError("User not found")
+    if target.is_super_admin and target.id != user.id:
+        raise ValidationAppError(
+            "Super admin accounts cannot be reset here", code="super_admin_protected"
+        )
+
+    target.password_hash = hash_password(new_password)
+    target.must_reset_password = True
+    await _revoke_all_user_refresh_tokens(db, target.id)
+    await complete_for_user(db, target.id, resolved_by_id=user.id)
+    await write_audit(
+        db,
+        action="platform.password_reset",
+        entity_type="user",
+        entity_id=target.id,
+        actor_id=user.id,
+        correlation_id=_correlation(request),
+    )
+    return {"message": "Password reset — user must change it at next login"}
+
+
 @router.get("/customers", response_model=AdminCustomerListOut)
 async def list_customers(
     q: str | None = Query(default=None, max_length=100),

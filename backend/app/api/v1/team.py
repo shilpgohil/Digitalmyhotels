@@ -38,6 +38,36 @@ async def list_team(
     return TeamListOut(items=items, total=total)
 
 
+@router.get("/password-requests")
+async def list_password_requests(
+    tenant: TenantContext = Depends(require_permissions(Permission.HOTEL_MANAGE_TEAM)),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Pending staff password-reset requests for this hotel (item 34)."""
+    from app.services.password_requests import list_hotel_requests
+
+    return await list_hotel_requests(db, tenant)
+
+
+@router.post("/password-requests/{request_id}/dismiss", response_model=MessageOut)
+async def dismiss_password_request(
+    request_id: UUID,
+    request: Request,
+    tenant: TenantContext = Depends(require_permissions(Permission.HOTEL_MANAGE_TEAM)),
+    db: AsyncSession = Depends(get_db),
+) -> MessageOut:
+    from app.services.password_requests import dismiss_request
+
+    await dismiss_request(
+        db,
+        request_id,
+        resolved_by_id=tenant.user_id,
+        hotel_id=tenant.require_hotel(),
+        correlation_id=_correlation(request),
+    )
+    return MessageOut(message="Request dismissed")
+
+
 @router.post("", response_model=TeamMemberOut, status_code=201)
 async def create_member(
     body: TeamMemberCreate,

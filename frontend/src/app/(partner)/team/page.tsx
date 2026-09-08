@@ -81,10 +81,69 @@ function TeamContent() {
   const [editTarget, setEditTarget] = useState<TeamMemberOut | null>(null);
   const [page, setPage] = useState(1);
 
+  // Pending staff password-reset requests (hierarchical flow, item 34).
+  const passwordRequests = useQuery({
+    queryKey: ["team-password-requests", activeHotelId],
+    queryFn: () =>
+      api<{ id: string; user_id: string; full_name: string; email: string; requested_at: string }[]>(
+        "/api/v1/team/password-requests",
+      ),
+    enabled: !!activeHotelId,
+    refetchInterval: 60_000,
+  });
+
+  const dismissRequest = useMutation({
+    mutationFn: (requestId: string) =>
+      api(`/api/v1/team/password-requests/${requestId}/dismiss`, { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["team-password-requests", activeHotelId] });
+    },
+    onError: (error) =>
+      toast.error(error instanceof ApiError ? error.message : tc("error")),
+  });
+
   return (
     <>
       <PartnerHeader title={t("title")} subtitle={tn("settings")} />
       <main className="flex-1 overflow-y-auto p-6">
+        {/* Pending reset requests — staff asked for help signing in. */}
+        {(passwordRequests.data?.length ?? 0) > 0 && (
+          <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+            <p className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+              <KeyRound className="size-4" aria-hidden />
+              {t("pendingResetRequests", { count: passwordRequests.data!.length })}
+            </p>
+            <ul className="mt-2 space-y-2">
+              {passwordRequests.data!.map((req) => {
+                const member = team.data?.items.find((m) => m.user_id === req.user_id);
+                return (
+                  <li key={req.id} className="flex flex-wrap items-center gap-3 text-sm">
+                    <span className="font-medium">{req.full_name}</span>
+                    <span className="text-muted-foreground">{req.email}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {fmtDateTime(req.requested_at)}
+                    </span>
+                    <span className="ml-auto flex gap-2">
+                      {member && (
+                        <Button size="sm" onClick={() => setResetTarget(member)}>
+                          {t("resetPassword")}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={dismissRequest.isPending}
+                        onClick={() => dismissRequest.mutate(req.id)}
+                      >
+                        {t("dismissRequest")}
+                      </Button>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
         <div className="mb-4 flex justify-end">
           <CreateMemberDialog onCreated={invalidate} />
         </div>
@@ -202,7 +261,13 @@ function TeamContent() {
         <ResetPasswordDialog
           member={resetTarget}
           onClose={() => setResetTarget(null)}
-          onDone={invalidate}
+          onDone={() => {
+            invalidate();
+            // A completed reset resolves the pending request server-side.
+            queryClient.invalidateQueries({
+              queryKey: ["team-password-requests", activeHotelId],
+            });
+          }}
         />
         <EditMemberDialog
           member={editTarget}

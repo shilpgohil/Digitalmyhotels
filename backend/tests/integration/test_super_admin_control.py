@@ -72,6 +72,90 @@ async def test_admin_hotel_detail_edit_and_owner_phone_backfill(
     assert denied.status_code == 403
 
 
+async def test_hotel_lifecycle_create_assign_suspend_activate(
+    client: AsyncClient, db_session
+) -> None:
+    """Full super-admin hotel lifecycle exactly as the console drives it:
+    create → Total list (trial) → assign plan (trial→active, Active list)
+    → suspend → activate. Catches the 'activate/deactivate does not work'
+    class of bugs across route, service and list-filter semantics."""
+    headers = await _super_admin_headers(client, db_session)
+    name = f"Lifecycle Hotel {uuid4().hex[:6]}"
+
+    created = await client.post(
+        "/api/v1/super-admin/hotels",
+        json={
+            "name": name,
+            "city": "Bhopal",
+            "owner_full_name": "Life Cycle",
+            "owner_email": f"life-{uuid4().hex[:8]}@example.org",
+            "owner_password": "OwnerPass123!",
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    hotel_id = created.json()["id"]
+
+    async def _row(list_status: str | None) -> dict | None:
+        params = f"?q={name.split(' ')[0]}&limit=50" + (
+            f"&status={list_status}" if list_status else ""
+        )
+        resp = await client.get(f"/api/v1/super-admin/hotels{params}", headers=headers)
+        assert resp.status_code == 200, resp.text
+        return next((h for h in resp.json()["items"] if h["id"] == hotel_id), None)
+
+    # New hotel: shows in Total, NOT in Active (it is trial, no plan yet).
+    assert (await _row(None)) is not None
+    total_row = await _row(None)
+    assert total_row is not None and total_row["status"] == "trial"
+    assert (await _row("active")) is None
+
+    # Assign a plan → hotel flips to active and enters the Active list.
+    plan = await client.post(
+        "/api/v1/super-admin/plans",
+        json={
+            "code": f"life-{uuid4().hex[:6]}",
+            "name": "Lifecycle Plan",
+            "price": "999.00",
+            "duration_days": 30,
+            "trial_days": 0,
+        },
+        headers=headers,
+    )
+    assert plan.status_code == 201, plan.text
+    assigned = await client.post(
+        f"/api/v1/super-admin/hotels/{hotel_id}/subscription",
+        json={"plan_id": plan.json()["id"]},
+        headers=headers,
+    )
+    assert assigned.status_code == 200, assigned.text
+    active_row = await _row("active")
+    assert active_row is not None, "hotel missing from Active list after plan assignment"
+    assert active_row["status"] == "active"
+    assert active_row["subscription_status"] == "active"
+
+    # Deactivate (suspend) — exactly the frontend call, ?status= query param.
+    suspended = await client.post(
+        f"/api/v1/super-admin/hotels/{hotel_id}/status?status=suspended",
+        headers=headers,
+    )
+    assert suspended.status_code == 200, suspended.text
+    assert (await _row("active")) is None
+    total_after_suspend = await _row(None)
+    assert total_after_suspend is not None
+    assert total_after_suspend["status"] == "suspended"
+
+    # Activate again.
+    activated = await client.post(
+        f"/api/v1/super-admin/hotels/{hotel_id}/status?status=active",
+        headers=headers,
+    )
+    assert activated.status_code == 200, activated.text
+    reactivated = await _row("active")
+    assert reactivated is not None
+    assert reactivated["status"] == "active"
+
+
 async def test_all_customers_masked_list_and_audited_detail(
     client: AsyncClient, hotel_a: HotelFixture, db_session
 ) -> None:

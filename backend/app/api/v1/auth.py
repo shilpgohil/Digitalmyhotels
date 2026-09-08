@@ -10,6 +10,7 @@ from app.core.tenant import TenantContext
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.auth import (
+    AdminResetRequestIn,
     ChangePasswordRequest,
     LoginRequest,
     MembershipOut,
@@ -156,6 +157,25 @@ async def password_reset_request(
     await auth_service.request_password_reset(db, str(body.email))
     # Always the same response — never reveal whether the email exists.
     return MessageOut(message="If the email is registered, a reset token has been sent.")
+
+
+@router.post("/password-reset/request-admin", response_model=MessageOut)
+async def password_reset_request_admin(
+    body: AdminResetRequestIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> MessageOut:
+    """Hierarchical reset request (client 9-08 item 34): staff requests reach
+    their hotel administrator, owner/admin requests reach the Super Admin.
+    The response NEVER reveals whether the account exists."""
+    from app.core.rate_limit import check_login_rate
+    from app.services.password_requests import create_request
+
+    check_login_rate(request.client.host if request.client else body.identifier)
+    await create_request(db, body.identifier)
+    return MessageOut(
+        message="If the account exists, your administrator has been notified."
+    )
 
 
 @router.post("/password-reset/confirm", response_model=MessageOut)

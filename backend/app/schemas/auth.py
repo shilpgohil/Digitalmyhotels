@@ -54,6 +54,12 @@ class PasswordResetRequest(BaseModel):
     email: EmailStr
 
 
+class AdminResetRequestIn(BaseModel):
+    """Hierarchical reset request — email OR phone (client 9-08 item 34)."""
+
+    identifier: str = Field(min_length=3, max_length=320)
+
+
 class PasswordResetConfirm(BaseModel):
     token: str
     new_password: str = Field(min_length=8)

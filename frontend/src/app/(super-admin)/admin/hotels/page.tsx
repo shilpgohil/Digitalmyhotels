@@ -209,7 +209,19 @@ function HotelRow({
               </button>
             </>
           )}
-          {kind === "expired" && <RenewDialog hotel={hotel} />}
+          {kind === "expired" && (
+            <>
+              <RenewDialog hotel={hotel} />
+              <button
+                type="button"
+                onClick={() => onStatus("suspended")}
+                disabled={pending}
+                className="inline-flex h-7 items-center rounded-lg bg-red-500 px-3 text-xs font-semibold text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                {deactivateLabel}
+              </button>
+            </>
+          )}
           {(kind === "active" || kind === "trial") && (
             <>
               {!showMeta && (

@@ -276,6 +276,9 @@ export interface SubscriptionPlanOut {
   id: string;
   code: string;
   name: string;
+  /** Feature list, one per line — edited by the Super Admin, rendered on the
+   *  hotel's Choose Your Plan page (falls back to i18n defaults when empty). */
+  description: string | null;
   price: string;
   duration_days: number;
   trial_days: number;
