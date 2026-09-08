@@ -470,16 +470,27 @@ function EditHotelContent() {
     setReqEntries((prev) => [...prev, { key: nextKey(), name: "", price: "" }]);
 
   // ── Save everything (footer Update) ────────────────────────────────────
+  // Section-level results (client 9-08 item 15): every failed operation is
+  // recorded with the section it belongs to and the REAL API message, then
+  // shown in a persistent panel — never just "Some changes could not be
+  // saved". Successful sections still commit.
+  const [saveFailures, setSaveFailures] = useState<
+    { section: string; message: string }[]
+  >([]);
+
   const update = useMutation({
     mutationFn: async () => {
-      const errors: string[] = [];
-      const attempt = async (op: () => Promise<unknown>) => {
-        try {
-          await op();
-        } catch (e) {
-          errors.push(errMessage(e, tc("error")));
-        }
-      };
+      const errors: { section: string; message: string }[] = [];
+      const attemptIn =
+        (section: string) => async (op: () => Promise<unknown>) => {
+          try {
+            await op();
+          } catch (e) {
+            errors.push({ section, message: errMessage(e, tc("error")) });
+          }
+        };
+
+      const attempt = attemptIn(t("sectionIdentity"));
 
       // 1. Hotel identity
       await attempt(() =>
@@ -495,8 +506,9 @@ function EditHotelContent() {
       );
 
       // 1b. GSTIN (separate settings object, permission-gated)
+      const attemptGst = attemptIn(t("sectionGst"));
       if (canGst && gstInit && gstin.trim() !== (gst.data?.gstin ?? "")) {
-        await attempt(() =>
+        await attemptGst(() =>
           api("/api/v1/hotels/me/gst", {
             method: "PATCH",
             body: { gstin: gstin.trim() || null },
@@ -505,7 +517,8 @@ function EditHotelContent() {
       }
 
       // 4. Check-in form flags
-      await attempt(() =>
+      const attemptSettings = attemptIn(t("sectionSettings"));
+      await attemptSettings(() =>
         api("/api/v1/hotels/me/settings", {
           method: "PATCH",
           body: {
@@ -517,6 +530,7 @@ function EditHotelContent() {
 
       // 2a. Room types diff — create new, patch changed (no DELETE endpoint:
       // types may be referenced by rooms, so removal is not supported).
+      const attemptTypes = attemptIn(t("sectionRoomTypes"));
       for (const entry of typeEntries) {
         const entryName = entry.name.trim();
         if (!entryName || !entry.base_price.trim()) continue;
@@ -528,7 +542,7 @@ function EditHotelContent() {
           ? String(Math.max(0, Math.round(Number.parseFloat(hourlyTrimmed) || 0)))
           : null;
         if (!entry.id) {
-          await attempt(() =>
+          await attemptTypes(() =>
             api("/api/v1/rooms/types", {
               method: "POST",
               body: {
@@ -549,7 +563,7 @@ function EditHotelContent() {
             (wholeRupees(orig.hourly_rate) || null) !== hourlyRate ||
             orig.max_occupancy !== entry.max_occupancy;
           if (changed) {
-            await attempt(() =>
+            await attemptTypes(() =>
               api(`/api/v1/rooms/types/${entry.id}`, {
                 method: "PATCH",
                 body: {
@@ -565,10 +579,11 @@ function EditHotelContent() {
       }
 
       // 2. Rooms diff — delete removed, create new, patch changed
+      const attemptRooms = attemptIn(t("sectionRooms"));
       const keptIds = new Set(roomEntries.filter((r) => r.id).map((r) => r.id));
       for (const orig of originalRoomsRef.current) {
         if (!keptIds.has(orig.id)) {
-          await attempt(() => api(`/api/v1/rooms/${orig.id}`, { method: "DELETE" }));
+          await attemptRooms(() => api(`/api/v1/rooms/${orig.id}`, { method: "DELETE" }));
         }
       }
       for (const entry of roomEntries) {
@@ -581,7 +596,7 @@ function EditHotelContent() {
           max_children: entry.max_children,
         };
         if (!entry.id) {
-          await attempt(() => api("/api/v1/rooms", { method: "POST", body }));
+          await attemptRooms(() => api("/api/v1/rooms", { method: "POST", body }));
         } else {
           const orig = originalRoomsRef.current.find((o) => o.id === entry.id);
           const changed =
@@ -592,7 +607,7 @@ function EditHotelContent() {
             (orig.max_adults ?? null) !== body.max_adults ||
             (orig.max_children ?? null) !== body.max_children;
           if (changed) {
-            await attempt(() =>
+            await attemptRooms(() =>
               api(`/api/v1/rooms/${entry.id}`, { method: "PATCH", body }),
             );
           }
@@ -600,10 +615,11 @@ function EditHotelContent() {
       }
 
       // 3. Special requirements diff — deactivate removed, create new, patch changed
+      const attemptReqs = attemptIn(t("sectionRequirements"));
       const keptReqIds = new Set(reqEntries.filter((r) => r.id).map((r) => r.id));
       for (const orig of originalServicesRef.current) {
         if (!keptReqIds.has(orig.id)) {
-          await attempt(() =>
+          await attemptReqs(() =>
             api(`/api/v1/hotels/me/services/${orig.id}`, {
               method: "PATCH",
               body: { is_active: false },
@@ -616,7 +632,7 @@ function EditHotelContent() {
         const entryPrice = String(Math.max(0, Math.round(Number.parseFloat(entry.price) || 0)));
         if (entryName.length < 2 || !entry.price.trim()) continue;
         if (!entry.id) {
-          await attempt(() =>
+          await attemptReqs(() =>
             api("/api/v1/hotels/me/services", {
               method: "POST",
               body: { name: entryName, price: entryPrice },
@@ -626,7 +642,7 @@ function EditHotelContent() {
           const orig = originalServicesRef.current.find((o) => o.id === entry.id);
           const origPrice = orig ? String(Math.round(Number.parseFloat(orig.price) || 0)) : "";
           if (!orig || orig.name !== entryName || origPrice !== entryPrice) {
-            await attempt(() =>
+            await attemptReqs(() =>
               api(`/api/v1/hotels/me/services/${entry.id}`, {
                 method: "PATCH",
                 body: { name: entryName, price: entryPrice },
@@ -639,9 +655,14 @@ function EditHotelContent() {
       return errors;
     },
     onSuccess: (errors) => {
-      for (const message of errors) toast.error(message);
-      if (errors.length === 0) toast.success(t("updated"));
-      else toast.error(t("partialSaveError"));
+      setSaveFailures(errors);
+      if (errors.length === 0) {
+        toast.success(t("updated"));
+      } else {
+        // The persistent panel below the form carries the section-by-section
+        // detail; the toast just points at it.
+        toast.error(t("partialSaveError"));
+      }
       // Refetch + reinitialize every section from fresh server state.
       queryClient.invalidateQueries({ queryKey: ["hotel", activeHotelId] });
       queryClient.invalidateQueries({ queryKey: ["hotel-settings", activeHotelId] });
@@ -1131,12 +1152,35 @@ function EditHotelContent() {
               </div>
             </SectionCard>
 
+            {/* ── Section-level save failures (client 9-08 item 15) ────── */}
+            {saveFailures.length > 0 && (
+              <div
+                className="rounded-xl border border-danger/40 bg-danger-bg p-4"
+                role="alert"
+              >
+                <p className="text-sm font-semibold text-danger">
+                  {t("saveFailuresTitle", { count: saveFailures.length })}
+                </p>
+                <ul className="mt-2 space-y-1.5">
+                  {saveFailures.map((f, i) => (
+                    <li key={`${f.section}-${i}`} className="text-sm text-danger">
+                      <span className="font-semibold">{f.section}:</span> {f.message}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-danger/80">{t("saveFailuresHint")}</p>
+              </div>
+            )}
+
             {/* ── Footer ───────────────────────────────────────────────── */}
             <div className="flex justify-start">
               <Button
                 type="button"
                 disabled={update.isPending || name.trim().length < 2}
-                onClick={() => update.mutate()}
+                onClick={() => {
+                  setSaveFailures([]);
+                  update.mutate();
+                }}
                 className="bg-navy-900 px-8 text-white hover:bg-navy-900/90"
               >
                 {update.isPending ? tc("saving") : t("update")}

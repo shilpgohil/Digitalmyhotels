@@ -162,7 +162,15 @@
     "vehicleDetailsDesc": "Activate to input specific fleet or assigned driver details.",
     "update": "Update",
     "updated": "Hotel details updated",
-    "partialSaveError": "Some changes could not be saved"
+    "partialSaveError": "Some sections could not be saved — see the details below",
+    "sectionIdentity": "Hotel details",
+    "sectionGst": "GST settings",
+    "sectionSettings": "Check-in form settings",
+    "sectionRoomTypes": "Room types",
+    "sectionRooms": "Rooms",
+    "sectionRequirements": "Special requirements",
+    "saveFailuresTitle": "{count, plural, one {1 change failed to save} other {# changes failed to save}}",
+    "saveFailuresHint": "Everything else was saved. Fix the items above and press Update again — successful sections are safe to resubmit."
   },
   "dashboard": {
     "totalRooms": "Total Rooms",

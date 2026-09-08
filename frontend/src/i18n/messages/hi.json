@@ -162,7 +162,15 @@
     "vehicleDetailsDesc": "वाहन बेड़े या नियुक्त चालक का विवरण दर्ज करने के लिए सक्रिय करें।",
     "update": "अपडेट करें",
     "updated": "होटल विवरण अपडेट हुए",
-    "partialSaveError": "कुछ बदलाव सहेजे नहीं जा सके"
+    "partialSaveError": "कुछ सेक्शन सहेजे नहीं जा सके — नीचे विवरण देखें",
+    "sectionIdentity": "होटल विवरण",
+    "sectionGst": "GST सेटिंग्स",
+    "sectionSettings": "चेक-इन फ़ॉर्म सेटिंग्स",
+    "sectionRoomTypes": "कमरे के प्रकार",
+    "sectionRooms": "कमरे",
+    "sectionRequirements": "विशेष आवश्यकताएँ",
+    "saveFailuresTitle": "{count, plural, one {1 बदलाव सहेजा नहीं जा सका} other {# बदलाव सहेजे नहीं जा सके}}",
+    "saveFailuresHint": "बाकी सब सहेज लिया गया। ऊपर की चीज़ें ठीक करके फिर से अपडेट दबाएँ — सफल सेक्शन दोबारा भेजना सुरक्षित है।"
   },
   "dashboard": {
     "totalRooms": "कुल कमरे",
