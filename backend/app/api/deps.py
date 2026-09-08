@@ -92,6 +92,22 @@ async def get_tenant_context(
     if hotel_uuid and membership.hotel_id != hotel_uuid:
         raise ForbiddenError("Not a member of this hotel", code="hotel_forbidden")
 
+    # Suspension is the platform kill-switch: when the Super Admin deactivates
+    # a hotel, EVERY hotel-scoped call from its staff (owner included) is
+    # blocked — not just billing-guarded transactions. (Client report: staff
+    # could keep operating a deactivated hotel.) Reactivation restores access.
+    from app.models.hotel import Hotel as _Hotel
+
+    hotel_status = await db.scalar(
+        select(_Hotel.status).where(_Hotel.id == membership.hotel_id)
+    )
+    if hotel_status == "suspended":
+        raise ForbiddenError(
+            "This hotel has been deactivated by the platform. "
+            "Contact DigitalMyHotels support.",
+            code="hotel_suspended",
+        )
+
     role_code = RoleCode(membership.role.code)
     request.state.tenant = TenantContext(
         user_id=user.id,

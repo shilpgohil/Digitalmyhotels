@@ -45,7 +45,18 @@ def refresh_status(sub: Subscription, today: date | None = None) -> str:
 
 
 async def assert_transactions_allowed(db: AsyncSession, hotel_id: UUID) -> None:
-    """Hotels without a subscription row stay unrestricted (local/dev/tests)."""
+    """Hotels without a subscription row stay unrestricted (local/dev/tests).
+
+    NOTE: an admin-suspended HOTEL is blocked here too (defence in depth —
+    the tenant dependency already rejects suspended hotels for staff, but
+    this also covers super-admin-context calls into a suspended hotel).
+    """
+    hotel_status = await db.scalar(select(Hotel.status).where(Hotel.id == hotel_id))
+    if hotel_status == "suspended":
+        raise ForbiddenError(
+            "This hotel has been deactivated by the platform.",
+            code="hotel_suspended",
+        )
     sub = await get_active_subscription(db, hotel_id)
     if sub is None:
         return

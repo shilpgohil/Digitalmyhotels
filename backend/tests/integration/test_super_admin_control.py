@@ -156,6 +156,56 @@ async def test_hotel_lifecycle_create_assign_suspend_activate(
     assert reactivated["status"] == "active"
 
 
+async def test_suspended_hotel_locks_out_staff_until_reactivated(
+    client: AsyncClient, hotel_a: HotelFixture, db_session
+) -> None:
+    """Client report: staff could keep operating a deactivated hotel.
+    Suspension must block EVERY hotel-scoped call (owner included); the
+    super admin keeps access; reactivation restores the hotel."""
+    owner_headers = auth_headers(await login(client, *hotel_a.credentials("owner")))
+    hotel_id = str(hotel_a.hotel.id)
+
+    # Working before suspension.
+    before = await client.get("/api/v1/rooms?limit=5", headers=owner_headers)
+    assert before.status_code == 200, before.text
+
+    sa_headers = await _super_admin_headers(client, db_session)
+    suspended = await client.post(
+        f"/api/v1/super-admin/hotels/{hotel_id}/status?status=suspended",
+        headers=sa_headers,
+    )
+    assert suspended.status_code == 200, suspended.text
+
+    # Owner AND staff are locked out of every hotel-scoped endpoint.
+    for role in ("owner", "admin", "housekeeping"):
+        headers = auth_headers(await login(client, *hotel_a.credentials(role)))
+        blocked = await client.get("/api/v1/rooms?limit=5", headers=headers)
+        assert blocked.status_code == 403, f"{role}: {blocked.text}"
+        assert blocked.json()["error"]["code"] == "hotel_suspended"
+    # Transactions likewise.
+    tx = await client.post(
+        "/api/v1/guests",
+        json={"full_name": "Blocked Guest", "phone": "9855500001"},
+        headers=owner_headers,
+    )
+    assert tx.status_code == 403
+
+    # The super admin can still inspect the hotel.
+    detail = await client.get(
+        f"/api/v1/super-admin/hotels/{hotel_id}", headers=sa_headers
+    )
+    assert detail.status_code == 200
+
+    # Reactivation restores staff access.
+    reactivated = await client.post(
+        f"/api/v1/super-admin/hotels/{hotel_id}/status?status=active",
+        headers=sa_headers,
+    )
+    assert reactivated.status_code == 200, reactivated.text
+    after = await client.get("/api/v1/rooms?limit=5", headers=owner_headers)
+    assert after.status_code == 200, after.text
+
+
 async def test_all_customers_masked_list_and_audited_detail(
     client: AsyncClient, hotel_a: HotelFixture, db_session
 ) -> None:

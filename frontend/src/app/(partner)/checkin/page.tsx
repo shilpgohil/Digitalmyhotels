@@ -416,17 +416,19 @@ function RoomReplaceControl({
   const [openFor, setOpenFor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // The availability endpoint rejects past check-in dates (422). A guest
+  // arriving AFTER the scheduled date (late advance-booking check-in) still
+  // needs a replacement room, so clamp the queried window to today while the
+  // actual swap keeps pricing against the booking's real dates server-side.
+  const availFrom =
+    booking.check_in_date < localToday() ? localToday() : booking.check_in_date;
+  const availTo =
+    booking.check_out_date < availFrom ? availFrom : booking.check_out_date;
+
   const avail = useQuery<import("@/types/hotel").RoomAvailabilityOut>({
-    queryKey: [
-      "room-availability",
-      activeHotelId,
-      booking.check_in_date,
-      booking.check_out_date,
-    ],
+    queryKey: ["room-availability", activeHotelId, availFrom, availTo],
     queryFn: () =>
-      api(
-        `/api/v1/rooms/availability?check_in=${booking.check_in_date}&check_out=${booking.check_out_date}`,
-      ),
+      api(`/api/v1/rooms/availability?check_in=${availFrom}&check_out=${availTo}`),
     enabled: !!openFor && !!activeHotelId,
     staleTime: 15_000,
   });
@@ -473,9 +475,9 @@ function RoomReplaceControl({
             >
               {openFor === r.room_id ? tc("cancel") : t("changeRoom")}
             </button>
-          </div>
-        ))}
-      </div>
+        </div>
+              ))}
+            </div>
 
       {openFor && (
         <div className="rounded-lg border bg-white p-3 space-y-2">
@@ -485,7 +487,8 @@ function RoomReplaceControl({
           {avail.isLoading && <Skeleton className="h-9 w-full" />}
           {avail.isError && (
             <p className="text-sm text-danger">
-              {tc("error")}{" "}
+              {/* Show the REAL API message so failures are diagnosable. */}
+              {avail.error instanceof ApiError ? avail.error.message : tc("error")}{" "}
               <button type="button" className="underline" onClick={() => avail.refetch()}>
                 {tc("retry")}
               </button>
@@ -573,7 +576,7 @@ function RevealIdButton({
     >
       {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Eye className="size-3.5" aria-hidden />}
       {t("revealSavedId")}
-    </Button>
+                      </Button>
   );
 }
 
@@ -765,8 +768,8 @@ function ServiceChips({
                 aria-label={t("serviceAmountLabel", { name: svc.name })}
                 className="h-8 w-24 text-right text-sm tabular-nums"
               />
-            )}
-          </div>
+          )}
+        </div>
         );
       })}
     </div>
@@ -3418,7 +3421,7 @@ function CheckinForm({
                       qrUrl={qrImageQueryCheckin.data}
                       loading={qrImageQueryCheckin.isLoading}
                     />
-                  </div>
+            </div>
                 )}
           </div>
               <div className="space-y-1">
@@ -4525,9 +4528,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       <div ref={guestSectionRef}>
       <Section icon={BadgeCheck} title={t("primaryGuestIdentity")} subtitle={t("primaryGuestIdentitySubtitle")}>
         <div className="space-y-5">
-          <GuestPicker
+              <GuestPicker
             selected={guest?.id ? guest : null}
-            onSelected={(g) => {
+                onSelected={(g) => {
               setShowPgCreate(false);
               void handleGuestSelected(g);
             }}
@@ -4620,9 +4623,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                       toast.success(t("formAutofilled"));
                     } else {
                       toast.warning(result.message);
-                    }
-                  }}
-                />
+                  }
+                }}
+              />
                 <DocUpload
                   key={`${guest.id}-selfie`}
                   guestId={guest.id}
@@ -4833,7 +4836,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           )}
         </div>
       </Section>
-      </div>
+          </div>
 
       {/* ── 5. Special Requirements ───────────────────────────────────────── */}
       <Section icon={Star} title={ts("specialRequirements")}>

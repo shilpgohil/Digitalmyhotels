@@ -938,8 +938,8 @@ function CheckoutContent() {
                           className="underline"
                           onClick={() => quoteQuery.refetch()}
                         >
-                          {tc("retry")}
-                        </button>
+                {tc("retry")}
+              </button>
                       </p>
                     ) : (
                       <div className="rounded-xl border text-sm divide-y">
