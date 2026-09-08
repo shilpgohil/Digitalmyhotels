@@ -268,19 +268,28 @@ _TEMPLATES: dict[NE, dict] = {
     NE.ARRIVAL_TODAY: {
         "category": "front_desk",
         "title": "Guest arriving today",
-        "body": "{booking_number} — {guest_name} expected check-in at {check_in_time}. Room: {rooms}",
+        "body": (
+            "{booking_number} — {guest_name} expected check-in at "
+            "{check_in_time}. Room: {rooms}"
+        ),
         "deep_link": "/checkin?booking={booking_id}",
     },
     NE.CHECKOUT_REMINDER: {
         "category": "front_desk",
         "title": "Checkout due soon",
-        "body": "{guest_name} (Room {rooms}) due to check out at {check_out_time} — {booking_number}",
+        "body": (
+            "{guest_name} (Room {rooms}) due to check out at "
+            "{check_out_time} — {booking_number}"
+        ),
         "deep_link": "/checkout?booking={booking_id}",
     },
     NE.LOW_ROOM_AVAILABILITY: {
         "category": "front_desk",
         "title": "Low room availability",
-        "body": "Only {available} of {total} rooms are available. {occupied} occupied, {reserved} reserved.",
+        "body": (
+            "Only {available} of {total} rooms are available. "
+            "{occupied} occupied, {reserved} reserved."
+        ),
         "deep_link": "/rooms",
     },
 }

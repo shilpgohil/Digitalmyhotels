@@ -6,7 +6,8 @@ run inside the request transaction (rooms are locked with FOR UPDATE).
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from datetime import time as dt_time
 from decimal import Decimal
 from uuid import UUID
 
@@ -25,6 +26,7 @@ from app.schemas.stay import (
     BookAndCheckInRequest,
     CheckInOut,
     CheckInRequest,
+    CheckoutDraft,
     CheckOutOut,
     CheckOutRequest,
     CurrentGuestOut,
@@ -635,6 +637,169 @@ async def transfer_room(
     )
 
 
+async def quote_checkout(
+    db: AsyncSession,
+    tenant: TenantContext,
+    booking: Booking,
+    draft: CheckoutDraft,
+) -> dict:
+    """Price a checkout draft WITHOUT touching the database.
+
+    Single authoritative calculator for the checkout screen: room + GST,
+    already-posted charges, charges the desk is about to add, server-derived
+    hourly overstay and the (authorized) discount. Both the read-only quote
+    endpoint and the atomic commit call this, so the number the desk sees is
+    by construction the number that gets recorded.
+    """
+    from math import ceil
+    from zoneinfo import ZoneInfo
+
+    from app.domain.gst import GstRates, calculate_gst
+    from app.domain.gst import money as _m
+    from app.models.hotel import Hotel
+    from app.models.payment import HotelCharge
+    from app.models.room import RoomType
+    from app.repositories.hotels import get_or_create_gst_settings
+
+    if booking.status != "checked_in":
+        raise ValidationAppError(
+            "Only checked-in bookings can be checked out", code="not_checked_in"
+        )
+
+    # ── discount: changing it is a payment correction, not a desk action ──
+    effective_discount = booking.discount_amount
+    if (
+        draft.discount_amount is not None
+        and _m(draft.discount_amount) != booking.discount_amount
+    ):
+        tenant.require_permission(Permission.PAYMENTS_CORRECT)
+        effective_discount = _m(draft.discount_amount)
+
+    hotel = await db.get(Hotel, booking.hotel_id)
+    if hotel is None:  # pragma: no cover — FK guarantees existence
+        raise NotFoundError("Hotel not found")
+    tz = ZoneInfo(hotel.timezone or "Asia/Kolkata")
+    settings_row = await db.execute(
+        select(HotelSettings).where(HotelSettings.hotel_id == booking.hotel_id)
+    )
+    settings = settings_row.scalar_one_or_none()
+
+    # ── expected (billed) checkout moment, hotel-local ────────────────────
+    eff_date = draft.expected_check_out_date or booking.check_out_date
+    time_str = draft.expected_check_out_time or booking.check_out_time
+    if time_str:
+        hh, mm = time_str.split(":")
+        eff_time = dt_time(int(hh), int(mm))
+    else:
+        eff_time = settings.check_out_time if settings else dt_time(11, 0)
+    expected_at = datetime.combine(eff_date, eff_time, tzinfo=tz)
+
+    checked_out_at = draft.checked_out_at or _now()
+    if checked_out_at.tzinfo is None:
+        # Naive timestamps from the client are hotel-local by convention.
+        checked_out_at = checked_out_at.replace(tzinfo=tz)
+
+    # ── room + GST (same basis as invoices and compute_settlement) ────────
+    nights = max((eff_date - booking.check_in_date).days, 1)
+    room_taxable = _m(
+        sum((br.rate * nights for br in booking.rooms if br.is_current), Decimal("0.00"))
+    )
+    gst = await get_or_create_gst_settings(db, booking.hotel_id)
+    rates = GstRates(
+        cgst=gst.default_cgst_rate,
+        sgst=gst.default_sgst_rate,
+        igst=gst.default_igst_rate,
+        version=gst.version,
+    )
+    room_breakup = calculate_gst(room_taxable, rates, is_registered=gst.is_gst_registered)
+
+    # ── charges already posted to the stay ────────────────────────────────
+    charges_result = await db.execute(
+        select(HotelCharge).where(
+            HotelCharge.booking_id == booking.id,
+            HotelCharge.hotel_id == booking.hotel_id,
+            HotelCharge.voided_at.is_(None),
+        )
+    )
+    existing = list(charges_result.scalars().all())
+    existing_total = _m(sum((c.total_amount for c in existing), Decimal("0.00")))
+    existing_tax = _m(sum((c.tax_amount for c in existing), Decimal("0.00")))
+
+    # ── charges the desk is adding right now (not persisted here) ─────────
+    proposed_taxable = Decimal("0.00")
+    proposed_tax = Decimal("0.00")
+    for c in draft.charges:
+        taxable = _m(c.amount)
+        proposed_taxable += taxable
+        if c.apply_gst:
+            proposed_tax += calculate_gst(
+                taxable, rates, is_registered=gst.is_gst_registered
+            ).total_tax
+    proposed_taxable = _m(proposed_taxable)
+    proposed_tax = _m(proposed_tax)
+    proposed_total = _m(proposed_taxable + proposed_tax)
+
+    # ── server-derived hourly overstay ─────────────────────────────────────
+    grace_minutes = settings.late_checkout_grace_minutes if settings else 60
+    overstay = checked_out_at - expected_at - timedelta(minutes=grace_minutes)
+    overtime_hours = (
+        ceil(overstay.total_seconds() / 3600) if overstay.total_seconds() > 0 else 0
+    )
+    rate_row = await db.execute(
+        select(func.coalesce(func.sum(func.coalesce(RoomType.hourly_rate, 0)), 0))
+        .select_from(BookingRoom)
+        .join(RoomType, RoomType.id == BookingRoom.room_type_id)
+        .where(BookingRoom.booking_id == booking.id, BookingRoom.is_current.is_(True))
+    )
+    hourly_rate = _m(Decimal(rate_row.scalar_one() or 0))
+    overtime_amount = (
+        _m(hourly_rate * overtime_hours)
+        if overtime_hours > 0 and hourly_rate > 0
+        else Decimal("0.00")
+    )
+
+    # ── totals ─────────────────────────────────────────────────────────────
+    final_total = _m(
+        max(
+            room_breakup.total_amount
+            + existing_total
+            + proposed_total
+            + overtime_amount
+            - effective_discount,
+            Decimal("0.00"),
+        )
+    )
+    effective_paid = _m(booking.advance_amount + booking.security_deposit)
+    due = _m(max(final_total - effective_paid, Decimal("0.00")))
+    refund = _m(max(effective_paid - final_total, Decimal("0.00")))
+
+    return {
+        "nights": nights,
+        "room_subtotal": room_taxable,
+        "room_gst": _m(room_breakup.total_tax),
+        "existing_charges_total": existing_total,
+        "existing_charges_tax": existing_tax,
+        "proposed_charges_taxable": proposed_taxable,
+        "proposed_charges_tax": proposed_tax,
+        "proposed_charges_total": proposed_total,
+        "charges_total": _m(existing_total + proposed_total),
+        "gst_amount": _m(room_breakup.total_tax + existing_tax + proposed_tax),
+        "overtime_hours": overtime_hours,
+        "overtime_rate_per_hour": hourly_rate,
+        "overtime_amount": overtime_amount,
+        "late_fee": overtime_amount,
+        "discount": effective_discount,
+        "final_total": final_total,
+        "advance_paid": booking.advance_amount,
+        "security_deposit": booking.security_deposit,
+        "effective_paid": effective_paid,
+        "due": due,
+        "refund": refund,
+        "expected_checkout_at": expected_at,
+        "checked_out_at": checked_out_at,
+    }
+
+
 async def compute_settlement(
     db: AsyncSession, booking: Booking, *, late_fee: Decimal = Decimal("0.00")
 ) -> dict[str, Decimal]:
@@ -712,6 +877,7 @@ async def check_out(
     correlation_id: str | None = None,
 ) -> CheckOutOut:
     hotel_id = tenant.require_hotel()
+    from app.domain.gst import money as _m
     from app.services.subscriptions import assert_transactions_allowed as _ata
 
     await _ata(db, hotel_id)
@@ -721,11 +887,97 @@ async def check_out(
             "Only checked-in bookings can be checked out", code="not_checked_in"
         )
 
-    nights = max((booking.check_out_date - booking.check_in_date).days, 1)
-    settlement = await compute_settlement(db, booking, late_fee=body.late_fee)
+    # ── authoritative pricing of the exact draft the desk confirmed ────────
+    # quote_checkout enforces the discount authorization (PAYMENTS_CORRECT);
+    # nothing below trusts a client-sent amount.
+    quote = await quote_checkout(db, tenant, booking, body)
+    discount_changed = (
+        body.discount_amount is not None
+        and _m(body.discount_amount) != booking.discount_amount
+    )
+    if discount_changed and not (body.discount_reason and body.discount_reason.strip()):
+        raise ValidationAppError(
+            "A reason is required to change the discount at checkout",
+            code="discount_reason_required",
+        )
+    if body.collect_payment and not body.payment_method:
+        raise ValidationAppError(
+            "payment_method is required when collect_payment is true",
+            code="payment_method_required",
+        )
+
+    # ── staff corrections to the billed checkout moment ────────────────────
+    if body.expected_check_out_date is not None:
+        booking.check_out_date = body.expected_check_out_date
+    if body.expected_check_out_time is not None:
+        booking.check_out_time = body.expected_check_out_time
+
+    # ── authorized discount, with audit trail ──────────────────────────────
+    if discount_changed:
+        previous_discount = booking.discount_amount
+        booking.discount_amount = _m(body.discount_amount)  # type: ignore[arg-type]
+        await write_audit(
+            db,
+            action="stay.checkout_discount",
+            entity_type="booking",
+            entity_id=booking.id,
+            actor_id=tenant.user_id,
+            hotel_id=hotel_id,
+            before={"discount": str(previous_discount)},
+            after={
+                "discount": str(booking.discount_amount),
+                "reason": body.discount_reason,
+            },
+            correlation_id=correlation_id,
+        )
+
+    # ── stage the desk's new charges (same pricing as the quote) ───────────
+    if body.charges:
+        from app.schemas.payment import ChargeCreate
+        from app.services.charges import add_charge
+
+        for draft_charge in body.charges:
+            await add_charge(
+                db,
+                tenant,
+                ChargeCreate(
+                    booking_id=booking.id,
+                    category=draft_charge.category,
+                    description=draft_charge.description,
+                    quantity=1,
+                    rate=draft_charge.amount,
+                    apply_gst=draft_charge.apply_gst,
+                ),
+                correlation_id=correlation_id,
+            )
+
+    nights = quote["nights"]
+    late_fee = quote["overtime_amount"]
+    settlement = await compute_settlement(db, booking, late_fee=late_fee)
+    due = settlement["due"]
+
+    # ── collect the server-computed due in the same transaction ────────────
+    if body.collect_payment and due > 0:
+        from app.schemas.payment import PaymentCreate
+        from app.services.payments import collect_payment as _collect
+
+        await _collect(
+            db,
+            tenant,
+            PaymentCreate(
+                booking_id=booking.id,
+                amount=due,
+                method=body.payment_method,  # type: ignore[arg-type]
+                purpose="stay",
+                notes="Collected at checkout",
+            ),
+            correlation_id=correlation_id,
+        )
+        settlement = await compute_settlement(db, booking, late_fee=late_fee)
+        due = settlement["due"]
+
     final_total = settlement["final_total"]
     paid = booking.advance_amount
-    due = settlement["due"]
     refund = settlement["refund"]
 
     if due > 0 and not body.allow_due:
@@ -740,16 +992,32 @@ async def check_out(
         )
 
     rooms = await _current_rooms_locked(db, booking)
+    from app.domain.room_status import status_label
     from app.services.housekeeping import ensure_task_for_room
 
+    # A current room must be in an in-stay status. Maintenance/out-of-service
+    # on an occupied room is an inconsistency the desk must resolve first —
+    # silently checking out would strand the room and hide the problem.
+    _in_stay = {
+        RoomStatus.OCCUPIED.value,
+        RoomStatus.CLEANING_REQUIRED.value,  # stayover clean pending
+        RoomStatus.CLEANING_IN_PROGRESS.value,  # stayover clean running
+    }
     for room in rooms:
-        assert_transition(room.status, RoomStatus.CLEANING_REQUIRED)
-        room.status = RoomStatus.CLEANING_REQUIRED.value
+        if room.status not in _in_stay:
+            raise ConflictError(
+                f"Room {room.room_number} is '{status_label(room.status)}' and "
+                "cannot be checked out — resolve its status first",
+                code="room_not_checkoutable",
+            )
+        if room.status == RoomStatus.OCCUPIED.value:
+            assert_transition(room.status, RoomStatus.CLEANING_REQUIRED)
+            room.status = RoomStatus.CLEANING_REQUIRED.value
         await ensure_task_for_room(
             db, hotel_id=hotel_id, room_id=room.id, booking_id=booking.id
         )
 
-    if body.late_fee > 0:
+    if late_fee > 0:
         from app.services.ledger import append_entry
 
         await append_entry(
@@ -757,18 +1025,19 @@ async def check_out(
             hotel_id=hotel_id,
             booking_id=booking.id,
             entry_type="debit",
-            amount=body.late_fee,
-            description="Late checkout fee",
+            amount=late_fee,
+            description=f"Late checkout fee ({quote['overtime_hours']} h overstay)",
             reference_type="checkout_fee",
             created_by_id=tenant.user_id,
         )
 
+    is_late = quote["checked_out_at"] > quote["expected_checkout_at"]
     checkout = CheckOut(
         hotel_id=hotel_id,
         booking_id=booking.id,
-        checked_out_at=body.checked_out_at or _now(),
-        is_late=body.is_late,
-        late_fee=body.late_fee,
+        checked_out_at=quote["checked_out_at"],
+        is_late=is_late,
+        late_fee=late_fee,
         nights=nights,
         final_total=final_total,
         paid_amount=paid,
@@ -847,8 +1116,8 @@ async def check_out(
         paid_amount=paid,
         due_amount=due,
         refund_amount=refund,
-        is_late=body.is_late,
-        late_fee=body.late_fee,
+        is_late=is_late,
+        late_fee=late_fee,
         payment_due_authorized=checkout.payment_due_authorized,
     )
 

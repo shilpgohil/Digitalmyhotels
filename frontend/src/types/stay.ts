@@ -285,6 +285,41 @@ export interface SettlementPreviewOut {
   refund: string;
 }
 
+/** A charge the desk is adding as part of this checkout (not yet persisted). */
+export interface CheckoutChargeDraft {
+  category: string;
+  description: string;
+  amount: string;
+  apply_gst: boolean;
+}
+
+/** Server-authoritative pricing of a checkout draft (POST /checkouts/{id}/quote). */
+export interface CheckoutQuoteOut {
+  nights: number;
+  room_subtotal: string;
+  room_gst: string;
+  existing_charges_total: string;
+  existing_charges_tax: string;
+  proposed_charges_taxable: string;
+  proposed_charges_tax: string;
+  proposed_charges_total: string;
+  charges_total: string;
+  gst_amount: string;
+  overtime_hours: number;
+  overtime_rate_per_hour: string;
+  overtime_amount: string;
+  late_fee: string;
+  discount: string;
+  final_total: string;
+  advance_paid: string;
+  security_deposit: string;
+  effective_paid: string;
+  due: string;
+  refund: string;
+  expected_checkout_at: string;
+  checked_out_at: string;
+}
+
 export interface CheckOutOut {
   id: string;
   booking_id: string;

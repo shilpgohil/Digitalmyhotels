@@ -174,11 +174,81 @@ class RoomTransferOut(BaseModel):
     reason: str | None
 
 
-class CheckOutRequest(BaseModel):
-    booking_id: UUID
+class CheckoutChargeDraft(BaseModel):
+    """A charge the desk is about to add as part of this checkout.
+
+    Nothing is persisted until the checkout commits — the quote prices these
+    without touching the database.
+    """
+
+    category: str = Field(
+        pattern="^(food|restaurant|laundry|room_service|extra_bed|minibar|transport|damage|other)$"
+    )
+    description: str = Field(min_length=2, max_length=255)
+    amount: Decimal = Field(gt=0)
+    apply_gst: bool = True
+
+
+class CheckoutDraft(BaseModel):
+    """Everything the desk can change at checkout time.
+
+    Shared by the read-only quote and the atomic commit so both price exactly
+    the same bill. The overtime fee is NEVER accepted from the client — the
+    server derives it from the booking, the hotel grace and the room rates.
+    """
+
+    # Actual moment the guest leaves (defaults to now); drives overstay.
     checked_out_at: datetime | None = None
-    is_late: bool = False
-    late_fee: Decimal = Field(default=Decimal("0.00"), ge=0)
+    # Staff correction of the expected (billed) checkout moment.
+    expected_check_out_date: date | None = None
+    expected_check_out_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    charges: list[CheckoutChargeDraft] = Field(default_factory=list, max_length=20)
+    # Post-tax, booking-level discount. None = keep whatever is stored.
+    discount_amount: Decimal | None = Field(default=None, ge=0)
+    discount_reason: str | None = Field(default=None, max_length=1000)
+
+
+class CheckoutQuoteRequest(CheckoutDraft):
+    """POST /checkouts/{booking_id}/quote — read-only pricing of a draft."""
+
+
+class CheckoutQuoteOut(BaseModel):
+    """Authoritative bill for a checkout draft. The screen displays these
+    numbers verbatim — no client-side arithmetic anywhere."""
+
+    nights: int
+    room_subtotal: Decimal
+    room_gst: Decimal
+    existing_charges_total: Decimal
+    existing_charges_tax: Decimal
+    proposed_charges_taxable: Decimal
+    proposed_charges_tax: Decimal
+    proposed_charges_total: Decimal
+    charges_total: Decimal
+    gst_amount: Decimal
+    overtime_hours: int
+    overtime_rate_per_hour: Decimal
+    overtime_amount: Decimal
+    # Alias of overtime_amount — what lands on the checkout record/invoice.
+    late_fee: Decimal
+    discount: Decimal
+    final_total: Decimal
+    advance_paid: Decimal
+    security_deposit: Decimal
+    effective_paid: Decimal
+    due: Decimal
+    refund: Decimal
+    expected_checkout_at: datetime
+    checked_out_at: datetime
+
+
+class CheckOutRequest(CheckoutDraft):
+    booking_id: UUID
+    # Collect the server-computed due in one transaction with the checkout.
+    collect_payment: bool = False
+    payment_method: str | None = Field(
+        default=None, pattern="^(cash|upi|card|bank_transfer|other)$"
+    )
     # Checkout with outstanding balance requires explicit authorization.
     allow_due: bool = False
     due_reason: str | None = Field(default=None, max_length=1000)

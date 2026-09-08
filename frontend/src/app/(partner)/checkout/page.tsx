@@ -8,10 +8,11 @@
  *  RIGHT (1/3): Settlement Summary (payment status/method, UPI QR, totals,
  *               Check Out / Print Invoice / Download PDF / Email / WhatsApp)
  *
- * Reuses the settlement engine extracted from CheckoutDialog into
- * `@/components/stay/checkout-summary` (bill calculation) plus the same API
- * patterns: POST /payments → POST /checkouts (with allow_due authorization),
- * POST /invoices + GET /invoices/{id}/pdf, GET /hotels/me/payment-qr/image.
+ * Settlement is fully server-authoritative: every draft edit (extra charges,
+ * expected/actual checkout time) is priced by POST /checkouts/{id}/quote and
+ * the numbers are displayed verbatim — no client-side arithmetic. The commit
+ * is ONE atomic POST /checkouts carrying the same draft plus the payment
+ * instruction, so a failure anywhere leaves nothing behind.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -46,20 +47,15 @@ import { getAccessToken } from "@/lib/auth/session";
 import { PERMISSIONS } from "@/lib/permissions";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
-import {
-  activeCharges,
-  computeSettlement,
-  fmtMoney,
-  money,
-} from "@/components/stay/checkout-summary";
+import { fmtMoney, money } from "@/components/stay/checkout-summary";
 import type { ListOut, HotelOut, HotelSettingsOut } from "@/types/hotel";
 import type {
   BookingOut,
   CheckOutOut,
+  CheckoutChargeDraft,
+  CheckoutQuoteOut,
   CurrentGuestOut,
-  SettlementPreviewOut,
 } from "@/types/stay";
-import type { ChargeOut, PaymentOut } from "@/types/money";
 
 interface HotelQr {
   qr_available: boolean;
@@ -102,28 +98,12 @@ function waPhone(raw: string): string {
   return `91${digits.slice(-10)}`;
 }
 
-/**
- * Calculate the late-checkout fee based on the actual vs standard checkout time.
- * @param chosenTime    "HH:MM"  — the actual checkout time entered by staff.
- * @param standardTime  "HH:MM" or "HH:MM:SS" — hotel's standard checkout time.
- * @param graceMinutes  Minutes after standard time before billing starts.
- * @param ratePerHour   Fee charged per billable hour (rounded up).
- */
-function calcLateCheckoutFee(
-  chosenTime: string,
-  standardTime: string,
-  graceMinutes: number,
-  ratePerHour: number,
-): { fee: number; lateHours: number } {
-  const [ch, cm] = chosenTime.split(":").map(Number);
-  const [sh, sm] = standardTime.split(":").map(Number);
-  const chosenMins = ch * 60 + cm;
-  const standardMins = sh * 60 + sm;
-  if (chosenMins <= standardMins) return { fee: 0, lateHours: 0 };
-  const lateMins = chosenMins - standardMins;
-  if (lateMins <= graceMinutes) return { fee: 0, lateHours: 0 };
-  const billableHours = Math.ceil((lateMins - graceMinutes) / 60);
-  return { fee: billableHours * ratePerHour, lateHours: billableHours };
+/** Today's date as YYYY-MM-DD in the browser's local timezone. */
+function todayLocalDate(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
 }
 
 function CheckoutContent() {
@@ -193,24 +173,6 @@ function CheckoutContent() {
   const bookingQuery = useQuery({
     queryKey: ["booking-for-checkout", entry?.booking_id],
     queryFn: () => api<BookingOut>(`/api/v1/bookings/${entry!.booking_id}`),
-    enabled: !!entry?.booking_id,
-    staleTime: 0,
-  });
-
-  const chargesQuery = useQuery({
-    queryKey: ["charges-for-checkout", entry?.booking_id],
-    queryFn: () =>
-      api<{ items: ChargeOut[]; total: number }>(`/api/v1/charges?booking_id=${entry!.booking_id}`),
-    enabled: !!entry?.booking_id,
-    staleTime: 0,
-  });
-
-  const paymentsQuery = useQuery({
-    queryKey: ["payments-for-checkout", entry?.booking_id],
-    queryFn: () =>
-      api<{ items: PaymentOut[]; total: number }>(
-        `/api/v1/payments?booking_id=${entry!.booking_id}&limit=50`,
-      ),
     enabled: !!entry?.booking_id,
     staleTime: 0,
   });
@@ -288,10 +250,9 @@ function CheckoutContent() {
     staleTime: 300_000,
   });
 
-  // ── Settlement math ────────────────────────────────────────────────────
+  // ── Server-authoritative settlement (checkout draft → quote) ───────────
 
   const booking = bookingQuery.data;
-  const charges = activeCharges(chargesQuery.data?.items);
 
   // True when staff changed the expected check-out date/time vs the booking.
   const expectedOutChanged =
@@ -301,75 +262,77 @@ function CheckoutContent() {
       (expectedOutTime !== "" &&
         expectedOutTime !== (booking.check_out_time?.slice(0, 5) ?? "")));
 
-  // Auto-calculate late-checkout fee from the chosen time vs. hotel standard.
-  const lateCalc = useMemo(
+  /** New charges entered at the desk — part of the draft, priced server-side. */
+  const draftCharges = useMemo<CheckoutChargeDraft[]>(
     () =>
-      calcLateCheckoutFee(
-        actualCheckoutTime,
-        settingsQuery.data?.check_out_time ?? "12:00",
-        settingsQuery.data?.late_checkout_grace_minutes ?? 0,
-        Number.parseFloat(settingsQuery.data?.late_checkout_fee_per_hour ?? "0") || 0,
-      ),
-    [actualCheckoutTime, settingsQuery.data],
-  );
-  const lateHoursNum = lateCalc.lateHours;
-  const lateFeeNum = lateCalc.fee;
-
-  // Local fallback computation — only used if the server preview fails.
-  const settlement = computeSettlement(booking, charges, lateFeeNum);
-
-  // Server-computed settlement preview — the single source of truth for the
-  // totals block, so the screen always matches the recorded bill and invoice.
-  // Re-fetches when the auto-calculated late fee changes (part of the key);
-  // keepPreviousData avoids flicker while a new fee is being priced.
-  const previewQuery = useQuery({
-    queryKey: ["settlement", entry?.booking_id, lateFeeNum, expectedOutDate, expectedOutTime],
-    queryFn: () =>
-      api<SettlementPreviewOut>(
-        `/api/v1/checkouts/${entry!.booking_id}/preview?late_fee=${lateFeeNum.toFixed(2)}`,
-      ),
-    enabled: !!entry?.booking_id,
-    placeholderData: keepPreviousData,
-    staleTime: 0,
-  });
-  const preview = previewQuery.data;
-  const previewLoading = !!entry && previewQuery.isLoading && !preview;
-
-  /** Totals for display — server values when available, local math otherwise. */
-  const totals = preview
-    ? {
-        roomSubtotal: money(preview.room_subtotal),
-        gst: money(preview.gst_amount),
-        chargesTotal: money(preview.charges_total),
-        lateFee: money(preview.late_fee),
-        discount: money(preview.discount),
-        finalTotal: money(preview.final_total),
-        advancePaid: money(preview.advance_paid),
-        secDeposit: money(preview.security_deposit),
-        effectivePaid: money(preview.effective_paid),
-      }
-    : {
-        roomSubtotal: settlement.roomChargesTotal,
-        gst: money(booking?.tax_amount),
-        chargesTotal: settlement.extraChargesTotal,
-        lateFee: lateFeeNum,
-        discount: money(booking?.discount_amount),
-        finalTotal: settlement.finalTotal,
-        advancePaid: settlement.advancePaid,
-        secDeposit: settlement.secDeposit,
-        effectivePaid: settlement.effectivePaid,
-      };
-
-  // Extras entered locally — not on the booking until POSTed at checkout.
-  const extrasTotal = useMemo(
-    () =>
-      EXTRA_CHARGE_FIELDS.reduce((sum, f) => sum + Math.max(Number.parseFloat(extras[f.key]) || 0, 0), 0),
+      EXTRA_CHARGE_FIELDS.flatMap((field) => {
+        const amount = Number.parseFloat(extras[field.key]) || 0;
+        return amount > 0
+          ? [
+              {
+                category: field.key,
+                description: field.description,
+                amount: amount.toFixed(2),
+                apply_gst: true,
+              },
+            ]
+          : [];
+      }),
     [extras],
   );
 
-  const grandTotal = totals.finalTotal + extrasTotal;
-  const pendingAmount = Math.max(grandTotal - totals.effectivePaid, 0);
-  const refundAmount = Math.max(totals.effectivePaid - grandTotal, 0);
+  /** The complete checkout draft — the quote and the commit send the SAME
+   *  object, so the numbers on screen are the numbers that get recorded. */
+  const draft = useMemo(
+    () => ({
+      // Actual departure moment: today at the staff-entered time (naive
+      // local time — the server interprets it in the hotel's timezone).
+      checked_out_at: actualCheckoutTime
+        ? `${todayLocalDate()}T${actualCheckoutTime}:00`
+        : null,
+      expected_check_out_date: expectedOutChanged ? expectedOutDate : null,
+      expected_check_out_time:
+        expectedOutChanged && expectedOutTime ? expectedOutTime : null,
+      charges: draftCharges,
+    }),
+    [actualCheckoutTime, expectedOutChanged, expectedOutDate, expectedOutTime, draftCharges],
+  );
+
+  // Live server pricing of the draft. keepPreviousData avoids flicker while
+  // an edited draft is being re-priced.
+  const quoteQuery = useQuery({
+    queryKey: ["checkout-quote", entry?.booking_id, JSON.stringify(draft)],
+    queryFn: () =>
+      api<CheckoutQuoteOut>(`/api/v1/checkouts/${entry!.booking_id}/quote`, {
+        method: "POST",
+        body: draft,
+      }),
+    enabled: !!entry?.booking_id && !checkoutResult,
+    placeholderData: keepPreviousData,
+    staleTime: 0,
+  });
+  const quote = quoteQuery.data;
+  const previewLoading = !!entry && quoteQuery.isLoading && !quote;
+
+  const lateHoursNum = quote?.overtime_hours ?? 0;
+  const lateFeeNum = money(quote?.late_fee);
+
+  /** Totals for display — server quote verbatim, no client arithmetic. */
+  const totals = {
+    roomSubtotal: money(quote?.room_subtotal),
+    gst: money(quote?.gst_amount),
+    chargesTotal: money(quote?.charges_total),
+    lateFee: lateFeeNum,
+    discount: money(quote?.discount),
+    finalTotal: money(quote?.final_total),
+    advancePaid: money(quote?.advance_paid),
+    secDeposit: money(quote?.security_deposit),
+    effectivePaid: money(quote?.effective_paid),
+  };
+
+  const grandTotal = totals.finalTotal;
+  const pendingAmount = money(quote?.due);
+  const refundAmount = money(quote?.refund);
   const needsDueAuth = payStatus === "pending" && pendingAmount > 0;
 
   // ── Actions ────────────────────────────────────────────────────────────
@@ -409,61 +372,16 @@ function CheckoutContent() {
     mutationFn: async () => {
       if (!entry) throw new Error("No booking loaded");
 
-      // 0. Persist the edited expected check-out date/time before settling —
-      //    the backend allows check_out_date changes on checked_in bookings.
-      if (expectedOutChanged) {
-        await api(`/api/v1/bookings/${entry.booking_id}`, {
-          method: "PATCH",
-          body: {
-            check_out_date: expectedOutDate,
-            check_out_time: expectedOutTime || null,
-          },
-        });
-        queryClient.invalidateQueries({ queryKey: ["booking-for-checkout", entry.booking_id] });
-        queryClient.invalidateQueries({ queryKey: ["settlement", entry.booking_id] });
-      }
-
-      // 1. Post additional charges entered at checkout (before settlement).
-      for (const field of EXTRA_CHARGE_FIELDS) {
-        const amount = Number.parseFloat(extras[field.key]) || 0;
-        if (amount > 0) {
-          await api("/api/v1/charges", {
-            method: "POST",
-            body: {
-              booking_id: entry.booking_id,
-              category: field.key,
-              description: field.description,
-              quantity: 1,
-              rate: amount.toFixed(2),
-              // Client requirement: extra charges at checkout carry GST too
-              // (Restaurant Billing was showing 0% GST on these).
-              apply_gst: true,
-            },
-          });
-        }
-      }
-
-      // 2. Collect the pending payment if staff marked it as paid.
-      //    (grandTotal already includes the extras posted above.)
-      if (payStatus === "paid" && pendingAmount > 0) {
-        await api("/api/v1/payments", {
-          method: "POST",
-          body: {
-            booking_id: entry.booking_id,
-            amount: pendingAmount.toFixed(2),
-            method: payMethod,
-            purpose: "stay",
-          },
-        });
-      }
-
-      // 3. Check out — authorize outstanding balance when left pending.
+      // ONE atomic request: the same draft the quote priced, plus the payment
+      // instruction. Charges, payment collection, date corrections and the
+      // checkout itself commit (or roll back) together on the server.
       return api<CheckOutOut>("/api/v1/checkouts", {
         method: "POST",
         body: {
+          ...draft,
           booking_id: entry.booking_id,
-          is_late: lateHoursNum > 0,
-          late_fee: lateFeeNum.toFixed(2),
+          collect_payment: payStatus === "paid" && pendingAmount > 0,
+          payment_method: payStatus === "paid" ? payMethod : null,
           allow_due: needsDueAuth,
           due_reason: needsDueAuth ? dueReason.trim() : null,
         },
@@ -648,8 +566,7 @@ function CheckoutContent() {
     }
   };
 
-  const detailsLoading =
-    !!entry && (bookingQuery.isLoading || chargesQuery.isLoading || paymentsQuery.isLoading);
+  const detailsLoading = !!entry && bookingQuery.isLoading;
   const isPending = checkoutMutation.isPending;
   const done = !!checkoutResult;
 
@@ -1005,6 +922,19 @@ function CheckoutContent() {
                           <Skeleton key={i} className="h-7 w-full" />
                         ))}
                       </div>
+                    ) : !quote && !done ? (
+                      <p className="rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-sm text-danger">
+                        {quoteQuery.error instanceof ApiError
+                          ? quoteQuery.error.message
+                          : tc("error")}{" "}
+                        <button
+                          type="button"
+                          className="underline"
+                          onClick={() => quoteQuery.refetch()}
+                        >
+                          {tc("retry")}
+                        </button>
+                      </p>
                     ) : (
                       <div className="rounded-xl border text-sm divide-y">
                         <div className="flex justify-between px-3 py-2">
@@ -1041,21 +971,6 @@ function CheckoutContent() {
                             </span>
                           </div>
                         )}
-                        {/* New charges entered this checkout — one line per
-                            non-zero entry (math unchanged; display only). */}
-                        {EXTRA_CHARGE_FIELDS.map((field) => {
-                          const amount = Math.max(
-                            Number.parseFloat(extras[field.key]) || 0,
-                            0,
-                          );
-                          if (amount <= 0) return null;
-                          return (
-                            <div key={field.key} className="flex justify-between px-3 py-2">
-                              <span className="text-muted-foreground">{tp(field.labelKey)}</span>
-                              <span className="font-medium tabular-nums">{fmtMoney(amount)}</span>
-                            </div>
-                          );
-                        })}
                         <div className="flex justify-between px-3 py-2">
                           <span className="text-muted-foreground">{tp("advancePayment")}</span>
                           <span className="font-medium text-green-700 tabular-nums">
@@ -1172,7 +1087,7 @@ function CheckoutContent() {
                         <Button
                           className="w-full bg-navy-900 text-white hover:bg-navy-900/90"
                           onClick={handleCheckout}
-                          disabled={isPending || (needsDueAuth && !dueReason.trim())}
+                          disabled={isPending || !quote || (needsDueAuth && !dueReason.trim())}
                         >
                           {isPending ? (
                             <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />

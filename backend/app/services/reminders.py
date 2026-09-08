@@ -200,7 +200,6 @@ async def sweep_low_availability(
     """Fire once per hotel per day when available rooms drop below 20%."""
     from app.models.hotel import Hotel
     from app.models.room import Room
-    from app.services.notifications import create_notification
     from app.services.notification_events import NE, fire
 
     now = now_utc or datetime.now(UTC)
@@ -233,10 +232,10 @@ async def sweep_low_availability(
 
         # Check if we already fired today for this hotel.
         # Notification is in app.models.platform (same module as Subscription etc.)
-        from app.models.platform import Notification as _Notif  # noqa: PLC0415
-        from datetime import timezone as _tz_mod  # noqa: PLC0415
 
-        day_start = now.astimezone(_tz_mod.utc).replace(
+        from app.models.platform import Notification as _Notif  # noqa: PLC0415
+
+        day_start = now.astimezone(UTC).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
         notif_check = await db.execute(

@@ -12,6 +12,8 @@ from app.core.tenant import TenantContext
 from app.db.session import get_db
 from app.schemas.stay import (
     CheckOutOut,
+    CheckoutQuoteOut,
+    CheckoutQuoteRequest,
     CheckOutRequest,
     CheckoutReversalRequest,
     SettlementPreviewOut,
@@ -38,6 +40,23 @@ async def settlement_preview(
     booking = await get_booking(db, tenant, booking_id)
     settlement = await stay_service.compute_settlement(db, booking, late_fee=late_fee)
     return SettlementPreviewOut(**{k: str(v) for k, v in settlement.items()})
+
+
+@router.post("/{booking_id}/quote", response_model=CheckoutQuoteOut)
+async def checkout_quote(
+    booking_id: UUID,
+    body: CheckoutQuoteRequest,
+    tenant: TenantContext = Depends(require_permissions(Permission.CHECKOUT)),
+    db: AsyncSession = Depends(get_db),
+) -> CheckoutQuoteOut:
+    """Read-only, server-authoritative pricing of a checkout draft.
+
+    The screen displays these numbers verbatim; the atomic commit prices the
+    same draft with the same calculator, so they can never disagree.
+    """
+    booking = await get_booking(db, tenant, booking_id)
+    quote = await stay_service.quote_checkout(db, tenant, booking, body)
+    return CheckoutQuoteOut(**quote)
 
 
 @router.post("", response_model=CheckOutOut, status_code=201)

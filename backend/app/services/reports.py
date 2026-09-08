@@ -30,16 +30,16 @@ from app.schemas.ops import (
     OccupancyReportOut,
     PaymentMethodReportOut,
     PlatformTrendOut,
+    RestaurantBillingOut,
+    RestaurantBillingRowOut,
+    RevenueReportOut,
     RoomTypeRevenue,
+    RoomUtilizationOut,
+    RoomUtilizationRowOut,
     SmartDashboardOut,
     SmartInsight,
     TrendPoint30,
     WeekPatternItem,
-    RestaurantBillingOut,
-    RestaurantBillingRowOut,
-    RevenueReportOut,
-    RoomUtilizationOut,
-    RoomUtilizationRowOut,
 )
 
 
@@ -475,7 +475,7 @@ async def daily_revenue_trend(
     Uses a LEFT JOIN against a generated series so every day in the window
     appears — even days with zero activity.
     """
-    from datetime import UTC, datetime
+    from datetime import datetime
     from zoneinfo import ZoneInfo
 
     from app.models.booking import CheckIn, CheckOut
@@ -564,7 +564,7 @@ async def arrivals_today(
     tenant: TenantContext,
 ) -> ArrivalsOut:
     """Confirmed bookings with check_in_date = today (hotel tz), not yet checked in."""
-    from datetime import UTC, datetime
+    from datetime import datetime
     from zoneinfo import ZoneInfo
 
     hotel_id = tenant.require_hotel()
@@ -654,7 +654,8 @@ async def platform_monthly_trend(
     months = max(1, min(months, 24))
 
     # First day of the window (months ago).
-    from datetime import date as _date, datetime
+    from datetime import date as _date
+    from datetime import datetime
 
     now = datetime.now()
     # Build the months list (YYYY-MM strings, newest last).
@@ -721,10 +722,8 @@ async def smart_dashboard(
     using the hotel's local timezone for date grouping so "today" is always
     the hotel's calendar today, not UTC today.
     """
-    from datetime import UTC, datetime
+    from datetime import datetime
     from zoneinfo import ZoneInfo
-
-    from sqlalchemy import and_, case
 
     from app.models.booking import CheckIn, CheckOut
     from app.models.hotel import Hotel
@@ -1082,9 +1081,9 @@ async def smart_dashboard(
 
     # Today's revenue
     today_rev = rev_by_date.get(today, Decimal("0"))
-    yesterday_rev = rev_by_date.get(today - timedelta(days=1), Decimal("0"))
     week_avg_rev = money(
-        sum(rev_by_date.get(today - timedelta(days=i), Decimal("0")) for i in range(1, 8)) / Decimal(7)
+        sum(rev_by_date.get(today - timedelta(days=i), Decimal("0")) for i in range(1, 8))
+        / Decimal(7)
     )
 
     if today_rev > 0:
@@ -1239,7 +1238,10 @@ async def smart_dashboard(
             level="success",
             icon="CalendarDays",
             title="Long Average Stay",
-            body=f"Guests are staying an average of {float(alos):.1f} nights — strong occupancy per booking.",
+            body=(
+                f"Guests are staying an average of {float(alos):.1f} nights"
+                " — strong occupancy per booking."
+            ),
             metric=f"{float(alos):.1f} nights",
         ))
     elif alos > 0 and alos < 1.5:
