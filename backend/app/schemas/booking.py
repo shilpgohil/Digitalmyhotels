@@ -135,6 +135,14 @@ class BookingCreate(BaseModel):
         return self
 
 
+class BookingRoomReplaceRequest(BaseModel):
+    """Swap one allocated room before check-in (availability-aware, atomic)."""
+
+    from_room_id: UUID
+    to_room_id: UUID
+    reason: str | None = Field(default=None, max_length=500)
+
+
 class BookingUpdate(BaseModel):
     check_in_date: date | None = None
     check_out_date: date | None = None

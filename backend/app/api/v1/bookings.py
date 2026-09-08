@@ -15,6 +15,7 @@ from app.schemas.booking import (
     BookingCreate,
     BookingListOut,
     BookingOut,
+    BookingRoomReplaceRequest,
     BookingUpdate,
 )
 from app.services import bookings as bookings_service
@@ -178,6 +179,30 @@ async def update_booking(
 ) -> BookingOut:
     booking = await bookings_service.update_booking(
         db, tenant, booking_id, body, correlation_id=_correlation(request)
+    )
+    return await bookings_service.to_out(db, booking)
+
+
+@router.post("/{booking_id}/replace-room", response_model=BookingOut)
+async def replace_booking_room(
+    booking_id: UUID,
+    body: BookingRoomReplaceRequest,
+    request: Request,
+    tenant: TenantContext = Depends(require_permissions(Permission.BOOKINGS_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> BookingOut:
+    """Swap one allocated room BEFORE check-in — availability-aware and atomic.
+
+    In-house stays use POST /room-transfers instead (separate lifecycle).
+    """
+    booking = await bookings_service.replace_booking_room(
+        db,
+        tenant,
+        booking_id,
+        from_room_id=body.from_room_id,
+        to_room_id=body.to_room_id,
+        reason=body.reason,
+        correlation_id=_correlation(request),
     )
     return await bookings_service.to_out(db, booking)
 

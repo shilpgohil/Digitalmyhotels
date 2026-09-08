@@ -102,6 +102,11 @@ class Booking(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     checkout_reminded_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Set once when the missed-arrival alert fires (scheduled check-in + 2 h
+    # grace passed, still confirmed). Release stays MANUAL (no-show/cancel).
+    missed_arrival_notified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )

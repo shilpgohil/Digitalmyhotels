@@ -127,6 +127,39 @@ async def check_in(
             "Early check-in fee requires an authorized role", code="early_fee_unauthorized"
         )
 
+    # ── Timestamp sanity guards (client 9-08 item 24) ──────────────────────
+    # Actual check-in moment and the scheduled stay dates are SEPARATE
+    # concepts; impossible values are rejected instead of silently stored.
+    from zoneinfo import ZoneInfo as _ZoneInfo
+
+    from app.models.hotel import Hotel as _Hotel
+
+    now = _now()
+    hotel_row = await db.get(_Hotel, hotel_id)
+    try:
+        hotel_tz = _ZoneInfo((hotel_row.timezone if hotel_row else None) or "Asia/Kolkata")
+    except (KeyError, ValueError):
+        hotel_tz = _ZoneInfo("Asia/Kolkata")
+
+    if body.checked_in_at is not None:
+        actual = body.checked_in_at
+        if actual.tzinfo is None:
+            # Naive timestamps from the client are hotel-local by convention.
+            actual = actual.replace(tzinfo=hotel_tz)
+        if actual > now + timedelta(minutes=5):
+            raise ValidationAppError(
+                "Actual check-in time cannot be in the future",
+                code="checkin_time_future",
+            )
+
+    hotel_today = now.astimezone(hotel_tz).date()
+    if booking.check_in_date > hotel_today and not body.is_early:
+        raise ValidationAppError(
+            f"Booking is scheduled to arrive on {booking.check_in_date.isoformat()}. "
+            "Use the early check-in option to check the guest in before that date.",
+            code="early_checkin_required",
+        )
+
     rooms = await _current_rooms_locked(db, booking)
     for room in rooms:
         # Reserved (normal flow) or allocatable (walk-in confirmed today).

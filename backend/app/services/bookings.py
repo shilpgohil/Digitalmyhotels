@@ -514,6 +514,176 @@ async def update_booking(
     return booking
 
 
+async def replace_booking_room(
+    db: AsyncSession,
+    tenant: TenantContext,
+    booking_id: UUID,
+    *,
+    from_room_id: UUID,
+    to_room_id: UUID,
+    reason: str | None = None,
+    correlation_id: str | None = None,
+) -> Booking:
+    """Swap one allocated room on a NOT-yet-checked-in booking (client 9-08
+    item 22 — room replacement during advance-booking check-in).
+
+    Atomic within the request transaction: locks both rooms, re-checks
+    availability for the booking's dates, keeps allocation history
+    (is_current=False + new row), reprices the booking and adjusts the
+    ledger. After check-in the separate room-transfer flow applies.
+    """
+    hotel_id = tenant.require_hotel()
+    booking = await get_booking(db, tenant, booking_id)
+
+    if booking.status not in ("pending", "confirmed"):
+        raise ValidationAppError(
+            "Rooms can only be replaced before check-in — use room transfer "
+            "for in-house stays",
+            code="booking_not_replaceable",
+        )
+    if from_room_id == to_room_id:
+        raise ValidationAppError("Choose a different room", code="same_room")
+
+    current = next(
+        (br for br in booking.rooms if br.is_current and br.room_id == from_room_id),
+        None,
+    )
+    if current is None:
+        raise NotFoundError("That room is not allocated to this booking")
+    if any(br.is_current and br.room_id == to_room_id for br in booking.rooms):
+        raise ValidationAppError(
+            "That room is already part of this booking", code="room_already_allocated"
+        )
+
+    locked = await _lock_rooms(db, hotel_id, [from_room_id, to_room_id])
+    by_id = {r.id: r for r in locked}
+    from_room, to_room = by_id[from_room_id], by_id[to_room_id]
+
+    # Availability re-check inside the lock — the atomic double-booking guard.
+    await _assert_no_overlap(
+        db,
+        hotel_id,
+        [to_room_id],
+        booking.check_in_date,
+        booking.check_out_date,
+        exclude_booking_id=booking.id,
+    )
+    if booking.check_in_date <= date.today() and not is_allocatable(to_room.status):
+        raise ConflictError(
+            f"Room {to_room.room_number} is not available (status: {to_room.status})",
+            code="room_not_allocatable",
+        )
+
+    # ── Repricing ──────────────────────────────────────────────────────────
+    # Same room type: keep the stored rate (preserves staff overrides).
+    # Different type: price from the new room type, same rules as creation.
+    to_room_typed = (
+        await db.execute(
+            select(Room)
+            .options(selectinload(Room.room_type))
+            .where(Room.id == to_room_id)
+        )
+    ).scalar_one()
+    if to_room.room_type_id == current.room_type_id:
+        new_rate = current.rate
+    else:
+        rt = to_room_typed.room_type
+        is_day_use = booking.check_in_date == booking.check_out_date
+        if is_day_use and rt.hourly_rate and rt.hourly_rate > 0:
+            hours = _day_use_hours(booking.check_in_time, booking.check_out_time)
+            new_rate = money(rt.hourly_rate * hours)
+        else:
+            new_rate = money(rt.base_price)
+
+    # ── History-preserving swap ────────────────────────────────────────────
+    current.is_current = False
+    db.add(
+        BookingRoom(
+            hotel_id=hotel_id,
+            booking_id=booking.id,
+            room_id=to_room.id,
+            room_type_id=to_room.room_type_id,
+            rate=new_rate,
+            is_current=True,
+        )
+    )
+
+    # Reservation status follows the swap (mirrors create_booking / release).
+    if booking.status == "confirmed":
+        if from_room.status == RoomStatus.RESERVED.value:
+            from_room.status = RoomStatus.AVAILABLE.value
+        if to_room.status in (RoomStatus.AVAILABLE.value, RoomStatus.CLEAN_READY.value):
+            to_room.status = RoomStatus.RESERVED.value
+
+    # ── Reprice booking total (room subtotal + charges − discount) ─────────
+    from app.models.payment import HotelCharge
+
+    charges_result = await db.execute(
+        select(func.coalesce(func.sum(HotelCharge.total_amount), 0)).where(
+            HotelCharge.booking_id == booking.id,
+            HotelCharge.hotel_id == hotel_id,
+            HotelCharge.voided_at.is_(None),
+        )
+    )
+    charges_total = Decimal(str(charges_result.scalar_one()))
+    nights = _nights(booking.check_in_date, booking.check_out_date)
+    room_subtotal = (
+        sum(
+            (
+                br.rate
+                for br in booking.rooms
+                if br.is_current and br.room_id != from_room_id
+            ),
+            Decimal("0.00"),
+        )
+        + new_rate
+    ) * nights
+
+    old_total = booking.total_amount
+    booking.total_amount = money(
+        max(room_subtotal + charges_total - booking.discount_amount, Decimal("0.00"))
+    )
+    settle_booking_amounts(booking)
+
+    delta = booking.total_amount - old_total
+    if delta != 0:
+        from app.services.ledger import append_entry
+
+        await append_entry(
+            db,
+            hotel_id=hotel_id,
+            booking_id=booking.id,
+            entry_type="debit" if delta > 0 else "credit",
+            amount=abs(delta),
+            description=(
+                f"Room replacement {from_room.room_number} → {to_room.room_number}"
+            ),
+            reference_type="booking_room_replacement",
+            reference_id=booking.id,
+            created_by_id=tenant.user_id,
+        )
+
+    await db.flush()
+    await write_audit(
+        db,
+        action="bookings.room_replaced",
+        entity_type="booking",
+        entity_id=booking.id,
+        actor_id=tenant.user_id,
+        hotel_id=hotel_id,
+        before={"room": from_room.room_number, "rate": str(current.rate)},
+        after={
+            "room": to_room.room_number,
+            "rate": str(new_rate),
+            "total": str(booking.total_amount),
+            "reason": reason,
+        },
+        correlation_id=correlation_id,
+    )
+    # Reload with fresh room allocations for the response.
+    return await get_booking(db, tenant, booking_id)
+
+
 async def _release_rooms(db: AsyncSession, booking: Booking) -> None:
     room_ids = [br.room_id for br in booking.rooms if br.is_current]
     if not room_ids:

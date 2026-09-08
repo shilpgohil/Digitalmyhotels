@@ -395,6 +395,133 @@ function MaskedIdInput({
 }
 
 /**
+ * Room replacement for a NOT-yet-checked-in booking (client 9-08 item 22).
+ *
+ * Shows the allocated room(s) with a "Change room" action. Picking a
+ * replacement calls POST /bookings/{id}/replace-room — the backend swaps the
+ * allocation atomically (availability check, reservation status, repricing,
+ * ledger, audit) and the booking is refetched.
+ */
+function RoomReplaceControl({
+  booking,
+  onReplaced,
+}: {
+  readonly booking: BookingOut;
+  readonly onReplaced: () => void;
+}) {
+  const t = useTranslations("checkin");
+  const tc = useTranslations("common");
+  const api = useApi();
+  const { activeHotelId } = useAuth();
+  const [openFor, setOpenFor] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const avail = useQuery<import("@/types/hotel").RoomAvailabilityOut>({
+    queryKey: [
+      "room-availability",
+      activeHotelId,
+      booking.check_in_date,
+      booking.check_out_date,
+    ],
+    queryFn: () =>
+      api(
+        `/api/v1/rooms/availability?check_in=${booking.check_in_date}&check_out=${booking.check_out_date}`,
+      ),
+    enabled: !!openFor && !!activeHotelId,
+    staleTime: 15_000,
+  });
+
+  const currentRooms = booking.rooms.filter((r) => r.is_current);
+  const currentIds = new Set(currentRooms.map((r) => r.room_id));
+
+  const replace = async (toRoomId: string) => {
+    if (!openFor) return;
+    setBusy(true);
+    try {
+      await api(`/api/v1/bookings/${booking.id}/replace-room`, {
+        method: "POST",
+        body: { from_room_id: openFor, to_room_id: toRoomId },
+      });
+      toast.success(t("roomReplaced"));
+      setOpenFor(null);
+      onReplaced();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : tc("error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {currentRooms.map((r) => (
+          <div
+            key={r.room_id}
+            className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-1.5 text-sm"
+          >
+            <BedDouble className="size-4 text-gold-600" aria-hidden />
+            <span className="font-semibold">{r.room_number}</span>
+            <span className="text-xs text-muted-foreground">
+              {r.room_type_name} · {fmtINR(Number.parseFloat(r.rate) || 0)}
+            </span>
+            <button
+              type="button"
+              className="text-xs font-medium text-gold-700 underline hover:text-gold-800"
+              onClick={() => setOpenFor(openFor === r.room_id ? null : r.room_id)}
+              disabled={busy}
+            >
+              {openFor === r.room_id ? tc("cancel") : t("changeRoom")}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {openFor && (
+        <div className="rounded-lg border bg-white p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            {t("pickReplacementRoom")}
+          </p>
+          {avail.isLoading && <Skeleton className="h-9 w-full" />}
+          {avail.isError && (
+            <p className="text-sm text-danger">
+              {tc("error")}{" "}
+              <button type="button" className="underline" onClick={() => avail.refetch()}>
+                {tc("retry")}
+              </button>
+            </p>
+          )}
+          {avail.data && (
+            <div className="flex flex-wrap gap-2">
+              {avail.data.available
+                .filter((room) => !currentIds.has(room.id))
+                .map((room) => (
+                  <button
+                    key={room.id}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void replace(room.id)}
+                    className="rounded-lg border px-3 py-1.5 text-sm transition-colors hover:border-gold-400 hover:bg-gold-50 disabled:opacity-50"
+                  >
+                    <span className="font-semibold">{room.room_number}</span>{" "}
+                    <span className="text-xs text-muted-foreground">
+                      {room.room_type_name ?? ""} ·{" "}
+                      {fmtINR(Number.parseFloat(room.room_type_base_price) || 0)}
+                    </span>
+                  </button>
+                ))}
+              {avail.data.available.filter((room) => !currentIds.has(room.id)).length === 0 && (
+                <p className="text-sm text-muted-foreground">{t("noReplacementRooms")}</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * "Show saved ID" — audited reveal of the full decrypted ID number for a
  * returning guest (client 9-08 item 8). Only rendered for roles holding
  * guests.view_full_id; every click is written to the audit log server-side.
@@ -2227,7 +2354,7 @@ function CheckinSuccess({
 // ─── Main check-in form ───────────────────────────────────────────────────────
 
 function CheckinForm({
-  booking,
+  booking: bookingProp,
   onBack,
   onDone,
 }: {
@@ -2245,6 +2372,26 @@ function CheckinForm({
   const api = useApi();
   const { activeHotelId } = useAuth();
   const queryClient = useQueryClient();
+
+  // Live copy of the booking — room replacement reprices/reallocates it on
+  // the server, so the form must re-read totals and rooms afterwards.
+  const [booking, setBooking] = useState(bookingProp);
+  useEffect(() => {
+    setBooking(bookingProp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingProp.id]);
+
+  const refreshBooking = async () => {
+    try {
+      const fresh = await api<BookingOut>(`/api/v1/bookings/${bookingProp.id}`);
+      setBooking(fresh);
+    } catch {
+      /* keep the current copy; next action will surface the error */
+    }
+    queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
+    queryClient.invalidateQueries({ queryKey: ["room-availability", activeHotelId] });
+    queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
+  };
 
   // ── Primary guest editable state ──
   const [pgName, setPgName] = useState(booking.primary_guest_name ?? "");
@@ -2833,6 +2980,14 @@ function CheckinForm({
                 <Input value={pgCompany} onChange={(e) => setPgCompany(e.target.value)} placeholder={t("companyPlaceholder")} />
               </div>
             )}
+          </div>
+
+          {/* Allocated room(s) with availability-aware replacement */}
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("allocatedRooms")}
+            </Label>
+            <RoomReplaceControl booking={booking} onReplaced={() => void refreshBooking()} />
           </div>
           {earlyFee > 0 && (() => {
             const rate = Number.parseFloat(checkinSettings.data?.early_checkin_fee_per_hour ?? "1") || 1;

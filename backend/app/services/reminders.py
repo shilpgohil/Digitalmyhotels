@@ -102,6 +102,109 @@ async def sweep_arrival_today(
     return fired
 
 
+# ── Missed arrival ────────────────────────────────────────────────────────────
+
+_MISSED_ARRIVAL_GRACE_MINUTES = 120  # confirmed product decision: 2 h grace
+
+
+async def sweep_missed_arrivals(
+    db: AsyncSession,
+    *,
+    now_utc: datetime | None = None,
+) -> int:
+    """Fire ONCE per confirmed booking whose scheduled arrival + 2 h grace has
+    passed without a check-in (client 9-08 item 23).
+
+    Deliberately does NOT auto-cancel or release rooms — the desk decides via
+    the existing manual No-show / Cancel actions.
+    """
+    from app.models.booking import Booking, BookingRoom
+    from app.models.guest import Guest
+    from app.models.hotel import Hotel, HotelSettings
+    from app.models.room import Room
+    from app.services.notification_events import NE, fire
+
+    now = now_utc or datetime.now(UTC)
+
+    result = await db.execute(
+        select(Booking, Hotel.timezone, HotelSettings.check_in_time)
+        .join(Hotel, Hotel.id == Booking.hotel_id)
+        .outerjoin(HotelSettings, HotelSettings.hotel_id == Booking.hotel_id)
+        .where(
+            Booking.status == "confirmed",
+            Booking.missed_arrival_notified_at.is_(None),
+            # Cheap pre-filter; the exact tz-aware cutoff is checked below.
+            Booking.check_in_date <= now.date(),
+        )
+    )
+    rows = result.all()
+    fired = 0
+
+    for booking, hotel_tz, hotel_check_in_time in rows:
+        try:
+            tz = ZoneInfo(hotel_tz)
+        except (KeyError, ValueError):
+            tz = ZoneInfo("Asia/Kolkata")
+
+        # Scheduled arrival: booking time → hotel standard time → 14:00.
+        raw_time = (booking.check_in_time or "").strip()
+        if raw_time:
+            try:
+                hour, minute = (int(p) for p in raw_time.split(":")[:2])
+            except ValueError:
+                hour, minute = 14, 0
+        elif hotel_check_in_time is not None:
+            hour, minute = hotel_check_in_time.hour, hotel_check_in_time.minute
+        else:
+            hour, minute = 14, 0
+
+        scheduled = datetime(
+            booking.check_in_date.year,
+            booking.check_in_date.month,
+            booking.check_in_date.day,
+            hour,
+            minute,
+            tzinfo=tz,
+        ).astimezone(UTC)
+
+        if now < scheduled + timedelta(minutes=_MISSED_ARRIVAL_GRACE_MINUTES):
+            continue  # still within grace
+
+        guest = (
+            await db.get(Guest, booking.primary_guest_id)
+            if booking.primary_guest_id
+            else None
+        )
+        rooms_result = await db.execute(
+            select(Room.room_number)
+            .join(BookingRoom, BookingRoom.room_id == Room.id)
+            .where(
+                BookingRoom.booking_id == booking.id,
+                BookingRoom.is_current.is_(True),
+            )
+        )
+        room_numbers = ", ".join(rooms_result.scalars()) or "—"
+
+        await fire(
+            db,
+            hotel_id=booking.hotel_id,
+            event=NE.MISSED_ARRIVAL,
+            data={
+                "booking_number": booking.booking_number,
+                "guest_name": guest.full_name if guest else "Guest",
+                "check_in_time": f"{hour:02d}:{minute:02d}",
+                "rooms": room_numbers,
+                "booking_id": str(booking.id),
+            },
+        )
+        booking.missed_arrival_notified_at = now
+        fired += 1
+
+    if fired:
+        await db.commit()
+    return fired
+
+
 # ── Checkout reminder ─────────────────────────────────────────────────────────
 
 async def sweep_checkout_reminders(
@@ -276,7 +379,11 @@ async def reminders_loop() -> None:
 
     while True:
         await asyncio.sleep(SWEEP_INTERVAL_SECONDS)
-        for sweep_fn in (sweep_arrival_today, sweep_checkout_reminders):
+        for sweep_fn in (
+            sweep_arrival_today,
+            sweep_missed_arrivals,
+            sweep_checkout_reminders,
+        ):
             try:
                 async with AsyncSessionLocal() as session:
                     fired = await sweep_fn(session)

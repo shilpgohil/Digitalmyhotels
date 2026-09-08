@@ -68,6 +68,7 @@ class NE(StrEnum):
 
     # Reminders
     ARRIVAL_TODAY = "reminder.arrival_today"
+    MISSED_ARRIVAL = "reminder.missed_arrival"
     CHECKOUT_REMINDER = "reminder.checkout_soon"
     LOW_ROOM_AVAILABILITY = "reminder.low_availability"
 
@@ -273,6 +274,16 @@ _TEMPLATES: dict[NE, dict] = {
             "{check_in_time}. Room: {rooms}"
         ),
         "deep_link": "/checkin?booking={booking_id}",
+    },
+    NE.MISSED_ARRIVAL: {
+        "category": "front_desk",
+        "title": "Guest has not arrived",
+        "body": (
+            "{booking_number} — {guest_name} was expected at {check_in_time} "
+            "and has not checked in. Mark No-show or Cancel to release "
+            "room(s) {rooms}."
+        ),
+        "deep_link": "/bookings?booking={booking_id}",
     },
     NE.CHECKOUT_REMINDER: {
         "category": "front_desk",
