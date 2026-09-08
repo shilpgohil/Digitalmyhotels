@@ -34,7 +34,10 @@ async def mark_read(
     db: AsyncSession = Depends(get_db),
 ) -> NotificationOut:
     row = await notifications_service.mark_read(db, tenant, notification_id)
-    return NotificationOut.model_validate(row)
+    out = NotificationOut.model_validate(row)
+    # Read state is per-user (receipt just written) — reflect that for the caller.
+    out.is_read = True
+    return out
 
 
 @router.post("/mark-all-read")

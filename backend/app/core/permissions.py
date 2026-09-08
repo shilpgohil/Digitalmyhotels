@@ -185,6 +185,31 @@ ROLE_PERMISSIONS: dict[RoleCode, frozenset[Permission]] = {
 }
 
 
+# ── Notification/dashboard category visibility per role ──────────────────────
+# Client 9-08 items 1/2/35: Housekeeping sees rooms/tasks/maintenance only;
+# Reception sees front-desk operations; finance/admin/platform categories are
+# Owner/Manager only. Shared by the notifications API AND the dashboard so the
+# two can never disagree.
+ALL_NOTIFICATION_CATEGORIES: frozenset[str] = frozenset(
+    {"front_desk", "housekeeping", "finance", "operations", "admin", "platform"}
+)
+
+ROLE_NOTIFICATION_CATEGORIES: dict[RoleCode, frozenset[str]] = {
+    RoleCode.SUPER_ADMIN: ALL_NOTIFICATION_CATEGORIES,
+    RoleCode.OWNER: ALL_NOTIFICATION_CATEGORIES,
+    RoleCode.MANAGER: ALL_NOTIFICATION_CATEGORIES,
+    RoleCode.ADMIN: frozenset({"front_desk", "housekeeping", "operations"}),
+    RoleCode.HOUSEKEEPING: frozenset({"housekeeping", "operations"}),
+}
+
+
+def notification_categories_for_role(role: RoleCode | str | None) -> frozenset[str]:
+    if role is None:
+        return ALL_NOTIFICATION_CATEGORIES
+    code = RoleCode(role) if not isinstance(role, RoleCode) else role
+    return ROLE_NOTIFICATION_CATEGORIES.get(code, frozenset({"front_desk"}))
+
+
 def permissions_for_role(role: RoleCode | str) -> frozenset[Permission]:
     code = RoleCode(role) if not isinstance(role, RoleCode) else role
     return ROLE_PERMISSIONS.get(code, frozenset())

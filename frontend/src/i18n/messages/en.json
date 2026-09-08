@@ -53,6 +53,13 @@
     "welcomeSubtitle": "Sign in to manage your hotel",
     "resetTitle": "Reset password",
     "resetSubtitle": "Enter your email and we will send you a reset token.",
+    "hierarchicalResetIntro": "Password resets are handled by your administrator — no email token needed.",
+    "staffResetTitle": "Hotel staff",
+    "staffResetBody": "Ask your hotel administrator (owner or manager). They can reset your password from Team Management in seconds.",
+    "ownerResetTitle": "Hotel owner / administrator",
+    "ownerResetBody": "Contact DigitalMyHotels support — the platform team will verify your identity and issue a reset.",
+    "tempPasswordTitle": "What happens next",
+    "tempPasswordBody": "You receive a temporary password, all existing sessions are signed out, and you must set a new password at your next login.",
     "sendResetToken": "Send reset token",
     "resetRequested": "If the email is registered, a reset token has been sent.",
     "resetToken": "Reset token",
@@ -280,7 +287,8 @@
     "noMembers": "No team members yet.",
     "role_manager": "Manager",
     "role_admin": "Admin / Reception",
-    "role_housekeeping": "Housekeeping"
+    "role_housekeeping": "Housekeeping",
+    "editProfile": "Edit profile"
   },
   "bookings": {
     "title": "Bookings",

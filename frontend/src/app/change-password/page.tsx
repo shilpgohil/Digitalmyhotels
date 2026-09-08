@@ -6,8 +6,8 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { RequireAuth } from "@/components/auth/require-auth";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/auth-context";
 
@@ -48,22 +48,22 @@ function ChangePasswordForm() {
         <div className="mt-6 space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="current">{t("currentPassword")}</Label>
-            <Input
+            <PasswordInput
               id="current"
-              type="password"
               value={current}
               onChange={(e) => setCurrent(e.target.value)}
               disabled={busy}
+              autoComplete="current-password"
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="next">{t("newPassword")}</Label>
-            <Input
+            <PasswordInput
               id="next"
-              type="password"
               value={next}
               onChange={(e) => setNext(e.target.value)}
               disabled={busy}
+              autoComplete="new-password"
             />
           </div>
           {error && (

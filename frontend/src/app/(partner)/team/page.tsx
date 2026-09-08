@@ -4,10 +4,11 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, MoreVertical, KeyRound, Ban, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { Plus, MoreVertical, KeyRound, Ban, CheckCircle2, Eye, EyeOff, Pencil } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
@@ -77,6 +78,7 @@ function TeamContent() {
   });
 
   const [resetTarget, setResetTarget] = useState<TeamMemberOut | null>(null);
+  const [editTarget, setEditTarget] = useState<TeamMemberOut | null>(null);
   const [page, setPage] = useState(1);
 
   return (
@@ -145,6 +147,10 @@ function TeamContent() {
                             <MoreVertical className="size-4" aria-hidden />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setEditTarget(member)}>
+                              <Pencil className="size-4" aria-hidden />
+                              {t("editProfile")}
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setResetTarget(member)}>
                               <KeyRound className="size-4" aria-hidden />
                               {t("resetPassword")}
@@ -196,6 +202,11 @@ function TeamContent() {
         <ResetPasswordDialog
           member={resetTarget}
           onClose={() => setResetTarget(null)}
+          onDone={invalidate}
+        />
+        <EditMemberDialog
+          member={editTarget}
+          onClose={() => setEditTarget(null)}
           onDone={invalidate}
         />
       </main>
@@ -375,8 +386,129 @@ function ResetPasswordDialog({
         >
           <div className="space-y-1.5">
             <Label htmlFor="rp-password">{t("newPassword")}</Label>
-            <Input id="rp-password" name="password" type="password" required minLength={8} />
+            <PasswordInput id="rp-password" name="password" required minLength={8} />
             <p className="text-xs text-muted-foreground">{t("temporaryPasswordHint")}</p>
+          </div>
+          {error && (
+            <p className="text-sm text-danger" role="alert">
+              {error}
+            </p>
+          )}
+          <DialogFooter>
+            <DialogClose className="inline-flex h-8 items-center rounded-lg border border-border px-2.5 text-sm hover:bg-muted">
+              {tc("cancel")}
+            </DialogClose>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? tc("saving") : tc("save")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Edit a team member's profile (name / phone / role) via the existing
+ * PATCH /team/{membership_id} route (client 9-08 item 32).
+ */
+function EditMemberDialog({
+  member,
+  onClose,
+  onDone,
+}: {
+  readonly member: TeamMemberOut | null;
+  readonly onClose: () => void;
+  readonly onDone: () => void;
+}) {
+  const t = useTranslations("team");
+  const tc = useTranslations("common");
+  const api = useApi();
+  const [error, setError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: ({
+      membershipId,
+      body,
+    }: {
+      membershipId: string;
+      body: Record<string, string>;
+    }) =>
+      api<TeamMemberOut>(`/api/v1/team/${membershipId}`, {
+        method: "PATCH",
+        body,
+      }),
+    onSuccess: () => {
+      toast.success(t("memberUpdated"));
+      setError(null);
+      onClose();
+      onDone();
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : tc("error")),
+  });
+
+  return (
+    <Dialog open={member !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {t("editProfile")} — {member?.full_name}
+          </DialogTitle>
+        </DialogHeader>
+        <form
+          key={member?.membership_id ?? "none"}
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!member) return;
+            const form = new FormData(e.currentTarget);
+            const body: Record<string, string> = {};
+            const name = String(form.get("full_name") || "").trim();
+            const phone = String(form.get("phone") || "").trim();
+            const role = String(form.get("role_code") || "");
+            if (name && name !== member.full_name) body.full_name = name;
+            if (phone !== (member.phone ?? "")) body.phone = phone;
+            if (role && role !== member.role_code) body.role_code = role;
+            if (Object.keys(body).length === 0) {
+              onClose();
+              return;
+            }
+            mutation.mutate({ membershipId: member.membership_id, body });
+          }}
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="em-name">{t("name")}</Label>
+            <Input
+              id="em-name"
+              name="full_name"
+              defaultValue={member?.full_name ?? ""}
+              required
+              minLength={2}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="em-phone">{t("phone")}</Label>
+            <Input
+              id="em-phone"
+              name="phone"
+              defaultValue={member?.phone ?? ""}
+              inputMode="tel"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="em-role">{t("role")}</Label>
+            <select
+              id="em-role"
+              name="role_code"
+              defaultValue={member?.role_code ?? ""}
+              className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+            >
+              {CREATABLE_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {t(`role_${r}`)}
+                </option>
+              ))}
+            </select>
           </div>
           {error && (
             <p className="text-sm text-danger" role="alert">

@@ -117,9 +117,41 @@ class Notification(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # Permission-guarded in the frontend: if the user lacks the required
     # permission for that URL they are redirected to their home page instead.
     deep_link: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # LEGACY shared flag — kept for user-targeted rows and backwards compat.
+    # Hotel-wide notifications now track read state PER USER via
+    # NotificationRead (client 9-08 items 2/35: one employee reading an alert
+    # must not mark it read for everyone).
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+
+class NotificationRead(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Per-user read receipt for a notification."""
+
+    __tablename__ = "notification_reads"
+    __table_args__ = (
+        Index(
+            "uq_notification_read_user",
+            "notification_id",
+            "user_id",
+            unique=True,
+        ),
+    )
+
+    notification_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("notifications.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class AuditLog(Base, UUIDPrimaryKeyMixin, TimestampMixin):

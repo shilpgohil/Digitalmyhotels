@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { apiFetch, ApiError, API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
@@ -633,9 +634,8 @@ export default function AddHotelPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ah-owner-pw">{t("ownerPassword")} *</Label>
-              <Input
+              <PasswordInput
                 id="ah-owner-pw"
-                type="password"
                 value={ownerPassword}
                 onChange={(e) => setOwnerPassword(e.target.value)}
                 placeholder="Min. 8 characters"

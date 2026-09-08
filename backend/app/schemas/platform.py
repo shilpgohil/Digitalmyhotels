@@ -26,6 +26,9 @@ class NotificationListOut(BaseModel):
     items: list[NotificationOut]
     total: int
     unread: int
+    # Categories this user's role may see — the bell renders its filter chips
+    # from this list so Housekeeping never sees finance/admin chips.
+    allowed_categories: list[str] = []
 
 
 class AuditLogOut(ORMModel):
