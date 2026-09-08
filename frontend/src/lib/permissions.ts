@@ -20,6 +20,7 @@ export const PERMISSIONS = {
 
   guestsView: "guests.view",
   guestsManage: "guests.manage",
+  guestsViewFullId: "guests.view_full_id",
   bookingsView: "bookings.view",
   bookingsManage: "bookings.manage",
   checkin: "stay.checkin",

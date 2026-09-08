@@ -44,7 +44,9 @@ import {
   Car,
   Clock,
   Copy,
+  Eye,
   Globe,
+  Loader2,
   ChevronDown,
   ChevronUp,
   CreditCard,
@@ -77,7 +79,7 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE, ApiError, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
-import { useImageEditor } from "@/components/media/image-editor";
+import { docAspectFor, useImageEditor } from "@/components/media/image-editor";
 import { compressDocument } from "@/lib/compress-image";
 import { fmtApiDate, fmtINR, localToday, localTomorrow } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
@@ -115,6 +117,8 @@ interface ServiceItem {
 interface ResolvedCoGuest {
   guest_id: string;
   full_name: string;
+  /** Resolved phone — shown on the guest card (client 9-08 item 9). */
+  phone?: string;
   /** Docs queued for upload after guest is created/resolved. */
   docs: { side: DocSide; file: File }[];
   /** Form C details when this co-guest is a foreign national. */
@@ -391,6 +395,62 @@ function MaskedIdInput({
 }
 
 /**
+ * "Show saved ID" — audited reveal of the full decrypted ID number for a
+ * returning guest (client 9-08 item 8). Only rendered for roles holding
+ * guests.view_full_id; every click is written to the audit log server-side.
+ */
+function RevealIdButton({
+  guestId,
+  onRevealed,
+}: {
+  readonly guestId: string | null | undefined;
+  readonly onRevealed: (idNumber: string) => void;
+}) {
+  const t = useTranslations("checkin");
+  const tc = useTranslations("common");
+  const api = useApi();
+  const { can } = useAuth();
+  const [busy, setBusy] = useState(false);
+
+  if (!guestId || !can(PERMISSIONS.guestsViewFullId)) return null;
+
+  const reveal = async () => {
+    setBusy(true);
+    try {
+      const res = await api<{ id_number: string | null }>(
+        `/api/v1/guests/${guestId}/reveal-id`,
+        { method: "POST" },
+      );
+      if (res.id_number) {
+        onRevealed(res.id_number);
+        toast.success(t("savedIdLoaded"));
+      } else {
+        toast.info(t("noSavedId"));
+      }
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : tc("error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      className="shrink-0"
+      disabled={busy}
+      onClick={() => void reveal()}
+      title={t("revealSavedIdHint")}
+    >
+      {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Eye className="size-3.5" aria-hidden />}
+      {t("revealSavedId")}
+    </Button>
+  );
+}
+
+/**
  * Inline camera view for desktop selfie capture — opens the front camera via
  * getUserMedia, captures a frame to canvas and returns it as a File.
  */
@@ -650,9 +710,12 @@ function ForeignGuestSection({
               </div>
               <div className="space-y-1.5">
                 <Label className={lbl}>{t("passportExpiry")}</Label>
+                {/* Valid document required: expiry ≥ today, selectable 15 y out
+                    (client 9-08 item 6 — picker previously capped at +5 y). */}
                 <DatePicker
                   value={value.passport_expiry}
                   onChange={(v) => set("passport_expiry", v)}
+                  min={localToday()}
                 />
               </div>
             </div>
@@ -699,6 +762,7 @@ function ForeignGuestSection({
                 <DatePicker
                   value={value.visa_expiry}
                   onChange={(v) => set("visa_expiry", v)}
+                  min={localToday()}
                 />
               </div>
             </div>
@@ -744,6 +808,7 @@ function ForeignGuestSection({
                 <DatePicker
                   value={value.arrived_in_india_on}
                   onChange={(v) => set("arrived_in_india_on", v)}
+                  max={localToday()}
                 />
               </div>
               <div className="space-y-1.5">
@@ -994,7 +1059,9 @@ function DocUpload({
     if (!existingDocId || !guestId || preview) return;
     let cancelled = false;
     setBusy(true);
-    const url = `/api/v1/guests/${guestId}/documents/${existingDocId}/file`;
+    // Absolute URL — in production the API is on a different origin, so a
+    // relative fetch would hit the Next.js host and silently 404 (blank tile).
+    const url = `${API_BASE}/api/v1/guests/${guestId}/documents/${existingDocId}/file`;
     const token = getAccessToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -1017,8 +1084,9 @@ function DocUpload({
     if (!file || !guestId) return;
     // Selfie: 1000px (face recognition doesn't need more).
     // ID docs: 1800px (Tesseract OCR works best at full card resolution).
+    // Crop frame matches the document shape (Aadhaar/DL card vs passport page).
     const edited = await edit(file, {
-      aspect: side === "selfie" ? "square" : "free",
+      aspect: docAspectFor(idType, side),
       maxDimension: side === "selfie" ? 1000 : 1800,
     });
     if (!edited) return;
@@ -1081,7 +1149,9 @@ function DocUpload({
   // Tile border/background — preview wins, then OCR-in-progress, then idle.
   let tileStateClass: string;
   if (preview) {
-    tileStateClass = "border-green-400 p-0 h-28";
+    // Taller preview so the ID text is actually readable at the desk
+    // (client 9-08 item 5 — the old h-28 strip cropped most of the card).
+    tileStateClass = "border-green-400 p-0 h-40";
   } else if (ocrRunning) {
     tileStateClass = "border-gold-400 bg-gold-50 text-gold-700 animate-pulse p-4";
   } else {
@@ -1123,7 +1193,7 @@ function DocUpload({
             <img
               src={preview}
               alt={side === "selfie" ? t("selfieAlt") : t("idDocumentAlt")}
-              className="h-full w-full object-cover"
+              className={side === "selfie" ? "h-full w-full object-cover" : "h-full w-full bg-navy-900/5 object-contain"}
             />
             {/* Status overlay */}
             <div className={cn(
@@ -1284,6 +1354,9 @@ function QueuedDocUpload({
   label,
   onQueued,
   onOriginal,
+  guestId,
+  existingDocId,
+  idType,
 }: {
   readonly side: DocSide;
   readonly label: string;
@@ -1291,26 +1364,61 @@ function QueuedDocUpload({
   /** Receives the ORIGINAL (uncompressed) file — use for OCR, which needs
    *  full resolution. The queued/uploaded file is the compressed copy. */
   readonly onOriginal?: (side: DocSide, file: File) => void;
+  /** With existingDocId: preload the returning guest's saved document so the
+   *  tile is never blank (client 9-08 item 11). Staff can still re-upload. */
+  readonly guestId?: string | null;
+  readonly existingDocId?: string | null;
+  /** ID proof type — picks the matching crop frame (Aadhaar card vs passport). */
+  readonly idType?: string | null;
 }) {
   const t = useTranslations("checkin");
+  const { activeHotelId } = useAuth();
   const { edit } = useImageEditor();
   const [queued, setQueued] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  /** True while the preview shows the SAVED document (nothing new queued). */
+  const [showingExisting, setShowingExisting] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
 
   useEffect(() => {
     return () => { if (preview) URL.revokeObjectURL(preview); };
   }, [preview]);
 
+  // Preload the saved document for returning guests (same pattern as the
+  // primary guest's DocUpload tile).
+  useEffect(() => {
+    if (!existingDocId || !guestId || guestId.startsWith("__new__") || preview) return;
+    let cancelled = false;
+    const token = getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (activeHotelId) headers["X-Hotel-Id"] = activeHotelId;
+    fetch(`${API_BASE}/api/v1/guests/${guestId}/documents/${existingDocId}/file`, {
+      headers,
+      credentials: "include",
+    })
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+      .then((blob) => {
+        if (!cancelled) {
+          setPreview(URL.createObjectURL(blob));
+          setShowingExisting(true);
+        }
+      })
+      .catch(() => { /* silent — tile stays empty so staff can upload */ });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingDocId, guestId]);
+
   const onFile = async (file: File | undefined) => {
     if (!file) return;
     const edited = await edit(file, {
-      aspect: side === "selfie" ? "square" : "free",
+      aspect: docAspectFor(idType, side),
       maxDimension: side === "selfie" ? 1000 : 1800,
     });
     if (!edited) return;
     const previewUrl = URL.createObjectURL(edited);
     setPreview(previewUrl);
+    setShowingExisting(false);
     onOriginal?.(side, edited);
     try {
       const compressed = await compressDocument(edited);
@@ -1328,7 +1436,7 @@ function QueuedDocUpload({
         className={cn(
           "relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 overflow-hidden text-center text-xs transition-colors",
           preview
-            ? "border-gold-400 p-0 h-28"
+            ? "border-gold-400 p-0 h-40"
             : "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4",
         )}
       >
@@ -1338,10 +1446,14 @@ function QueuedDocUpload({
             <img
               src={preview}
               alt={side === "selfie" ? t("selfieAlt") : t("idDocumentAlt")}
-              className="h-full w-full object-cover"
+              className={side === "selfie" ? "h-full w-full object-cover" : "h-full w-full bg-navy-900/5 object-contain"}
             />
             <div className="absolute bottom-0 left-0 right-0 bg-gold-500/80 px-2 py-1 text-[10px] font-semibold text-navy-900 text-center">
-              {queued ? t("readyToUpload") : t("processing")}
+              {queued
+                ? t("readyToUpload")
+                : showingExisting
+                  ? t("savedOnFile")
+                  : t("processing")}
             </div>
           </>
         ) : (
@@ -1466,6 +1578,7 @@ function NewGuestForm({
           side="front"
           label={t("uploadFront")}
           onQueued={handleQueueDoc}
+          idType={form.id_proof_type}
           onOriginal={(_side, original) => {
             // OCR runs on the ORIGINAL (full-resolution) image.
             import("@/lib/id-ocr").then(({ parseIdDocument }) =>
@@ -1477,6 +1590,7 @@ function NewGuestForm({
           side="back"
           label={t("uploadBack")}
           onQueued={handleQueueDoc}
+          idType={form.id_proof_type}
           onOriginal={(_side, original) => {
             // Back face → dedicated Aadhaar address/pincode parser.
             import("@/lib/id-ocr").then(({ parseIdDocument }) =>
@@ -1549,7 +1663,7 @@ function NewGuestForm({
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">{t("fieldDob")}</Label>
-          <DatePicker value={form.date_of_birth ?? ""} onChange={(v) => set("date_of_birth", v)} />
+          <DatePicker value={form.date_of_birth ?? ""} onChange={(v) => set("date_of_birth", v)} max={localToday()} />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">{t("pincode")}</Label>
@@ -1607,6 +1721,8 @@ function AdditionalGuestEntry({
   const [resolved, setResolved] = useState<ResolvedCoGuest | null>(null);
   const [mode, setMode] = useState<"search" | "form">("search");
   const [docs, setDocs] = useState<{ side: DocSide; file: File }[]>([]);
+  /** Saved document ids per side for a returning guest (preloads the tiles). */
+  const [existingDocs, setExistingDocs] = useState<Partial<Record<DocSide, string>>>({});
   // Edit mode — re-opens the guest form pre-filled with the resolved guest.
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1648,10 +1764,26 @@ function AdditionalGuestEntry({
 
   const handleSelectExisting = async (g: GuestSearchResult) => {
     try {
-      const full = await api<GuestAutofill>(`/api/v1/guests/${g.id}/autofill`, { method: "POST" });
+      // Parallel: full profile + saved documents, so a returning co-guest's
+      // card shows their phone AND existing front/back/selfie tiles
+      // (client 9-08 items 9 + 11).
+      const [full, docsList] = await Promise.all([
+        api<GuestAutofill>(`/api/v1/guests/${g.id}/autofill`, { method: "POST" }),
+        api<{ id: string; side: string | null }[]>(
+          `/api/v1/guests/${g.id}/documents`,
+        ).catch(() => [] as { id: string; side: string | null }[]),
+      ]);
+      const bySide: Partial<Record<DocSide, string>> = {};
+      for (const d of docsList) {
+        if ((d.side === "front" || d.side === "back" || d.side === "selfie") && !bySide[d.side]) {
+          bySide[d.side] = d.id; // list is newest-first — keep the first hit
+        }
+      }
+      setExistingDocs(bySide);
       const resolved: ResolvedCoGuest = {
         guest_id: g.id,
         full_name: full.full_name,
+        phone: full.phone,
         docs: [],
         foreign_guest: buildForeignGuestPayload(fgEnabled, fgForm),
       };
@@ -1817,7 +1949,14 @@ function AdditionalGuestEntry({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BadgeCheck className="size-4 text-green-600" aria-hidden />
-            <span className="text-sm font-semibold">{resolved.full_name}</span>
+            <div>
+              <span className="text-sm font-semibold">{resolved.full_name}</span>
+              {resolved.phone && (
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {resolved.phone}
+                </p>
+              )}
+            </div>
         </div>
           <div className="flex items-center gap-1">
             <button
@@ -1835,6 +1974,7 @@ function AdditionalGuestEntry({
                 setResolved(null);
                 setSearchPhone("");
                 setSearchResults([]);
+                setExistingDocs({});
                 onRemove();
               }}
               className="p-1 text-danger hover:opacity-70"
@@ -1845,9 +1985,27 @@ function AdditionalGuestEntry({
           </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          <QueuedDocUpload side="front" label={t("uploadFront")} onQueued={handleQueueDoc} />
-          <QueuedDocUpload side="back" label={t("uploadBack")} onQueued={handleQueueDoc} />
-          <QueuedDocUpload side="selfie" label={t("selfieCapture")} onQueued={handleQueueDoc} />
+          <QueuedDocUpload
+            side="front"
+            label={t("uploadFront")}
+            onQueued={handleQueueDoc}
+            guestId={resolved.guest_id}
+            existingDocId={existingDocs.front}
+          />
+          <QueuedDocUpload
+            side="back"
+            label={t("uploadBack")}
+            onQueued={handleQueueDoc}
+            guestId={resolved.guest_id}
+            existingDocId={existingDocs.back}
+          />
+          <QueuedDocUpload
+            side="selfie"
+            label={t("selfieCapture")}
+            onQueued={handleQueueDoc}
+            guestId={resolved.guest_id}
+            existingDocId={existingDocs.selfie}
+          />
         </div>
         {/* Foreign guest (Form C) — per co-guest, same fields as the primary. */}
         <ForeignGuestSection
@@ -1962,6 +2120,7 @@ function AdditionalGuestEntry({
               const pending: ResolvedCoGuest = {
                 guest_id: `__new__${Date.now()}`,
                 full_name: form.full_name,
+                phone: form.phone.trim() || undefined,
                 docs: formDocs,
                 foreign_guest: buildForeignGuestPayload(fgEnabled, fgForm),
               };
@@ -2714,17 +2873,10 @@ function CheckinForm({
                 onChange={setPgIdNumber}
                 placeholder={t("enterIdNumber", { type: pgIdType })}
                 trailing={
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="shrink-0"
-                    onClick={() => {
-                      if (pgIdNumber) toast.success(t("idRecorded"));
-                    }}
-                  >
-                    {t("submit")}
-                  </Button>
+                  <RevealIdButton
+                    guestId={booking.primary_guest_id}
+                    onRevealed={setPgIdNumber}
+                  />
                 }
               />
             </div>
@@ -2819,7 +2971,7 @@ function CheckinForm({
           </div>
             <div className="space-y-1.5">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldDob")}</Label>
-              <DatePicker value={pgDob} onChange={setPgDob} />
+              <DatePicker value={pgDob} onChange={setPgDob} max={localToday()} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>
@@ -4271,6 +4423,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                     value={pgIdNumber}
                     onChange={setPgIdNumber}
                     placeholder={t("enterIdNumber", { type: pgIdType })}
+                    trailing={
+                      <RevealIdButton guestId={guest?.id} onRevealed={setPgIdNumber} />
+                    }
                   />
                 </div>
               </div>
@@ -4364,7 +4519,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldDob")}</Label>
-                  <DatePicker value={pgDob} onChange={setPgDob} />
+                  <DatePicker value={pgDob} onChange={setPgDob} max={localToday()} />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>

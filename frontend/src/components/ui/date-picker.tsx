@@ -42,13 +42,20 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ] as const;
 
-// Year options for the header dropdown: 1900 → current year + 5, rendered
-// newest-first (friendlier for DOB + booking use).
-const YEAR_MAX = new Date().getFullYear() + 5;
-const YEAR_OPTIONS: readonly number[] = Array.from(
-  { length: YEAR_MAX - 1900 + 1 },
-  (_, i) => YEAR_MAX - i,
-);
+// Default year window for the header dropdown when no min/max is given:
+// 1900 → current year + 15 (passport/visa expiries reach 10+ years out —
+// client 9-08 item 6). Fields with min/max get an exactly-matching window.
+const DEFAULT_YEAR_MAX_OFFSET = 15;
+
+function yearOptionsFor(min?: string, max?: string): readonly number[] {
+  const yearMax = max
+    ? Number(max.slice(0, 4))
+    : new Date().getFullYear() + DEFAULT_YEAR_MAX_OFFSET;
+  const yearMin = min ? Number(min.slice(0, 4)) : 1900;
+  const span = Math.max(yearMax - yearMin + 1, 1);
+  // Newest-first (friendlier for DOB + booking use).
+  return Array.from({ length: span }, (_, i) => yearMax - i);
+}
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
@@ -188,6 +195,7 @@ export function DatePicker({
     return false;
   };
 
+  const yearOptions = yearOptionsFor(min, max);
   const selYear = isValidIsoDate(value) ? Number(value.slice(0, 4)) : null;
   const selMonth = isValidIsoDate(value) ? Number(value.slice(5, 7)) - 1 : null;
   const selDay   = isValidIsoDate(value) ? Number(value.slice(8, 10)) : null;
@@ -263,7 +271,7 @@ export function DatePicker({
                 aria-label="Year"
                 className="cursor-pointer rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold tabular-nums hover:border-input focus:outline-none focus:ring-2 focus:ring-gold-500/20"
               >
-                {YEAR_OPTIONS.map((y) => (
+                {yearOptions.map((y) => (
                   <option key={y} value={y}>
                     {y}
                   </option>

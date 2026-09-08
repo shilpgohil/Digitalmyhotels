@@ -27,6 +27,9 @@ class Permission(StrEnum):
     # Guests / bookings / stay
     GUESTS_VIEW = "guests.view"
     GUESTS_MANAGE = "guests.manage"
+    # Reveal the full decrypted ID number (Aadhaar/PAN/passport). Audited on
+    # every use; never included in list/search/autofill responses.
+    GUESTS_VIEW_FULL_ID = "guests.view_full_id"
     BOOKINGS_VIEW = "bookings.view"
     BOOKINGS_MANAGE = "bookings.manage"
     CHECKIN = "stay.checkin"
@@ -78,6 +81,7 @@ ROLE_PERMISSIONS: dict[RoleCode, frozenset[Permission]] = {
             Permission.ROOMS_UPDATE_STATUS,
             Permission.GUESTS_VIEW,
             Permission.GUESTS_MANAGE,
+            Permission.GUESTS_VIEW_FULL_ID,
             Permission.BOOKINGS_VIEW,
             Permission.BOOKINGS_MANAGE,
             Permission.CHECKIN,
@@ -113,6 +117,7 @@ ROLE_PERMISSIONS: dict[RoleCode, frozenset[Permission]] = {
             Permission.ROOMS_UPDATE_STATUS,
             Permission.GUESTS_VIEW,
             Permission.GUESTS_MANAGE,
+            Permission.GUESTS_VIEW_FULL_ID,
             Permission.BOOKINGS_VIEW,
             Permission.BOOKINGS_MANAGE,
             Permission.CHECKIN,
@@ -147,6 +152,9 @@ ROLE_PERMISSIONS: dict[RoleCode, frozenset[Permission]] = {
             Permission.ROOMS_UPDATE_STATUS,
             Permission.GUESTS_VIEW,
             Permission.GUESTS_MANAGE,
+            # Reception verifies guest identity at the desk — full-ID reveal
+            # is part of the confirmed product decision (audited every time).
+            Permission.GUESTS_VIEW_FULL_ID,
             Permission.BOOKINGS_VIEW,
             Permission.BOOKINGS_MANAGE,
             Permission.CHECKIN,

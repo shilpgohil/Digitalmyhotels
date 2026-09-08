@@ -338,3 +338,35 @@ def reveal_id_number(guest: Guest) -> str | None:
     if not guest.id_encrypted:
         return None
     return decrypt_sensitive(guest.id_encrypted)
+
+
+async def reveal_guest_id(
+    db: AsyncSession,
+    tenant: TenantContext,
+    guest_id: UUID,
+    *,
+    correlation_id: str | None = None,
+) -> str | None:
+    """Decrypt and return the full saved ID number — audited on EVERY use.
+
+    Caller must hold GUESTS_VIEW_FULL_ID (route-enforced). The value is never
+    part of list/search/autofill responses; this explicit action is the only
+    way to read it, so the audit trail is complete by construction.
+    """
+    guest = await get_guest(db, tenant, guest_id)
+    full_id = reveal_id_number(guest)
+    await write_audit(
+        db,
+        action="guests.id_revealed",
+        entity_type="guest",
+        entity_id=guest.id,
+        actor_id=tenant.user_id,
+        hotel_id=tenant.hotel_id,
+        after={
+            "id_proof_type": guest.id_proof_type,
+            "id_last4": guest.id_last4,
+            "had_value": full_id is not None,
+        },
+        correlation_id=correlation_id,
+    )
+    return full_id

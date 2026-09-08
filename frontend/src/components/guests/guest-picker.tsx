@@ -47,11 +47,20 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
     },
     onSuccess: (data) => {
       setResults(data.items);
-      // Client-requested flow: no auto-expand — show a "Create new guest"
-      // button on empty results and open the form only when clicked.
-      setShowCreate(false);
       // Capture the phone at search time so it correctly pre-fills the new guest form.
       setSearchedPhone(phone);
+      // Client 9-08 item 4: when nothing matches, open the full Create Guest
+      // flow IMMEDIATELY — the extra "Create new guest" click was reported as
+      // friction at the desk. The button stays as a fallback for re-opening.
+      if (data.items.length === 0) {
+        if (onCreateNew) {
+          onCreateNew(phone);
+        } else {
+          setShowCreate(true);
+        }
+      } else {
+        setShowCreate(false);
+      }
     },
     onError: (error) =>
       toast.error(error instanceof ApiError ? error.message : tc("error")),

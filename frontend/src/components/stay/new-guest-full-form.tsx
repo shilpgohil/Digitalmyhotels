@@ -28,13 +28,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { useImageEditor } from "@/components/media/image-editor";
+import { docAspectFor, useImageEditor } from "@/components/media/image-editor";
 import { AlertTriangle, BadgeCheck, Camera, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/ui/date-picker";
 import { compressDocument } from "@/lib/compress-image";
+import { localToday } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import type { IdOcrResult, ParsedIdFields } from "@/lib/id-ocr";
 import type { GuestCreatePayload } from "@/types/stay";
@@ -220,6 +221,7 @@ function QueuedDocUpload({
   label,
   onQueued,
   onOriginal,
+  idType,
 }: {
   readonly side: DocSide;
   readonly label: string;
@@ -227,6 +229,8 @@ function QueuedDocUpload({
   /** Receives the ORIGINAL (uncompressed) file — use for OCR, which needs
    *  full resolution. The queued/uploaded file is the compressed copy. */
   readonly onOriginal?: (side: DocSide, file: File) => void;
+  /** ID proof type — picks the matching crop frame (Aadhaar card vs passport). */
+  readonly idType?: string | null;
 }) {
   const t = useTranslations("checkin");
   const { edit } = useImageEditor();
@@ -243,7 +247,7 @@ function QueuedDocUpload({
   const onFile = async (file: File | undefined) => {
     if (!file) return;
     const edited = await edit(file, {
-      aspect: side === "selfie" ? "square" : "free",
+      aspect: docAspectFor(idType, side),
       maxDimension: side === "selfie" ? 1000 : 1800,
     });
     if (!edited) return;
@@ -266,7 +270,7 @@ function QueuedDocUpload({
         className={cn(
           "relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 overflow-hidden text-center text-xs transition-colors",
           preview
-            ? "border-gold-400 p-0 h-28"
+            ? "border-gold-400 p-0 h-40"
             : "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4",
         )}
       >
@@ -276,7 +280,7 @@ function QueuedDocUpload({
             <img
               src={preview}
               alt={side === "selfie" ? t("selfieAlt") : t("idDocumentAlt")}
-              className="h-full w-full object-cover"
+              className={side === "selfie" ? "h-full w-full object-cover" : "h-full w-full bg-navy-900/5 object-contain"}
             />
             <div className="absolute bottom-0 left-0 right-0 bg-gold-500/80 px-2 py-1 text-[10px] font-semibold text-navy-900 text-center">
               {queued ? t("readyToUpload") : t("processing")}
@@ -507,6 +511,7 @@ export function NewGuestFullForm({
           side="front"
           label={t("uploadFront")}
           onQueued={handleQueueDoc}
+          idType={form.id_proof_type}
           onOriginal={(_side, original) => {
             // OCR runs on the ORIGINAL (full-resolution) image.
             import("@/lib/id-ocr").then(({ parseIdDocument }) =>
@@ -518,6 +523,7 @@ export function NewGuestFullForm({
           side="back"
           label={t("uploadBack")}
           onQueued={handleQueueDoc}
+          idType={form.id_proof_type}
           onOriginal={(_side, original) => {
             // Back face → dedicated Aadhaar address/pincode parser.
             import("@/lib/id-ocr").then(({ parseIdDocument }) =>
@@ -606,7 +612,11 @@ export function NewGuestFullForm({
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">{t("fieldDob")}</Label>
-          <DatePicker value={form.date_of_birth ?? ""} onChange={(v) => set("date_of_birth", v)} />
+          <DatePicker
+            value={form.date_of_birth ?? ""}
+            onChange={(v) => set("date_of_birth", v)}
+            max={localToday()}
+          />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">{t("pincode")}</Label>

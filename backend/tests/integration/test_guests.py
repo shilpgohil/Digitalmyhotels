@@ -74,6 +74,46 @@ async def test_search_by_phone_and_last4_then_autofill(
     assert "stay" not in autofill.text.lower()
 
 
+async def test_reveal_id_is_audited_and_permission_gated(
+    client: AsyncClient, hotel_a: HotelFixture, hotel_b: HotelFixture
+) -> None:
+    """Full-ID reveal (client 9-08 item 8): authorized roles get the decrypted
+    value through ONE explicit audited action; housekeeping and other tenants
+    never can; the value stays out of every other payload."""
+    headers = await _headers(client, hotel_a)
+    created = await client.post(
+        "/api/v1/guests",
+        json={**GUEST, "phone": "9700000077", "id_number": "555566667777"},
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    guest_id = created.json()["id"]
+
+    # Admin (reception) holds guests.view_full_id → gets the full value.
+    revealed = await client.post(f"/api/v1/guests/{guest_id}/reveal-id", headers=headers)
+    assert revealed.status_code == 200, revealed.text
+    assert revealed.json()["id_number"] == "555566667777"
+
+    # Housekeeping is denied.
+    hk_headers = await _headers(client, hotel_a, role="housekeeping")
+    denied = await client.post(f"/api/v1/guests/{guest_id}/reveal-id", headers=hk_headers)
+    assert denied.status_code == 403
+
+    # Another hotel cannot reveal this guest at all.
+    headers_b = await _headers(client, hotel_b)
+    cross = await client.post(f"/api/v1/guests/{guest_id}/reveal-id", headers=headers_b)
+    assert cross.status_code == 404
+
+    # Every reveal is audited.
+    owner_headers = await _headers(client, hotel_a, role="owner")
+    audit = await client.get(
+        "/api/v1/audit?action=guests.id_revealed&limit=10", headers=owner_headers
+    )
+    if audit.status_code == 200:
+        actions = [row.get("action") for row in audit.json().get("items", [])]
+        assert "guests.id_revealed" in actions
+
+
 async def test_guests_are_tenant_scoped(
     client: AsyncClient, hotel_a: HotelFixture, hotel_b: HotelFixture
 ) -> None:

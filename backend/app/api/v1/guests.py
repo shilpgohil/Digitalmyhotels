@@ -65,6 +65,30 @@ async def autofill_guest(
     )
 
 
+class GuestIdRevealOut(BaseModel):
+    id_number: str | None
+    id_proof_type: str | None
+
+
+@router.post("/{guest_id}/reveal-id", response_model=GuestIdRevealOut)
+async def reveal_guest_id(
+    guest_id: UUID,
+    request: Request,
+    tenant: TenantContext = Depends(require_permissions(Permission.GUESTS_VIEW_FULL_ID)),
+    db: AsyncSession = Depends(get_db),
+) -> GuestIdRevealOut:
+    """Audited reveal of the full decrypted ID number (show/hide toggle).
+
+    POST (not GET) so the reveal is an explicit action that is never cached,
+    prefetched or logged in access logs with the response body.
+    """
+    full_id = await guests_service.reveal_guest_id(
+        db, tenant, guest_id, correlation_id=_correlation(request)
+    )
+    guest = await guests_service.get_guest(db, tenant, guest_id)
+    return GuestIdRevealOut(id_number=full_id, id_proof_type=guest.id_proof_type)
+
+
 @router.get("/{guest_id}", response_model=GuestOut)
 async def get_guest(
     guest_id: UUID,

@@ -33,7 +33,27 @@ import { RotateCcw, RotateCw, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export type EditorAspect = "free" | "square";
+/**
+ * Crop-frame presets (client 9-08 item 10 — one generic narrow frame does not
+ * fit every document):
+ *  - "id_card"  → ISO ID-1 ratio (85.6 × 54 mm ≈ 1.586) — Aadhaar, PAN,
+ *                 driving licence, voter ID.
+ *  - "passport" → passport photo-page ratio (125 × 88 mm ≈ 1.42).
+ *  - "square"   → selfies / logos.
+ *  - "receipt"  → portrait 3:4 for bills and receipts.
+ *  - "free"     → generic landscape frame.
+ * The frame sets the INITIAL crop shape; pan/zoom/rotate stay fully free.
+ */
+export type EditorAspect = "free" | "square" | "id_card" | "passport" | "receipt";
+
+/** Pick the right crop preset for a guest-document upload. */
+export function docAspectFor(idType: string | null | undefined, side: string): EditorAspect {
+  if (side === "selfie") return "square";
+  const t = (idType ?? "").toLowerCase();
+  if (t.includes("passport")) return "passport";
+  // Aadhaar, PAN, driving licence, voter ID — all ISO ID-1 cards.
+  return "id_card";
+}
 
 const DEFAULT_MAX_DIMENSION = 2000;
 
@@ -127,10 +147,22 @@ function ImageEditorDialog({
   const t = useTranslations("imageEditor");
   const tc = useTranslations("common");
 
-  const cropBox = useMemo(
-    () => (aspect === "square" ? { w: 260, h: 260 } : { w: 290, h: 210 }),
-    [aspect],
-  );
+  const cropBox = useMemo(() => {
+    switch (aspect) {
+      case "square":
+        return { w: 260, h: 260 };
+      case "id_card":
+        // ISO ID-1 card ratio 1.586 — tall enough that Aadhaar text stays sharp.
+        return { w: 318, h: 200 };
+      case "passport":
+        // Passport photo-page ratio ≈ 1.42.
+        return { w: 312, h: 220 };
+      case "receipt":
+        return { w: 240, h: 320 };
+      default:
+        return { w: 290, h: 210 };
+    }
+  }, [aspect]);
 
   const [src, setSrc] = useState<string | null>(null);
   const [natural, setNatural] = useState({ w: 1, h: 1 });
