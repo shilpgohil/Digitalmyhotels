@@ -247,6 +247,7 @@
     "hourlyRateHint": "Optional — enables day-use pricing",
     "maxOccupancy": "Max Occupancy",
     "noRooms": "No rooms yet. Add your first room to get started.",
+    "noRoomsInStatus": "No rooms are currently \"{status}\" — all clear here.",
     "noTypes": "No room types yet. Create a room type before adding rooms.",
     "statusUpdated": "Room status updated",
     "roomCreated": "Room created",

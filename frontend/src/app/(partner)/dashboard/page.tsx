@@ -46,19 +46,24 @@ import {
   AlertOctagon,
   BedDouble,
   BookOpen,
+  Bookmark,
   Building2,
   CalendarCheck,
   CalendarDays,
   CheckSquare,
+  DoorClosed,
+  DoorOpen,
   Eye,
   IndianRupee,
   LogIn,
   LogOut,
   MoreVertical,
+  Sparkles,
   TrendingDown,
   TrendingUp,
   UserX,
   Wallet,
+  Wrench,
   Zap,
 } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
@@ -207,6 +212,82 @@ function PaymentBar({ label, amount, pct, color }: { label: string; amount: numb
   );
 }
 
+// ── Live room-status cards (client 9-08 item 17) ──────────────────────────────
+// The six cards from the Rooms page, kept at the TOP of the smart dashboard.
+// Visible to every role with rooms.view (incl. housekeeping, who see no
+// finance content below). Clicking a card opens Rooms pre-filtered.
+const ROOM_CARDS: Array<{
+  key: string;
+  labelNs: "rooms" | "dashboard";
+  labelKey: string;
+  icon: React.ElementType;
+  className: string;
+  statuses: string[] | null;
+  filter: string;
+}> = [
+  { key: "total", labelNs: "rooms", labelKey: "statTotal", icon: Building2, className: "bg-navy-900 text-white", statuses: null, filter: "all" },
+  { key: "booked", labelNs: "rooms", labelKey: "statBooked", icon: DoorClosed, className: "bg-danger text-white", statuses: ["occupied"], filter: "occupied" },
+  { key: "available", labelNs: "dashboard", labelKey: "available", icon: DoorOpen, className: "bg-success text-white", statuses: ["available", "clean_ready"], filter: "available" },
+  { key: "reserved", labelNs: "dashboard", labelKey: "reserved", icon: Bookmark, className: "bg-info text-white", statuses: ["reserved"], filter: "reserved" },
+  { key: "cleaning", labelNs: "dashboard", labelKey: "cleaning", icon: Sparkles, className: "bg-warning text-white", statuses: ["cleaning_required", "cleaning_in_progress", "inspection_required"], filter: "cleaning_required" },
+  { key: "maintenance", labelNs: "dashboard", labelKey: "maintenance", icon: Wrench, className: "bg-navy-700 text-white", statuses: ["maintenance", "out_of_service"], filter: "maintenance" },
+];
+
+function RoomStatusCards() {
+  const t = useTranslations("dashboard");
+  const tr = useTranslations("rooms");
+  const api = useApi();
+  const { activeHotelId, can } = useAuth();
+
+  const rooms = useQuery({
+    queryKey: ["rooms", activeHotelId],
+    queryFn: () => api<{ items: { status: string }[] }>("/api/v1/rooms?limit=200"),
+    enabled: !!activeHotelId && can(PERMISSIONS.roomsView),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  if (!can(PERMISSIONS.roomsView)) return null;
+
+  const counts: Record<string, number> = {};
+  for (const room of rooms.data?.items ?? []) {
+    counts[room.status] = (counts[room.status] ?? 0) + 1;
+  }
+  const value = (statuses: string[] | null) =>
+    statuses === null
+      ? (rooms.data?.items.length ?? 0)
+      : statuses.reduce((sum, s) => sum + (counts[s] ?? 0), 0);
+
+  return (
+    <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {rooms.isLoading
+        ? ROOM_CARDS.map((c) => <Skeleton key={c.key} className="h-20 rounded-xl" />)
+        : ROOM_CARDS.map((card) => {
+            const Icon = card.icon;
+            const label = card.labelNs === "rooms" ? tr(card.labelKey) : t(card.labelKey);
+            return (
+              <Link
+                key={card.key}
+                href={`/rooms?filter=${card.filter}`}
+                className={cn(
+                  "rounded-xl p-4 shadow-sm transition-transform hover:scale-[1.02]",
+                  card.className,
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <Icon className="size-4 opacity-80" aria-hidden />
+                  <span className="text-2xl font-bold tabular-nums">{value(card.statuses)}</span>
+                </div>
+                <p className="mt-1 truncate text-[11px] font-semibold uppercase tracking-wide opacity-90">
+                  {label}
+                </p>
+              </Link>
+            );
+          })}
+    </section>
+  );
+}
+
 // ── Custom tooltips ────────────────────────────────────────────────────────────
 function RevTooltip({ active, payload, label }: {
   active?: boolean;
@@ -325,6 +406,9 @@ export default function DashboardPage() {
     <>
       <PartnerHeader title={tn("dashboard")} subtitle={tn("frontDesk")} />
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+
+        {/* ── 0. Live room-status cards (always first — client item 17) ──── */}
+        <RoomStatusCards />
 
         {/* ── 1. Smart Insights ──────────────────────────────────────────── */}
         {dash.isLoading && (

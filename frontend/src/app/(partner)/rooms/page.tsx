@@ -152,7 +152,9 @@ function RoomStatusMenuItems({
   const t = useTranslations("rooms");
   return (
     <>
-      <DropdownMenuLabel>{t("changeStatus")}</DropdownMenuLabel>
+      <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+        {t("changeStatus")}
+      </DropdownMenuLabel>
       {MANUAL_STATUSES.filter((s) => {
         if (s === currentStatus) return false;
         // Occupied rooms stay occupied until checkout — never offer Available.
@@ -181,7 +183,15 @@ function RoomsContent() {
   const queryClient = useQueryClient();
   const { activeHotelId, can } = useAuth();
   const [view, setView] = useState<"grid" | "table">("grid");
-  const [gridFilter, setGridFilter] = useState<RoomStatus | "all">("all");
+  // ?filter=<status> deep link — the dashboard's room-status cards land here
+  // pre-filtered (client 9-08 item 17).
+  const [gridFilter, setGridFilter] = useState<RoomStatus | "all">(() => {
+    if (typeof window === "undefined") return "all";
+    const param = new URLSearchParams(window.location.search).get("filter");
+    return param && GRID_FILTERS.includes(param as RoomStatus | "all")
+      ? (param as RoomStatus | "all")
+      : "all";
+  });
 
   const rooms = useQuery({
     queryKey: ["rooms", activeHotelId],
@@ -338,6 +348,16 @@ function RoomsContent() {
                     {t("noRooms")}
                   </p>
                 )}
+                {/* Status-specific empty state — a blank strip told staff
+                    nothing (client 9-08 item 19: "No maintenance rooms"). */}
+                {rooms.data &&
+                  rooms.data.items.length > 0 &&
+                  gridFilter !== "all" &&
+                  rooms.data.items.every((room) => room.status !== gridFilter) && (
+                    <p className="p-10 text-center text-sm text-muted-foreground">
+                      {t("noRoomsInStatus", { status: t(`status_${gridFilter}`) })}
+                    </p>
+                  )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
                   {rooms.data?.items
                     .filter((room) => gridFilter === "all" || room.status === gridFilter)
@@ -356,7 +376,7 @@ function RoomsContent() {
                               >
                                 <MoreHorizontal className="size-3.5" aria-hidden />
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
+                              <DropdownMenuContent align="end" className="w-56 rounded-xl border-border shadow-lg">
                                 <RoomStatusMenuItems
                                   currentStatus={room.status}
                                   onSelect={(status) =>
@@ -426,7 +446,7 @@ function RoomsContent() {
                               >
                                 <MoreVertical className="size-4" aria-hidden />
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
+                              <DropdownMenuContent align="end" className="w-56 rounded-xl border-border shadow-lg">
                                 <RoomStatusMenuItems
                                   currentStatus={room.status}
                                   onSelect={(status) =>
