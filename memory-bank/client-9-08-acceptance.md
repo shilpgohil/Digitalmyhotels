@@ -1,11 +1,11 @@
 # Client 9-08 Master Audit — Acceptance Ledger
 
-**Generated:** 2026-09-08  
-**Source screenshots:** `main documents/client changes and bugs/9-08-2026/`  
-**Total items:** 39 (40 files — item 20 has a supplementary `12.26 AM` shot)  
+**Generated:** 2026-09-08
+**Source screenshots:** `main documents/client changes and bugs/9-08-2026/`
+**Total items:** 39 (40 files — item 20 has a supplementary `12.26 AM` shot)
 **Plan reference:** `.cursor/plans/client_9-08_master_audit_0a367b29.plan.md`
 
-Statuses: `implemented` | `partial` | `missing` | `needs_runtime_reproduction`
+Statuses: `implemented` | `partial` | `missing` | `needs_runtime_reproduction` | `open_controller_work`
 
 ---
 
@@ -18,7 +18,7 @@ Statuses: `implemented` | `partial` | `missing` | `needs_runtime_reproduction`
 | **Screen** | Which UI screen / route is shown |
 | **Client Request** | Exact requirement as stated in the approved plan |
 | **Class** | `bug` / `feature` / `data` / `ux` |
-| **Status** | Current implementation state |
+| **Status** | `implemented` complete · `partial` started/incomplete · `missing` not started · `needs_runtime_reproduction` requires live env · `open_controller_work` requires controller/prod access |
 | **Frontend Files** | Primary TSX/TS files involved |
 | **Backend / Entities** | API route, service, model, schema |
 | **Acceptance Test** | Observable pass criterion |
@@ -693,12 +693,12 @@ Statuses: `implemented` | `partial` | `missing` | `needs_runtime_reproduction`
 
 | Phase | Items | Status Distribution |
 |---|---|---|
-| Phase 1 (Settlement) | 3, 12, 13, 14, 26, 39 | 4 partial, 1 missing, 1 partial |
-| Phase 2 (Identity/OCR) | 4, 5, 6, 7, 8, 9, 10, 11 | 2 partial, 5 missing, 1 partial |
+| Phase 1 (Settlement) | 3, 12, 13, 14, 26, 39 | 5 partial, 1 missing |
+| Phase 2 (Identity/OCR) | 4, 5, 6, 7, 8, 9, 10, 11 | 2 partial, 6 missing |
 | Phase 3 (Lifecycle) | 19, 20, 21, 22, 23, 24 | 3 partial, 3 missing |
-| Phase 4 (Roles/Auth) | 1, 2, 30, 31, 32, 33, 34, 35 | 5 missing, 2 partial, 1 NRR |
+| Phase 4 (Roles/Auth) | 1, 2, 30, 31, 32, 33, 34, 35 | 7 missing, 1 needs_runtime_reproduction |
 | Phase 5 (Dashboard/UX) | 17, 25 | 1 partial, 1 missing |
-| Phase 6 (Super Admin) | 16, 18, 27, 28, 36, 37, 38 | 3 partial, 4 missing/NRR |
+| Phase 6 (Super Admin) | 16, 18, 27, 28, 36, 37, 38 | 3 partial, 4 missing/needs_runtime_reproduction |
 | Phase 7 (Edit Hotel) | 15, 29 | 2 needs_runtime_reproduction |
 
 ## Approved Decisions (locked — do not re-negotiate without client sign-off)
@@ -717,3 +717,20 @@ Statuses: `implemented` | `partial` | `missing` | `needs_runtime_reproduction`
 - `current-guests` limit: frontend sends `limit=200`; backend route cap was `le=100` → FIXED in commit 3305ac4 (`le=200`). Contract test added.
 - Payment method enum: backend accepts `cash|upi|card|bank_transfer|other`; client screenshot #14 requests `credit_card|debit_card|net_banking` → NEEDS_CONTEXT (Phase 1 change).
 - `billing-history` payment_mode filter: includes `card` but not `credit_card`/`debit_card` — consistent with backend enum, will require migration in Phase 1.
+
+## Production Neon data inspection — OPEN controller-owned Phase 0 work
+
+**Status: `open_controller_work` — NOT completed.**
+
+A full production data audit (billing correctness, ledger balances, guest
+records, subscription state for all hotels in the live Neon database) has NOT
+been performed and cannot be performed by the development agent without
+production credentials.  The verification recorded in activeContext.md
+(alembic head e3f5a2c1b8d9, columns exist, service function runs clean) was
+limited to schema-level checks during the 3305ac4 hotfix session and does NOT
+constitute a complete data inspection.
+
+**Required actions (controller):**
+- Connect to the Neon ap-southeast-1 database with the production credentials.
+- Verify ledger balances, payment totals, and booking states for all live hotels.
+- Confirm no corrupted or orphaned records exist before Phase 1 settlement work begins.

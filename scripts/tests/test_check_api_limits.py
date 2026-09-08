@@ -3,13 +3,19 @@
 Tests cover:
 - parse_limit_calls: extracts correct (url_fragment, limit, line_no) tuples
 - check_violations: flags limits above cap, passes limits at/below cap
-- ENDPOINT_CAPS: required caps are present with correct values
+- ENDPOINT_CAPS: required caps are present with correct values (parametrized)
 - CLI integration via main()
+- _parse_caps_overrides: raises CapParseError on malformed input (testable
+  without subprocess overhead — no sys.exit inside the helper)
+- Known blind spots: dynamic ``${LIMIT}`` values and URLSearchParams patterns
+  are explicitly documented and asserted NOT to be detected
 """
 from __future__ import annotations
 
 import sys
 from pathlib import Path
+
+import pytest
 
 # Ensure scripts/ is importable
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
@@ -17,16 +23,19 @@ sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from check_api_limits import (  # noqa: E402
     ENDPOINT_CAPS,
+    CapParseError,
     LimitCall,
     Violation,
+    _parse_caps_overrides,
     check_violations,
     main,
     parse_limit_calls,
+    scan_directory,
 )
 
 
 # ---------------------------------------------------------------------------
-# ENDPOINT_CAPS — required entries
+# ENDPOINT_CAPS — required entries (parametrized for clear per-cap failures)
 # ---------------------------------------------------------------------------
 
 REQUIRED_CAPS = {
@@ -42,12 +51,14 @@ REQUIRED_CAPS = {
 }
 
 
-def test_required_caps_present():
-    for key, expected in REQUIRED_CAPS.items():
-        assert key in ENDPOINT_CAPS, f"Missing cap entry: '{key}'"
-        assert ENDPOINT_CAPS[key] == expected, (
-            f"Cap for '{key}' should be {expected}, got {ENDPOINT_CAPS[key]}"
-        )
+@pytest.mark.parametrize("key,expected", list(REQUIRED_CAPS.items()))
+def test_required_caps_present(key: str, expected: int) -> None:
+    """Each required cap must exist with the correct value.  Parametrized so a
+    missing or wrong cap produces a focused single-test failure."""
+    assert key in ENDPOINT_CAPS, f"Missing cap entry: '{key}'"
+    assert ENDPOINT_CAPS[key] == expected, (
+        f"Cap for '{key}' should be {expected}, got {ENDPOINT_CAPS[key]}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +99,22 @@ def test_parse_multiple_calls_on_separate_lines():
     assert calls[1].line_no == 2
 
 
+def test_parse_multiple_calls_on_same_line():
+    """Two limit= values on the SAME line must both be detected.  The regex
+    uses finditer so multiple quoted URL literals on one line are each matched
+    independently."""
+    src = (
+        'Promise.all([fetch("/api/v1/guests?limit=50"),'
+        ' fetch("/api/v1/rooms?limit=100")])'
+    )
+    calls = parse_limit_calls(src, "test.ts")
+    assert len(calls) == 2
+    limits = {c.limit for c in calls}
+    assert limits == {50, 100}
+    # Both must report the same line number
+    assert calls[0].line_no == calls[1].line_no == 1
+
+
 def test_parse_captures_correct_line_numbers():
     src = "const a = 1;\n" * 4 + 'fetch("/api/v1/invoices?limit=50")\n'
     calls = parse_limit_calls(src, "test.ts")
@@ -106,6 +133,39 @@ def test_parse_single_quoted_url():
     calls = parse_limit_calls(src, "test.ts")
     assert len(calls) == 1
     assert calls[0].limit == 100
+
+
+# ---------------------------------------------------------------------------
+# Known blind spots — asserted NOT to be detected (documented behaviour)
+# ---------------------------------------------------------------------------
+
+def test_parse_ignores_dynamic_limit_template_variable():
+    """KNOWN BLIND SPOT: ``limit=${pageSize}`` uses a runtime variable, not a
+    literal digit — the checker CANNOT detect this.  Test asserts the current
+    (intended) behaviour so any future regex change that accidentally starts
+    matching it is immediately noticed."""
+    src = 'fetch(`/api/v1/bookings?limit=${pageSize}`)'
+    calls = parse_limit_calls(src, "test.ts")
+    assert calls == [], (
+        "Dynamic limit=${variable} should not be detected — "
+        "document the blind spot rather than attempting to evaluate it."
+    )
+
+
+def test_parse_ignores_urlsearchparams():
+    """KNOWN BLIND SPOT: URLSearchParams patterns set the limit via a separate
+    method call, not an inline URL literal — the checker CANNOT detect these.
+    Test asserts the current (intended) behaviour."""
+    src = (
+        "const params = new URLSearchParams();\n"
+        "params.set('limit', String(pageSize));\n"
+        "fetch(`/api/v1/bookings?${params}`);\n"
+    )
+    calls = parse_limit_calls(src, "test.ts")
+    assert calls == [], (
+        "URLSearchParams patterns should not be detected — "
+        "document the blind spot rather than attempting to evaluate it."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -207,6 +267,40 @@ def test_violation_format_contains_key_fields():
 
 
 # ---------------------------------------------------------------------------
+# _parse_caps_overrides — testable without sys.exit
+# ---------------------------------------------------------------------------
+
+def test_parse_caps_valid():
+    result = _parse_caps_overrides(["bookings=200", "rooms=500"])
+    assert result == {"bookings": 200, "rooms": 500}
+
+
+def test_parse_caps_strips_whitespace():
+    result = _parse_caps_overrides([" bookings = 200 "])
+    assert result == {"bookings": 200}
+
+
+def test_parse_caps_empty_list():
+    assert _parse_caps_overrides([]) == {}
+
+
+def test_parse_caps_none():
+    assert _parse_caps_overrides(None) == {}  # type: ignore[arg-type]
+
+
+def test_parse_caps_invalid_no_equals_raises():
+    """Missing '=' must raise CapParseError, NOT call sys.exit."""
+    with pytest.raises(CapParseError, match="expected KEY=N"):
+        _parse_caps_overrides(["no-equals-sign"])
+
+
+def test_parse_caps_invalid_non_integer_raises():
+    """Non-integer value must raise CapParseError, NOT call sys.exit."""
+    with pytest.raises(CapParseError, match="must be integer"):
+        _parse_caps_overrides(["rooms=abc"])
+
+
+# ---------------------------------------------------------------------------
 # CLI integration via main()
 # ---------------------------------------------------------------------------
 
@@ -262,3 +356,44 @@ def test_main_caps_add_new_endpoint(tmp_path: Path):
     # With the override: violation flagged
     rc_with_cap = main([str(tmp_path), "--caps", "new-route=50"])
     assert rc_with_cap == 1
+
+
+def test_main_invalid_caps_entry_returns_2(tmp_path: Path):
+    """A malformed --caps entry (no '=') must produce exit code 2, not raise."""
+    f = tmp_path / "page.ts"
+    f.write_text('fetch("/api/v1/bookings?limit=50")', encoding="utf-8")
+    rc = main([str(tmp_path), "--caps", "no-equals-sign"])
+    assert rc == 2
+
+
+def test_main_invalid_caps_value_returns_2(tmp_path: Path):
+    """A --caps entry with a non-integer value must produce exit code 2, not raise."""
+    f = tmp_path / "page.ts"
+    f.write_text('fetch("/api/v1/bookings?limit=50")', encoding="utf-8")
+    rc = main([str(tmp_path), "--caps", "bookings=not-a-number"])
+    assert rc == 2
+
+
+# ---------------------------------------------------------------------------
+# scan_directory — returns (calls, file_count) tuple
+# ---------------------------------------------------------------------------
+
+def test_scan_directory_returns_tuple(tmp_path: Path):
+    """scan_directory must return a (list, int) tuple."""
+    f = tmp_path / "page.ts"
+    f.write_text('fetch("/api/v1/bookings?limit=50")', encoding="utf-8")
+    result = scan_directory(tmp_path)
+    assert isinstance(result, tuple) and len(result) == 2
+    calls, count = result
+    assert isinstance(calls, list)
+    assert isinstance(count, int)
+
+
+def test_scan_directory_counts_source_files(tmp_path: Path):
+    """file_count must equal the number of TS/TSX/JS/JSX files in the tree,
+    regardless of whether they contain any limit= calls."""
+    (tmp_path / "a.ts").write_text('fetch("/api/v1/bookings?limit=50")', encoding="utf-8")
+    (tmp_path / "b.tsx").write_text("export const x = 1;", encoding="utf-8")  # no limit
+    (tmp_path / "c.py").write_text("# not a JS file", encoding="utf-8")       # ignored
+    _, count = scan_directory(tmp_path)
+    assert count == 2  # only .ts and .tsx

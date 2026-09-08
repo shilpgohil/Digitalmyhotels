@@ -1,5 +1,30 @@
 # Active Context — DigitalMyHotels
 
+## Phase 0 audit baseline — hardened (2026-09-08) — COMMITTED test: harden API contract baseline
+
+Reviewer advisory findings fixed on top of a1abc72:
+- `test_api_contracts.py`: 22 tests (2 added). Imports at module top. Phase-1
+  rejection tests use real seeded bookings. `BILLING_HISTORY_REJECTED_MODES`
+  used consistently; empty-string and no-parameter semantics explicitly tested.
+- `check_api_limits.py`: `CapParseError` replaces sys.exit in cap-override
+  parsing (testable). `scan_directory` returns `(calls, count)` tuple —
+  eliminates second directory traversal. Known blind spots for dynamic `${LIMIT}`
+  and URLSearchParams documented in docstring.
+- `test_check_api_limits.py`: 37 tests (up from 24). Parametrized REQUIRED_CAPS.
+  Blind-spot tests, CapParseError tests, multi-call-on-one-line, scan_directory
+  tuple contract.
+- `client-9-08-acceptance.md`: Phase 1/2/4 counts corrected. All status labels
+  defined. Trailing whitespace removed. Neon inspection marked as open.
+
+**OPEN — production Neon data inspection (controller-owned Phase 0 work):**
+The schema-level check in activeContext notes below (alembic head, columns exist)
+was limited to the 3305ac4 hotfix and is NOT a full data audit. Billing correctness,
+ledger balances, and subscription state for live hotels have NOT been verified.
+Requires controller credentials. See `memory-bank/client-9-08-acceptance.md`
+"Production Neon data inspection" section for required actions.
+
+---
+
 ## Phase 0 audit baseline complete (2026-09-08) — COMMITTED (Phase 0 tag)
 
 - 39-item acceptance ledger: `memory-bank/client-9-08-acceptance.md` — all

@@ -1,5 +1,35 @@
 # Progress — DigitalMyHotels
 
+## Phase 0 acceptance audit baseline — hardened (2026-09-08) — COMMITTED test: harden API contract baseline
+
+Reviewer advisory findings fixed in one focused commit on top of a1abc72:
+- `backend/tests/integration/test_api_contracts.py`: imports moved to module top;
+  `BILLING_HISTORY_REJECTED_MODES` used consistently (empty-string semantic
+  documented); Phase-1 rejection tests now use real seeded bookings (no
+  schema-validation-before-DB-lookup ordering assumption); `test_billing_history_no_mode_omitted`
+  added to document None-vs-empty-string distinction; 22 contract tests total.
+- `scripts/check_api_limits.py`: known limitations for `${LIMIT}` template vars
+  and URLSearchParams documented in module docstring and parse_limit_calls;
+  `CapParseError(ValueError)` replaces `sys.exit` in `_parse_caps_overrides`
+  (testable without subprocess); `scan_directory` returns `(calls, file_count)` tuple
+  (eliminates second directory traversal).
+- `scripts/tests/test_check_api_limits.py`: 37 tests (up from 24); parametrized
+  REQUIRED_CAPS for per-cap failure messages; blind-spot tests for dynamic limits
+  and URLSearchParams; `CapParseError` tests; multi-call-on-same-line; scan_directory
+  tuple contract.
+- `memory-bank/client-9-08-acceptance.md`: Phase 1/2/4 summary counts corrected
+  (Phase 1: 5 partial/1 missing; Phase 2: 2 partial/6 missing; Phase 4: 7 missing/
+  1 needs_runtime_reproduction); all status labels defined; trailing whitespace
+  removed; production Neon data inspection marked as explicitly open controller work.
+
+**OPEN — production Neon data inspection (controller-owned):**
+A full production data audit (billing correctness, ledger balances, guest records,
+subscription state for all live hotels) has NOT been performed and requires
+controller credentials. The schema-level checks during the 3305ac4 hotfix are NOT
+a substitute. See `memory-bank/client-9-08-acceptance.md` for required actions.
+
+---
+
 ## Phase 0 acceptance audit baseline (2026-09-08) — COMMITTED test: add 9-08 acceptance and API contract baseline
 
 - `memory-bank/client-9-08-acceptance.md`: 39-item acceptance ledger, 40 screenshots,
@@ -14,7 +44,7 @@
 - `frontend/src/app/(partner)/checkin/page.tsx`: formatting-only diff reverted.
 - Backend ruff: clean on changed files.
 - Integration tests require Postgres at 5434; ran green on all prior sessions;
-  need live DB to run the 20 new tests.
+  need live DB to run the 22 new tests.
 
 
 

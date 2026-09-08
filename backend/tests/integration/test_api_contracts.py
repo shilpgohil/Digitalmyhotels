@@ -12,9 +12,19 @@ diverge.  Specifically:
    accepted (Phase 1 work); this test documents the current contract boundary
    so any silent breakage is caught immediately.
 4. /payments/billing-history payment_mode filter: accepted values match the
-   backend pattern; an unknown mode returns 422.
+   backend pattern; unknown/empty/wrong-case modes return 422; no payment_mode
+   at all (None default) returns 200.
+
+Empty query-string semantics (payment_mode=):
+   Sending ``?payment_mode=`` passes an empty string to FastAPI.  With
+   ``pattern="^(cash|upi|card|bank_transfer|other)$"`` the empty string fails
+   the regex → 422.  Omitting the parameter entirely produces None → no filter
+   applied → 200.  Both behaviours are covered by explicit tests below.
 """
 from __future__ import annotations
+
+from datetime import date, timedelta
+from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
@@ -106,9 +116,6 @@ async def _seed_booking(client: AsyncClient, headers: dict[str, str]) -> str:
       - room_types(hotel_id, code)
       - guests(hotel_id, normalized_phone)
     """
-    from datetime import date, timedelta
-    from uuid import uuid4
-
     uid = uuid4()
     suffix = uid.hex[:8]  # 8 hex chars → unique per call
     # Phone: 10 decimal digits.  97-prefix + last 8 decimal digits of UUID int.
@@ -158,7 +165,6 @@ async def _seed_booking(client: AsyncClient, headers: dict[str, str]) -> str:
     assert checkin.status_code == 201, checkin.text
     return booking.json()["id"]
 
-
 @pytest.mark.parametrize("method", ACCEPTED_PAYMENT_METHODS)
 async def test_payment_method_accepted(
     client: AsyncClient, hotel_a: HotelFixture, method: str
@@ -182,18 +188,17 @@ async def test_payment_method_not_yet_accepted(
 ) -> None:
     """Values from the Phase-1 expanded enum must currently be REJECTED (422)
     so we know when Phase 1 actually wires them in.  If this test fails after
-    Phase 1 is implemented, remove or update it."""
+    Phase 1 is implemented, remove or update it.
+
+    NOTE: We use a real seeded booking so this test does not depend on
+    whether schema validation happens before or after the booking DB lookup.
+    Either way the invalid ``method`` must produce 422.
+    """
     headers = await _owner_headers(client, hotel_a)
-    # We do NOT need a real booking for a request that should fail at schema
-    # validation — any UUID is fine.
-    import uuid
+    booking_id = await _seed_booking(client, headers)
     resp = await client.post(
         "/api/v1/payments",
-        json={
-            "booking_id": str(uuid.uuid4()),
-            "amount": "100.00",
-            "method": method,
-        },
+        json={"booking_id": booking_id, "amount": "100.00", "method": method},
         headers=headers,
     )
     assert resp.status_code == 422, (
@@ -207,6 +212,15 @@ async def test_payment_method_not_yet_accepted(
 # ---------------------------------------------------------------------------
 
 BILLING_HISTORY_ACCEPTED_MODES = ["cash", "upi", "card", "bank_transfer", "other"]
+
+# Invalid modes that the backend pattern MUST reject with 422.
+# Includes:
+#   - Phase-1 enum values not yet wired in
+#   - wrong-case "CASH" (pattern is case-sensitive)
+#   - empty string "": sending ?payment_mode= passes "" to FastAPI; the regex
+#     pattern ^(cash|upi|card|bank_transfer|other)$ does not match "" → 422.
+#     This is distinct from omitting the parameter altogether (None → no filter
+#     → 200), which is tested in test_billing_history_no_mode_omitted.
 BILLING_HISTORY_REJECTED_MODES = ["credit_card", "debit_card", "net_banking", "CASH", ""]
 
 
@@ -225,11 +239,12 @@ async def test_billing_history_accepted_modes(
     )
 
 
-@pytest.mark.parametrize("mode", ["credit_card", "debit_card", "net_banking", "CASH"])
+@pytest.mark.parametrize("mode", BILLING_HISTORY_REJECTED_MODES)
 async def test_billing_history_rejected_modes(
     client: AsyncClient, hotel_a: HotelFixture, mode: str
 ) -> None:
-    """Enum values outside the backend pattern must be rejected with 422."""
+    """Enum values outside the backend pattern must be rejected with 422.
+    See BILLING_HISTORY_REJECTED_MODES for why each value is expected to fail."""
     headers = await _owner_headers(client, hotel_a)
     resp = await client.get(
         f"/api/v1/payments/billing-history?payment_mode={mode}",
@@ -237,4 +252,17 @@ async def test_billing_history_rejected_modes(
     )
     assert resp.status_code == 422, (
         f"Expected 422 for unknown payment_mode='{mode}', got {resp.status_code}"
+    )
+
+
+async def test_billing_history_no_mode_omitted(
+    client: AsyncClient, hotel_a: HotelFixture
+) -> None:
+    """Omitting payment_mode entirely (FastAPI default None) must return 200.
+    This is the 'no filter' path — distinct from sending an empty string
+    (?payment_mode=) which is rejected with 422."""
+    headers = await _owner_headers(client, hotel_a)
+    resp = await client.get("/api/v1/payments/billing-history", headers=headers)
+    assert resp.status_code == 200, (
+        f"Expected 200 with no payment_mode param, got {resp.status_code}: {resp.text}"
     )

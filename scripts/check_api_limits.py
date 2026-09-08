@@ -25,8 +25,22 @@ Exit codes
 Importable surface (for unit tests)
 ------------------------------------
     ENDPOINT_CAPS   dict[str, int]  canonical cap table
+    CapParseError                   raised by _parse_caps_overrides on bad input
     parse_limit_calls(source, filename)  → list[LimitCall]
     check_violations(calls, caps)        → list[Violation]
+    scan_directory(root)                 → tuple[list[LimitCall], int]
+
+Known limitations
+-----------------
+1. **Dynamic limit values** — template literals with a variable limit such as
+   ``limit=${pageSize}`` or ``limit=${LIMIT}`` will NOT be detected; the regex
+   only matches literal digit sequences.  Callers that build the limit value
+   from a runtime variable bypass this checker entirely.
+2. **URLSearchParams** — patterns like ``params.set('limit', String(n))`` or
+   ``new URLSearchParams({ limit: String(n) })`` will NOT be detected because
+   the value is not embedded in a quoted URL string literal.
+Both blind spots are documented and tested in
+``scripts/tests/test_check_api_limits.py``.
 """
 from __future__ import annotations
 
@@ -64,6 +78,10 @@ ENDPOINT_CAPS: dict[str, int] = {
 #   (?P<url>[^\s`"']+)    URL characters up to the closing quote
 #   (?:[`"'])             closing quote (not captured)
 #   ...limit=(?P<limit>\d+) the limit parameter inside the URL
+#
+# KNOWN LIMITATION: only literal digit sequences are matched.  Dynamic values
+# such as `limit=${pageSize}` are invisible to this pattern — see module
+# docstring for details.
 # ---------------------------------------------------------------------------
 _LIMIT_RE = re.compile(
     r"""(?:[`"'])(?P<url>[^`"'\n]*?limit=(?P<limit>\d+)[^`"'\n]*)(?:[`"'])""",
@@ -111,6 +129,10 @@ def parse_limit_calls(source: str, filename: str = "<source>") -> list[LimitCall
 
     Only strings that contain ``/api/`` are considered (avoids false positives
     from CSS, test fixtures, etc.).
+
+    KNOWN BLIND SPOTS (see module docstring for details):
+    - Dynamic limit values: ``limit=${n}`` — not detected.
+    - URLSearchParams: ``.set('limit', ...)`` — not detected.
     """
     calls: list[LimitCall] = []
     # Work line-by-line so we can report line numbers
@@ -158,19 +180,25 @@ def check_violations(calls: list[LimitCall], caps: dict[str, int] | None = None)
 _SOURCE_EXTS = {".ts", ".tsx", ".js", ".jsx"}
 
 
-def scan_directory(root: Path) -> list[LimitCall]:
-    """Recursively scan *root* for TypeScript/JavaScript source files and
-    return all LimitCall instances found."""
+def scan_directory(root: Path) -> tuple[list[LimitCall], int]:
+    """Recursively scan *root* for TypeScript/JavaScript source files.
+
+    Returns a 2-tuple ``(calls, file_count)`` where *calls* is every
+    LimitCall found and *file_count* is the total number of source files
+    examined (including files that contained no limit calls).  Returning the
+    count avoids a second directory traversal in the caller.
+    """
     all_calls: list[LimitCall] = []
+    file_count = 0
     for path in sorted(root.rglob("*")):
         if path.suffix in _SOURCE_EXTS and path.is_file():
+            file_count += 1
             try:
                 source = path.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
-            filename = str(path)
-            all_calls.extend(parse_limit_calls(source, filename))
-    return all_calls
+            all_calls.extend(parse_limit_calls(source, filename=str(path)))
+    return all_calls, file_count
 
 
 # ---------------------------------------------------------------------------
@@ -210,18 +238,33 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
+class CapParseError(ValueError):
+    """Raised by ``_parse_caps_overrides`` when a --caps entry is malformed.
+
+    Using a dedicated exception (instead of calling sys.exit directly) keeps
+    the function testable without subprocess overhead.
+    """
+
+
 def _parse_caps_overrides(overrides: list[str]) -> dict[str, int]:
+    """Parse a list of ``KEY=N`` strings into a dict.
+
+    Raises :class:`CapParseError` on malformed entries so callers can decide
+    how to handle the error (the CLI converts it to exit code 2).
+    """
     result: dict[str, int] = {}
     for item in overrides or []:
         if "=" not in item:
-            print(f"Invalid --caps entry (expected KEY=N): {item!r}", file=sys.stderr)
-            sys.exit(2)
+            raise CapParseError(
+                f"Invalid --caps entry (expected KEY=N): {item!r}"
+            )
         key, _, val = item.partition("=")
         try:
             result[key.strip()] = int(val.strip())
         except ValueError:
-            print(f"Invalid --caps value (N must be integer): {item!r}", file=sys.stderr)
-            sys.exit(2)
+            raise CapParseError(
+                f"Invalid --caps value (N must be integer): {item!r}"
+            )
     return result
 
 
@@ -231,7 +274,11 @@ def main(argv: list[str] | None = None) -> int:
 
     caps = dict(ENDPOINT_CAPS)
     if args.caps:
-        caps.update(_parse_caps_overrides(args.caps))
+        try:
+            caps.update(_parse_caps_overrides(args.caps))
+        except CapParseError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
 
     # Resolve scan root
     if args.path:
@@ -244,9 +291,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: path does not exist: {scan_root}", file=sys.stderr)
         return 2
 
-    calls = scan_directory(scan_root) if scan_root.is_dir() else parse_limit_calls(
-        scan_root.read_text(encoding="utf-8", errors="replace"), str(scan_root)
-    )
+    if scan_root.is_dir():
+        calls, file_count = scan_directory(scan_root)
+    else:
+        calls = parse_limit_calls(
+            scan_root.read_text(encoding="utf-8", errors="replace"), str(scan_root)
+        )
+        file_count = 1
+
     violations = check_violations(calls, caps)
 
     if args.json_output:
@@ -270,12 +322,7 @@ def main(argv: list[str] | None = None) -> int:
             for v in violations:
                 print(f"  VIOLATION: {v.format()}")
         else:
-            scanned = sum(
-                1
-                for p in (scan_root.rglob("*") if scan_root.is_dir() else [scan_root])
-                if p.is_file() and p.suffix in _SOURCE_EXTS
-            )
-            print(f"OK — no limit violations found (scanned {scanned} source files).")
+            print(f"OK — no limit violations found (scanned {file_count} source files).")
 
     return 1 if violations else 0
 
