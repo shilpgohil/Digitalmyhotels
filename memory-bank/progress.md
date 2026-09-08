@@ -1,5 +1,23 @@
 # Progress — DigitalMyHotels
 
+## Phase 0 acceptance audit baseline (2026-09-08) — COMMITTED test: add 9-08 acceptance and API contract baseline
+
+- `memory-bank/client-9-08-acceptance.md`: 39-item acceptance ledger, 40 screenshots,
+  supplementary `12.26.29 AM` for item 20 explicit. Approved decisions table added
+  (role matrix, ID-audit, manual missed-arrival, 1/3/12 plans, hierarchical reset,
+  Super Admin customer detail audit).
+- `backend/tests/integration/test_api_contracts.py`: 20 contract tests; `_seed_booking`
+  now UUID-safe (suffix + phone derived from uuid4 per call).
+- `scripts/check_api_limits.py` + `scripts/tests/test_check_api_limits.py`:
+  static limit checker with 24 unit tests (all green). Checker reports 0 violations
+  against current frontend/src (101 files scanned).
+- `frontend/src/app/(partner)/checkin/page.tsx`: formatting-only diff reverted.
+- Backend ruff: clean on changed files.
+- Integration tests require Postgres at 5434; ran green on all prior sessions;
+  need live DB to run the 20 new tests.
+
+
+
 ## Super Admin + Mode B picker (2026-09-06) — COMMITTED e1d2ebb (pushed)
 - Advance-booking check-in times use DateTimePicker (same custom 24h panel as walk-in).
 - Admin nav dual-highlight fixed (pathname+searchParams). Active hotels exclude

@@ -1,5 +1,28 @@
 # Active Context — DigitalMyHotels
 
+## Phase 0 audit baseline complete (2026-09-08) — COMMITTED (Phase 0 tag)
+
+- 39-item acceptance ledger: `memory-bank/client-9-08-acceptance.md` — all
+  items audited from 40 screenshots (item 20 has supplementary `12.26.29 AM`
+  shot explicitly referenced). Approved decisions locked in ledger:
+  strict role matrix, full sensitive ID with audit trail, manual missed-arrival
+  handling, 1/3/12-month plans only (6-month deactivated), hierarchical password
+  reset, audited Super Admin customer detail.
+- API contract tests: `backend/tests/integration/test_api_contracts.py` — 20
+  tests covering current-guests limit/shape contract (regression guard for
+  3305ac4), payment method enum boundary (Phase-1 boundary documented), and
+  billing-history payment_mode filter. `_seed_booking` helper uses UUID-derived
+  unique suffix per call (prevents collisions if fixture scope changes).
+- Limit checker: `scripts/check_api_limits.py` — importable parse/check
+  functions + CLI, 9 required endpoint caps. `scripts/tests/test_check_api_limits.py`
+  24/24 unit tests pass. Checked against frontend/src: 0 violations / 101 files.
+- Integration tests need live Postgres (port 5434). DB was offline during this
+  session; TDD red state (20 ERRORs, DB connection refused) observed and
+  recorded. Tests will go green when DB is available.
+- checkin/page.tsx: formatting-only diff reverted cleanly.
+
+
+
 ## Current Guests 422 root cause (2026-09-06 late night) — FIXED 3305ac4 (live)
 - SYMPTOM: Current Guests showed "Something went wrong Retry" persistently.
 - FALSE LEADS: migration window, missing booking columns — production Neon was
