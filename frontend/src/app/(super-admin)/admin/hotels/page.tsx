@@ -10,6 +10,7 @@ import { apiFetch, ApiError } from "@/lib/api/client";
 import { fmtApiDate } from "@/lib/formatting";
 import type { HotelAdminListOut, HotelAdminOut } from "@/types/money";
 import { RenewDialog } from "@/components/admin/renew-dialog";
+import { EditHotelDialog } from "@/components/admin/edit-hotel-dialog";
 import {
   AdminListError,
   AdminListLoading,
@@ -193,6 +194,8 @@ function HotelRow({
       )}
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
+          {/* Edit is available for EVERY hotel status (client item 28). */}
+          <EditHotelDialog hotelId={hotel.id} hotelName={hotel.name} />
           {kind === "suspended" && (
             <>
               {!showMeta && <HotelStatusBadge hotel={hotel} />}

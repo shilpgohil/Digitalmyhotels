@@ -69,6 +69,46 @@ class SubscriptionPlanCreate(BaseModel):
     trial_days: int = Field(default=14, ge=0, le=365)
 
 
+class SubscriptionPlanUpdate(BaseModel):
+    """Partial plan edit — deactivation hides a plan from new assignments
+    without deleting it (client 9-08 item 27)."""
+
+    name: str | None = Field(default=None, min_length=2, max_length=120)
+    description: str | None = None
+    price: Decimal | None = Field(default=None, ge=0)
+    duration_days: int | None = Field(default=None, ge=1, le=3650)
+    trial_days: int | None = Field(default=None, ge=0, le=365)
+    is_active: bool | None = None
+
+
+class AdminHotelDetailOut(BaseModel):
+    id: UUID
+    name: str
+    city: str | None
+    state: str | None
+    phone: str | None
+    email: str | None
+    address_line1: str | None
+    status: str
+    created_at: datetime
+    owner_name: str | None
+    owner_email: str | None
+    owner_phone: str | None
+
+
+class AdminHotelUpdate(BaseModel):
+    """Super Admin edit of a hotel's profile (client 9-08 items 28/30)."""
+
+    name: str | None = Field(default=None, min_length=2, max_length=200)
+    city: str | None = Field(default=None, max_length=120)
+    state: str | None = Field(default=None, max_length=120)
+    phone: str | None = Field(default=None, max_length=32)
+    email: EmailStr | None = None
+    address_line1: str | None = Field(default=None, max_length=255)
+    # Backfills the OWNER user's phone so phone login works (item 30).
+    owner_phone: str | None = Field(default=None, max_length=32)
+
+
 class SubscriptionOut(ORMModel):
     id: UUID
     hotel_id: UUID

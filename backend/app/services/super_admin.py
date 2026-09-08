@@ -346,6 +346,137 @@ async def create_hotel_with_owner(
     return hotel
 
 
+async def _owner_for_hotel(db: AsyncSession, hotel_id: UUID) -> User | None:
+    owner_role = (
+        await db.execute(select(Role).where(Role.code == RoleCode.OWNER.value))
+    ).scalar_one_or_none()
+    if owner_role is None:
+        return None
+    membership = (
+        await db.execute(
+            select(HotelMembership)
+            .where(
+                HotelMembership.hotel_id == hotel_id,
+                HotelMembership.role_id == owner_role.id,
+                HotelMembership.status == "active",
+            )
+            .order_by(HotelMembership.created_at)
+        )
+    ).scalars().first()
+    if membership is None:
+        return None
+    return await db.get(User, membership.user_id)
+
+
+async def get_hotel_detail(db: AsyncSession, hotel_id: UUID) -> dict:
+    """Hotel profile + owner contact for the Super Admin edit page (item 28)."""
+    hotel = (await db.execute(select(Hotel).where(Hotel.id == hotel_id))).scalar_one_or_none()
+    if hotel is None:
+        raise NotFoundError("Hotel not found")
+    owner = await _owner_for_hotel(db, hotel_id)
+    return {
+        "id": hotel.id,
+        "name": hotel.name,
+        "city": hotel.city,
+        "state": hotel.state,
+        "phone": hotel.phone,
+        "email": hotel.email,
+        "address_line1": hotel.address_line1,
+        "status": hotel.status,
+        "created_at": hotel.created_at,
+        "owner_name": owner.full_name if owner else None,
+        "owner_email": owner.email if owner else None,
+        "owner_phone": owner.phone if owner else None,
+    }
+
+
+async def update_hotel_admin(
+    db: AsyncSession,
+    hotel_id: UUID,
+    changes: dict,
+    *,
+    actor_id: UUID,
+    correlation_id: str | None = None,
+) -> dict:
+    """Super Admin edit of hotel profile + owner phone backfill (items 28/30).
+
+    Only explicit fields are touched; owner_phone updates the owner USER so
+    phone login starts working for accounts created without one.
+    """
+    hotel = (await db.execute(select(Hotel).where(Hotel.id == hotel_id))).scalar_one_or_none()
+    if hotel is None:
+        raise NotFoundError("Hotel not found")
+
+    owner_phone = changes.pop("owner_phone", None)
+    before = {k: str(getattr(hotel, k)) for k in changes if hasattr(hotel, k)}
+    for key, value in changes.items():
+        if hasattr(hotel, key):
+            setattr(hotel, key, value)
+
+    if owner_phone is not None:
+        owner = await _owner_for_hotel(db, hotel_id)
+        if owner is None:
+            raise ValidationAppError(
+                "This hotel has no active owner account", code="no_owner"
+            )
+        from app.schemas.guest import normalize_phone
+
+        normalized = normalize_phone(owner_phone)
+        if not normalized:
+            raise ValidationAppError("Invalid owner phone number", code="invalid_phone")
+        owner.phone = normalized
+
+    await write_audit(
+        db,
+        action="platform.hotel_updated",
+        entity_type="hotel",
+        entity_id=hotel.id,
+        actor_id=actor_id,
+        hotel_id=hotel.id,
+        before=before,
+        after={
+            **{k: str(v) for k, v in changes.items()},
+            **({"owner_phone": "updated"} if owner_phone is not None else {}),
+        },
+        correlation_id=correlation_id,
+    )
+    await db.flush()
+    return await get_hotel_detail(db, hotel_id)
+
+
+async def update_plan(
+    db: AsyncSession,
+    plan_id: UUID,
+    changes: dict,
+    *,
+    actor_id: UUID,
+    correlation_id: str | None = None,
+) -> SubscriptionPlan:
+    """Edit a subscription plan (item 27). Deactivation hides the plan from
+    new assignments but never deletes it — existing subscriptions keep their
+    reference (the 6-month plan is deactivated, not removed)."""
+    plan = (
+        await db.execute(select(SubscriptionPlan).where(SubscriptionPlan.id == plan_id))
+    ).scalar_one_or_none()
+    if plan is None:
+        raise NotFoundError("Plan not found")
+    before = {k: str(getattr(plan, k)) for k in changes}
+    for key, value in changes.items():
+        setattr(plan, key, value)
+    await write_audit(
+        db,
+        action="platform.plan_updated",
+        entity_type="subscription_plan",
+        entity_id=plan.id,
+        actor_id=actor_id,
+        before=before,
+        after={k: str(v) for k, v in changes.items()},
+        correlation_id=correlation_id,
+    )
+    await db.flush()
+    return plan
+
+
 async def set_hotel_status(
     db: AsyncSession,
     hotel_id: UUID,

@@ -11,6 +11,8 @@ from app.models.user import User
 from app.schemas.hotel import HotelOut
 from app.schemas.ops import PlatformTrendOut
 from app.schemas.platform import (
+    AdminHotelDetailOut,
+    AdminHotelUpdate,
     CreateHotelRequest,
     HotelAdminListOut,
     PlatformDashboardOut,
@@ -20,6 +22,7 @@ from app.schemas.platform import (
     SubscriptionOut,
     SubscriptionPlanCreate,
     SubscriptionPlanOut,
+    SubscriptionPlanUpdate,
 )
 from app.services import reports as reports_service
 from app.services import subscriptions as sub_service
@@ -85,6 +88,34 @@ async def create_hotel(
     return HotelOut.model_validate(hotel)
 
 
+@router.get("/hotels/{hotel_id}", response_model=AdminHotelDetailOut)
+async def get_hotel_detail(
+    hotel_id: UUID,
+    _user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminHotelDetailOut:
+    """Hotel profile + owner contact for the Super Admin edit view (item 28)."""
+    return AdminHotelDetailOut(**await admin_service.get_hotel_detail(db, hotel_id))
+
+
+@router.patch("/hotels/{hotel_id}", response_model=AdminHotelDetailOut)
+async def update_hotel(
+    hotel_id: UUID,
+    body: AdminHotelUpdate,
+    request: Request,
+    user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminHotelDetailOut:
+    """Super Admin hotel edit — profile fields + owner-phone backfill (items 28/30)."""
+    changes = body.model_dump(exclude_unset=True)
+    if "email" in changes and changes["email"] is not None:
+        changes["email"] = str(changes["email"])
+    detail = await admin_service.update_hotel_admin(
+        db, hotel_id, changes, actor_id=user.id, correlation_id=_correlation(request)
+    )
+    return AdminHotelDetailOut(**detail)
+
+
 @router.post("/hotels/{hotel_id}/status", response_model=HotelOut)
 async def set_status(
     hotel_id: UUID,
@@ -101,9 +132,25 @@ async def set_status(
 
 @router.get("/plans", response_model=list[SubscriptionPlanOut])
 async def list_plans(
+    include_inactive: bool = Query(default=False),
     _user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> list[SubscriptionPlanOut]:
+    """Plan catalogue. include_inactive=true powers the management page,
+    where deactivated plans stay visible (item 27: deactivate, never delete)."""
+    if include_inactive:
+        from sqlalchemy import select
+
+        from app.models.platform import SubscriptionPlan
+
+        rows = (
+            await db.execute(
+                select(SubscriptionPlan).order_by(
+                    SubscriptionPlan.is_active.desc(), SubscriptionPlan.duration_days
+                )
+            )
+        ).scalars()
+        return [SubscriptionPlanOut.model_validate(p) for p in rows]
     items = await sub_service.list_plans(db)
     return [SubscriptionPlanOut.model_validate(p) for p in items]
 
@@ -127,6 +174,25 @@ async def create_plan(
         entity_id=plan.id,
         actor_id=user.id,
         after={"code": plan.code},
+        correlation_id=_correlation(request),
+    )
+    return SubscriptionPlanOut.model_validate(plan)
+
+
+@router.patch("/plans/{plan_id}", response_model=SubscriptionPlanOut)
+async def update_plan(
+    plan_id: UUID,
+    body: SubscriptionPlanUpdate,
+    request: Request,
+    user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> SubscriptionPlanOut:
+    """Edit price/name/duration or (de)activate a plan — never deletes (item 27)."""
+    plan = await admin_service.update_plan(
+        db,
+        plan_id,
+        body.model_dump(exclude_unset=True),
+        actor_id=user.id,
         correlation_id=_correlation(request),
     )
     return SubscriptionPlanOut.model_validate(plan)

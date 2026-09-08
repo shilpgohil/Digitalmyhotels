@@ -70,18 +70,39 @@ export function RenewDialog({ hotel }: { readonly hotel: HotelAdminOut }) {
           </DialogHeader>
           <div>
             <Label>{t("plans")}</Label>
-            <select
-              className="mt-1.5 h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
-              value={planId}
-              onChange={(e) => setPlanId(e.target.value)}
-            >
-              <option value="">—</option>
-              {plans.data?.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — {fmtINR(p.price)} / {p.duration_days}d
-                </option>
-              ))}
-            </select>
+            {/* Loading / error / empty states — the dialog previously showed a
+                bare '—' select whatever happened (client 9-08 item 38). */}
+            {plans.isLoading && (
+              <p className="mt-1.5 text-sm text-muted-foreground">{tc("loading")}</p>
+            )}
+            {plans.isError && (
+              <p className="mt-1.5 text-sm text-danger">
+                {plans.error instanceof ApiError ? plans.error.message : tc("error")}{" "}
+                <button type="button" className="underline" onClick={() => plans.refetch()}>
+                  {tc("retry")}
+                </button>
+              </p>
+            )}
+            {plans.data && plans.data.filter((p) => p.is_active).length === 0 && (
+              <p className="mt-1.5 text-sm text-muted-foreground">{t("noActivePlans")}</p>
+            )}
+            {plans.data && plans.data.filter((p) => p.is_active).length > 0 && (
+              <select
+                className="mt-1.5 h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                value={planId}
+                onChange={(e) => setPlanId(e.target.value)}
+              >
+                {/* Explicit placeholder instead of a meaningless dash. */}
+                <option value="">{t("choosePlan")}</option>
+                {plans.data
+                  .filter((p) => p.is_active)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} — {fmtINR(p.price)} / {p.duration_days}d
+                    </option>
+                  ))}
+              </select>
+            )}
           </div>
           <DialogFooter>
             <DialogClose className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm">
