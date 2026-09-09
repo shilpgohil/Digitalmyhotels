@@ -412,8 +412,9 @@ function RoomReplaceControl({
   const t = useTranslations("checkin");
   const tc = useTranslations("common");
   const api = useApi();
-  const { activeHotelId } = useAuth();
   const [openFor, setOpenFor] = useState<string | null>(null);
+  /** Room chosen in the picker, awaiting explicit confirmation. */
+  const [pendingTarget, setPendingTarget] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
   // The availability endpoint rejects past check-in dates (422). A guest
@@ -425,16 +426,9 @@ function RoomReplaceControl({
   const availTo =
     booking.check_out_date < availFrom ? availFrom : booking.check_out_date;
 
-  const avail = useQuery<import("@/types/hotel").RoomAvailabilityOut>({
-    queryKey: ["room-availability", activeHotelId, availFrom, availTo],
-    queryFn: () =>
-      api(`/api/v1/rooms/availability?check_in=${availFrom}&check_out=${availTo}`),
-    enabled: !!openFor && !!activeHotelId,
-    staleTime: 15_000,
-  });
-
   const currentRooms = booking.rooms.filter((r) => r.is_current);
   const currentIds = new Set(currentRooms.map((r) => r.room_id));
+  const fromRoom = currentRooms.find((r) => r.room_id === openFor);
 
   const replace = async (toRoomId: string) => {
     if (!openFor) return;
@@ -446,6 +440,7 @@ function RoomReplaceControl({
       });
       toast.success(t("roomReplaced"));
       setOpenFor(null);
+      setPendingTarget([]);
       onReplaced();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : tc("error"));
@@ -455,12 +450,16 @@ function RoomReplaceControl({
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      {/* Current allocation, one chip per room with its own Change action. */}
       <div className="flex flex-wrap gap-2">
         {currentRooms.map((r) => (
           <div
             key={r.room_id}
-            className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-1.5 text-sm"
+            className={cn(
+              "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm",
+              openFor === r.room_id ? "border-gold-400 bg-gold-50" : "bg-muted/30",
+            )}
           >
             <BedDouble className="size-4 text-gold-600" aria-hidden />
             <span className="font-semibold">{r.room_number}</span>
@@ -470,52 +469,62 @@ function RoomReplaceControl({
             <button
               type="button"
               className="text-xs font-medium text-gold-700 underline hover:text-gold-800"
-              onClick={() => setOpenFor(openFor === r.room_id ? null : r.room_id)}
+              onClick={() => {
+                setPendingTarget([]);
+                setOpenFor(openFor === r.room_id ? null : r.room_id);
+              }}
               disabled={busy}
             >
               {openFor === r.room_id ? tc("cancel") : t("changeRoom")}
             </button>
-        </div>
-              ))}
-            </div>
+          </div>
+        ))}
+      </div>
 
-      {openFor && (
-        <div className="rounded-lg border bg-white p-3 space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            {t("pickReplacementRoom")}
+      {/* Full room picker — the SAME status-filtered, badge-rich component
+          used everywhere else rooms are selected (client: the change-room
+          screen must match the Room Information picker, not a chip list). */}
+      {openFor && fromRoom && (
+        <div className="space-y-3 rounded-xl border bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {t("pickReplacementFor", { room: fromRoom.room_number })}
           </p>
-          {avail.isLoading && <Skeleton className="h-9 w-full" />}
-          {avail.isError && (
-            <p className="text-sm text-danger">
-              {/* Show the REAL API message so failures are diagnosable. */}
-              {avail.error instanceof ApiError ? avail.error.message : tc("error")}{" "}
-              <button type="button" className="underline" onClick={() => avail.refetch()}>
-                {tc("retry")}
-              </button>
-            </p>
-          )}
-          {avail.data && (
-            <div className="flex flex-wrap gap-2">
-              {avail.data.available
-                .filter((room) => !currentIds.has(room.id))
-                .map((room) => (
-                  <button
-                    key={room.id}
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void replace(room.id)}
-                    className="rounded-lg border px-3 py-1.5 text-sm transition-colors hover:border-gold-400 hover:bg-gold-50 disabled:opacity-50"
-                  >
-                    <span className="font-semibold">{room.room_number}</span>{" "}
-                    <span className="text-xs text-muted-foreground">
-                      {room.room_type_name ?? ""} ·{" "}
-                      {fmtINR(Number.parseFloat(room.room_type_base_price) || 0)}
-                    </span>
-                  </button>
-                ))}
-              {avail.data.available.filter((room) => !currentIds.has(room.id)).length === 0 && (
-                <p className="text-sm text-muted-foreground">{t("noReplacementRooms")}</p>
-              )}
+          <RoomAvailabilityPicker
+            checkIn={availFrom}
+            checkOut={availTo}
+            adults={booking.adults}
+            guestChildren={booking.children}
+            selectedRooms={pendingTarget}
+            onSelectionChange={(ids) => {
+              // Single-select semantics: keep only the newest pick, and the
+              // rooms already on the booking can never be the target.
+              const fresh = ids.filter((id) => !currentIds.has(id));
+              setPendingTarget(fresh.slice(-1));
+            }}
+          />
+          {pendingTarget.length === 1 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gold-400 bg-gold-50 px-4 py-3">
+              <p className="text-sm font-medium text-navy-900">
+                {t("confirmReplaceHint", { from: fromRoom.room_number })}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => setPendingTarget([])}
+                >
+                  {tc("cancel")}
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-navy-900 text-white hover:bg-navy-900/90"
+                  disabled={busy}
+                  onClick={() => void replace(pendingTarget[0])}
+                >
+                  {busy ? tc("saving") : t("confirmReplace")}
+                </Button>
+              </div>
             </div>
           )}
         </div>
