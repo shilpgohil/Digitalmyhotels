@@ -2191,7 +2191,7 @@ function AdditionalGuestEntry({
       <div className="flex rounded-lg overflow-hidden border text-xs font-medium w-fit">
         <button
           type="button"
-          onClick={() => setMode("search")}
+          onClick={() => { setMode("search"); setHasSearched(false); }}
           className={cn(
             "px-3 py-1.5 transition-colors",
             mode === "search" ? "bg-navy-900 text-white" : "hover:bg-muted",
