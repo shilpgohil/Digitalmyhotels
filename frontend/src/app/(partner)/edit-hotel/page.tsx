@@ -516,17 +516,8 @@ function EditHotelContent() {
         );
       }
 
-      // 4. Check-in form flags
-      const attemptSettings = attemptIn(t("sectionSettings"));
-      await attemptSettings(() =>
-        api("/api/v1/hotels/me/settings", {
-          method: "PATCH",
-          body: {
-            collect_emergency_contact: collectEmergency,
-            collect_vehicle_details: collectVehicle,
-          },
-        }),
-      );
+      // 4. Check-in form flags — Emergency & Vehicle toggles removed (client item 15).
+      // Settings PATCH no longer needed here; the check-in form always shows these sections.
 
       // 2a. Room types diff — create new, patch changed (no DELETE endpoint:
       // types may be referenced by rooms, so removal is not supported).
@@ -654,7 +645,7 @@ function EditHotelContent() {
 
       return errors;
     },
-    onSuccess: (errors) => {
+    onSuccess: async (errors) => {
       setSaveFailures(errors);
       if (errors.length === 0) {
         toast.success(t("updated"));
@@ -663,13 +654,20 @@ function EditHotelContent() {
         // detail; the toast just points at it.
         toast.error(t("partialSaveError"));
       }
-      // Refetch + reinitialize every section from fresh server state.
-      queryClient.invalidateQueries({ queryKey: ["hotel", activeHotelId] });
-      queryClient.invalidateQueries({ queryKey: ["hotel-settings", activeHotelId] });
-      queryClient.invalidateQueries({ queryKey: ["gst-settings", activeHotelId] });
-      queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
-      queryClient.invalidateQueries({ queryKey: ["room-types", activeHotelId] });
-      queryClient.invalidateQueries({ queryKey: ["hotel-services", activeHotelId] });
+      // Wait for fresh server data before resetting init flags.
+      // Previously, invalidateQueries + immediate setXxxInit(false) caused a
+      // race: the useEffects re-ran before the refetch completed, re-initializing
+      // from stale cache and losing newly-added rooms/services from the UI.
+      // (client 9-08 items 15 + 29 — "row data clears after save/refresh").
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["hotel", activeHotelId] }),
+        queryClient.refetchQueries({ queryKey: ["hotel-settings", activeHotelId] }),
+        queryClient.refetchQueries({ queryKey: ["gst-settings", activeHotelId] }),
+        queryClient.refetchQueries({ queryKey: ["rooms", activeHotelId] }),
+        queryClient.refetchQueries({ queryKey: ["room-types", activeHotelId] }),
+        queryClient.refetchQueries({ queryKey: ["hotel-services", activeHotelId] }),
+      ]);
+      // Now safe to reset: the cache already holds the confirmed server state.
       setIdentityInit(false);
       setGstInit(false);
       setRoomsInit(false);
@@ -1120,37 +1118,8 @@ function EditHotelContent() {
               </div>
             </SectionCard>
 
-            {/* ── 4. Emergency & Vehicle Details ───────────────────────── */}
-            <SectionCard number={4} title={t("emergencyVehicle")}>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div>
-                    <p className="text-sm font-medium">{t("emergencyContact")}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {t("emergencyContactDesc")}
-                    </p>
-                  </div>
-                  <Toggle
-                    checked={collectEmergency}
-                    onChange={setCollectEmergency}
-                    label={t("emergencyContact")}
-                  />
-                </div>
-                <div className="flex items-center justify-between border-t py-2">
-                  <div>
-                    <p className="text-sm font-medium">{t("vehicleDetails")}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {t("vehicleDetailsDesc")}
-                    </p>
-                  </div>
-                  <Toggle
-                    checked={collectVehicle}
-                    onChange={setCollectVehicle}
-                    label={t("vehicleDetails")}
-                  />
-                </div>
-              </div>
-            </SectionCard>
+            {/* Emergency & Vehicle Details toggles removed (client 9-08 item 15:
+                "Remove it all places" — the check-in form always collects these). */}
 
             {/* ── Section-level save failures (client 9-08 item 15) ────── */}
             {saveFailures.length > 0 && (

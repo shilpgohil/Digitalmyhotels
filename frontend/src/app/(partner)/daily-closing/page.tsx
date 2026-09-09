@@ -15,6 +15,7 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AlertTriangle } from "lucide-react";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import type { DailyClosingOut } from "@/types/money";
 import { RequirePermission } from "@/components/auth/require-permission";
@@ -36,11 +37,13 @@ function DailyClosingContent() {
     queryKey: ["closing-today", activeHotelId],
     queryFn: () => api<DailyClosingOut>("/api/v1/ops/daily-closing/today"),
     enabled: !!activeHotelId,
+    staleTime: 30_000,
   });
   const history = useQuery({
     queryKey: ["closings", activeHotelId],
     queryFn: () => api<DailyClosingOut[]>("/api/v1/ops/daily-closing"),
     enabled: !!activeHotelId,
+    staleTime: 30_000,
   });
 
   const invalidate = () => {
@@ -112,6 +115,26 @@ function DailyClosingContent() {
             </dl>
             {row.status === "open" && (
               <div className="mt-4 space-y-3">
+                {/* Backdated-payment warning — shown when today's payments
+                    belong to bookings from prior days (e.g. dues at late
+                    checkout). Legitimate but should be reviewed before close. */}
+                {(row.backdated_payments_count ?? 0) > 0 && (
+                  <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
+                    <div className="text-sm">
+                      <p className="font-semibold text-amber-800">
+                        {t("backdatedPaymentsTitle", {
+                          count: row.backdated_payments_count,
+                        })}
+                      </p>
+                      <p className="text-amber-700">
+                        {t("backdatedPaymentsHint", {
+                          amount: fmtINR(row.backdated_payments_amount),
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <Label>{t("notes")}</Label>
                   <Input className="mt-1" value={notes} onChange={(e) => setNotes(e.target.value)} />

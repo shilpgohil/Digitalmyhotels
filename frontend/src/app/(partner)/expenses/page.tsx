@@ -595,7 +595,7 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
               >
-                <option value="">—</option>
+                <option value="">{t("selectCategory")}</option>
                 {categories.data?.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -771,7 +771,7 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
           >
-            <option value="">—</option>
+            <option value="">{t("selectCategory")}</option>
             {categories.data?.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -817,7 +817,7 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
             value={vendorId}
             onChange={(e) => setVendorId(e.target.value)}
           >
-            <option value="">—</option>
+            <option value="">{t("selectVendor")}</option>
             {vendors.data?.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}

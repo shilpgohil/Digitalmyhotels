@@ -42,6 +42,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 type StatusFilter = "all" | "pending" | "confirmed";
 
+/** True when a confirmed booking's scheduled check-in has passed by ≥ 2 h.
+ *  The backend sweep fires at this threshold (client 9-08 item 23). */
+function isMissedArrival(b: BookingOut): boolean {
+  if (b.status !== "confirmed") return false;
+  const dateStr = b.check_in_date;
+  const timeStr = b.check_in_time ?? "12:00";
+  const scheduledMs = new Date(`${dateStr}T${timeStr}:00`).getTime();
+  const nowMs = Date.now();
+  return nowMs - scheduledMs >= 2 * 60 * 60 * 1000; // 2 h
+}
+
 /** `DD/MM/YYYY` plus `, HH:MM` when a time is present (no dangling comma). */
 function fmtApiDateTime(date: string, time?: string | null): string {
   return time ? `${fmtApiDate(date)}, ${time}` : fmtApiDate(date);
@@ -64,6 +75,8 @@ function AdvanceBookingsContent() {
   const [page, setPage] = useState(1);
   const [cancelTarget, setCancelTarget] = useState<BookingOut | null>(null);
   const cancelConfirm = useConfirmDialog();
+  const [noShowTarget, setNoShowTarget] = useState<BookingOut | null>(null);
+  const noShowConfirm = useConfirmDialog();
 
   // Reset pagination whenever any filter changes.
   useEffect(() => {
@@ -94,12 +107,16 @@ function AdvanceBookingsContent() {
     queryFn: () =>
       api<ListOut<BookingOut>>(`/api/v1/bookings?status=pending&limit=100${filterQs}`),
     enabled: !!activeHotelId && statusFilter !== "confirmed",
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
   const confirmedBookings = useQuery({
     queryKey: ["bookings", activeHotelId, "confirmed-list", filterQs],
     queryFn: () =>
       api<ListOut<BookingOut>>(`/api/v1/bookings?status=confirmed&limit=100${filterQs}`),
     enabled: !!activeHotelId && statusFilter !== "pending",
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 
   const isLoading =
@@ -145,6 +162,7 @@ function AdvanceBookingsContent() {
       api<BookingOut>(`/api/v1/bookings/${id}/no-show`, { method: "POST" }),
     onSuccess: () => {
       toast.success(t("markedNoShow"));
+      setNoShowTarget(null);
       invalidate();
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
@@ -189,6 +207,31 @@ function AdvanceBookingsContent() {
             <Plus className="size-4" aria-hidden />
             {t("newBooking")}
           </button>
+
+          {/* No-show confirmation dialog — describes consequences (room freed,
+              booking closed, cannot be undone without manual data correction). */}
+          <ConfirmDialog
+            open={noShowConfirm.open}
+            title={t("markNoShow")}
+            message={
+              noShowTarget
+                ? `${noShowTarget.booking_number} — ${noShowTarget.primary_guest_name ?? ""}\n\n${t("noShowWarning")}`
+                : undefined
+            }
+            confirmLabel={t("confirmNoShow")}
+            confirmVariant="destructive"
+            isPending={noShowMutation.isPending}
+            onConfirm={() => {
+              if (noShowTarget) {
+                noShowMutation.mutate(noShowTarget.id);
+                noShowConfirm.hide();
+              }
+            }}
+            onCancel={() => {
+              noShowConfirm.hide();
+              setNoShowTarget(null);
+            }}
+          />
 
           <ConfirmDialog
             open={cancelConfirm.open}
@@ -292,7 +335,15 @@ function AdvanceBookingsContent() {
                     </TableCell>
                     <TableCell className="tabular-nums">{fmtINR(booking.total_amount)}</TableCell>
                     <TableCell>
-                      <BookingStatusBadge status={booking.status} />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <BookingStatusBadge status={booking.status} />
+                        {/* Missed arrival: confirmed booking past check-in by ≥ 2h (item 23) */}
+                        {isMissedArrival(booking) && (
+                          <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-700">
+                            Missed arrival
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <PaymentStatusBadge status={booking.payment_status} />
@@ -317,7 +368,10 @@ function AdvanceBookingsContent() {
                             )}
                             {booking.status === "confirmed" && (
                               <DropdownMenuItem
-                                onClick={() => noShowMutation.mutate(booking.id)}
+                                onClick={() => {
+                                  setNoShowTarget(booking);
+                                  noShowConfirm.show();
+                                }}
                               >
                                 <UserX className="size-4" aria-hidden />
                                 {t("markNoShow")}

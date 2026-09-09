@@ -1,5 +1,20 @@
 # Progress — DigitalMyHotels
 
+## Remaining audit backlog (2026-09-09) — implemented, uncommitted
+
+- guest_type/source CheckConstraints + `ix_guests_hotel_name_lower` (migration
+  `d2f4b8a1c6e9`). Values match live forms (lowercase), not the Title-Case
+  draft that would have broken check-in.
+- Frontend `GuestType` union shared by check-in + advance-booking.
+- Daily closing warns when today's payments belong to prior-day bookings
+  (`ops.backdatedPayments*`).
+- Completed Bookings Cancelled chip includes no-shows; search deep-link
+  carries `status=cancelled`.
+- `alembic check` added to CI; ESLint suppression policy documented.
+- Unit tests: `test_booking_schema.py` (17 cases). i18n en=hi=1455.
+
+---
+
 ## Phase 0 acceptance audit baseline — hardened (2026-09-08) — COMMITTED test: harden API contract baseline
 
 Reviewer advisory findings fixed in one focused commit on top of a1abc72:

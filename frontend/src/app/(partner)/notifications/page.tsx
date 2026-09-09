@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, notificationCategoriesForRole } from "@/lib/permissions";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { fmtDateTime } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
@@ -65,7 +65,8 @@ function NotificationsContent() {
   const tc = useTranslations("common");
   const api = useApi();
   const router = useRouter();
-  const { activeHotelId, can } = useAuth();
+  const { activeHotelId, can, activeRoleCode } = useAuth();
+  const allowedCategories = notificationCategoriesForRole(activeRoleCode);
   const queryClient = useQueryClient();
   const [activeCategory, setActiveCategory] = useState("");
   const [page, setPage] = useState(1);
@@ -106,17 +107,21 @@ function NotificationsContent() {
     router.push(n.deep_link);
   };
 
-  const items = notifications.data?.items ?? [];
+  const items = (notifications.data?.items ?? []).filter(
+    (n) => allowedCategories.includes(n.category),
+  );
   const unread = notifications.data?.unread ?? 0;
 
   return (
     <>
       <PartnerHeader title={t("title")} subtitle={tn("overview")} />
       <main className="flex-1 overflow-y-auto p-6">
-        {/* Category filter chips */}
+        {/* Category filter chips — only categories this role can see */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap gap-1.5">
-            {CATEGORIES.map((cat) => (
+            {CATEGORIES.filter(
+              (cat) => !cat.key || allowedCategories.includes(cat.key),
+            ).map((cat) => (
               <button
                 key={cat.key}
                 type="button"

@@ -37,19 +37,33 @@ export function AdminListError({
 export function hotelDisplayStatus(hotel: {
   status: string;
   subscription_status: string | null;
+  expiry_date?: string | null;
 }): "active" | "expired" | "suspended" | "trial" {
   if (hotel.status === "suspended") return "suspended";
-  if (hotel.status === "expired" || hotel.subscription_status === "expired") {
+  // Expired: stored status, subscription_status, or expiry_date has passed.
+  // The last check guards against background-job lag where subscription_status
+  // wasn't updated but the date is clearly in the past (client item 16).
+  const dateExpired =
+    !!hotel.expiry_date && new Date(hotel.expiry_date) < new Date();
+  if (
+    hotel.status === "expired" ||
+    hotel.subscription_status === "expired" ||
+    dateExpired
+  ) {
     return "expired";
   }
-  if (hotel.status === "trial") return "trial";
+  if (hotel.status === "trial" || hotel.subscription_status === "trial") return "trial";
   return "active";
 }
 
 export function HotelStatusBadge({
   hotel,
 }: {
-  readonly hotel: { status: string; subscription_status: string | null };
+  readonly hotel: {
+    status: string;
+    subscription_status: string | null;
+    expiry_date?: string | null;
+  };
 }) {
   const kind = hotelDisplayStatus(hotel);
   const styles: Record<typeof kind, string> = {

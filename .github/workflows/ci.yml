@@ -54,6 +54,11 @@ jobs:
           DATABASE_URL: postgresql+asyncpg://dmh:dmh_dev_password@localhost:5432/digitalmyhotels_test
         run: python -m alembic upgrade head
 
+      - name: Alembic model/migration drift check
+        env:
+          DATABASE_URL: postgresql+asyncpg://dmh:dmh_dev_password@localhost:5432/digitalmyhotels_test
+        run: python -m alembic check
+
       - name: Run tests
         env:
           # Both DATABASE_URL and TEST_DATABASE_URL point at the test DB so

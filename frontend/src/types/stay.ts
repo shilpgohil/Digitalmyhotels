@@ -47,6 +47,16 @@ export interface BookingRoomOut {
   is_current: boolean;
 }
 
+/** Values sent by check-in and advance-booking guest-type selectors. */
+export const GUEST_TYPES = [
+  "business",
+  "personal",
+  "family",
+  "group",
+  "other",
+] as const;
+export type GuestType = (typeof GUEST_TYPES)[number];
+
 export interface BookingOut {
   id: string;
   booking_number: string;
@@ -76,7 +86,7 @@ export interface BookingOut {
   primary_guest_phone: string | null;
   rooms: BookingRoomOut[];
   created_at: string;
-  guest_type?: string | null;
+  guest_type?: GuestType | null;
   check_in_time?: string | null;
   check_out_time?: string | null;
 }
@@ -166,7 +176,8 @@ export interface BookingCreatePayload {
   check_out_date: string;
   adults: number;
   children: number;
-  guest_type?: string | null;
+  guest_type?: GuestType | null;
+  source?: "walk_in" | "advance" | "online" | "phone" | "other";
   /** "HH:MM" */
   check_in_time?: string | null;
   /** "HH:MM" */

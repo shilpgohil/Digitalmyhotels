@@ -197,7 +197,39 @@ async def get_or_open_day(
     if row.status == "open":
         _apply_snapshot(row, snap)
         await db.flush()
+
+    count, amount = await backdated_payment_stats(db, hotel_id, day)
+    object.__setattr__(row, "backdated_payments_count", count)
+    object.__setattr__(row, "backdated_payments_amount", amount)
     return row
+
+
+async def backdated_payment_stats(
+    db: AsyncSession, hotel_id: UUID, day: date
+) -> tuple[int, Decimal]:
+    """Payments recorded on `day` for bookings whose check-in was earlier.
+
+    These are legitimate (dues at late checkout, late-entered advance) but
+    the desk should review the amount before closing the day.
+    """
+    hotel_tz = await _hotel_tz(db, hotel_id)
+    local_paid = func.date(func.timezone(literal(hotel_tz), Payment.paid_at))
+    bd = (
+        await db.execute(
+            select(
+                func.count().label("n"),
+                func.coalesce(func.sum(Payment.amount), 0).label("total"),
+            )
+            .join(Booking, Booking.id == Payment.booking_id)
+            .where(
+                Payment.hotel_id == hotel_id,
+                Payment.status == "completed",
+                local_paid == day,
+                Booking.check_in_date < day,
+            )
+        )
+    ).one()
+    return int(bd.n or 0), money(bd.total or 0)
 
 
 async def close_day(

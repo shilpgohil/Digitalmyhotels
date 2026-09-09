@@ -172,6 +172,11 @@ export interface DailyClosingOut {
   cash_balance: string;
   notes: string | null;
   closed_at: string | null;
+  /** Payments made today for bookings whose check-in was on a prior day.
+   *  Desk should review before closing — these are legitimate (e.g. dues at
+   *  checkout) but worth explicit sign-off. */
+  backdated_payments_count: number;
+  backdated_payments_amount: string;
 }
 
 export interface ShiftHandoverOut {

@@ -625,7 +625,11 @@ function CompletedBookingsContent() {
   const [search, setSearch] = useState(() => searchParams.get("q") ?? "");
   const [fromDate, setFromDate] = useState(() => searchParams.get("from") ?? "");
   const [toDate, setToDate] = useState(() => searchParams.get("to") ?? "");
-  const [status, setStatus] = useState<CompletedStatus>("checked_out");
+  const [status, setStatus] = useState<CompletedStatus>(() => {
+    const raw = searchParams.get("status");
+    if (raw === "cancelled" || raw === "no_show") return "cancelled";
+    return "checked_out";
+  });
   const [quickRange, setQuickRange] = useState<QuickRange>("all");
   const [page, setPage] = useState(0);
   // Booking id whose detail drawer is open (null = closed).
@@ -644,31 +648,37 @@ function CompletedBookingsContent() {
     if (search) params.set("q", search);
     if (fromDate) params.set("from", fromDate);
     if (toDate) params.set("to", toDate);
+    if (status === "cancelled") params.set("status", "cancelled");
     const qs = params.toString();
     const url = qs ? `/completed-bookings?${qs}` : "/completed-bookings";
     router.replace(url, { scroll: false });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, fromDate, toDate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- router identity is stable
+  }, [search, fromDate, toDate, status]);
 
   // Reset pagination whenever filters change.
   useEffect(() => {
     setPage(0);
   }, [search, fromDate, toDate, status]);
 
+  // Client (9-06): no dedicated No-show tab. No-shows share the Cancelled
+  // chip so marked-no-show bookings remain findable (and search deep-links
+  // land here via ?status=cancelled).
+  const statusParam =
+    status === "cancelled" ? "cancelled,no_show" : status;
+
   const bookings = useQuery({
-    queryKey: ["bookings", activeHotelId, status, filterQs, page],
+    queryKey: ["bookings", activeHotelId, statusParam, filterQs, page],
     queryFn: () =>
       api<ListOut<BookingOut>>(
-        `/api/v1/bookings?status=${status}&limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}${filterQs}`,
+        `/api/v1/bookings?status=${statusParam}&limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}${filterQs}`,
       ),
     enabled: !!activeHotelId,
+    staleTime: 30_000,
   });
 
-  // Client (9-06 batch): No-show tab removed — no-show bookings still exist in
-  // the data model, they just aren't a separate tab here.
   const statusChips: { value: CompletedStatus; label: string }[] = [
     { value: "checked_out", label: t("status_checked_out") },
-    { value: "cancelled", label: t("status_cancelled") },
+    { value: "cancelled", label: t("status_cancelled_noshow") },
   ];
 
   const quickChips: { value: QuickRange; label: string }[] = [

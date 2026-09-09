@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Date, DateTime, ForeignKey, Index, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,6 +14,13 @@ class Guest(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "guests"
     __table_args__ = (
         UniqueConstraint("hotel_id", "normalized_phone", name="uq_guest_hotel_phone"),
+        # Searching by name uses ILIKE — a lowercase functional index lets the
+        # query planner choose an index scan instead of a full table scan.
+        Index(
+            "ix_guests_hotel_name_lower",
+            "hotel_id",
+            text("lower(full_name)"),
+        ),
     )
 
     hotel_id: Mapped[uuid.UUID] = mapped_column(

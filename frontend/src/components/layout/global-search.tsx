@@ -107,10 +107,10 @@ export function GlobalSearch() {
                     const dest =
                       b.status === "checked_in"
                         ? `/current-guests`
-                        : b.status === "checked_out" ||
-                            b.status === "cancelled" ||
-                            b.status === "no_show"
+                        : b.status === "checked_out"
                           ? `/completed-bookings?q=${encodeURIComponent(b.booking_number)}`
+                          : b.status === "cancelled" || b.status === "no_show"
+                            ? `/completed-bookings?q=${encodeURIComponent(b.booking_number)}&status=cancelled`
                           : `/advance-bookings?q=${encodeURIComponent(b.booking_number)}`;
                     go(dest);
                   }}

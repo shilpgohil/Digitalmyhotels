@@ -98,6 +98,8 @@ import type {
   GuestSearchResult,
   RoomRateOverride,
 } from "@/types/stay";
+import { GUEST_TYPES } from "@/types/stay";
+import type { GuestType } from "@/types/stay";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
 
@@ -205,7 +207,7 @@ interface CheckinDraft {
   checkOutDate: string;
   checkInTime: string;
   checkOutTime: string;
-  guestType: string;
+  guestType: GuestType | "";
   guest: { id: string; full_name: string; phone: string } | null;
   selectedRooms: string[];
   adultsCount: number;
@@ -2457,6 +2459,9 @@ function CheckinForm({
         setPgState((v) => v || (full.state ?? ""));
         setPgCountry((v) => v || (full.country ?? "India"));
         if (full.id_proof_type) setPgIdType((v) => (v === "Aadhar Card" ? full.id_proof_type! : v));
+        // Show saved ID hint (client 9-08 item 8): if the guest has a stored ID
+        // number, pre-fill with masked placeholder so the desk knows it's on file.
+        if (full.id_last4) setPgIdNumber((v) => v || `••••••••${full.id_last4}`);
       }
 
       if (docsResult.status === "fulfilled") {
@@ -2752,7 +2757,8 @@ function CheckinForm({
         if (pgState) body.state = pgState;
         if (pgCountry) body.country = pgCountry;
         if (pgIdType) body.id_proof_type = pgIdType;
-        if (pgIdNumber) body.id_number = pgIdNumber;
+        // Skip sending the masked placeholder (saved hint) as an id_number update.
+        if (pgIdNumber && !pgIdNumber.startsWith("••••••••")) body.id_number = pgIdNumber;
         if (Object.keys(body).length > 0) {
           await api(`/api/v1/guests/${booking.primary_guest_id}`, {
             method: "PATCH",
@@ -2945,13 +2951,25 @@ function CheckinForm({
       </button>
 
       {/* ── 1. Booking Details ─────────────────────────────────────────────── */}
+      {/* Client 9-08 item 22: compact one-line summary row (BK-XXXX · dates · guest type) */}
       <Section icon={ClipboardList} title={ts("bookingDetailsTitle")} subtitle={ts("bookingDetailsSubtitle")}>
         <div className="space-y-3">
+          {/* Compact summary banner — shows booking number, dates, guest type at a glance */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-muted/50 px-3 py-2 text-sm">
+            <span className="font-semibold text-foreground">{booking.booking_number}</span>
+            <span className="text-muted-foreground">
+              {fmtApiDate(booking.check_in_date)}{booking.check_in_time ? `, ${booking.check_in_time}` : ""}
+              {" → "}
+              {fmtApiDate(booking.check_out_date)}{booking.check_out_time ? `, ${booking.check_out_time}` : ""}
+            </span>
+            {booking.guest_type && (
+              <span className="rounded-full bg-gold-100 px-2 py-0.5 text-[11px] font-semibold text-gold-700 capitalize">
+                {booking.guest_type}
+              </span>
+            )}
+          </div>
+
           <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("bookingNumber")}</Label>
-              <p className="mt-1 font-semibold text-foreground">{booking.booking_number}</p>
-            </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("checkinDateTime")}</Label>
               <DateTimePicker
@@ -3685,7 +3703,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   // next 5 minutes (client request), not the hotel's standard check-in time.
   const [checkInTime, setCheckInTime] = useState(nowRoundedUpTo5);
   const [checkOutTime, setCheckOutTime] = useState("");
-  const [guestType, setGuestType] = useState("");
+  const [guestType, setGuestType] = useState<GuestType | "">("");
 
   // Hotel settings for default check-in/out times + early check-in fee
   const settings = useQuery({
@@ -3763,9 +3781,12 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
 
   const handleGuestSelected = async (g: { id: string; full_name: string; phone: string }) => {
     if (!g.id) {
+      // "Edit" / clear-selection clicked — deselect the guest ID so the search
+      // box reappears, but KEEP all the pre-filled form data so the desk doesn't
+      // lose what they just loaded (client 9-08 item 8).
       setGuest(null);
       setPgBaseline(null);
-      setPgExistingDocs({});
+      // Keep pgExistingDocs so document tiles stay visible.
       return;
     }
     setGuest({ id: g.id, full_name: g.full_name });
@@ -3790,6 +3811,8 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       setPgState(full.state ?? "");
       setPgCountry(full.country ?? "India");
       if (full.id_proof_type) setPgIdType(full.id_proof_type);
+      // Show saved ID hint (client 9-08 item 8).
+      if (full.id_last4) setPgIdNumber((v) => v || `••••••••${full.id_last4}`);
     } else {
       setPgBaseline(null);
     }
@@ -4178,7 +4201,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       if (pgCity && pgCity !== (pgBaseline?.city ?? "")) patch.city = pgCity;
       if (pgState && pgState !== (pgBaseline?.state ?? "")) patch.state = pgState;
       if (pgCountry && pgCountry !== (pgBaseline?.country ?? "India")) patch.country = pgCountry;
-      if (pgIdNumber.trim()) {
+      // Only send id_number if the desk actually typed a real number
+      // (not the masked "••••••••XXXX" saved-ID placeholder).
+      if (pgIdNumber.trim() && !pgIdNumber.startsWith("••••••••")) {
         patch.id_number = pgIdNumber.trim();
         patch.id_proof_type = pgIdType;
       }
@@ -4498,15 +4523,15 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             <select
               id="wi-guest-type"
               value={guestType}
-              onChange={(e) => setGuestType(e.target.value)}
+              onChange={(e) => setGuestType(e.target.value as GuestType | "")}
               className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
             >
               <option value="">{t("select")}</option>
-              <option value="business">{t("guestType_business")}</option>
-              <option value="personal">{t("guestType_personal")}</option>
-              <option value="family">{t("guestType_family")}</option>
-              <option value="group">{t("guestType_group")}</option>
-              <option value="other">{t("guestType_other")}</option>
+              {GUEST_TYPES.map((gt) => (
+                <option key={gt} value={gt}>
+                  {t(`guestType_${gt}`)}
+                </option>
+              ))}
             </select>
           </div>
           {guestType === "business" && (

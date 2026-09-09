@@ -179,6 +179,10 @@ async def test_daily_closing_and_reports(
     headers = await _owner_headers(client, hotel_a)
     today = await client.get("/api/v1/ops/daily-closing/today", headers=headers)
     assert today.status_code == 200, today.text
+    body = today.json()
+    assert "backdated_payments_count" in body
+    assert "backdated_payments_amount" in body
+    assert body["backdated_payments_count"] >= 0
     closed = await client.post(
         "/api/v1/ops/daily-closing/close", json={"notes": "ok"}, headers=headers
     )

@@ -39,7 +39,7 @@ async def authenticate_user(db: AsyncSession, identifier: str, password: str) ->
             result = await db.execute(select(User).where(User.phone == normalized))
             user = result.scalar_one_or_none()
     if user is None or not verify_password(password, user.password_hash):
-        raise UnauthorizedError("Invalid email or password", code="invalid_credentials")
+        raise UnauthorizedError("Invalid email/phone or password", code="invalid_credentials")
     if not user.is_active:
         raise ForbiddenError("Account is disabled", code="account_disabled")
     user.last_login_at = datetime.now(UTC)

@@ -93,8 +93,15 @@ class BookingCreate(BaseModel):
     check_out_date: date
     adults: int = Field(default=1, ge=1, le=40)
     children: int = Field(default=0, ge=0, le=40)
-    source: str = Field(default="walk_in", max_length=64)
-    guest_type: str | None = Field(default=None, max_length=32)
+    source: str = Field(
+        default="walk_in",
+        pattern="^(walk_in|advance|online|phone|other)$",
+    )
+    # Must match the check-in / advance-booking <option> values (lowercase).
+    guest_type: str | None = Field(
+        default=None,
+        pattern="^(business|personal|family|group|other)$",
+    )
     check_in_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
     check_out_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
     special_requests: str | None = Field(default=None, max_length=2000)

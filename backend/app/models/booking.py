@@ -35,6 +35,15 @@ class Booking(Base, UUIDPrimaryKeyMixin, TimestampMixin):
             "payment_status IN ('unpaid','partial','paid','refunded','cancelled')",
             name="booking_payment_status",
         ),
+        CheckConstraint(
+            "source IN ('walk_in','advance','online','phone','other')",
+            name="booking_source",
+        ),
+        CheckConstraint(
+            "guest_type IS NULL OR guest_type IN "
+            "('business','personal','family','group','other')",
+            name="booking_guest_type",
+        ),
         # Real query paths: operational lists and date-window overlap checks.
         Index("ix_bookings_hotel_status", "hotel_id", "status"),
         Index("ix_bookings_hotel_checkin", "hotel_id", "check_in_date"),
@@ -48,7 +57,7 @@ class Booking(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("guests.id"), nullable=True
     )
     source: Mapped[str] = mapped_column(String(64), default="walk_in", nullable=False)
-    # Guest type per client requirement: business / personal / family / group / other
+    # Guest type: business / personal / family / group / other (lowercase).
     guest_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False, index=True)
     payment_status: Mapped[str] = mapped_column(String(32), default="unpaid", nullable=False)

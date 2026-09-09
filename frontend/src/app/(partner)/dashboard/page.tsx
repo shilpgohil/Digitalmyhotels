@@ -87,7 +87,7 @@ import { PaymentStatusBadge } from "@/components/stay/booking-badges";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { fmtApiDate, fmtINR, localToday } from "@/lib/formatting";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, canSeeFinanceMetrics } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import type { CurrentGuestOut } from "@/types/stay";
 
@@ -324,7 +324,8 @@ export default function DashboardPage() {
   const ts = useTranslations("stay");
   const router = useRouter();
   const api = useApi();
-  const { activeHotelId, can } = useAuth();
+  const { activeHotelId, can, activeRoleCode } = useAuth();
+  const showFinanceMetrics = canSeeFinanceMetrics(activeRoleCode);
   const today = localToday();
 
   // ── Queries ─────────────────────────────────────────────────────────────────
@@ -410,7 +411,8 @@ export default function DashboardPage() {
         {/* ── 0. Live room-status cards (always first — client item 17) ──── */}
         <RoomStatusCards />
 
-        {/* ── 1. Smart Insights ──────────────────────────────────────────── */}
+        {/* ── 1. Smart Insights — role-filtered (client items 1, 2, 36) ── */}
+        {/* Finance/Admin insights hidden from Housekeeping role           */}
         {dash.isLoading && (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[0, 1, 2].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
@@ -453,20 +455,22 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {/* ── 2. Hero KPI chips ────────────────────────────────────────────── */}
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {dash.isLoading ? (
-            [0,1,2,3,4].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)
-          ) : kpis ? (
-            <>
-              <KpiChip label={t("revpar")} value={fmtINR(p(kpis.revpar))} sub={t("per30days")} wow={p(kpis.revpar_wow)} />
-              <KpiChip label={t("adr")} value={fmtINR(p(kpis.adr))} sub={t("perOccRoomNight")} />
-              <KpiChip label={t("alos")} value={`${p(kpis.alos).toFixed(1)} ${t("nights")}`} sub={t("avgStay")} />
-              <KpiChip label={t("leadDays")} value={`${p(kpis.lead_days).toFixed(0)} ${t("days")}`} sub={t("bookingLead")} />
-              <KpiChip label={t("occupancyNow")} value={`${Math.round(p(d?.today_occupancy_pct))}%`} sub={`${d?.in_house_count ?? 0} in-house · ${d?.available_rooms ?? 0} free`} />
-            </>
-          ) : null}
-        </section>
+        {/* ── 2. Hero KPI chips — finance metrics only for Owner/Manager ─── */}
+        {showFinanceMetrics && (
+          <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {dash.isLoading ? (
+              [0,1,2,3,4].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+            ) : kpis ? (
+              <>
+                <KpiChip label={t("revpar")} value={fmtINR(p(kpis.revpar))} sub={t("per30days")} wow={p(kpis.revpar_wow)} />
+                <KpiChip label={t("adr")} value={fmtINR(p(kpis.adr))} sub={t("perOccRoomNight")} />
+                <KpiChip label={t("alos")} value={`${p(kpis.alos).toFixed(1)} ${t("nights")}`} sub={t("avgStay")} />
+                <KpiChip label={t("leadDays")} value={`${p(kpis.lead_days).toFixed(0)} ${t("days")}`} sub={t("bookingLead")} />
+                <KpiChip label={t("occupancyNow")} value={`${Math.round(p(d?.today_occupancy_pct))}%`} sub={`${d?.in_house_count ?? 0} in-house · ${d?.available_rooms ?? 0} free`} />
+              </>
+            ) : null}
+          </section>
+        )}
 
         {/* ── 3. 30-day trend (area + occupancy line, composed) ──────────── */}
         <SectionCard

@@ -21,6 +21,9 @@ interface AuthState {
   memberships: MembershipOut[];
   permissions: string[];
   activeHotelId: string | null;
+  /** Role code for the currently active hotel (e.g. "owner", "manager",
+   *  "admin", "housekeeping"). Empty string when no hotel is active. */
+  activeRoleCode: string;
   login: (email: string, password: string) => Promise<UserOut>;
   logout: () => Promise<void>;
   setActiveHotelId: (hotelId: string) => void;
@@ -153,6 +156,13 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     [permissions],
   );
 
+  // Derive the role code for the currently active hotel membership.
+  const activeRoleCode = useMemo(
+    () =>
+      memberships.find((m) => m.hotel_id === activeHotelId)?.role_code ?? "",
+    [memberships, activeHotelId],
+  );
+
   const value = useMemo<AuthState>(
     () => ({
       status,
@@ -160,12 +170,13 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
       memberships,
       permissions,
       activeHotelId,
+      activeRoleCode,
       login,
       logout,
       setActiveHotelId,
       can,
     }),
-    [status, user, memberships, permissions, activeHotelId, login, logout, setActiveHotelId, can],
+    [status, user, memberships, permissions, activeHotelId, activeRoleCode, login, logout, setActiveHotelId, can],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

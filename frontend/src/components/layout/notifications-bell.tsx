@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, notificationCategoriesForRole } from "@/lib/permissions";
 import { fmtDateTime } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 
@@ -228,9 +228,11 @@ export function NotificationsBell() {
   const t = useTranslations("notifications");
   const router = useRouter();
   const api = useApi();
-  const { activeHotelId, can } = useAuth();
+  const { activeHotelId, can, activeRoleCode } = useAuth();
   const queryClient = useQueryClient();
   const enabled = !!activeHotelId && can(PERMISSIONS.notificationsView);
+  // Categories this role is allowed to see (client 9-08 items 1, 2, 36).
+  const allowedCategories = notificationCategoriesForRole(activeRoleCode);
 
   const notifications = useQuery({
     queryKey: ["notifications", activeHotelId],
@@ -269,7 +271,10 @@ export function NotificationsBell() {
     });
 
   const unread = notifications.data?.unread ?? 0;
-  const all = notifications.data?.items ?? [];
+  // Filter notifications to only those the role is allowed to see.
+  const all = (notifications.data?.items ?? []).filter(
+    (n) => allowedCategories.includes(n.category),
+  );
 
   // Group items by category, unread categories first.
   const grouped = Object.entries(
@@ -372,12 +377,15 @@ export function NotificationsBell() {
           </div>
         </div>
 
-        {/* Category tabs: "All" + one tab per category present in the data */}
+        {/* Category tabs: "All" + one tab per category present in the data.
+            Only show tabs for categories the role can see. */}
         {all.length > 0 && (
           <div className="flex gap-1 overflow-x-auto border-b px-2 py-1.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {[
               ["all", null] as const,
-              ...grouped.map(([cat, items]) => [cat, items] as const),
+              ...grouped
+                .filter(([cat]) => allowedCategories.includes(cat))
+                .map(([cat, items]) => [cat, items] as const),
             ].map(([tab, items]) => {
               const isActive = effectiveTab === tab;
               const label =

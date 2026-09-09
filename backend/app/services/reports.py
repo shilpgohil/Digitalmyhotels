@@ -665,70 +665,96 @@ async def platform_monthly_trend(
     *,
     months: int = 6,
 ) -> PlatformTrendOut:
-    """Per-month hotel additions + check-ins + revenue for the super-admin dashboard.
-
-    No tenant context — this is a platform-wide aggregate.
+    """Per-month hotel additions + check-ins + revenue for the super-admin
+    dashboard.  Replaced the previous N-queries loop (72 round-trips at
+    months=24) with 3 aggregated GROUP-BY queries — one per metric.
     """
+    import calendar
+    from datetime import date as _date
+    from datetime import datetime
+
+    from sqlalchemy import text
+
     from app.models.booking import CheckIn
     from app.models.hotel import Hotel
     from app.models.payment import Payment
 
     months = max(1, min(months, 24))
-
-    # First day of the window (months ago).
-    from datetime import date as _date
-    from datetime import datetime
-
     now = datetime.now()
-    # Build the months list (YYYY-MM strings, newest last).
-    items: list[MonthlyTrendItem] = []
+
+    # Build the window list (YYYY-MM strings, oldest → newest).
+    window: list[tuple[str, _date, _date]] = []
     for i in range(months - 1, -1, -1):
-        # Month N months before current.
-        y = now.year
-        m = now.month - i
+        y, m = now.year, now.month - i
         while m <= 0:
             m += 12
             y -= 1
-        month_str = f"{y:04d}-{m:02d}"
-        month_start = _date(y, m, 1)
-        import calendar
+        start = _date(y, m, 1)
+        end = _date(y, m, calendar.monthrange(y, m)[1])
+        window.append((f"{y:04d}-{m:02d}", start, end))
 
-        month_end = _date(y, m, calendar.monthrange(y, m)[1])
+    oldest_start = window[0][1]
+    newest_end = window[-1][2]
 
-        # Hotels created in this month.
-        hotels_added = int(
-            await db.scalar(
-                select(func.count()).select_from(Hotel).where(
-                    func.date(Hotel.created_at) >= month_start,
-                    func.date(Hotel.created_at) <= month_end,
-                )
+    # ── 3 batch queries — one per metric ─────────────────────────────────
+    # Hotels added per month (group by first day of month of created_at)
+    hotel_rows = (
+        await db.execute(
+            select(
+                func.to_char(func.date_trunc("month", Hotel.created_at), "YYYY-MM").label("m"),
+                func.count().label("n"),
             )
-            or 0
-        )
-        # Revenue across all hotels in this month.
-        rev = money(
-            await db.scalar(
-                select(func.coalesce(func.sum(Payment.amount), 0)).where(
-                    Payment.status == "completed",
-                    func.date(Payment.paid_at) >= month_start,
-                    func.date(Payment.paid_at) <= month_end,
-                )
+            .where(
+                func.date(Hotel.created_at) >= oldest_start,
+                func.date(Hotel.created_at) <= newest_end,
             )
-            or 0
+            .group_by(text("1"))
         )
-        # Check-ins across all hotels.
-        ci = int(
-            await db.scalar(
-                select(func.count()).select_from(CheckIn).where(
-                    func.date(CheckIn.checked_in_at) >= month_start,
-                    func.date(CheckIn.checked_in_at) <= month_end,
-                )
+    ).all()
+    hotels_by_month = {r.m: int(r.n) for r in hotel_rows}
+
+    # Revenue per month
+    rev_rows = (
+        await db.execute(
+            select(
+                func.to_char(func.date_trunc("month", Payment.paid_at), "YYYY-MM").label("m"),
+                func.coalesce(func.sum(Payment.amount), 0).label("total"),
             )
-            or 0
+            .where(
+                Payment.status == "completed",
+                func.date(Payment.paid_at) >= oldest_start,
+                func.date(Payment.paid_at) <= newest_end,
+            )
+            .group_by(text("1"))
         )
-        items.append(
-            MonthlyTrendItem(month=month_str, hotels_added=hotels_added, revenue=rev, checkins=ci)
+    ).all()
+    rev_by_month = {r.m: money(Decimal(str(r.total))) for r in rev_rows}
+
+    # Check-ins per month
+    ci_rows = (
+        await db.execute(
+            select(
+                func.to_char(func.date_trunc("month", CheckIn.checked_in_at), "YYYY-MM").label("m"),
+                func.count().label("n"),
+            )
+            .where(
+                func.date(CheckIn.checked_in_at) >= oldest_start,
+                func.date(CheckIn.checked_in_at) <= newest_end,
+            )
+            .group_by(text("1"))
         )
+    ).all()
+    ci_by_month = {r.m: int(r.n) for r in ci_rows}
+
+    items = [
+        MonthlyTrendItem(
+            month=month_str,
+            hotels_added=hotels_by_month.get(month_str, 0),
+            revenue=rev_by_month.get(month_str, Decimal("0")),
+            checkins=ci_by_month.get(month_str, 0),
+        )
+        for month_str, _, _ in window
+    ]
     return PlatformTrendOut(items=items)
 
 
@@ -1002,7 +1028,7 @@ async def smart_dashboard(
     # the counts and skews the mix chart with guests who haven't arrived yet.
     mix_rows = (await db.execute(
         select(
-            func.coalesce(Booking.guest_type, "Other").label("gt"),
+            func.coalesce(Booking.guest_type, "other").label("gt"),
             func.count().label("cnt"),
             func.coalesce(func.sum(Booking.total_amount), 0).label("rev"),
         ).where(
@@ -1012,7 +1038,7 @@ async def smart_dashboard(
         ).group_by("gt").order_by(func.count().desc())
     )).all()
     guest_mix = [
-        GuestMixItem(guest_type=r.gt or "Other", count=int(r.cnt), revenue=money(r.rev))
+        GuestMixItem(guest_type=r.gt or "other", count=int(r.cnt), revenue=money(r.rev))
         for r in mix_rows
     ]
 

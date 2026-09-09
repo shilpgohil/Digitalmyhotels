@@ -152,7 +152,8 @@ function RoomStatusMenuItems({
   const t = useTranslations("rooms");
   return (
     <>
-      <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+      {/* Clear header title + separator (client 9-08 item 26: wider, bordered, title hierarchy). */}
+      <DropdownMenuLabel className="px-3 py-2 text-xs font-bold uppercase tracking-widest text-muted-foreground border-b mb-1">
         {t("changeStatus")}
       </DropdownMenuLabel>
       {MANUAL_STATUSES.filter((s) => {
@@ -376,7 +377,7 @@ function RoomsContent() {
                               >
                                 <MoreHorizontal className="size-3.5" aria-hidden />
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-56 rounded-xl border-border shadow-lg">
+                              <DropdownMenuContent align="end" className="w-64 rounded-xl border border-border shadow-lg">
                                 <RoomStatusMenuItems
                                   currentStatus={room.status}
                                   onSelect={(status) =>
@@ -446,7 +447,7 @@ function RoomsContent() {
                               >
                                 <MoreVertical className="size-4" aria-hidden />
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-56 rounded-xl border-border shadow-lg">
+                              <DropdownMenuContent align="end" className="w-64 rounded-xl border border-border shadow-lg">
                                 <RoomStatusMenuItems
                                   currentStatus={room.status}
                                   onSelect={(status) =>

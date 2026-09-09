@@ -30,7 +30,6 @@ import {
   CreditCard,
   BedDouble,
   Star,
-  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -235,8 +234,7 @@ export default function AddHotelPage() {
   const [services, setServices] = useState<ServiceItem[]>([]);
 
   // --- Section 7: Feature toggles ---
-  const [emergencyEnabled, setEmergencyEnabled] = useState(true);
-  const [vehicleEnabled, setVehicleEnabled] = useState(true);
+  // emergencyEnabled / vehicleEnabled removed (client 9-08 item 15: "Remove it all places")
 
   const [error, setError] = useState<string | null>(null);
 
@@ -348,21 +346,7 @@ export default function AddHotelPage() {
       }
       if (serviceFailed) failedSteps.push(t("specialRequirements"));
 
-      // Step 6 (optional): save feature toggle settings
-      if (!emergencyEnabled || !vehicleEnabled) {
-        try {
-          await apiFetch("/api/v1/hotels/me/settings", {
-            method: "PATCH",
-            body: {
-              collect_emergency_contact: emergencyEnabled,
-              collect_vehicle_details: vehicleEnabled,
-            },
-            hotelId: hotel.id,
-          });
-        } catch {
-          // Non-critical
-        }
-      }
+      // Step 6 (emergency/vehicle toggles removed — check-in always collects these)
 
       return { hotel, failedSteps };
     },
@@ -751,57 +735,8 @@ export default function AddHotelPage() {
         </div>
       </Section>
 
-      {/* 7. Emergency & Vehicle toggles */}
-      <Section icon={AlertTriangle} title={t("emergencyVehicle")} defaultOpen={false}>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between py-2">
-            <div>
-              <p className="text-sm font-medium">{t("emergencyContact")}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{t("emergencyContactDesc")}</p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={emergencyEnabled}
-              onClick={() => setEmergencyEnabled(!emergencyEnabled)}
-              className={cn(
-                "relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors",
-                emergencyEnabled ? "bg-gold-500" : "bg-muted",
-              )}
-            >
-              <span
-                className={cn(
-                  "pointer-events-none inline-block size-5 rounded-full bg-white shadow ring-0 transition-transform",
-                  emergencyEnabled ? "translate-x-5" : "translate-x-0",
-                )}
-              />
-            </button>
-          </div>
-          <div className="flex items-center justify-between py-2 border-t">
-            <div>
-              <p className="text-sm font-medium">{t("vehicleDetails")}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{t("vehicleDetailsDesc")}</p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={vehicleEnabled}
-              onClick={() => setVehicleEnabled(!vehicleEnabled)}
-              className={cn(
-                "relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors",
-                vehicleEnabled ? "bg-gold-500" : "bg-muted",
-              )}
-            >
-              <span
-                className={cn(
-                  "pointer-events-none inline-block size-5 rounded-full bg-white shadow ring-0 transition-transform",
-                  vehicleEnabled ? "translate-x-5" : "translate-x-0",
-                )}
-              />
-            </button>
-          </div>
-        </div>
-      </Section>
+      {/* Emergency & Vehicle toggles removed (client 9-08 item 15: "Remove it all places").
+          The check-in form always collects these regardless of hotel settings. */}
 
       {/* Error */}
       {error && (

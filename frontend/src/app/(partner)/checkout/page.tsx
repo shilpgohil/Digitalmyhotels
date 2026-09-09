@@ -125,6 +125,8 @@ function CheckoutContent() {
   const { activeHotelId, can } = useAuth();
   // Raw UPI ID is restricted — workers may see the QR but never the raw ID.
   const canViewUpiId = can(PERMISSIONS.hotelViewUpiId);
+  // Owner/Manager can authorize discounts at checkout (client 9-08 #13).
+  const canReverse = can(PERMISSIONS.paymentsCorrect);
 
   // ── Selection state ────────────────────────────────────────────────────
   const [selectedId, setSelectedId] = useState("");
@@ -150,6 +152,9 @@ function CheckoutContent() {
   const [payStatus, setPayStatus] = useState<PayStatus>("paid");
   const [payMethod, setPayMethod] = useState<PayMethod>("cash");
   const [dueReason, setDueReason] = useState("");
+  // Authorized discount at checkout — reduces Grand Total (client 9-08 #13).
+  const [discountAmount, setDiscountAmount] = useState("");
+  const [discountReason, setDiscountReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [checkoutResult, setCheckoutResult] = useState<CheckOutOut | null>(null);
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
@@ -163,6 +168,8 @@ function CheckoutContent() {
     setPayStatus("paid");
     setPayMethod("cash");
     setDueReason("");
+    setDiscountAmount("");
+    setDiscountReason("");
     setError(null);
     setCheckoutResult(null);
     setInvoiceId(null);
@@ -300,8 +307,14 @@ function CheckoutContent() {
       expected_check_out_time:
         expectedOutChanged && expectedOutTime ? expectedOutTime : null,
       charges: draftCharges,
+      // Desk-entered authorized discount (client 9-08 #13).
+      discount_amount:
+        Number.parseFloat(discountAmount) > 0
+          ? Number.parseFloat(discountAmount).toFixed(2)
+          : null,
+      discount_reason: discountReason.trim() || null,
     }),
-    [actualCheckoutTime, expectedOutChanged, expectedOutDate, expectedOutTime, draftCharges],
+    [actualCheckoutTime, expectedOutChanged, expectedOutDate, expectedOutTime, draftCharges, discountAmount, discountReason],
   );
 
   // Live server pricing of the draft. keepPreviousData avoids flicker while
@@ -381,15 +394,27 @@ function CheckoutContent() {
       // ONE atomic request: the same draft the quote priced, plus the payment
       // instruction. Charges, payment collection, date corrections and the
       // checkout itself commit (or roll back) together on the server.
+      // When staff selects "Paid" and there is a pending amount, we:
+      //  1. collect_payment=true  → server posts a payment entry for the due
+      //  2. allow_due=true        → authorizes any tiny rounding residual
+      //     after the payment is recorded, preventing the spurious
+      //     "Outstanding balance of X must be collected" 409 error.
+      // When staff selects "Pending" with a due, they must enter a reason
+      // (needsDueAuth=true) and the amount stays outstanding.
+      const isPaidWithDue = payStatus === "paid" && pendingAmount > 0;
       return api<CheckOutOut>("/api/v1/checkouts", {
         method: "POST",
         body: {
           ...draft,
           booking_id: entry.booking_id,
-          collect_payment: payStatus === "paid" && pendingAmount > 0,
-          payment_method: payStatus === "paid" ? payMethod : null,
-          allow_due: needsDueAuth,
-          due_reason: needsDueAuth ? dueReason.trim() : null,
+          collect_payment: isPaidWithDue,
+          payment_method: isPaidWithDue ? payMethod : null,
+          allow_due: needsDueAuth || isPaidWithDue,
+          due_reason: needsDueAuth
+            ? dueReason.trim()
+            : isPaidWithDue
+              ? "Payment collected at checkout"
+              : null,
         },
       });
     },
@@ -874,26 +899,60 @@ function CheckoutContent() {
                   {!entry ? (
                     <p className="text-sm text-muted-foreground">{tp("loadGuestForCharges")}</p>
                   ) : (
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      {EXTRA_CHARGE_FIELDS.map((field) => (
-                        <div key={field.key} className="space-y-1.5">
-                          <Label htmlFor={`co-extra-${field.key}`}>{tp(field.labelKey)}</Label>
-                          <Input
-                            id={`co-extra-${field.key}`}
-                            type="number"
-                            min={0}
-                            step="1"
-                            placeholder="0"
-                            value={extras[field.key]}
-                            onChange={(e) =>
-                              setExtras((prev) => ({ ...prev, [field.key]: e.target.value }))
-                            }
-                            className="tabular-nums"
-                            disabled={isPending}
-                          />
+                    <>
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        {EXTRA_CHARGE_FIELDS.map((field) => (
+                          <div key={field.key} className="space-y-1.5">
+                            <Label htmlFor={`co-extra-${field.key}`}>{tp(field.labelKey)}</Label>
+                            <Input
+                              id={`co-extra-${field.key}`}
+                              type="number"
+                              min={0}
+                              step="1"
+                              placeholder="0"
+                              value={extras[field.key]}
+                              onChange={(e) =>
+                                setExtras((prev) => ({ ...prev, [field.key]: e.target.value }))
+                              }
+                              className="tabular-nums"
+                              disabled={isPending}
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Authorized discount — Owner/Manager only (client 9-08 #13) */}
+                      {canReverse && (
+                        <div className="grid gap-4 sm:grid-cols-2 border-t pt-4">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="co-discount">{tp("discountLabel")}</Label>
+                            <Input
+                              id="co-discount"
+                              type="number"
+                              min={0}
+                              step="1"
+                              placeholder="0"
+                              value={discountAmount}
+                              onChange={(e) => setDiscountAmount(e.target.value)}
+                              className="tabular-nums"
+                              disabled={isPending}
+                            />
+                          </div>
+                          {Number.parseFloat(discountAmount) > 0 && (
+                            <div className="space-y-1.5">
+                              <Label htmlFor="co-discount-reason">{tp("discountReason")}</Label>
+                              <Input
+                                id="co-discount-reason"
+                                placeholder={tp("discountReasonPlaceholder")}
+                                value={discountReason}
+                                onChange={(e) => setDiscountReason(e.target.value)}
+                                disabled={isPending}
+                              />
+                            </div>
+                          )}
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>

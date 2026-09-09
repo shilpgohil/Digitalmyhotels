@@ -66,6 +66,11 @@ class DailyClosingOut(ORMModel):
     closed_at: datetime | None
     reopened_at: datetime | None
     reopen_reason: str | None
+    # Audit warning: payments collected today that belong to bookings whose
+    # check-in was on a PRIOR day. These are legitimate (e.g. collecting dues
+    # on checkout) but the desk should review before closing.
+    backdated_payments_count: int = 0
+    backdated_payments_amount: Decimal = Decimal("0.00")
 
 
 class DailyClosingClose(BaseModel):
@@ -198,7 +203,7 @@ class TrendPoint30(BaseModel):
 
 
 class GuestMixItem(BaseModel):
-    guest_type: str          # "Business" | "Leisure" | etc.
+    guest_type: str          # "business" | "personal" | "family" | "group" | "other"
     count: int
     revenue: Decimal
 

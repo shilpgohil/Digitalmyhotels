@@ -192,7 +192,7 @@ function HotelRow({
           </td>
         </>
       )}
-      <td className="px-4 py-3">
+      <td className="px-4 py-3 whitespace-nowrap">
         <div className="flex items-center gap-2">
           {/* Edit is available for EVERY hotel status (client item 28). */}
           <EditHotelDialog hotelId={hotel.id} hotelName={hotel.name} />

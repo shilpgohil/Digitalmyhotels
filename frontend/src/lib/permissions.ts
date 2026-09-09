@@ -48,3 +48,42 @@ export const PERMISSIONS = {
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+
+// ---------------------------------------------------------------------------
+// Notification category visibility by role (client 9-08 items 1, 2, 36)
+// ---------------------------------------------------------------------------
+/** Notification categories that each role is allowed to see.
+ *  Owner and Manager see everything. Admin/Reception see operational
+ *  categories. Housekeeping sees only housekeeping notifications.
+ *  "platform" is never shown in the partner portal (super-admin only). */
+const NOTIFICATION_CATEGORIES_ALL = [
+  "front_desk",
+  "housekeeping",
+  "finance",
+  "operations",
+  "admin",
+] as const;
+
+export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES_ALL)[number];
+
+const ROLE_NOTIFICATION_CATEGORIES: Record<string, readonly NotificationCategory[]> = {
+  owner: NOTIFICATION_CATEGORIES_ALL,
+  manager: NOTIFICATION_CATEGORIES_ALL,
+  admin: ["front_desk", "housekeeping", "operations"],
+  housekeeping: ["housekeeping"],
+};
+
+/** Returns the notification categories visible for a given role_code.
+ *  Falls back to front_desk + operations for unknown roles. */
+export function notificationCategoriesForRole(
+  roleCode: string,
+): readonly string[] {
+  return (
+    ROLE_NOTIFICATION_CATEGORIES[roleCode] ?? ["front_desk", "operations"]
+  );
+}
+
+/** Whether the role can see finance/admin-level metrics (RevPAR, ADR, etc.) */
+export function canSeeFinanceMetrics(roleCode: string): boolean {
+  return roleCode === "owner" || roleCode === "manager";
+}

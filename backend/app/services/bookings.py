@@ -354,7 +354,20 @@ async def list_bookings(
     hotel_id = tenant.require_hotel()
     stmt = select(Booking).where(Booking.hotel_id == hotel_id)
     if status:
-        stmt = stmt.where(Booking.status == status)
+        statuses = [s.strip() for s in status.split(",") if s.strip()]
+        allowed = {
+            "pending",
+            "confirmed",
+            "checked_in",
+            "checked_out",
+            "cancelled",
+            "no_show",
+        }
+        statuses = [s for s in statuses if s in allowed]
+        if len(statuses) == 1:
+            stmt = stmt.where(Booking.status == statuses[0])
+        elif statuses:
+            stmt = stmt.where(Booking.status.in_(statuses))
     if from_date:
         stmt = stmt.where(Booking.check_in_date >= from_date)
     if to_date:

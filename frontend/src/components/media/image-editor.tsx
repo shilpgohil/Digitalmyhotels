@@ -152,8 +152,9 @@ function ImageEditorDialog({
       case "square":
         return { w: 260, h: 260 };
       case "id_card":
-        // ISO ID-1 card ratio 1.586 — tall enough that Aadhaar text stays sharp.
-        return { w: 318, h: 200 };
+        // ISO ID-1 card ratio 1.586 — wider frame so Aadhaar/DL text is legible
+        // (client 9-08 item 10: "increase width as per the Aadharcard and DL").
+        return { w: 380, h: 240 };
       case "passport":
         // Passport photo-page ratio ≈ 1.42.
         return { w: 312, h: 220 };

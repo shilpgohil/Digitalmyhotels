@@ -49,19 +49,17 @@ import type {
   BookingOut,
   GuestCreatePayload,
   GuestOut,
+  GuestType,
   RoomRateOverride,
 } from "@/types/stay";
+import { GUEST_TYPES } from "@/types/stay";
 import type { RoomAvailabilityOut, RoomAvailableItem } from "@/types/hotel";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
 
-const GUEST_TYPES = [
-  { value: "business", label: "Business" },
-  { value: "personal", label: "Personal" },
-  { value: "family", label: "Family" },
-  { value: "group", label: "Group" },
-  { value: "other", label: "Other" },
-];
+const GUEST_TYPE_OPTIONS: { value: GuestType; label: string }[] = GUEST_TYPES.map(
+  (value) => ({ value, label: value[0].toUpperCase() + value.slice(1) }),
+);
 
 /** "HH:MM" → minutes since midnight; NaN when malformed. */
 function timeToMinutes(t: string): number {
@@ -396,6 +394,7 @@ function AdvanceBookingContent() {
           check_in_time: checkInTime || null,
           check_out_time: checkOutTime || null,
           guest_type: guestType || null,
+          source: "advance",
           adults,
           children,
           special_requests: specialInstructions.trim() || null,
@@ -509,7 +508,7 @@ function AdvanceBookingContent() {
                   className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                 >
                   <option value="">— Select —</option>
-                  {GUEST_TYPES.map((gt) => (
+                  {GUEST_TYPE_OPTIONS.map((gt) => (
                     <option key={gt.value} value={gt.value}>
                       {gt.label}
                     </option>

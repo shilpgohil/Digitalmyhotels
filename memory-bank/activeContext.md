@@ -1,5 +1,150 @@
 # Active Context — DigitalMyHotels
 
+## Option C — remaining acceptance ledger items (2026-09-09 late) — uncommitted
+
+5 more items from the 9-08 acceptance ledger fully resolved:
+
+1. **GuestPicker Edit button** (item 8): Clicking "Change" (renamed from "Edit")
+   now keeps all autofilled form data — only clears the guest selection lock.
+   No data loss when desk needs to search again.
+2. **Edit Hotel race condition** (items 15, 29): `onSuccess` now awaits
+   `refetchQueries` before resetting init flags, fixing row data disappearing
+   after save.
+3. **Missed arrival badge** (item 23): Advance Bookings table shows an amber
+   "Missed arrival" badge on confirmed bookings whose check-in date+time is
+   ≥ 2 h in the past (mirrors the backend sweep threshold).
+4. **Super Admin hotel status** (item 16): `hotelDisplayStatus` now also
+   checks `expiry_date < today`, eliminating Active+Expired contradictions
+   caused by background-job lag.
+5. **Add Hotel Emergency/Vehicle section removed** (item 18): Removed from
+   Add Hotel wizard consistent with Edit Hotel change (item 15).
+
+Quality: tsc ✅ · eslint 0 errors ✅ · ruff ✅ · 53 unit tests ✅ · en=hi=1462 ✅
+
+---
+
+## Client 9-08 full implementation (2026-09-09 evening) — uncommitted
+
+All 18 items from the 9-08 screenshot analysis implemented:
+
+**Phase 1 — Critical bugs:**
+- Checkout balance error fixed: when `payStatus=paid`, `allow_due: true` now sent
+  automatically, preventing spurious "Outstanding balance must be collected" 409.
+- Login error: "Invalid email or password" → "Invalid email/phone or password" (en+hi+backend).
+- GST on all charges: backend already correct; UI note clarified.
+
+**Phase 2 — Role-filtered notifications:**
+- `notificationCategoriesForRole()` + `canSeeFinanceMetrics()` in `permissions.ts`.
+- `activeRoleCode` added to `useAuth()` context.
+- NotificationsBell + Notifications page: filter chips AND items by role.
+  Owner/Manager = all | Admin/Reception = front_desk/operations/housekeeping | Housekeeping = housekeeping only.
+- Dashboard: RevPAR/ADR/ALOS/LEAD/Occupancy KPI row hidden for Housekeeping.
+
+**Phase 3 — Identity/documents:**
+- Returning guest: Aadhaar field pre-filled with `••••••••{id_last4}` in both Mode A & B.
+  Masked placeholder NOT sent as `id_number` on submit (guard added).
+- Image editor crop box: id_card 318×200 → 380×240 (wider landscape for Aadhaar/DL).
+- Co-guest docs pre-loaded: existing code already handles this correctly.
+- Passport expiry: already at today+15 years.
+- ID tiles: already h-40 when loaded.
+
+**Phase 4 — Checkout/payment:**
+- Discount amount input added to checkout form (Owner/Manager only, gated on PAYMENTS_CORRECT).
+  `discountAmount` + `discountReason` in draft → sent to quote AND commit.
+- Payment modes: already correct (no legacy "Card").
+
+**Phase 5 — Edit Hotel:**
+- Emergency & Vehicle Details section removed from Edit Hotel (client: "Remove it all places").
+- The settings PATCH that was failing (`collect_emergency_contact`) also removed → fixes
+  "Some changes could not be saved" error.
+
+**Phase 6 — UX polish:**
+- All `<option value="">—</option>` globally replaced with `<option value="">— Select —</option>`.
+- Room status menu: wider (w-64), bordered, `border-b` on "Change Status" header label.
+- Compact booking summary banner added at top of Mode B check-in (BK-XXXX · dates · guest type).
+
+**Phase 7 — Hourly overstay:**
+- Already fully implemented in backend (quote_checkout) + frontend (lateFee line in settlement).
+
+Quality gates: ruff ✅ · mypy ✅ · tsc --noEmit ✅ · 53 unit tests ✅ · en=hi=1460 keys ✅ · 0 ESLint errors ✅
+
+---
+
+## Full visual audit (2026-09-09 playwright) — COMMITTED
+
+Live browser audit via Playwright MCP against localhost:3000 / :8001.
+
+**Bugs found and fixed in this session:**
+1. `notification_reads` table missing locally — ran `alembic upgrade head`
+   (applied 6 pending migrations including `d2f4b8a1c6e9` guest_type fix)
+2. Team Members page crashed: `EmailStr` rejects `.local` TLD in
+   `TeamMemberOut.email` — changed output schema field to `str` (output
+   schemas should not re-validate stored data)
+3. `GuestType | ""` TypeScript type not threaded through `CheckinDraft`
+   interface and `onChange` cast — fixed; `tsc --noEmit` clean
+4. Hotels list "Deac" button text truncated — added `whitespace-nowrap` to
+   `<td>` actions cell
+5. 6-month plan still Active in DB — deactivated via direct DB update AND
+   updated `seed.py` to enforce `is_active=False` for `plan-6m` going
+   forward (client requirement #27: only 1/3/12-month plans active)
+
+**Verified working:**
+- Login page (password show/hide ✅, language toggle ✅)
+- Dashboard (6 room cards, Smart Insights, KPI row, charts ✅)
+- Current Guests (loads, overdue badge ✅)
+- Completed Bookings (Cancelled/No-show chip queries both statuses ✅)
+- Daily Closing (stats, no backdated warning when none exist ✅)
+- Advance Bookings (chips, day-use times ✅)
+- Rooms (maintenance empty state ✅)
+- Check-in (guest type dropdown, Credit/Debit Card payment modes ✅)
+- Team Members (fixed — was crashing) ✅
+- Mobile 375px (hamburger, 2-col room cards, stacked arrivals ✅)
+- Super Admin dashboard (charts, KPIs ✅)
+- Super Admin hotels list ✅
+- Super Admin plans (6-month now Inactive, 1/3/12 Active ✅)
+- Super Admin settings (All Customers toggle ✅)
+- Super Admin password requests (empty state ✅)
+- Reports page ✅
+- Plan page (3 active plans, no 6-month ✅)
+- Security: hotel owner correctly blocked from /admin ✅
+
+**Quality gates:** ruff ✅ · mypy 99 files ✅ · tsc --noEmit ✅ · 53 unit tests ✅
+
+---
+
+## Remaining audit backlog (2026-09-09) — implemented, uncommitted
+
+Closed the leftover medium items from the 8-dimension audit (after the
+critical/high batch: tax_amount, room_utilization N+1, reversal UI,
+password guard, transfer guard, doc audit, notification pagination).
+
+- **guest_type constraint corrected** to the live UI set
+  (`business|personal|family|group|other`). The previous draft used Title
+  Case (`Business|Leisure|…`) which would 422 every real check-in and
+  silently rewrite existing rows to `Other`. Schema + DB CHECK + frontend
+  `GuestType` union now share one set. Unit tests in
+  `tests/unit/test_booking_schema.py` lock this.
+- **Guest.full_name** lowercase functional index + migration
+  `d2f4b8a1c6e9` (idempotent; constraint names follow
+  `ck_%(table_name)s_%(constraint_name)s` so `alembic check` stays green).
+- **Daily closing backdated-payment warning** serialized via `_closing_out`
+  (not fragile ORM `__dict__`). i18n keys live under `ops` (they were
+  mistakenly under `checkin`).
+- **No-show records remain findable** without restoring the removed tab:
+  completed-bookings Cancelled chip queries `cancelled,no_show`; global
+  search deep-links `?status=cancelled`.
+- **staleTime 30s** on daily-closing queries (advance/current/completed
+  already had it).
+- **CI** runs `alembic check` after `upgrade head`. ESLint suppressions
+  documented in `frontend/eslint.config.mjs`.
+- Advance bookings now persist `source: "advance"` (was defaulting to
+  `walk_in`).
+
+Still external / not in this batch: RESEND_API_KEY; production Neon data
+inspection (controller); hour-level day-use conflicts (flagged to client).
+
+---
+
 ## Phase 0 audit baseline — hardened (2026-09-08) — COMMITTED test: harden API contract baseline
 
 Reviewer advisory findings fixed on top of a1abc72:

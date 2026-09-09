@@ -140,18 +140,22 @@ async def seed() -> None:
             elif existing_plan.is_active:
                 existing_plan.is_active = False
 
-        # Figma pricing tiers (Sep 2026 redesign) — shown on the partner plan
-        # page sorted by duration; 12 Months carries the "Best Value" ribbon.
-        for code, name, price, days in (
-            ("plan-1m", "1 Month", Decimal("499.00"), 30),
-            ("plan-3m", "3 Months", Decimal("1299.00"), 90),
-            ("plan-6m", "6 Months", Decimal("2499.00"), 180),
-            ("plan-12m", "12 Months", Decimal("4499.00"), 365),
+        # Figma pricing tiers (Sep 2026 redesign).
+        # Client requirement #27: only 1/3/12-month plans are active.
+        # 6-month is seeded as is_active=False (deactivated, never shown in
+        # partner plan page or renewal dialog; can be re-activated via Super Admin).
+        for code, name, price, days, active in (
+            ("plan-1m", "1 Month", Decimal("499.00"), 30, True),
+            ("plan-3m", "3 Months", Decimal("1299.00"), 90, True),
+            ("plan-6m", "6 Months", Decimal("2499.00"), 180, False),
+            ("plan-12m", "12 Months", Decimal("4499.00"), 365, True),
         ):
-            existing_plan = await db.execute(
-                select(SubscriptionPlan).where(SubscriptionPlan.code == code)
-            )
-            if existing_plan.scalar_one_or_none() is None:
+            existing_plan = (
+                await db.execute(
+                    select(SubscriptionPlan).where(SubscriptionPlan.code == code)
+                )
+            ).scalar_one_or_none()
+            if existing_plan is None:
                 db.add(
                     SubscriptionPlan(
                         code=code,
@@ -159,8 +163,12 @@ async def seed() -> None:
                         price=price,
                         duration_days=days,
                         trial_days=14,
+                        is_active=active,
                     )
                 )
+            elif existing_plan.is_active != active:
+                # Enforce the intended active state (important: deactivate 6-month).
+                existing_plan.is_active = active
 
         await db.commit()
         print("Seed complete.")

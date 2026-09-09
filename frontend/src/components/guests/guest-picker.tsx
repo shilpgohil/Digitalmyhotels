@@ -113,8 +113,10 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
             setShowCreate(false);
             onSelected({ id: "", full_name: "", phone: "" });
           }}
+          // Client 9-08 item 8: "Change" is clearer than "Edit" — it signals
+          // "search for a different guest" without implying data will be lost.
         >
-          {tc("edit")}
+          {tc("change")}
         </button>
       </div>
     );

@@ -27,6 +27,22 @@ def _correlation(request: Request) -> str | None:
     return getattr(request.state, "correlation_id", None)
 
 
+def _closing_out(row: object) -> DailyClosingOut:
+    """Serialize a closing row, including live backdated-payment stats."""
+    out = DailyClosingOut.model_validate(row)
+    return out.model_copy(
+        update={
+            "backdated_payments_count": int(
+                getattr(row, "backdated_payments_count", 0) or 0
+            ),
+            "backdated_payments_amount": getattr(
+                row, "backdated_payments_amount", 0
+            )
+            or 0,
+        }
+    )
+
+
 def _handover_out(row: ShiftHandover) -> ShiftHandoverOut:
     """Serialize a handover, surfacing the free-text `to_name` stored in snapshot."""
     out = ShiftHandoverOut.model_validate(row)
@@ -41,7 +57,7 @@ async def list_closings(
     db: AsyncSession = Depends(get_db),
 ) -> list[DailyClosingOut]:
     items = await ops_service.list_closings(db, tenant)
-    return [DailyClosingOut.model_validate(i) for i in items]
+    return [_closing_out(i) for i in items]
 
 
 @router.get("/daily-closing/today", response_model=DailyClosingOut)
@@ -51,7 +67,7 @@ async def today_closing(
     db: AsyncSession = Depends(get_db),
 ) -> DailyClosingOut:
     row = await ops_service.get_or_open_day(db, tenant, business_date)
-    return DailyClosingOut.model_validate(row)
+    return _closing_out(row)
 
 
 @router.post("/daily-closing/close", response_model=DailyClosingOut)
@@ -65,7 +81,7 @@ async def close_day(
     row = await ops_service.close_day(
         db, tenant, business_date or date.today(), body, correlation_id=_correlation(request)
     )
-    return DailyClosingOut.model_validate(row)
+    return _closing_out(row)
 
 
 @router.post("/daily-closing/{closing_id}/reopen", response_model=DailyClosingOut)
@@ -79,7 +95,7 @@ async def reopen_day(
     row = await ops_service.reopen_day(
         db, tenant, closing_id, body, correlation_id=_correlation(request)
     )
-    return DailyClosingOut.model_validate(row)
+    return _closing_out(row)
 
 
 @router.get("/shift-handover", response_model=list[ShiftHandoverOut])

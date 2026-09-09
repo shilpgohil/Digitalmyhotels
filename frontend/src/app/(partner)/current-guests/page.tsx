@@ -107,6 +107,8 @@ function CurrentGuestsContent() {
         `/api/v1/current-guests?limit=200${search ? `&q=${encodeURIComponent(search)}` : ""}`,
       ),
     enabled: !!activeHotelId,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 
   // Client-side pagination over the (already search-filtered) full list.
