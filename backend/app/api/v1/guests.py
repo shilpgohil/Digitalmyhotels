@@ -179,9 +179,31 @@ async def list_guest_documents(
 async def download_guest_document(
     guest_id: UUID,
     document_id: UUID,
+    request: Request,
     tenant: TenantContext = Depends(require_permissions(Permission.GUESTS_VIEW)),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
+    """Serve a guest ID document image.
+
+    Any user with GUESTS_VIEW may fetch the image — but because ID document
+    images reveal the full Aadhaar/passport number, callers with the elevated
+    GUESTS_VIEW_FULL_ID permission get the access written to the audit log.
+    (GUESTS_VIEW alone is enough to view the image; the audit is belt-and-
+    braces observability, not an access gate.)
+    """
+    if tenant.can(Permission.GUESTS_VIEW_FULL_ID):
+        from app.services.audit import write_audit
+
+        await write_audit(
+            db,
+            action="guests.document_downloaded",
+            entity_type="guest_document",
+            entity_id=document_id,
+            actor_id=tenant.user_id,
+            hotel_id=tenant.hotel_id,
+            after={"guest_id": str(guest_id), "document_id": str(document_id)},
+            correlation_id=getattr(request.state, "correlation_id", None),
+        )
     data, media_type = await guests_service.get_document_bytes(
         db, tenant, guest_id, document_id
     )

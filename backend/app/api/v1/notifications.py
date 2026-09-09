@@ -19,11 +19,14 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
 async def list_notifications(
     unread_only: bool = Query(default=False),
     category: str | None = Query(default=None),
+    limit: int = Query(default=30, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     tenant: TenantContext = Depends(require_permissions(Permission.NOTIFICATIONS_VIEW)),
     db: AsyncSession = Depends(get_db),
 ) -> NotificationListOut:
     return await notifications_service.list_notifications(
-        db, tenant, unread_only=unread_only, category=category
+        db, tenant, unread_only=unread_only, category=category,
+        limit=limit, offset=offset,
     )
 
 

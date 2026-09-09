@@ -32,11 +32,6 @@ async def get_current_user(
         raise UnauthorizedError("User not found")
     if not user.is_active:
         raise ForbiddenError("Account is disabled", code="account_disabled")
-    # NOTE: must_reset_password is surfaced via /auth/me and enforced by the
-    # frontend redirect. Server-side blocking was removed because it caused a
-    # production outage when existing users had the flag set without the
-    # frontend having gone through the change-password flow. Re-enable after
-    # adding a proper change-password page and clearing the flag for all users.
     return user
 
 
@@ -53,6 +48,18 @@ async def get_tenant_context(
             hotel_id=None,
             role=RoleCode.SUPER_ADMIN,
             is_super_admin=True,
+        )
+
+    # Enforce must_reset_password HERE (not in get_current_user) so that
+    # /auth/me, /auth/change-password and /auth/refresh keep working — they
+    # depend on get_current_user directly and must never be blocked.
+    # All hotel-scoped endpoints use get_tenant_context and are blocked until
+    # the user sets a new password. The 403 code "must_reset_password" lets
+    # the frontend redirect to /change-password instead of a generic error.
+    if user.must_reset_password:
+        raise ForbiddenError(
+            "You must change your password before continuing.",
+            code="must_reset_password",
         )
 
     hotel_uuid: UUID | None = None

@@ -2,9 +2,11 @@
 
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
+import { ApiError } from "@/lib/api/client";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,13 +35,22 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { cn } from "@/lib/utils";
-import { Eye } from "lucide-react";
+import { Eye, RotateCcw } from "lucide-react";
 import type { ListOut } from "@/types/hotel";
 import type { BookingGuestDocOut, BookingGuestOut, BookingOut, ForeignGuestIn } from "@/types/stay";
 import type { ChargeOut, PaymentOut } from "@/types/money";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type CompletedStatus = "checked_out" | "cancelled" | "no_show";
@@ -528,12 +539,86 @@ function BookingDetailSheet({
   );
 }
 
+/** Checkout reversal dialog — requires CHECKOUT + PAYMENTS_CORRECT (owner/manager). */
+function CheckoutReversalDialog({
+  booking,
+  onClose,
+  onDone,
+}: {
+  readonly booking: BookingOut | null;
+  readonly onClose: () => void;
+  readonly onDone: () => void;
+}) {
+  const t = useTranslations("bookings");
+  const tc = useTranslations("common");
+  const api = useApi();
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api(`/api/v1/checkouts/${booking!.id}/reverse`, {
+        method: "POST",
+        body: { reason: reason.trim() },
+      }),
+    onSuccess: () => {
+      toast.success(t("checkoutReversed"));
+      setReason("");
+      setError(null);
+      onClose();
+      onDone();
+    },
+    onError: (e) => setError(e instanceof ApiError ? e.message : tc("error")),
+  });
+
+  return (
+    <Dialog open={booking !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <RotateCcw className="size-4 text-amber-600" aria-hidden />
+            {t("reverseCheckout")} — {booking?.booking_number}
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">{t("reverseCheckoutHint")}</p>
+        <div className="space-y-1.5">
+          <Label htmlFor="rev-reason">{t("reverseReason")}</Label>
+          <Input
+            id="rev-reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={t("reverseReasonPlaceholder")}
+            minLength={3}
+          />
+        </div>
+        {error && (
+          <p className="text-sm text-danger" role="alert">{error}</p>
+        )}
+        <DialogFooter>
+          <DialogClose className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm hover:bg-muted">
+            {tc("cancel")}
+          </DialogClose>
+          <Button
+            variant="outline"
+            className="border-amber-400 text-amber-700 hover:bg-amber-50"
+            disabled={reason.trim().length < 3 || mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? tc("saving") : t("confirmReversal")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function CompletedBookingsContent() {
   const t = useTranslations("bookings");
   const tn = useTranslations("nav");
   const tc = useTranslations("common");
   const api = useApi();
-  const { activeHotelId } = useAuth();
+  const queryClient = useQueryClient();
+  const { activeHotelId, can } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   // Persist filters in URL search params so refresh/back restores the view.
@@ -545,6 +630,8 @@ function CompletedBookingsContent() {
   const [page, setPage] = useState(0);
   // Booking id whose detail drawer is open (null = closed).
   const [viewBookingId, setViewBookingId] = useState<string | null>(null);
+  const [reversalTarget, setReversalTarget] = useState<BookingOut | null>(null);
+  const canReverse = can(PERMISSIONS.checkout) && can(PERMISSIONS.paymentsCorrect);
 
   const filterQs =
     (search ? `&q=${encodeURIComponent(search)}` : "") +
@@ -701,7 +788,7 @@ function CompletedBookingsContent() {
                   <TableHead className="text-white">{t("statusCol")}</TableHead>
                   <TableHead className="text-white">{t("payment")}</TableHead>
                   <TableHead className="text-white">
-                    <span className="sr-only">{t("viewDetails")}</span>
+                    <span className="sr-only">{t("actions")}</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -725,15 +812,32 @@ function CompletedBookingsContent() {
                       <PaymentStatusBadge status={booking.payment_status} />
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        aria-label={t("viewDetails")}
-                        title={t("viewDetails")}
-                        onClick={() => setViewBookingId(booking.id)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label={t("viewDetails")}
+                          title={t("viewDetails")}
+                          onClick={() => setViewBookingId(booking.id)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        {/* Checkout reversal — restricted to owner/manager
+                            (CHECKOUT + PAYMENTS_CORRECT). Only offered for
+                            checked_out bookings (not cancelled/no-show). */}
+                        {canReverse && booking.status === "checked_out" && (
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            aria-label={t("reverseCheckout")}
+                            title={t("reverseCheckout")}
+                            className="text-amber-600 hover:bg-amber-50"
+                            onClick={() => setReversalTarget(booking)}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -767,6 +871,15 @@ function CompletedBookingsContent() {
         <BookingDetailSheet
           bookingId={viewBookingId}
           onClose={() => setViewBookingId(null)}
+        />
+        <CheckoutReversalDialog
+          booking={reversalTarget}
+          onClose={() => setReversalTarget(null)}
+          onDone={() => {
+            queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
+            queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
+            queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
+          }}
         />
       </main>
     </>

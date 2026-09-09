@@ -353,10 +353,13 @@ async def restaurant_billing(
 async def room_utilization(
     db: AsyncSession, tenant: TenantContext, from_date: date, to_date: date
 ) -> RoomUtilizationOut:
+    """Single-query room utilisation report — replaces the previous N-queries
+    implementation that executed one DB round-trip per room (N+1 bug)."""
     hotel_id = tenant.require_hotel()
     from_date, to_date = _range(from_date, to_date)
     days = max((to_date - from_date).days, 1)
 
+    # ── Fetch all active rooms in one query ───────────────────────────────
     rooms_result = await db.execute(
         select(Room, RoomType.name)
         .join(RoomType, RoomType.id == Room.room_type_id)
@@ -364,35 +367,54 @@ async def room_utilization(
         .order_by(RoomType.name, Room.room_number)
     )
     room_rows = rooms_result.all()
+    if not room_rows:
+        return RoomUtilizationOut(
+            from_date=from_date, to_date=to_date, items=[], by_room_type={}
+        )
+
+    room_ids = [r.id for r, _ in room_rows]
+
+    # ── Fetch ALL overlapping bookings in a single query ──────────────────
+    bookings_result = await db.execute(
+        select(
+            BookingRoom.room_id,
+            Booking.check_in_date,
+            Booking.check_out_date,
+            Booking.total_amount,
+            Booking.room_count,
+        )
+        .join(Booking, Booking.id == BookingRoom.booking_id)
+        .where(
+            BookingRoom.hotel_id == hotel_id,
+            BookingRoom.room_id.in_(room_ids),
+            BookingRoom.is_current.is_(True),
+            Booking.status.in_(("confirmed", "checked_in", "checked_out")),
+            Booking.check_in_date < to_date,
+            Booking.check_out_date > from_date,
+        )
+    )
+    booking_rows = bookings_result.all()
+
+    # ── Aggregate per room (pure Python — no extra round trips) ──────────
+    from uuid import UUID as _UUID
+
+    occupied_map: dict[_UUID, int] = {}
+    revenue_map: dict[_UUID, Decimal] = {}
+    for row in booking_rows:
+        start = max(row.check_in_date, from_date)
+        end = min(row.check_out_date, to_date)
+        n = max((end - start).days, 0)
+        room_id = row.room_id
+        occupied_map[room_id] = occupied_map.get(room_id, 0) + n
+        if row.room_count and row.room_count > 0:
+            revenue_map[room_id] = revenue_map.get(room_id, Decimal("0")) + (
+                Decimal(str(row.total_amount)) / Decimal(str(row.room_count))
+            )
 
     rows: list[RoomUtilizationRowOut] = []
     by_type: dict[str, list[Decimal]] = {}
-
     for room, type_name in room_rows:
-        bookings = (
-            await db.execute(
-                select(Booking)
-                .join(BookingRoom, BookingRoom.booking_id == Booking.id)
-                .where(
-                    BookingRoom.room_id == room.id,
-                    BookingRoom.is_current.is_(True),
-                    Booking.status.in_(("confirmed", "checked_in", "checked_out")),
-                    Booking.check_in_date < to_date,
-                    Booking.check_out_date > from_date,
-                )
-            )
-        ).scalars().all()
-
-        occupied = 0
-        room_revenue = Decimal("0.00")
-        for booking in bookings:
-            start = max(booking.check_in_date, from_date)
-            end = min(booking.check_out_date, to_date)
-            n = max((end - start).days, 0)
-            occupied += n
-            if booking.room_count > 0:
-                room_revenue += booking.total_amount / booking.room_count
-
+        occupied = occupied_map.get(room.id, 0)
         available = days
         pct = (
             money(Decimal(occupied) * Decimal("100") / Decimal(available))
@@ -407,7 +429,7 @@ async def room_utilization(
                 occupied_nights=occupied,
                 available_nights=available,
                 occupancy_percent=pct,
-                revenue=money(room_revenue),
+                revenue=money(revenue_map.get(room.id, Decimal("0"))),
             )
         )
         by_type.setdefault(type_name, []).append(pct)

@@ -564,6 +564,9 @@ async def transfer_room(
     correlation_id: str | None = None,
 ) -> RoomTransferOut:
     hotel_id = tenant.require_hotel()
+    from app.services.subscriptions import assert_transactions_allowed as _ata
+
+    await _ata(db, hotel_id)
     booking = await get_booking(db, tenant, body.booking_id)
     if booking.status != "checked_in":
         raise ValidationAppError(
@@ -1084,6 +1087,10 @@ async def check_out(
     db.add(checkout)
     booking.status = "checked_out"
     booking.total_amount = final_total
+    # Fix: persist the authoritative GST total from the quote so that billing
+    # history queries have a correct tax_amount (previously always 0 because
+    # only charge GST was accumulated but room GST was never stored).
+    booking.tax_amount = quote["gst_amount"]
     booking.due_amount = due
     if due == 0 and refund == 0:
         booking.payment_status = "paid"

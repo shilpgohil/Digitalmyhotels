@@ -78,6 +78,8 @@ async def list_notifications(
     *,
     unread_only: bool = False,
     category: str | None = None,
+    limit: int = 30,
+    offset: int = 0,
 ) -> NotificationListOut:
     scope, allowed = _visibility_scope(tenant)
     read_exists = _read_exists(tenant)
@@ -87,7 +89,7 @@ async def list_notifications(
         query = query.where(~read_exists)
     if category:
         query = query.where(Notification.category == category)
-    items = list((await db.execute(query.limit(100))).scalars().all())
+    items = list((await db.execute(query.limit(limit).offset(offset))).scalars().all())
 
     # Per-user read state for the returned page.
     read_ids: set[UUID] = set()
