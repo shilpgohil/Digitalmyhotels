@@ -1859,6 +1859,9 @@ function AdditionalGuestEntry({
   const [searchPhone, setSearchPhone] = useState("");
   const [searchResults, setSearchResults] = useState<GuestSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  // True once a Search request has actually completed — prevents "No match"
+  // showing prematurely while the user is still typing (before hitting Search).
+  const [hasSearched, setHasSearched] = useState(false);
   const [resolved, setResolved] = useState<ResolvedCoGuest | null>(null);
   const [mode, setMode] = useState<"search" | "form">("search");
   const [docs, setDocs] = useState<{ side: DocSide; file: File }[]>([]);
@@ -1891,13 +1894,22 @@ function AdditionalGuestEntry({
   const handleSearch = async () => {
     if (!searchPhone.trim()) return;
     setSearching(true);
+    setHasSearched(false);
     try {
+      // Bug fix: backend /guests/search accepts ?phone= (not ?q= which was
+      // always returning empty results — the root cause of "search not working").
       const res = await api<{ items: GuestSearchResult[] }>(
-        `/api/v1/guests/search?q=${encodeURIComponent(searchPhone.trim())}`,
+        `/api/v1/guests/search?phone=${encodeURIComponent(searchPhone.trim())}`,
       );
       setSearchResults(res.items);
+      setHasSearched(true);
+      // Auto-open Create Guest form when no match found (item 4 / item 23)
+      if (res.items.length === 0) {
+        setMode("form");
+      }
     } catch {
       setSearchResults([]);
+      setHasSearched(true);
     } finally {
       setSearching(false);
     }
@@ -2206,7 +2218,7 @@ function AdditionalGuestEntry({
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" aria-hidden />
               <Input
                 value={searchPhone}
-                onChange={(e) => setSearchPhone(e.target.value)}
+                onChange={(e) => { setSearchPhone(e.target.value); setHasSearched(false); }}
                 placeholder={t("searchByPhone")}
                 className="pl-9"
                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleSearch())}
@@ -2236,7 +2248,8 @@ function AdditionalGuestEntry({
               ))}
             </ul>
           )}
-          {searchResults.length === 0 && searchPhone && !searching && (
+          {/* Only show "No match" after a real search — not while typing */}
+          {hasSearched && searchResults.length === 0 && !searching && (
             <div className="flex flex-wrap items-center gap-2.5">
               <p className="text-xs text-muted-foreground">{t("noMatchFound")}</p>
               <button
