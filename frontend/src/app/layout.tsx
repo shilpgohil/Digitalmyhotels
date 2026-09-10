@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/sonner";
+import { RouteProgress } from "@/components/ui/route-progress";
 import "./globals.css";
 
 const inter = Inter({
@@ -30,6 +31,11 @@ export const metadata: Metadata = {
     template: "%s · DigitalMyHotels",
   },
   description: "Hotel management platform — bookings, front desk, billing and operations.",
+  icons: {
+    icon: "/dmh-icon.png",
+    apple: "/dmh-icon.png",
+    shortcut: "/dmh-icon.png",
+  },
 };
 
 export default async function RootLayout({
@@ -50,6 +56,8 @@ export default async function RootLayout({
         }
       >
         <NextIntlClientProvider locale={locale} messages={messages}>
+          {/* Gold route-transition bar — fires on every client navigation */}
+          <RouteProgress />
           <Providers>{children}</Providers>
           <Toaster position="top-right" richColors />
         </NextIntlClientProvider>

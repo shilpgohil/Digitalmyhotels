@@ -84,14 +84,25 @@ export default function LoginPage() {
         <LocaleSwitcher />
       </div>
 
+      {/* DMH brand logo above card */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/dmh-logo-vertical.png"
+        alt="DigitalMyHotels"
+        width={220}
+        height={130}
+        className="mb-6 select-none object-contain drop-shadow-sm"
+        draggable={false}
+      />
+
       {/* Login card */}
       <div className="w-full max-w-[400px] rounded-2xl bg-white px-8 py-10 shadow-md">
         {/* Heading */}
         <div className="mb-7 text-center">
-          <h1 className="font-display text-3xl font-bold text-foreground">
+          <h1 className="font-display text-2xl font-bold text-foreground">
             {t("loginTitle")}
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-1.5 text-sm text-muted-foreground">
             {t("loginSubtitle")}
           </p>
         </div>
@@ -197,8 +208,8 @@ export default function LoginPage() {
       </div>
 
       {/* Footer */}
-      <p className="mt-6 text-xs text-muted-foreground">
-        © {new Date().getFullYear()} DigitalMyHotel Portal. All Rights Reserved.
+      <p className="mt-6 text-xs text-muted-foreground text-center">
+        © {new Date().getFullYear()} DigitalMyHotels — Digital Hotels &amp; Restaurants
       </p>
     </div>
   );

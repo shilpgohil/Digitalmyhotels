@@ -388,6 +388,22 @@ export function PartnerSidebar() {
             )}
           </div>
         </div>
+        {/* Powered by DMH badge */}
+        <div className="mt-3 flex items-center gap-1.5 opacity-40">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/dmh-icon.png"
+            alt=""
+            width={14}
+            height={14}
+            className="size-3.5 select-none object-contain"
+            style={{ filter: "brightness(0) invert(1)" }}
+            draggable={false}
+          />
+          <p className="text-[9px] tracking-widest uppercase font-medium text-sidebar-foreground">
+            Powered by DigitalMyHotels
+          </p>
+        </div>
       </div>
     </aside>
   );

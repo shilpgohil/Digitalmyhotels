@@ -71,16 +71,16 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
 
   return (
     <aside className="flex h-full w-60 flex-col bg-white border-r border-border">
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-border">
-        <div className="flex size-10 items-center justify-center rounded-lg bg-gold-500 shrink-0">
-          <Hotel className="size-5 text-navy-900" aria-hidden />
-        </div>
-        <div>
-          <p className="text-sm font-bold text-foreground leading-tight">{t("brandName")}</p>
-          <p className="text-[9px] tracking-widest text-muted-foreground uppercase font-medium">
-            {t("brandSuite")}
-          </p>
-        </div>
+      {/* DMH horizontal logo — replaces generic "HotelAdmin" brand mark */}
+      <div className="flex items-center justify-start px-5 py-4 border-b border-border">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/dmh-logo-horizontal.png"
+          alt="DigitalMyHotels"
+          height={36}
+          className="h-9 w-auto select-none object-contain"
+          draggable={false}
+        />
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">

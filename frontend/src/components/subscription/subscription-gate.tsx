@@ -61,8 +61,19 @@ export function HotelSuspendedOverlay() {
 
   return (
     <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-navy-950/98 px-6 text-center">
-      <div className="mb-6 flex size-20 items-center justify-center rounded-full bg-red-500/10">
-        <AlertOctagon className="size-10 text-red-400" aria-hidden />
+      {/* DMH brand mark — white-tinted version on dark overlay */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/dmh-icon.png"
+        alt="DigitalMyHotels"
+        width={72}
+        height={72}
+        className="mb-4 select-none object-contain opacity-80"
+        draggable={false}
+        style={{ filter: "brightness(0) invert(1) opacity(0.7)" }}
+      />
+      <div className="mb-6 flex size-16 items-center justify-center rounded-full bg-red-500/10">
+        <AlertOctagon className="size-8 text-red-400" aria-hidden />
       </div>
       <h1 className="font-display text-3xl font-bold text-white">{ts("title")}</h1>
       <p className="mt-3 max-w-md text-base text-white/60 leading-relaxed">{ts("body")}</p>
@@ -127,7 +138,6 @@ export function SubscriptionGate() {
             "flex flex-wrap items-center justify-between gap-2 px-6 py-2 text-sm",
             blocked ? "bg-danger-bg text-danger" : "bg-warning-bg text-warning",
           )}
-          role="status"
         >
           {/* Client request: clicking the banner shows expiry details in a popup. */}
           <button
