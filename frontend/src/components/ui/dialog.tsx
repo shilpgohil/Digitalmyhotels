@@ -31,7 +31,10 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        // Removed backdrop-blur-xs — same fix as SheetOverlay:
+        // heavy blur creates a jarring blurry background on all modals.
+        // Clean bg-black/50 overlay is professional and smooth.
+        "fixed inset-0 isolate z-50 bg-black/50 duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
