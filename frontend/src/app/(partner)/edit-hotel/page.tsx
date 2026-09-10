@@ -516,8 +516,17 @@ function EditHotelContent() {
         );
       }
 
-      // 4. Check-in form flags — Emergency & Vehicle toggles removed (client item 15).
-      // Settings PATCH no longer needed here; the check-in form always shows these sections.
+      // 4. Check-in form flags (restored per client 9-10 feedback)
+      const attemptSettings = attemptIn(t("sectionSettings"));
+      await attemptSettings(() =>
+        api("/api/v1/hotels/me/settings", {
+          method: "PATCH",
+          body: {
+            collect_emergency_contact: collectEmergency,
+            collect_vehicle_details: collectVehicle,
+          },
+        }),
+      );
 
       // 2a. Room types diff — create new, patch changed (no DELETE endpoint:
       // types may be referenced by rooms, so removal is not supported).
@@ -1118,8 +1127,37 @@ function EditHotelContent() {
               </div>
             </SectionCard>
 
-            {/* Emergency & Vehicle Details toggles removed (client 9-08 item 15:
-                "Remove it all places" — the check-in form always collects these). */}
+            {/* ── 4. Emergency & Vehicle Details (restored per client 9-10 feedback) ── */}
+            <SectionCard number={4} title={t("emergencyVehicle")}>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between py-2">
+                  <div>
+                    <p className="text-sm font-medium">{t("emergencyContact")}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {t("emergencyContactDesc")}
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={collectEmergency}
+                    onChange={setCollectEmergency}
+                    label={t("emergencyContact")}
+                  />
+                </div>
+                <div className="flex items-center justify-between border-t py-2">
+                  <div>
+                    <p className="text-sm font-medium">{t("vehicleDetails")}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {t("vehicleDetailsDesc")}
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={collectVehicle}
+                    onChange={setCollectVehicle}
+                    label={t("vehicleDetails")}
+                  />
+                </div>
+              </div>
+            </SectionCard>
 
             {/* ── Section-level save failures (client 9-08 item 15) ────── */}
             {saveFailures.length > 0 && (

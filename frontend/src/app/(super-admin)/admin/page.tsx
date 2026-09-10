@@ -64,8 +64,10 @@ const STAT_CARDS: StatCard[] = [
   { key: "activeHotels",     icon: CheckCircle,  iconBg: "bg-green-50",   iconColor: "text-green-500", href: "/admin/hotels" },
   { key: "todayCheckins",    icon: Calendar,     iconBg: "bg-blue-50",    iconColor: "text-blue-500" },
   { key: "totalRevenue",     icon: IndianRupee,  iconBg: "bg-amber-50",   iconColor: "text-amber-600", format: "currency" },
-  { key: "recentlyExpiredCard", icon: AlertTriangle, iconBg: "bg-orange-50", iconColor: "text-orange-500", href: "/admin/expired" },
-  { key: "expiredHotels",    icon: XCircle,      iconBg: "bg-red-50",     iconColor: "text-red-500", href: "/admin/expired?filter=all" },
+  // recentlyExpiredCard = actually-expired hotels (matches /admin/expired list)
+  // expiringSoonCard = hotels expiring within 7 days (actionable warning)
+  { key: "recentlyExpiredCard", icon: XCircle,       iconBg: "bg-red-50",     iconColor: "text-red-500",    href: "/admin/expired" },
+  { key: "expiringSoonCard",    icon: AlertTriangle, iconBg: "bg-orange-50",  iconColor: "text-orange-500", href: "/admin/expired" },
 ];
 
 function fmtRevenue(v: number | string): string {
@@ -143,8 +145,12 @@ export default function AdminDashboardPage() {
         activeHotels: dash.data.active_hotels,
         todayCheckins: dash.data.today_checkins,
         totalRevenue: dash.data.total_revenue,
-        recentlyExpiredCard: dash.data.expiring_soon,
-        expiredHotels: dash.data.expired_hotels,
+        // Fix: "Recently Expired" must match what the /admin/expired list shows
+      // (hotels where subscription has actually expired). Using expiring_soon
+      // here caused the count to say "2" but the list to show "0" because
+      // expiring_soon = about-to-expire, expired_hotels = already expired.
+      recentlyExpiredCard: dash.data.expired_hotels,
+        expiringSoonCard: dash.data.expiring_soon,
       }
     : {};
 

@@ -29,9 +29,14 @@ from app.schemas.guest import normalize_phone
 from app.services.audit import write_audit
 
 
-async def create_request(db: AsyncSession, identifier: str) -> None:
-    """Public: record a reset request for an email/phone. ALWAYS silent —
-    the response never discloses whether the account exists."""
+async def create_request(
+    db: AsyncSession, identifier: str, *, raise_if_not_found: bool = False
+) -> bool:
+    """Public: record a reset request for an email/phone.
+
+    Returns True if the account was found, False otherwise. When
+    `raise_if_not_found=True` the caller handles the not-found case.
+    """
     ident = identifier.strip().lower()
     user: User | None = None
     if "@" in ident:
@@ -45,7 +50,7 @@ async def create_request(db: AsyncSession, identifier: str) -> None:
                 await db.execute(select(User).where(User.phone == normalized))
             ).scalar_one_or_none()
     if user is None:
-        return
+        return False
 
     # One pending request per user — repeat submissions are a no-op.
     existing = (
@@ -57,7 +62,7 @@ async def create_request(db: AsyncSession, identifier: str) -> None:
         )
     ).scalars().first()
     if existing is not None:
-        return
+        return True  # already have a pending request — treated as success
 
     # Routing: owner (or super admin / no staff membership) → super admin;
     # staff → their hotel's administrators.
@@ -120,6 +125,8 @@ async def create_request(db: AsyncSession, identifier: str) -> None:
             ),
             deep_link="/team",
         )
+
+    return True
 
 
 def _request_row(

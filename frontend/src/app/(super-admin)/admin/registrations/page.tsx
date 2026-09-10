@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { AdminListError, AdminListLoading } from "@/components/admin/admin-list-state";
-import { fmtDate } from "@/lib/formatting";
+import { fmtDateTime } from "@/lib/formatting";
 import type { HotelAdminListOut } from "@/types/money";
 
 const PAGE_SIZE = 10;
@@ -106,7 +106,7 @@ function RegistrationsContent() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{h.city ?? "—"}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                    {fmtDate(h.created_at)}
+                    {fmtDateTime(h.created_at)}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {h.subscription_plan_name ?? "—"}

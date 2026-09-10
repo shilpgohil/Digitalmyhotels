@@ -64,6 +64,9 @@ export default function LoginPage() {
       if (error instanceof ApiError) {
         if (error.code === "invalid_credentials") setServerError(t("invalidCredentials"));
         else if (error.code === "account_disabled") setServerError(t("accountDisabled"));
+        // Hotel suspended: show a clear reason at the login screen itself
+        // instead of waiting for the first API call to fail (client item #16).
+        else if (error.code === "hotel_suspended") setServerError(t("hotelSuspendedLogin"));
         else setServerError(error.message);
       } else {
         const detail = error instanceof Error ? error.message : tc("error");

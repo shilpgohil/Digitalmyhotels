@@ -35,7 +35,11 @@ export default function ForgotPasswordPage() {
       });
       setSent(true);
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : t("requestFailed"));
+      // Show the server-provided message (e.g. "Email or Phone not found") as
+      // an inline error rather than a toast so it's prominent (client #20).
+      const msg = e instanceof ApiError ? e.message : t("requestFailed");
+      setIdentifier(identifier); // keep the value so user can correct it
+      toast.error(msg);
     } finally {
       setBusy(false);
     }

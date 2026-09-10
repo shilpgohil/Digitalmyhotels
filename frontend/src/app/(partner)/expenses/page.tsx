@@ -162,6 +162,17 @@ function ExpensesContent() {
     enabled: !!activeHotelId,
   });
 
+  // Vendors are loaded once and used both in the Add form and the table's
+  // Vendor Name column (client 9-10 issue #10: vendor name missing from table).
+  const allVendors = useQuery({
+    queryKey: ["expense-vendors", activeHotelId],
+    queryFn: () => api<VendorOut[]>("/api/v1/expenses/vendors"),
+    enabled: !!activeHotelId,
+    staleTime: 5 * 60_000,
+  });
+  const vendorById = (id: string | null | undefined) =>
+    allVendors.data?.find((v) => v.id === id)?.name ?? null;
+
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["expenses", activeHotelId] });
     queryClient.invalidateQueries({ queryKey: ["recurring", activeHotelId] });
@@ -356,6 +367,7 @@ function ExpensesContent() {
                   <TableHead>{t("expenseDate")}</TableHead>
                   <TableHead>{t("amount")}</TableHead>
                   <TableHead>{t("description")}</TableHead>
+                  <TableHead>{t("vendorName")}</TableHead>
                   <TableHead>{t("paymentMode")}</TableHead>
                   <TableHead>{t("statusCol")}</TableHead>
                   <TableHead>{tc("actions")}</TableHead>
@@ -367,6 +379,9 @@ function ExpensesContent() {
                     <TableCell>{fmtApiDate(ex.expense_date)}</TableCell>
                     <TableCell className="tabular-nums">{fmtINR(ex.amount)}</TableCell>
                     <TableCell>{ex.description ?? "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {vendorById(ex.vendor_id) ?? "—"}
+                    </TableCell>
                     <TableCell>
                       {FILTER_MODES.includes(ex.payment_method)
                         ? t(`mode_${ex.payment_method}`)
@@ -845,7 +860,10 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
                 return;
               }
               if (f && f.type.startsWith("image/")) {
-                void edit(f, { aspect: "receipt", maxDimension: 1400 }).then((framed) => {
+                // "free" aspect — receipts come in all orientations; cropping to
+                // a fixed ratio cuts the bottom of portrait or top of landscape
+                // bills (client 9-10 issue #9: bill image cut when viewing).
+                void edit(f, { aspect: "free", maxDimension: 1400 }).then((framed) => {
                   if (framed) setReceiptFile(framed);
                 });
                 return;
@@ -853,6 +871,19 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
               setReceiptFile(f);
             }}
           />
+          {/* Show selected file name so staff confirm the right file was picked
+              (client 9-10 issue #10: file name not displayed after upload). */}
+          {receiptFile && (
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="truncate max-w-xs">{receiptFile.name}</span>
+              <button
+                type="button"
+                className="text-danger hover:opacity-70 ml-1"
+                onClick={() => setReceiptFile(null)}
+                aria-label="Remove file"
+              >×</button>
+            </p>
+          )}
         </div>
       </div>
       <Button

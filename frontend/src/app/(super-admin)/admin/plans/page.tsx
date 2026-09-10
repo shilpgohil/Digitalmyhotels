@@ -205,7 +205,7 @@ function EditPlanDialog({
                 type="number"
                 min={0}
                 step="0.01"
-                defaultValue={plan?.price ?? ""}
+                defaultValue={plan ? String(Math.round(Number(plan.price))) : ""}
                 required
               />
             </div>

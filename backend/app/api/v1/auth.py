@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Request, Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_tenant_context
@@ -75,6 +78,32 @@ async def login(
 
     check_login_rate(request.client.host if request.client else body.email)
     user = await auth_service.authenticate_user(db, body.email, body.password)
+
+    # After authentication, check hotel suspension so the login page can show
+    # a clear reason instead of waiting for the first hotel-scoped API call
+    # to fail (client 9-10 issue #16).
+    if not user.is_super_admin:
+        memberships_pre = await auth_service.get_user_memberships(db, user.id)
+        active_hotels: list[UUID] = [m.hotel_id for m in memberships_pre if m.hotel_id]
+        if active_hotels:
+            from app.core.errors import ForbiddenError as _FE
+            from app.models.hotel import Hotel
+
+            # If ALL the user's hotels are suspended, block login with reason.
+            suspended_count = 0
+            for h_id in active_hotels:
+                status = await db.scalar(
+                    select(Hotel.status).where(Hotel.id == h_id)
+                )
+                if status == "suspended":
+                    suspended_count += 1
+            if suspended_count > 0 and suspended_count == len(active_hotels):
+                raise _FE(
+                    "Your hotel account has been deactivated. "
+                    "Please contact DigitalMyHotels support to reactivate.",
+                    code="hotel_suspended",
+                )
+
     access, refresh, _ = await auth_service.issue_tokens(
         db,
         user,
@@ -167,14 +196,21 @@ async def password_reset_request_admin(
 ) -> MessageOut:
     """Hierarchical reset request (client 9-08 item 34): staff requests reach
     their hotel administrator, owner/admin requests reach the Super Admin.
-    The response NEVER reveals whether the account exists."""
+    Returns an error when the identifier is not found in the system so staff
+    see an actionable message (client 9-10 issue #20 — closed B2B system)."""
+    from app.core.errors import NotFoundError
     from app.core.rate_limit import check_login_rate
     from app.services.password_requests import create_request
 
     check_login_rate(request.client.host if request.client else body.identifier)
-    await create_request(db, body.identifier)
+    found = await create_request(db, body.identifier, raise_if_not_found=True)
+    if not found:
+        raise NotFoundError(
+            "Email or phone number not found. Please check and try again.",
+            code="identifier_not_found",
+        )
     return MessageOut(
-        message="If the account exists, your administrator has been notified."
+        message="Your administrator has been notified and will reset your password."
     )
 
 
