@@ -1,5 +1,47 @@
 # Active Context — DigitalMyHotels
 
+## Figma design gap fixes (2026-09-09) — COMMITTED aad5f66
+
+After viewing all 35 Figma design PNG files from `main documents/client documentations/client updated figma/`:
+
+**Implemented (Excel rows 2 & 11 — Add Hotel missing items per Figma):**
+1. **Add New Hotel — GST & Rooms Limits section** (new section):
+   - GST type 3-option radio: "GST Included by Hotel" / "GST Including Customer" / "No GST Applicable"
+   - Total No of Rooms count input (stored as `hotels.total_rooms`)
+   - Passed to backend on creation → sets `gst_settings.is_gst_registered` + `hotel_settings.tax_inclusive_pricing`
+2. **Add New Hotel — Property Gallery** (5 image slots, uploaded after hotel creation)
+3. **Add New Hotel — Map ID field** (Property Identity section → `hotels.map_id`)
+4. **Add New Hotel — Enhanced Payment Setup section**:
+   - Merchant Name input (`hotel_payment_config.merchant_name`)
+   - Payment URL input (`hotel_payment_config.payment_url`)
+   - Renamed section from "UPI Payment Setup" → "Payment Setup"
+5. **Edit Hotel — Map ID field** added to Property Identity section
+6. **Partner Dashboard — Quick Actions**: "Billing History" → "Payment Ledger" (matches Figma 15.png)
+
+**Backend changes:**
+- `Hotel` model: `total_rooms: int | None`, `map_id: str | None`
+- `HotelPaymentConfig` model: `merchant_name: str | None`, `payment_url: str | None`
+- `HotelUpdate` schema: accepts `total_rooms`, `map_id`
+- `PaymentConfigOut/Update`: includes `merchant_name`, `payment_url` (upi_id now optional)
+- `CreateHotelRequest`: `gst_type`, `total_rooms`, `map_id`, `merchant_name`, `payment_url`
+- `payment_config.update_upi_id()`: `upi_id` now optional; handles `merchant_name`/`payment_url`
+- Migration `e1f2a3b4c5d6`: adds 4 new nullable columns
+
+**Other Figma screens verified as already matching:**
+- Admin Dashboard ✅ (6 stat cards, tables, quick actions)
+- Plan Expired modal ✅ (SubscriptionGate already shows it)
+- Check-in/Checkout ✅
+- Current Guests / Advance Bookings / Completed Bookings ✅
+- Invoice Preview ✅
+- Payment Details ✅
+- Expenses ✅
+- GST & Tax ✅
+- Room Status ✅
+- Settings ✅
+- Restaurant Billing ✅
+
+---
+
 ## Option C — remaining acceptance ledger items (2026-09-09 late) — uncommitted
 
 5 more items from the 9-08 acceptance ledger fully resolved:
