@@ -453,14 +453,20 @@ function RoomReplaceControl({
     }
   };
 
-  const addRoom = async (newRoomId: string) => {
+  /** Add one or more rooms sequentially; stops on first error. */
+  const addRooms = async (roomIds: string[]) => {
+    if (roomIds.length === 0) return;
     setBusy(true);
     try {
-      await api(`/api/v1/bookings/${booking.id}/add-room`, {
-        method: "POST",
-        body: { room_id: newRoomId },
-      });
-      toast.success(t("roomAdded"));
+      for (const roomId of roomIds) {
+        await api(`/api/v1/bookings/${booking.id}/add-room`, {
+          method: "POST",
+          body: { room_id: roomId },
+        });
+      }
+      toast.success(
+        roomIds.length === 1 ? t("roomAdded") : t("roomsAdded", { count: roomIds.length }),
+      );
       setAddMode(false);
       setPendingTarget([]);
       onReplaced();
@@ -558,12 +564,15 @@ function RoomReplaceControl({
         </div>
       )}
 
-      {/* Add Room mode — opens picker for adding extra room to the booking */}
+      {/* Add Room mode — multi-select, adds ALL selected rooms at once */}
       {addMode && (
         <div className="space-y-3 rounded-xl border border-gold-300 bg-gold-50/40 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-gold-700 flex items-center gap-1.5">
             <Plus className="size-3.5" />
             {t("addRoomTitle")}
+          </p>
+          <p className="text-[11px] text-muted-foreground -mt-1">
+            Select one or more rooms to add to this booking.
           </p>
           <RoomAvailabilityPicker
             checkIn={availFrom}
@@ -572,14 +581,17 @@ function RoomReplaceControl({
             guestChildren={0}
             selectedRooms={pendingTarget}
             onSelectionChange={(ids) => {
+              // Multi-select: allow any number of rooms except those already on the booking
               const fresh = ids.filter((id) => !currentIds.has(id));
-              setPendingTarget(fresh.slice(-1));
+              setPendingTarget(fresh);
             }}
           />
-          {pendingTarget.length === 1 && (
+          {pendingTarget.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gold-400 bg-white px-4 py-3">
               <p className="text-sm font-medium text-navy-900">
-                {t("confirmAddHint")}
+                {pendingTarget.length === 1
+                  ? t("confirmAddHint")
+                  : `Add ${pendingTarget.length} rooms to this booking?`}
               </p>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => setPendingTarget([])}>
@@ -589,9 +601,13 @@ function RoomReplaceControl({
                   size="sm"
                   className="bg-navy-900 text-white hover:bg-navy-900/90"
                   disabled={busy}
-                  onClick={() => void addRoom(pendingTarget[0])}
+                  onClick={() => void addRooms(pendingTarget)}
                 >
-                  {busy ? tc("saving") : t("confirmAdd")}
+                  {busy
+                    ? tc("saving")
+                    : pendingTarget.length === 1
+                    ? t("confirmAdd")
+                    : `Add ${pendingTarget.length} rooms`}
                 </Button>
               </div>
             </div>

@@ -668,6 +668,19 @@ function AdvanceBookingContent() {
                 </div>
               </div>
 
+              {/* Card / Net Banking info note — record-only, no POS integration */}
+              {(paymentMode === "credit_card" || paymentMode === "debit_card" || paymentMode === "bank_transfer" || paymentMode === "other") &&
+                (parseFloat(advanceAmount) || 0) > 0 && (
+                <p className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] text-blue-700">
+                  <span>ℹ</span>
+                  {paymentMode === "credit_card" || paymentMode === "debit_card"
+                    ? "Collect payment via card machine, then this records it in your accounts."
+                    : paymentMode === "bank_transfer"
+                    ? "Collect payment via net banking, then this records it in your accounts."
+                    : "Collect payment from the guest, then this records it in your accounts."}
+                </p>
+              )}
+
               {/* UPI QR — shown only when UPI is selected and amount > 0 */}
               {paymentMode === "upi" && (parseFloat(advanceAmount) || 0) > 0 && (
                 <div className="rounded-lg border border-border bg-muted/30 p-4 flex flex-col items-center gap-2">

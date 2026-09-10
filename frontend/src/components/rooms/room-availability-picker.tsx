@@ -18,8 +18,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   BedDouble,
   Calendar,
+  Check,
   ChevronDown,
   ChevronUp,
   Clock,
@@ -149,7 +151,7 @@ function AvailableChip({
         <span className="font-semibold text-sm">{room.room_number}</span>
         {selected && (
           <span className="size-4 rounded-full bg-gold-500 flex items-center justify-center shrink-0">
-            <span className="text-[9px] font-bold text-navy-900">✓</span>
+            <Check className="size-2.5 text-navy-900" strokeWidth={3} aria-hidden />
           </span>
         )}
       </div>
@@ -513,7 +515,7 @@ export function RoomAvailabilityPicker({
       {/* ── Capacity warning ──────────────────────────────────────────────── */}
       {capacityWarning && (
         <div className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-          <span className="text-red-500 text-lg leading-none mt-0.5">⚠</span>
+          <AlertTriangle className="size-4 text-red-500 shrink-0 mt-0.5" aria-hidden />
           <div>
             <p className="text-sm font-semibold text-red-700">Capacity exceeded</p>
             <p className="text-xs text-red-600 mt-0.5">

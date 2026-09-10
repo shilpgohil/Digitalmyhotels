@@ -58,6 +58,10 @@ async def test_add_expense_client_repro(client: AsyncClient, hotel_a: HotelFixtu
     summary = await client.get("/api/v1/expenses/summary", headers=headers)
     assert summary.status_code == 200, summary.text
     body = summary.json()
-    assert set(body) == {"total_amount", "today_amount", "month_amount", "entries"}
-    assert float(body["today_amount"]) >= 500.0
+    # pending_amount was added in the 24h-noshow/pending-support batch.
+    assert set(body) == {"total_amount", "today_amount", "month_amount", "entries", "pending_amount"}
+    # The newly created expense is SUBMITTED (not yet approved), so:
+    #   - today_amount  = approved+paid only → may be 0 if no prior approved expense today
+    #   - pending_amount = submitted only → should be >= 500.0
+    assert float(body["pending_amount"]) >= 500.0
     assert body["entries"] >= 1

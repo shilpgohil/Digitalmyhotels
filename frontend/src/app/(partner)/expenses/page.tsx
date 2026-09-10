@@ -288,6 +288,7 @@ function ExpensesContent() {
                   <p className="mt-1 text-xs font-medium tracking-wide uppercase opacity-80">
                     {t(card.labelKey)}
                   </p>
+                  <p className="mt-0.5 text-[10px] opacity-60">{card.subtitle}</p>
                 </div>
               );
             })}

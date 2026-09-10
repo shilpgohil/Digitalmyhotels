@@ -1410,6 +1410,7 @@
     "confirmAddHint": "Add the selected room to this booking? The total will be updated.",
     "confirmAdd": "Add room",
     "roomAdded": "Room added — booking repriced",
+    "roomsAdded": "{count} rooms added — booking repriced",
     "pickReplacementRoom": "Pick a replacement room (priced automatically)",
     "pickReplacementFor": "Pick a replacement for Room {room} — the booking is repriced automatically",
     "confirmReplaceHint": "Replace Room {from} with the selected room? The booking total and ledger update automatically.",
