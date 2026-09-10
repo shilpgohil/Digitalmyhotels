@@ -1,14 +1,14 @@
 /**
- * FullPageSpinner — branded DMH loading screen.
+ * FullPageSpinner — premium DMH brand loading screen.
  *
- * Layout (top → bottom):
- *   1. Vertical DigitalMyHotels logo — gentle pulse animation (dmh-pulse)
- *   2. Gold shimmer bar — metallic sweep (dmh-shimmer)
- *   3. Three gold dots — staggered bounce (dmh-dot-bounce)
- *   4. Optional label (screen-reader accessible)
+ * Uses the same double-arc spinner pattern as RouteLoader but scaled up:
+ *   - DMH icon mark (80px) as the centerpiece
+ *   - Outer gold arc (4px, 180°) spinning clockwise at 0.75s
+ *   - Inner gold arc (2.5px, counter-clockwise, 35% opacity) at 1.4s
+ *   - "DigitalMyHotels" wordmark below
+ *   - No shimmer bar, no dots — clean and consistent with route loader
  *
- * Used by RequireAuth, ChangePasswordGuard, and any other full-page
- * waiting state. Replaces the old generic Loader2 spinner.
+ * Used by RequireAuth, ChangePasswordGuard, root page redirect.
  */
 export function FullPageSpinner({ label }: Readonly<{ label?: string }>) {
   return (
@@ -16,52 +16,76 @@ export function FullPageSpinner({ label }: Readonly<{ label?: string }>) {
       className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white"
       aria-label={label ?? "Loading DigitalMyHotels…"}
     >
-      {/* Vertical logo — breathes gently */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/dmh-logo-vertical.png"
-        alt="DigitalMyHotels"
-        width={200}
-        height={120}
-        className="select-none object-contain"
-        style={{ animation: "dmh-pulse 1.6s ease-in-out infinite" }}
-        draggable={false}
-      />
-
-      {/* Gold shimmer bar — metallic sweep */}
-      <div
-        className="relative mt-7 h-[3px] w-48 overflow-hidden rounded-full"
-        style={{ background: "var(--navy-100)" }}
-        aria-hidden
-      >
+      {/* ── Spinner ring + DMH icon ── */}
+      <div className="relative" style={{ width: 96, height: 96 }}>
+        {/* Outer glow — subtle gold halo */}
         <div
-          className="absolute inset-y-0 w-full rounded-full"
+          className="absolute inset-0 rounded-full"
+          style={{ boxShadow: "0 0 0 6px rgba(192,154,46,0.10)" }}
+        />
+
+        {/* White circle card */}
+        <div
+          className="absolute inset-0 rounded-full bg-white"
+          style={{ boxShadow: "0 8px 28px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06)" }}
+        />
+
+        {/* DMH icon — centered, static */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/dmh-icon.png"
+          alt="DigitalMyHotels"
+          width={56}
+          height={56}
+          className="absolute select-none object-contain"
           style={{
-            background:
-              "linear-gradient(90deg, transparent 0%, var(--gold-500) 40%, #e8c040 55%, transparent 100%)",
-            animation: "dmh-shimmer 1.6s ease-in-out infinite",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 1,
+          }}
+          draggable={false}
+        />
+
+        {/* Primary arc — gold, 180°, clockwise, 0.75s */}
+        <div
+          className="absolute inset-0 rounded-full"
+          style={{
+            border: "4px solid transparent",
+            borderTopColor: "var(--gold-500)",
+            borderRightColor: "var(--gold-500)",
+            animation: "spin 0.75s linear infinite",
+          }}
+        />
+
+        {/* Secondary arc — inner, counter-clockwise, subtle */}
+        <div
+          className="absolute rounded-full"
+          style={{
+            inset: 8,
+            border: "2.5px solid transparent",
+            borderBottomColor: "color-mix(in srgb, var(--gold-500) 40%, transparent)",
+            borderLeftColor: "color-mix(in srgb, var(--gold-500) 40%, transparent)",
+            animation: "spin-reverse 1.4s linear infinite",
           }}
         />
       </div>
 
-      {/* Three animated gold dots — staggered bounce */}
-      <div className="mt-5 flex items-center gap-2" aria-hidden>
-        {[0, 200, 400].map((delay) => (
-          <div
-            key={delay}
-            className="size-2 rounded-full"
-            style={{
-              background: "var(--gold-500)",
-              animation: `dmh-dot-bounce 1.2s ease-in-out infinite`,
-              animationDelay: `${delay}ms`,
-            }}
-          />
-        ))}
+      {/* ── Wordmark below ── */}
+      <div className="mt-8 flex flex-col items-center gap-1 select-none">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/dmh-logo-horizontal.png"
+          alt="DigitalMyHotels"
+          height={22}
+          className="h-[22px] w-auto object-contain opacity-70"
+          draggable={false}
+        />
       </div>
 
-      {/* Optional text label */}
+      {/* Optional label */}
       {label && (
-        <p className="mt-5 text-xs font-medium text-muted-foreground">{label}</p>
+        <p className="mt-4 text-xs font-medium text-muted-foreground">{label}</p>
       )}
     </output>
   );

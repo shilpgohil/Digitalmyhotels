@@ -24,7 +24,6 @@ import {
   Copy,
   Download,
   FileText,
-  Loader2,
   LogOut,
   Mail,
   MessageCircle,
@@ -33,6 +32,7 @@ import {
   Search,
 } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
+import { InlineSpinner } from "@/components/ui/inline-spinner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TimeInput } from "@/components/ui/time-input";
@@ -1155,7 +1155,7 @@ function CheckoutContent() {
                           disabled={isPending || !quote || (needsDueAuth && !dueReason.trim())}
                         >
                           {isPending ? (
-                            <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
+                            <InlineSpinner size={16} className="mr-2" />
                           ) : (
                             <LogOut className="mr-2 size-4" aria-hidden />
                           )}

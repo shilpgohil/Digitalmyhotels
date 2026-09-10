@@ -6,7 +6,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useTranslations } from "next-intl";
-import { Eye, EyeOff, Loader2, Lock, User } from "lucide-react";
+import { Eye, EyeOff, Lock, User } from "lucide-react";
+import { InlineSpinner } from "@/components/ui/inline-spinner";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
 import { LocaleSwitcher } from "@/components/layout/locale-switcher";
@@ -191,7 +192,7 @@ export default function LoginPage() {
             disabled={submitting}
             className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-navy-900 text-sm font-semibold text-white transition-colors hover:bg-navy-900/90 disabled:opacity-60"
           >
-            {submitting && <Loader2 className="size-4 animate-spin" aria-hidden />}
+            {submitting && <InlineSpinner size={16} />}
             {submitting ? t("signingIn") : t("loginBtn")}
           </button>
 

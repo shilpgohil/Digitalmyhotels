@@ -46,7 +46,6 @@ import {
   Copy,
   Eye,
   Globe,
-  Loader2,
   ChevronDown,
   ChevronUp,
   CreditCard,
@@ -83,6 +82,7 @@ import { docAspectFor, useImageEditor } from "@/components/media/image-editor";
 import { compressDocument } from "@/lib/compress-image";
 import { fmtApiDate, fmtApiDateTime, fmtINR, localToday, localTomorrow } from "@/lib/formatting"; // eslint-disable-line @typescript-eslint/no-unused-vars
 import { cn } from "@/lib/utils";
+import { InlineSpinner } from "@/components/ui/inline-spinner";
 import type { ListOut, RoomAvailableItem } from "@/types/hotel";
 import type {
   BookAndCheckInRequest,
@@ -585,7 +585,7 @@ function RevealIdButton({
       onClick={() => void reveal()}
       title={t("revealSavedIdHint")}
     >
-      {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Eye className="size-3.5" aria-hidden />}
+      {busy ? <InlineSpinner size={14} /> : <Eye className="size-3.5" aria-hidden />}
       {t("revealSavedId")}
                       </Button>
   );
