@@ -26,7 +26,6 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ResponsiveContainer,
-  AreaChart,
   Area,
   BarChart,
   Bar,
@@ -137,11 +136,6 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 // ── Colour palettes ───────────────────────────────────────────────────────────
-const ROOM_COLORS: Record<string, string> = {
-  occupied: "#991b1b", available: "#166534", clean_ready: "#15803d",
-  reserved: "#1e3a5f", cleaning_required: "#d97706", cleaning_in_progress: "#f59e0b",
-  inspection_required: "#92400e", maintenance: "#334155", out_of_service: "#475569",
-};
 const GUEST_COLORS = ["#a08236", "#1e3a5f", "#166534", "#7c3aed", "#0e7490", "#9f1239"];
 const LEVEL_STYLES: Record<string, { bg: string; border: string; icon: string }> = {
   alert:   { bg: "bg-red-50",    border: "border-red-300",    icon: "text-red-600" },
@@ -180,7 +174,6 @@ function SectionCard({ title, icon: Icon, action, children }: {
 
 function KpiChip({ label, value, sub, wow }: { label: string; value: string; sub?: string; wow?: number }) {
   const up = wow !== undefined && wow > 0;
-  const down = wow !== undefined && wow < 0;
   return (
     <div className="rounded-xl border bg-white p-4 shadow-sm">
       <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</p>

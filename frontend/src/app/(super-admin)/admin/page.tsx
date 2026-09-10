@@ -14,8 +14,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
   CartesianGrid,
 } from "recharts";
 import {
@@ -34,7 +32,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api/client";
-import { fmtApiDate, fmtDate, fmtDateTime, fmtINR } from "@/lib/formatting";
+import { fmtApiDate, fmtDateTime, fmtINR } from "@/lib/formatting";
 
 interface PlatformTrendItem {
   month: string;

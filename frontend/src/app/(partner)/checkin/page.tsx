@@ -81,7 +81,7 @@ import { API_BASE, ApiError, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { docAspectFor, useImageEditor } from "@/components/media/image-editor";
 import { compressDocument } from "@/lib/compress-image";
-import { fmtApiDate, fmtApiDateTime, fmtINR, localToday, localTomorrow } from "@/lib/formatting";
+import { fmtApiDate, fmtApiDateTime, fmtINR, localToday, localTomorrow } from "@/lib/formatting"; // eslint-disable-line @typescript-eslint/no-unused-vars
 import { cn } from "@/lib/utils";
 import type { ListOut, RoomAvailableItem } from "@/types/hotel";
 import type {

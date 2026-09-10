@@ -280,7 +280,6 @@ export default function AddHotelPage() {
     } catch {
       // ignore malformed draft
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const mutation = useMutation({
@@ -647,6 +646,7 @@ export default function AddHotelPage() {
           <Label>{t("hotelLogo")}</Label>
           <div className="flex items-center gap-3">
             {logoPreview ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={logoPreview}
                 alt="Logo preview"
@@ -698,6 +698,7 @@ export default function AddHotelPage() {
                   className="relative flex aspect-square cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-border transition-colors hover:border-gold-400"
                 >
                   {galleryPreviews[pos] ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={galleryPreviews[pos]!}
                       alt={`Gallery ${pos + 1}`}
