@@ -78,7 +78,7 @@ function DailyClosingContent() {
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {today.isLoading && <Skeleton className="h-48" />}
         {(today.isError || history.isError) && (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="rounded-lg border border-danger/20 bg-danger-bg px-3 py-2 text-sm text-danger">
             {tc("error")}{" "}
             <button
               type="button"
@@ -119,15 +119,15 @@ function DailyClosingContent() {
                     belong to bookings from prior days (e.g. dues at late
                     checkout). Legitimate but should be reviewed before close. */}
                 {(row.backdated_payments_count ?? 0) > 0 && (
-                  <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
-                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
+                  <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning-bg p-3">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
                     <div className="text-sm">
-                      <p className="font-semibold text-amber-800">
+                      <p className="font-semibold text-warning">
                         {t("backdatedPaymentsTitle", {
                           count: row.backdated_payments_count,
                         })}
                       </p>
-                      <p className="text-amber-700">
+                      <p className="text-warning">
                         {t("backdatedPaymentsHint", {
                           amount: fmtINR(row.backdated_payments_amount),
                         })}

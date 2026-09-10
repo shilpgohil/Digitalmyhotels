@@ -128,7 +128,7 @@ function PaymentModal({
       <DialogContent className="max-w-md">
         {submitted ? (
           <div className="flex flex-col items-center gap-3 py-6 text-center">
-            <CheckCircle2 className="size-12 text-green-600" aria-hidden />
+            <CheckCircle2 className="size-12 text-success" aria-hidden />
             <h2 className="font-display text-xl">{t("verifyTitle")}</h2>
             <p className="text-sm text-muted-foreground">{t("verifyBody")}</p>
             <Button className="mt-2" onClick={onClose}>
@@ -186,7 +186,7 @@ function PaymentModal({
               </div>
             ) : (
               !info.isLoading && (
-                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-center text-sm text-amber-800">
+                <p className="rounded-lg border border-warning/20 bg-warning-bg px-3 py-2 text-center text-sm text-warning">
                   {t("contactTeam")}
                 </p>
               )
@@ -271,7 +271,7 @@ function PlanContent() {
           </div>
 
           {sub.isError && (
-            <p className="mx-auto mt-6 max-w-md rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p className="mx-auto mt-6 max-w-md rounded-lg border border-danger/20 bg-danger-bg px-3 py-2 text-sm text-danger">
               {tc("error")}
             </p>
           )}
@@ -291,7 +291,7 @@ function PlanContent() {
           )}
 
           {pending && (
-            <div className="mx-auto mt-4 flex max-w-2xl items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <div className="mx-auto mt-4 flex max-w-2xl items-center gap-2 rounded-lg border border-warning/20 bg-warning-bg px-4 py-3 text-sm text-warning">
               <Hourglass className="size-4 shrink-0" aria-hidden />
               {t("pendingBanner")}
             </div>
@@ -306,7 +306,7 @@ function PlanContent() {
           )}
 
           {plans.isError && (
-            <p className="mt-8 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p className="mt-8 rounded-lg border border-danger/20 bg-danger-bg px-3 py-2 text-sm text-danger">
               {tc("error")}
             </p>
           )}

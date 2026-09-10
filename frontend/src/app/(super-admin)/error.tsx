@@ -31,7 +31,7 @@ export default function AdminError({
   return (
     <div className="flex min-h-[60vh] items-center justify-center p-6">
       <div className="max-w-md text-center">
-        <AlertTriangle className="mx-auto size-10 text-amber-500" aria-hidden />
+        <AlertTriangle className="mx-auto size-10 text-warning" aria-hidden />
         <h2 className="mt-4 text-lg font-bold">{t("adminSectionErrorTitle")}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{t("adminSectionErrorBody")}</p>
         {error.digest && (

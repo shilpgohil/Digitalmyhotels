@@ -26,8 +26,8 @@ export default function SuspendedPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-navy-950 px-6 text-center">
       {/* Red warning icon */}
-      <div className="mb-6 flex size-20 items-center justify-center rounded-full bg-red-500/10">
-        <AlertOctagon className="size-10 text-red-400" aria-hidden />
+      <div className="mb-6 flex size-20 items-center justify-center rounded-full bg-danger/10">
+        <AlertOctagon className="size-10 text-danger" aria-hidden />
       </div>
 
       <h1 className="font-display text-3xl font-bold text-white">

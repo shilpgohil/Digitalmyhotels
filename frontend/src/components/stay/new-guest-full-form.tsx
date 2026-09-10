@@ -376,19 +376,19 @@ function AutofillBanner({
   const pct = Math.round(result.confidence * 100);
 
   return (
-    <div className="rounded-xl border border-green-200 bg-green-50 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-green-200">
+    <div className="rounded-xl border border-success/20 bg-success-bg overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-success/20">
         <div className="flex items-center gap-2">
-          <BadgeCheck className="size-4 text-green-600" aria-hidden />
-          <span className="text-sm font-semibold text-green-800">{t("idDetected")}</span>
-          <span className="rounded-full bg-green-200 px-2 py-0.5 text-micro font-bold text-green-700">
+          <BadgeCheck className="size-4 text-success" aria-hidden />
+          <span className="text-sm font-semibold text-success">{t("idDetected")}</span>
+          <span className="rounded-full bg-green-200 px-2 py-0.5 text-micro font-bold text-success">
             {t("confidencePct", { pct })}
           </span>
         </div>
         <button
           type="button"
           onClick={onDismiss}
-          className="text-green-400 hover:text-green-600 text-base leading-none"
+          className="text-success hover:text-success text-base leading-none"
           aria-label={t("dismiss")}
         >
           ×
@@ -398,13 +398,13 @@ function AutofillBanner({
       <div className="px-4 py-3 space-y-1.5">
         {detectedItems.map((item) => (
           <div key={item.label} className="flex gap-2 text-xs">
-            <span className="w-24 shrink-0 font-semibold text-green-700">{item.label}</span>
-            <span className="text-green-800 truncate">{item.value}</span>
+            <span className="w-24 shrink-0 font-semibold text-success">{item.label}</span>
+            <span className="text-success truncate">{item.value}</span>
           </div>
         ))}
       </div>
 
-      <div className="flex items-center gap-2 px-4 py-3 border-t border-green-200 bg-green-50/50">
+      <div className="flex items-center gap-2 px-4 py-3 border-t border-success/20 bg-success-bg/50">
         <button
           type="button"
           onClick={() => onAccept(fields)}
@@ -416,7 +416,7 @@ function AutofillBanner({
         <button
           type="button"
           onClick={onDismiss}
-          className="inline-flex h-8 items-center px-3 text-xs font-medium text-green-700 hover:underline"
+          className="inline-flex h-8 items-center px-3 text-xs font-medium text-success hover:underline"
         >
           {t("skipManual")}
         </button>

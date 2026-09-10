@@ -698,8 +698,8 @@ export default function AdminEditHotelPage({
                   <span className={cn(
                     "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold",
                     {
-                      "bg-green-100 text-green-700": adminDetail.data.status === "active",
-                      "bg-red-100 text-red-700": adminDetail.data.status === "expired",
+                      "bg-success-bg text-success": adminDetail.data.status === "active",
+                      "bg-danger-bg text-danger": adminDetail.data.status === "expired",
                       "bg-orange-100 text-orange-700": !["active", "expired"].includes(adminDetail.data.status),
                     },
                   )}>

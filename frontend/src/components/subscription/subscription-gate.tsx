@@ -73,7 +73,7 @@ export function HotelSuspendedOverlay() {
         style={{ filter: "brightness(0) invert(1) opacity(0.7)" }}
       />
       <div className="mb-6 flex size-16 items-center justify-center rounded-full bg-red-500/10">
-        <AlertOctagon className="size-8 text-red-400" aria-hidden />
+        <AlertOctagon className="size-8 text-danger" aria-hidden />
       </div>
       <h1 className="font-display text-3xl font-bold text-white">{ts("title")}</h1>
       <p className="mt-3 max-w-md text-base text-white/60 leading-relaxed">{ts("body")}</p>

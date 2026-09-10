@@ -54,13 +54,9 @@ export function RenewDialog({ hotel }: { readonly hotel: HotelAdminOut }) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex h-7 items-center rounded-lg bg-[#7a6540] px-3 text-xs font-semibold text-white hover:bg-[#6a5535] transition-colors"
-      >
+      <Button size="sm" onClick={() => setOpen(true)} className="bg-gold-600 text-white hover:bg-gold-700">
         {t("renew")}
-      </button>
+      </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>

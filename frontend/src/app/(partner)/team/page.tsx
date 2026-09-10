@@ -108,8 +108,8 @@ function TeamContent() {
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {/* Pending reset requests — staff asked for help signing in. */}
         {(passwordRequests.data?.length ?? 0) > 0 && (
-          <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
-            <p className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+          <div className="mb-4 rounded-xl border border-warning/30 bg-warning-bg p-4">
+            <p className="flex items-center gap-2 text-sm font-semibold text-warning">
               <KeyRound className="size-4" aria-hidden />
               {t("pendingResetRequests", { count: passwordRequests.data!.length })}
             </p>

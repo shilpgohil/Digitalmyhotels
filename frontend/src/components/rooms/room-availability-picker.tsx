@@ -92,15 +92,15 @@ function fmtDate(iso: string | null | undefined): string {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
-/** Colour + icon for unavailable reason. */
+/** Colour + icon for unavailable reason — uses semantic design tokens. */
 function reasonMeta(reason: string): { label: string; colour: string } {
   switch (reason) {
-    case "booked":       return { label: "Booked",       colour: "text-orange-600 bg-orange-50 border-orange-200" };
-    case "occupied":     return { label: "Occupied",     colour: "text-red-600 bg-red-50 border-red-200" };
-    case "cleaning":     return { label: "Cleaning",     colour: "text-blue-600 bg-blue-50 border-blue-200" };
-    case "maintenance":  return { label: "Maintenance",  colour: "text-yellow-700 bg-yellow-50 border-yellow-200" };
-    case "out_of_service": return { label: "Out of service", colour: "text-gray-500 bg-gray-50 border-gray-200" };
-    default:             return { label: reason,         colour: "text-muted-foreground bg-muted border-border" };
+    case "booked":         return { label: "Booked",          colour: "text-warning  bg-warning-bg  border-warning/30"  };
+    case "occupied":       return { label: "Occupied",         colour: "text-danger   bg-danger-bg   border-danger/30"   };
+    case "cleaning":       return { label: "Cleaning",         colour: "text-info     bg-info-bg     border-info/30"     };
+    case "maintenance":    return { label: "Maintenance",      colour: "text-warning  bg-warning-bg  border-warning/30"  };
+    case "out_of_service": return { label: "Out of service",   colour: "text-muted-foreground bg-muted border-border"    };
+    default:               return { label: reason,             colour: "text-muted-foreground bg-muted border-border"    };
   }
 }
 
@@ -109,13 +109,13 @@ function reasonMeta(reason: string): { label: string; colour: string } {
 /** Map room status to a small hint label + colour for the chip. */
 function statusHint(status: string): { label: string; colour: string } | null {
   switch (status) {
-    case "occupied":          return { label: "Occupied now",  colour: "text-orange-600 bg-orange-50" };
-    case "reserved":          return { label: "Reserved",      colour: "text-blue-600   bg-blue-50"   };
-    case "cleaning_required": return { label: "Cleaning soon", colour: "text-sky-600    bg-sky-50"    };
-    case "cleaning_in_progress": return { label: "Cleaning",   colour: "text-sky-600    bg-sky-50"    };
-    case "clean_ready":       return null; // same as available — no hint needed
-    case "inspection_required": return { label: "Inspection",  colour: "text-purple-600 bg-purple-50" };
-    default:                  return null;
+    case "occupied":             return { label: "Occupied now",  colour: "text-danger  bg-danger-bg"  };
+    case "reserved":             return { label: "Reserved",      colour: "text-info    bg-info-bg"    };
+    case "cleaning_required":    return { label: "Cleaning soon", colour: "text-info    bg-info-bg"    };
+    case "cleaning_in_progress": return { label: "Cleaning",      colour: "text-info    bg-info-bg"    };
+    case "clean_ready":          return null; // same as available — no hint needed
+    case "inspection_required":  return { label: "Inspection",    colour: "text-warning bg-warning-bg" };
+    default:                     return null;
   }
 }
 
@@ -151,7 +151,7 @@ function AvailableChip({
         <span className="font-semibold text-sm">{room.room_number}</span>
         {selected && (
           <span className="size-4 rounded-full bg-gold-500 flex items-center justify-center shrink-0">
-            <Check className="size-2.5 text-navy-900" strokeWidth={3} aria-hidden />
+            <Check className="size-2.5 text-navy-900" aria-hidden />
           </span>
         )}
       </div>
@@ -185,7 +185,7 @@ function AvailableChip({
       )}
       {/* Free-at hint: show when this occupied room will be vacated */}
       {room.status === "occupied" && room.current_checkout_time && (
-        <span className="mt-0.5 flex items-center gap-0.5 text-micro font-medium text-green-700">
+        <span className="mt-0.5 flex items-center gap-0.5 text-micro font-medium text-success">
           <Clock className="size-2.5" aria-hidden />
           Free at {room.current_checkout_time}
         </span>
@@ -212,7 +212,7 @@ function UnavailableCard({ room }: { readonly room: RoomUnavailableItem }) {
           <p className="text-micro text-muted-foreground">Free from</p>
           <p className="text-xs font-semibold text-foreground">{fmtDate(room.occupied_until)}</p>
           {room.occupied_until_time && (
-            <p className="text-micro text-green-700 font-medium flex items-center justify-end gap-0.5 mt-0.5">
+            <p className="text-micro text-success font-medium flex items-center justify-end gap-0.5 mt-0.5">
               <Clock className="size-2.5" aria-hidden />
               {room.occupied_until_time}
             </p>
@@ -220,7 +220,7 @@ function UnavailableCard({ room }: { readonly room: RoomUnavailableItem }) {
         </div>
       )}
       {!room.occupied_until && room.unavailable_reason === "cleaning" && (
-        <div className="ml-3 shrink-0 flex items-center gap-1 text-blue-500 text-xs">
+        <div className="ml-3 shrink-0 flex items-center gap-1 text-info text-xs">
           <Clock className="size-3" aria-hidden />
           <span>Soon</span>
         </div>
@@ -412,7 +412,7 @@ export function RoomAvailabilityPicker({
           </div>
           <span className={cn(
             "rounded-full px-2 py-0.5 text-micro font-bold",
-            filteredAvailable.length > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600",
+            filteredAvailable.length > 0 ? "bg-success-bg text-success" : "bg-danger-bg text-danger",
           )}>
             {filteredAvailable.length} room{filteredAvailable.length !== 1 ? "s" : ""}
           </span>
@@ -424,7 +424,7 @@ export function RoomAvailabilityPicker({
           </p>
         )}
         {available.length === 0 ? (
-          <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
+          <div className="rounded-xl border border-warning/20 bg-warning-bg px-4 py-3 text-sm text-warning">
             No rooms available for these dates.
             {comingSoon.length > 0 && (
               <span className="ml-1 font-medium">
@@ -456,7 +456,7 @@ export function RoomAvailabilityPicker({
             className="flex w-full items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors"
           >
             <span className="flex items-center gap-2">
-              <Clock className="size-3.5 text-orange-500" aria-hidden />
+              <Clock className="size-3.5 text-warning" aria-hidden />
               <span>
                 {filteredComingSoon.length} room{filteredComingSoon.length !== 1 ? "s" : ""} booked for these dates
               </span>
@@ -514,11 +514,11 @@ export function RoomAvailabilityPicker({
 
       {/* ── Capacity warning ──────────────────────────────────────────────── */}
       {capacityWarning && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-          <AlertTriangle className="size-4 text-red-500 shrink-0 mt-0.5" aria-hidden />
+        <div className="flex items-start gap-2.5 rounded-xl border border-danger/20 bg-danger-bg px-4 py-3">
+          <AlertTriangle className="size-4 text-danger shrink-0 mt-0.5" aria-hidden />
           <div>
-            <p className="text-sm font-semibold text-red-700">Capacity exceeded</p>
-            <p className="text-xs text-red-600 mt-0.5">
+            <p className="text-sm font-semibold text-danger">Capacity exceeded</p>
+            <p className="text-xs text-danger/80 mt-0.5">
               Selected rooms can accommodate {totalCapacity} guest{totalCapacity !== 1 ? "s" : ""},
               but you have {totalGuests} guest{totalGuests !== 1 ? "s" : ""} ({adults} adult{adults !== 1 ? "s" : ""}
               {childCount > 0 ? `, ${childCount} child${childCount !== 1 ? "ren" : ""}` : ""}).

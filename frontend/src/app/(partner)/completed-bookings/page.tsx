@@ -183,7 +183,7 @@ function GuestCard({
           </span>
         )}
         {foreignGuest && (
-          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+          <span className="rounded-full bg-info-bg px-2 py-0.5 text-xs font-medium text-info">
             {t("foreignGuestBadge")}
           </span>
         )}
@@ -248,7 +248,7 @@ function GuestCard({
           <button
             type="button"
             onClick={() => setShowFormC(!showFormC)}
-            className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wide text-blue-700 hover:text-blue-900"
+            className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wide text-info hover:text-info"
           >
             {t("formCDetails")}
             {showFormC ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
@@ -574,7 +574,7 @@ function CheckoutReversalDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <RotateCcw className="size-4 text-amber-600" aria-hidden />
+            <RotateCcw className="size-4 text-warning" aria-hidden />
             {t("reverseCheckout")} — {booking?.booking_number}
           </DialogTitle>
         </DialogHeader>
@@ -598,7 +598,7 @@ function CheckoutReversalDialog({
           </DialogClose>
           <Button
             variant="outline"
-            className="border-amber-400 text-amber-700 hover:bg-amber-50"
+            className="border-warning/20 text-warning hover:bg-warning-bg"
             disabled={reason.trim().length < 3 || mutation.isPending}
             onClick={() => mutation.mutate()}
           >
@@ -802,7 +802,7 @@ function CompletedBookingsContent() {
                             variant="ghost"
                             aria-label={t("reverseCheckout")}
                             title={t("reverseCheckout")}
-                            className="text-amber-600 hover:bg-amber-50"
+                            className="text-warning hover:bg-warning-bg"
                             onClick={() => setReversalTarget(booking)}
                           >
                             <RotateCcw className="h-4 w-4" />

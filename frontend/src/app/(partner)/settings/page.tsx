@@ -693,7 +693,7 @@ function UpiConfigPanel() {
           </div>
 
           {/* Explain why UPI apps may show a personal name */}
-          <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-200">
+          <div className="rounded-md bg-warning-bg border border-warning/20 px-3 py-2 text-xs text-warning dark:bg-amber-900/20 dark:border-warning/20 dark:text-warning">
             <strong>{t("upiNameNoteTitle")}</strong> {t("upiNameNote")}
           </div>
 

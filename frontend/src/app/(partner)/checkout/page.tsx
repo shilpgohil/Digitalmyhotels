@@ -21,6 +21,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { toast } from "sonner";
 import {
   BadgeCheck,
+  Check,
   Copy,
   Download,
   FileText,
@@ -720,8 +721,8 @@ function CheckoutContent() {
             {done && checkoutResult && (
               <Card>
                 <CardContent className="space-y-4 py-4 text-center">
-                  <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-green-100">
-                    <BadgeCheck className="size-8 text-green-600" aria-hidden />
+                  <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-success-bg">
+                    <BadgeCheck className="size-8 text-success" aria-hidden />
                   </div>
                   <div>
                     <p className="text-lg font-bold">{tp("guestCheckedOut")}</p>
@@ -738,7 +739,7 @@ function CheckoutContent() {
                     </div>
                     <div className="flex justify-between px-4 py-2">
                       <span className="text-muted-foreground">{t("paid")}</span>
-                      <span className="font-semibold text-green-700 tabular-nums">
+                      <span className="font-semibold text-success tabular-nums">
                         {fmtMoney(money(checkoutResult.paid_amount))}
                       </span>
                     </div>
@@ -751,14 +752,14 @@ function CheckoutContent() {
                       </div>
                     )}
                     {money(checkoutResult.refund_amount) > 0 && (
-                      <div className="flex flex-col gap-1 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+                      <div className="flex flex-col gap-1 rounded-lg border border-info/20 bg-info-bg px-4 py-3">
                         <div className="flex justify-between">
-                          <span className="font-semibold text-blue-800">{tp("refundDueToGuest")}</span>
-                          <span className="font-bold text-blue-700 tabular-nums">
+                          <span className="font-semibold text-info">{tp("refundDueToGuest")}</span>
+                          <span className="font-bold text-info tabular-nums">
                             {fmtMoney(money(checkoutResult.refund_amount))}
                           </span>
                         </div>
-                        <p className="text-xs text-blue-600">
+                        <p className="text-xs text-info">
                           Return this amount to the guest in the same payment mode used at check-in (cash / UPI).
                         </p>
                       </div>
@@ -769,8 +770,9 @@ function CheckoutContent() {
                     </div>
                   </div>
                   {invoiceId ? (
-                    <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
-                      ✓ {ti("generated")}
+                    <div className="flex items-center gap-2 rounded-xl border border-success/20 bg-success-bg px-4 py-3 text-sm font-medium text-success">
+                      <Check className="size-4 shrink-0" aria-hidden />
+                      {ti("generated")}
                     </div>
                   ) : (
                     <button
@@ -878,7 +880,7 @@ function CheckoutContent() {
                         />
                       </div>
                       {lateFeeNum > 0 && (
-                        <div className="col-span-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+                        <div className="col-span-full rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-sm font-medium text-warning">
                           Late checkout by {lateHoursNum} hr{lateHoursNum !== 1 ? "s" : ""} —{" "}
                           {fmtINR(lateFeeNum)} late fee added
                         </div>
@@ -1031,21 +1033,21 @@ function CheckoutContent() {
                         {totals.discount > 0 && (
                           <div className="flex justify-between px-3 py-2">
                             <span className="text-muted-foreground">{tp("discount")}</span>
-                            <span className="font-medium text-green-700 tabular-nums">
+                            <span className="font-medium text-success tabular-nums">
                               −{fmtMoney(totals.discount)}
                             </span>
                           </div>
                         )}
                         <div className="flex justify-between px-3 py-2">
                           <span className="text-muted-foreground">{tp("advancePayment")}</span>
-                          <span className="font-medium text-green-700 tabular-nums">
+                          <span className="font-medium text-success tabular-nums">
                             {fmtMoney(totals.advancePaid)}
                           </span>
                         </div>
                         {totals.secDeposit > 0 && (
                           <div className="flex justify-between px-3 py-2">
                             <span className="text-muted-foreground">{tp("securityDeposit")}</span>
-                            <span className="font-medium text-green-700 tabular-nums">
+                            <span className="font-medium text-success tabular-nums">
                               {fmtMoney(totals.secDeposit)}
                             </span>
                           </div>
@@ -1057,10 +1059,10 @@ function CheckoutContent() {
                           <span
                             className={
                               refundAmount > 0
-                                ? "font-medium text-blue-600 tabular-nums"
+                                ? "font-medium text-info tabular-nums"
                                 : pendingAmount > 0
-                                  ? "font-medium text-red-600 tabular-nums"
-                                  : "font-medium text-green-700 tabular-nums"
+                                  ? "font-medium text-danger tabular-nums"
+                                  : "font-medium text-success tabular-nums"
                             }
                           >
                             {fmtMoney(refundAmount > 0 ? refundAmount : pendingAmount)}
@@ -1104,7 +1106,7 @@ function CheckoutContent() {
 
                         {/* Card/bank info note */}
                         {payMethod !== "cash" && payMethod !== "upi" && (
-                          <p className="text-label text-blue-600 flex items-center gap-1">
+                          <p className="text-label text-info flex items-center gap-1">
                             <span>ℹ</span>
                             {payMethod === "credit_card" || payMethod === "debit_card"
                               ? "Collect via card machine, then record here"
@@ -1203,7 +1205,7 @@ function CheckoutContent() {
                       </Button>
                       <Button
                         variant="outline"
-                        className="w-full text-green-700 hover:text-green-800"
+                        className="w-full text-success hover:text-success"
                         onClick={() => void openWhatsApp()}
                         disabled={!done || !booking?.primary_guest_phone || invoiceBusy}
                       >

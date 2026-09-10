@@ -97,7 +97,7 @@ function InvoicesContent() {
         <div className="rounded-lg border bg-card">
           {invoices.isLoading && <Skeleton className="h-48" />}
           {invoices.isError && (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p className="rounded-lg border border-danger/20 bg-danger-bg px-3 py-2 text-sm text-danger">
               {tc("error")}{" "}
               <button type="button" className="underline" onClick={() => invoices.refetch()}>
                 {tc("retry")}

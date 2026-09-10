@@ -1146,7 +1146,7 @@ function UpiQrBlock({
   if (!qrUrl) {
     // Fetched but no image (404 / not configured / error).
     return (
-      <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+      <div className="rounded-lg border border-info/20 bg-info-bg px-3 py-2 text-xs text-info">
         {t("qrNotConfiguredInfo")}
       </div>
     );
@@ -1422,7 +1422,7 @@ function DocUpload({
             {/* Status overlay */}
             <div className={cn(
               "absolute bottom-0 left-0 right-0 px-2 py-1 text-micro font-semibold text-center",
-              uploaded ? "bg-green-600/80 text-white" : "bg-gold-500/80 text-navy-900",
+              uploaded ? "bg-success/80 text-white" : "bg-gold-500/80 text-navy-900",
             )}>
               {overlayStatusText}
         </div>
@@ -1521,21 +1521,21 @@ function AutofillBanner({
   const pct = Math.round(result.confidence * 100);
 
   return (
-    <div className="rounded-xl border border-green-200 bg-green-50 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-green-200">
+    <div className="rounded-xl border border-success/20 bg-success-bg overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-success/20">
         <div className="flex items-center gap-2">
-          <BadgeCheck className="size-4 text-green-600" aria-hidden />
-          <span className="text-sm font-semibold text-green-800">
+          <BadgeCheck className="size-4 text-success" aria-hidden />
+          <span className="text-sm font-semibold text-success">
             {t("idDetected")}
           </span>
-          <span className="rounded-full bg-green-200 px-2 py-0.5 text-micro font-bold text-green-700">
+          <span className="rounded-full bg-green-200 px-2 py-0.5 text-micro font-bold text-success">
             {t("confidencePct", { pct })}
           </span>
         </div>
         <button
           type="button"
           onClick={onDismiss}
-          className="text-green-400 hover:text-green-600 text-base leading-none"
+          className="text-green-400 hover:text-success text-base leading-none"
           aria-label={t("dismiss")}
         >
           ×
@@ -1545,17 +1545,17 @@ function AutofillBanner({
       <div className="px-4 py-3 space-y-1.5">
         {detectedItems.map((item) => (
           <div key={item.label} className="flex gap-2 text-xs">
-            <span className="w-24 shrink-0 font-semibold text-green-700">{item.label}</span>
-            <span className="text-green-800 truncate">{item.value}</span>
+            <span className="w-24 shrink-0 font-semibold text-success">{item.label}</span>
+            <span className="text-success truncate">{item.value}</span>
           </div>
               ))}
             </div>
 
-      <div className="flex items-center gap-2 px-4 py-3 border-t border-green-200 bg-green-50/50">
+      <div className="flex items-center gap-2 px-4 py-3 border-t border-success/20 bg-success-bg/50">
         <button
           type="button"
           onClick={() => onAccept(fields)}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-green-600 px-3 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-success px-3 text-xs font-semibold text-white hover:bg-success transition-colors"
         >
           <BadgeCheck className="size-3.5" aria-hidden />
           {t("autofillForm")}
@@ -1563,7 +1563,7 @@ function AutofillBanner({
         <button
           type="button"
           onClick={onDismiss}
-          className="inline-flex h-8 items-center px-3 text-xs font-medium text-green-700 hover:underline"
+          className="inline-flex h-8 items-center px-3 text-xs font-medium text-success hover:underline"
         >
           {t("skipManual")}
               </button>
@@ -2210,7 +2210,7 @@ function AdditionalGuestEntry({
       <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <BadgeCheck className="size-4 text-green-600" aria-hidden />
+            <BadgeCheck className="size-4 text-success" aria-hidden />
             <div>
               <span className="text-sm font-semibold">{resolved.full_name}</span>
               {resolved.phone && (
@@ -2484,8 +2484,8 @@ function CheckinSuccess({
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-8">
       <div className="rounded-xl border bg-white shadow-sm p-8 text-center space-y-4">
-        <div className="flex size-16 items-center justify-center rounded-full bg-green-100 mx-auto">
-          <BadgeCheck className="size-8 text-green-600" aria-hidden />
+        <div className="flex size-16 items-center justify-center rounded-full bg-success-bg mx-auto">
+          <BadgeCheck className="size-8 text-success" aria-hidden />
         </div>
         <h2 className="text-xl font-bold text-foreground">{t("guestCheckedIn")}</h2>
         <div className="rounded-lg bg-muted/40 px-4 py-3">
@@ -2497,7 +2497,7 @@ function CheckinSuccess({
         {invoiceId ? (
           <a
             href={`/invoices`}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-green-600 px-4 text-sm font-medium text-white hover:bg-green-700"
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-success px-4 text-sm font-medium text-white hover:bg-success"
           >
             <FileText className="size-4" aria-hidden />
             {t("viewInvoice")}
@@ -3185,7 +3185,7 @@ function CheckinForm({
             const rate = Number.parseFloat(checkinSettings.data?.early_checkin_fee_per_hour ?? "1") || 1;
             const hrs = Math.max(1, Math.round(earlyFee / rate));
             return (
-              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <div className="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-sm text-warning">
                 Early check-in by {hrs} hr{hrs !== 1 ? "s" : ""} — {fmtINR(earlyFee)} fee will be added to the bill
               </div>
             );
@@ -3517,7 +3517,7 @@ function CheckinForm({
               <p
                 className={cn(
                   "mt-1 tabular-nums font-semibold",
-                  advPaid > 0 ? "text-green-600" : "text-muted-foreground",
+                  advPaid > 0 ? "text-success" : "text-muted-foreground",
                 )}
               >
                 {fmtINR(booking.advance_amount || "0")}
@@ -3563,9 +3563,9 @@ function CheckinForm({
               </div>
               <div className="space-y-1 text-center">
                 <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
-                <p className={cn("text-sm font-bold tabular-nums", balance > 0 ? "text-gold-600" : "text-green-600")}>{fmtINR(balance)}</p>
+                <p className={cn("text-sm font-bold tabular-nums", balance > 0 ? "text-gold-600" : "text-success")}>{fmtINR(balance)}</p>
                 {overpaid > 0 && (
-                  <p className="text-micro font-medium text-amber-600">
+                  <p className="text-micro font-medium text-warning">
                     {t("overpaidHint", { amount: fmtINR(overpaid) })}
                   </p>
                 )}
@@ -3606,7 +3606,7 @@ function CheckinForm({
                 </select>
                 {/* Card/bank: friendly record note */}
                 {paymentMode !== "cash" && paymentMode !== "upi" && newAdvance > 0 && (
-                  <p className="mt-1 text-label text-blue-600 flex items-center gap-1">
+                  <p className="mt-1 text-label text-info flex items-center gap-1">
                     <span>ℹ</span>
                     {paymentMode === "credit_card" || paymentMode === "debit_card"
                       ? t("manualRecordCard")
@@ -3631,7 +3631,7 @@ function CheckinForm({
                 <p
                   className={cn(
                     "mt-2 text-lg tabular-nums font-bold",
-                    balance > 0 ? "text-gold-600" : "text-green-600",
+                    balance > 0 ? "text-gold-600" : "text-success",
                   )}
                 >
                   {fmtINR(balance)}
@@ -3640,7 +3640,7 @@ function CheckinForm({
                   <p className="text-micro text-muted-foreground">{t("dueAtCheckout")}</p>
                 )}
                 {balance === 0 && newAdvance > 0 && (
-                  <p className="text-micro text-green-600">{t("fullyPaid")}</p>
+                  <p className="text-micro text-success">{t("fullyPaid")}</p>
                 )}
               </div>
             </div>
@@ -3658,7 +3658,7 @@ function CheckinForm({
               </span>
             </label>
             {!paymentReceived && newAdvance > 0 && (
-              <p className="text-xs font-medium text-amber-600">
+              <p className="text-xs font-medium text-warning">
                 {t("advanceNotRecordedWarning")}
               </p>
             )}
@@ -4683,7 +4683,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           </div>
           {isSameDay && sameDayValid && (
             <div className="sm:col-span-2 lg:col-span-4">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/30 bg-warning-bg px-3 py-1 text-xs font-semibold text-warning">
                 <Clock className="size-3.5" aria-hidden />
                 {t("dayUseBadge", { hrs: dayUseHours })}
               </span>
@@ -4723,7 +4723,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           const rate = Number.parseFloat(settings.data?.early_checkin_fee_per_hour ?? "1") || 1;
           const hrs = Math.max(1, Math.round(earlyFee / rate));
           return (
-            <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <div className="mt-3 rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-sm text-warning">
               Early check-in by {hrs} hr{hrs !== 1 ? "s" : ""} — {fmtINR(earlyFee)} fee will be added to the bill
             </div>
           );
@@ -5122,9 +5122,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             </div>
             <div className="space-y-1 text-center">
               <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
-              <p className={cn("text-sm font-bold tabular-nums", remainingWI > 0 ? "text-gold-600" : "text-green-600")}>{fmtINR(remainingWI)}</p>
+              <p className={cn("text-sm font-bold tabular-nums", remainingWI > 0 ? "text-gold-600" : "text-success")}>{fmtINR(remainingWI)}</p>
               {overpaidWI > 0 && (
-                <p className="text-micro font-medium text-amber-600">
+                <p className="text-micro font-medium text-warning">
                   {t("overpaidHint", { amount: fmtINR(overpaidWI) })}
                 </p>
               )}
@@ -5187,7 +5187,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             </span>
           </label>
           {!paymentReceived && newAdvance > 0 && (
-            <p className="text-xs font-medium text-amber-600">
+            <p className="text-xs font-medium text-warning">
               {t("advanceNotRecordedWarning")}
             </p>
           )}

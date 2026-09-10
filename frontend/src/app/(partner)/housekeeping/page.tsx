@@ -95,7 +95,7 @@ function HousekeepingContent() {
           <h2 className="mb-3 text-sm font-semibold">{t("tasks")}</h2>
           {tasks.isLoading && <Skeleton className="h-32" />}
           {tasks.isError && (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p className="rounded-lg border border-danger/20 bg-danger-bg px-3 py-2 text-sm text-danger">
               {tc("error")}{" "}
               <button type="button" className="underline" onClick={() => tasks.refetch()}>
                 {tc("retry")}
@@ -139,7 +139,7 @@ function HousekeepingContent() {
           />
         </section>
         {maintenance.isError && (
-          <p className="mt-6 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="mt-6 rounded-lg border border-danger/20 bg-danger-bg px-3 py-2 text-sm text-danger">
             {tc("error")}{" "}
             <button type="button" className="underline" onClick={() => maintenance.refetch()}>
               {tc("retry")}

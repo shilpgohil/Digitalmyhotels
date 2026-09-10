@@ -33,6 +33,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
 import { SectionPanel } from "@/components/ui/section-panel";
+import { Button } from "@/components/ui/button";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { fmtApiDate, fmtDateTime, fmtINR } from "@/lib/formatting";
 
@@ -301,22 +302,12 @@ export default function AdminDashboardPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => decideRenewal.mutate({ id: r.id, action: "approve" })}
-                        disabled={decideRenewal.isPending}
-                        className="inline-flex h-7 items-center rounded-lg bg-green-600 px-3 text-xs font-semibold text-white hover:bg-green-700 transition-colors disabled:opacity-50"
-                      >
+                      <Button size="sm" onClick={() => decideRenewal.mutate({ id: r.id, action: "approve" })} disabled={decideRenewal.isPending}>
                         {t("approve")}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => decideRenewal.mutate({ id: r.id, action: "reject" })}
-                        disabled={decideRenewal.isPending}
-                        className="inline-flex h-7 items-center rounded-lg border border-red-300 px-3 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-                      >
+                      </Button>
+                      <Button size="sm" variant="outline" className="text-danger hover:text-danger" onClick={() => decideRenewal.mutate({ id: r.id, action: "reject" })} disabled={decideRenewal.isPending}>
                         {t("rejectRequest")}
-                      </button>
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -369,7 +360,7 @@ export default function AdminDashboardPage() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{h.subscription_plan_name ?? "—"}</td>
                   <td className="px-4 py-3">
-                    <span className="inline-flex rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-600">
+                    <span className="inline-flex rounded-full bg-danger-bg px-2.5 py-0.5 text-xs font-medium text-danger">
                       Expired
                     </span>
                   </td>
@@ -443,7 +434,7 @@ export default function AdminDashboardPage() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{h.subscription_plan_name ?? "—"}</td>
                   <td className="px-4 py-3">
-                    <span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
+                    <span className="inline-flex rounded-full bg-success-bg px-2.5 py-0.5 text-xs font-medium text-success">
                       New
                     </span>
                   </td>

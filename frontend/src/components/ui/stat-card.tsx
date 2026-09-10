@@ -123,7 +123,7 @@ export function StatCard({
         <p
           className={cn(
             "mt-1.5 flex items-center gap-0.5 text-label font-semibold",
-            trend > 0 ? "text-emerald-300" : "text-red-300",
+            trend > 0 ? "text-emerald-300" : "text-danger",
           )}
         >
           {trend > 0

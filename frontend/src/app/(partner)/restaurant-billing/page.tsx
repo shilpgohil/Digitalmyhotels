@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { Search } from "lucide-react";
+import { AlertTriangle, Search } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -209,12 +209,12 @@ function RestaurantBillingContent() {
         {report.data &&
           Number.parseFloat(report.data.total_gst) === 0 &&
           report.data.items.length > 0 && (
-            <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              <span className="shrink-0 font-bold">⚠</span>
+            <div className="mb-4 flex items-start gap-3 rounded-lg border border-warning/20 bg-warning-bg px-4 py-3 text-sm text-warning">
+              <AlertTriangle className="size-4 shrink-0 text-warning" aria-hidden />
               <div>
                 <p className="font-semibold">{t("noGstConfigured")}</p>
                 <p className="mt-0.5 text-xs">{t("noGstConfiguredHint")}</p>
-                <a href="/gst-tax" className="mt-1 inline-block text-xs font-semibold text-amber-700 underline hover:text-amber-900">
+                <a href="/gst-tax" className="mt-1 inline-block text-xs font-semibold text-warning underline hover:text-warning">
                   {t("configureGst")}
                 </a>
               </div>

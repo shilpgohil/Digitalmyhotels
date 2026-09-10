@@ -205,13 +205,13 @@ export function EditHotelDialog({
               </div>
               {/* Subscription summary — read-only, sync via /admin/plans */}
               {d.subscription_plan_name && (
-                <div className="rounded-lg border bg-blue-50 px-3 py-2 text-xs space-y-0.5">
-                  <p className="font-semibold text-blue-800">
+                <div className="rounded-lg border bg-info-bg px-3 py-2 text-xs space-y-0.5">
+                  <p className="font-semibold text-info">
                     Plan: {d.subscription_plan_name}
                     {d.subscription_status ? ` · ${d.subscription_status}` : ""}
                   </p>
                   {d.subscription_expiry && (
-                    <p className="text-blue-600">Expires: {d.subscription_expiry}</p>
+                    <p className="text-info">Expires: {d.subscription_expiry}</p>
                   )}
                 </div>
               )}

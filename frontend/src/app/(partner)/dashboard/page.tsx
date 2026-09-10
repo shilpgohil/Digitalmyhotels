@@ -141,10 +141,10 @@ const ICON_MAP: Record<string, React.ElementType> = {
 // ── Colour palettes ───────────────────────────────────────────────────────────
 const GUEST_COLORS = ["#a08236", "#1e3a5f", "#166534", "#7c3aed", "#0e7490", "#9f1239"];
 const LEVEL_STYLES: Record<string, { bg: string; border: string; icon: string }> = {
-  alert:   { bg: "bg-red-50",    border: "border-red-300",    icon: "text-red-600" },
-  warning: { bg: "bg-amber-50",  border: "border-amber-300",  icon: "text-amber-600" },
-  success: { bg: "bg-green-50",  border: "border-green-300",  icon: "text-green-600" },
-  info:    { bg: "bg-blue-50",   border: "border-blue-300",   icon: "text-blue-600" },
+  alert:   { bg: "bg-danger-bg",  border: "border-danger/30",  icon: "text-danger" },
+  warning: { bg: "bg-warning-bg", border: "border-warning/30", icon: "text-warning" },
+  success: { bg: "bg-success-bg", border: "border-success/30", icon: "text-success" },
+  info:    { bg: "bg-info-bg",    border: "border-info/30",    icon: "text-info" },
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import { RenewDialog } from "@/components/admin/renew-dialog";
 import { HotelStatusBadge, hotelDisplayStatus } from "@/components/admin/admin-list-state";
 import { DataTable } from "@/components/ui/data-table";
 import { FilterBar } from "@/components/ui/filter-bar";
+import { Button } from "@/components/ui/button";
 
 const PAGE_SIZE = 10;
 
@@ -172,44 +173,25 @@ function HotelRow({
           {kind === "suspended" && (
             <>
               {!showMeta && <HotelStatusBadge hotel={hotel} />}
-              <button
-                type="button"
-                onClick={() => onStatus("active")}
-                disabled={pending}
-                className="inline-flex h-7 items-center rounded-lg bg-green-600 px-3 text-xs font-semibold text-white hover:bg-green-700 transition-colors disabled:opacity-50"
-              >
+              <Button size="sm" onClick={() => onStatus("active")} disabled={pending}>
                 {activateLabel}
-              </button>
+              </Button>
             </>
           )}
           {kind === "expired" && (
             <>
               <RenewDialog hotel={hotel} />
-              <button
-                type="button"
-                onClick={() => onStatus("suspended")}
-                disabled={pending}
-                className="inline-flex h-7 items-center rounded-lg bg-red-500 px-3 text-xs font-semibold text-white hover:bg-red-600 transition-colors disabled:opacity-50"
-              >
+              <Button size="sm" variant="outline" className="text-danger hover:text-danger" onClick={() => onStatus("suspended")} disabled={pending}>
                 {deactivateLabel}
-              </button>
+              </Button>
             </>
           )}
           {(kind === "active" || kind === "trial") && (
             <>
-              {!showMeta && (
-                <span className="inline-flex h-7 items-center rounded-lg bg-[#a08236] px-3 text-xs font-semibold text-white">
-                  Active
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => onStatus("suspended")}
-                disabled={pending}
-                className="inline-flex h-7 items-center rounded-lg bg-red-500 px-3 text-xs font-semibold text-white hover:bg-red-600 transition-colors disabled:opacity-50"
-              >
+              {!showMeta && <HotelStatusBadge hotel={hotel} />}
+              <Button size="sm" variant="outline" className="text-danger hover:text-danger" onClick={() => onStatus("suspended")} disabled={pending}>
                 {deactivateLabel}
-              </button>
+              </Button>
               <RenewDialog hotel={hotel} />
             </>
           )}

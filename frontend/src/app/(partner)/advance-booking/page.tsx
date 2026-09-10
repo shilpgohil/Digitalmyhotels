@@ -23,6 +23,7 @@ import { useTranslations } from "next-intl";
 import {
   BedDouble,
   CalendarPlus,
+  Check,
   ClipboardList,
   Clock,
   CreditCard,
@@ -35,6 +36,7 @@ import {
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SectionPanel } from "@/components/ui/section-panel";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Label } from "@/components/ui/label";
 import { GuestPicker } from "@/components/guests/guest-picker";
@@ -78,32 +80,8 @@ const PAYMENT_MODES = [
 ];
 
 /** Static card section matching the check-in page look. */
-function Card({
-  icon: Icon,
-  title,
-  subtitle,
-  children,
-}: {
-  readonly icon: React.ComponentType<{ className?: string }>;
-  readonly title: string;
-  readonly subtitle?: string;
-  readonly children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-      <div className="flex items-center gap-3 px-5 py-4">
-        <div className="flex size-7 items-center justify-center rounded-md bg-gold-50">
-          <Icon className="size-4 text-gold-600" aria-hidden />
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-foreground">{title}</p>
-          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
-        </div>
-      </div>
-      <div className="border-t px-5 py-5">{children}</div>
-    </div>
-  );
-}
+// Local Card alias removed — uses shared SectionPanel instead.
+const Card = SectionPanel;
 
 /** +/- counter matching the check-in page room occupancy controls. */
 function Counter({
@@ -491,7 +469,7 @@ function AdvanceBookingContent() {
               </div>
               {isSameDay && sameDayValid && (
                 <div className="sm:col-span-2 lg:col-span-4">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/30 bg-warning-bg px-3 py-1 text-xs font-semibold text-warning">
                     <Clock className="size-3.5" aria-hidden />
                     {t("dayUseBadge", { hrs: dayUseHours })}
                   </span>
@@ -671,7 +649,7 @@ function AdvanceBookingContent() {
               {/* Card / Net Banking info note — record-only, no POS integration */}
               {(paymentMode === "credit_card" || paymentMode === "debit_card" || paymentMode === "bank_transfer" || paymentMode === "other") &&
                 (parseFloat(advanceAmount) || 0) > 0 && (
-                <p className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-label text-blue-700">
+                <p className="flex items-center gap-1.5 rounded-lg border border-info/20 bg-info-bg px-3 py-2 text-label text-info">
                   <span>ℹ</span>
                   {paymentMode === "credit_card" || paymentMode === "debit_card"
                     ? "Collect payment via card machine, then this records it in your accounts."
@@ -714,8 +692,9 @@ function AdvanceBookingContent() {
                     onChange={(e) => setPaymentCollected(e.target.checked)}
                     className="size-4 rounded accent-gold-500"
                   />
-                  <span className="text-sm font-medium text-foreground">
-                    Payment collected from guest ✓
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                    Payment collected from guest
+                    <Check className="size-3.5 text-success" aria-hidden />
                   </span>
                 </label>
               )}

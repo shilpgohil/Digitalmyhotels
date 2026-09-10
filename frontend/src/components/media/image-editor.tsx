@@ -384,7 +384,7 @@ function ImageEditorDialog({
           <button
             type="button"
             onClick={reset}
-            className="text-sm font-semibold text-amber-400 hover:text-amber-300 active:text-amber-200"
+            className="text-sm font-semibold text-warning hover:text-warning active:text-warning"
           >
             {t("reset")}
           </button>
@@ -568,7 +568,7 @@ function AngleRuler({
       {/* Angle label */}
       <div className="mb-1 text-center h-4">
         {Math.abs(value) > 0.3 ? (
-          <span className="text-xs font-semibold text-amber-400 tabular-nums">
+          <span className="text-xs font-semibold text-warning tabular-nums">
             {value > 0 ? "+" : ""}
             {value.toFixed(1)}°
           </span>

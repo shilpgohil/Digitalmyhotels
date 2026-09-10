@@ -54,7 +54,7 @@ export default function ForgotPasswordPage() {
         {/* One-click request — notifies the right administrator (item 34). */}
         <div className="mt-6 rounded-xl border bg-white p-4 shadow-sm">
           {sent ? (
-            <p className="text-sm font-medium text-green-700">{t("requestSent")}</p>
+            <p className="text-sm font-medium text-success">{t("requestSent")}</p>
           ) : (
             <>
               <Label htmlFor="fp-identifier">{t("requestIdentifierLabel")}</Label>

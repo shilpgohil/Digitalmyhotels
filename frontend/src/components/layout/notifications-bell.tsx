@@ -59,13 +59,13 @@ const CATEGORY_CONFIG: Record<
   { bg: string; dot: string; icon: React.ComponentType<{ className?: string }>; labelKey: string }
 > = {
   front_desk: {
-    bg: "bg-amber-50 dark:bg-amber-900/20",
+    bg: "bg-warning-bg dark:bg-amber-900/20",
     dot: "bg-amber-400",
     icon: Building2,
     labelKey: "cat_front_desk",
   },
   housekeeping: {
-    bg: "bg-blue-50 dark:bg-blue-900/20",
+    bg: "bg-info-bg dark:bg-blue-900/20",
     dot: "bg-blue-400",
     icon: Sparkles,
     labelKey: "cat_housekeeping",
