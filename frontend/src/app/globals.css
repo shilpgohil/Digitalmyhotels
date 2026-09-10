@@ -16,10 +16,14 @@
   --navy-800: #122038;
   --navy-700: #1b2d4b;
   --navy-100: #dde4ef;
+  --gold-800: #7a6012;
+  --gold-700: #8f7118;
   --gold-600: #a67c1e;
   --gold-500: #c09a2e;
   --gold-400: #d4af4a;
+  --gold-300: #e2c87a;
   --gold-100: #f5ecd4;
+  --gold-50:  #fdf8ee;
 
   /* Semantic status */
   --status-success: #1a7f4e;
@@ -122,10 +126,14 @@
   --color-navy-800: var(--navy-800);
   --color-navy-700: var(--navy-700);
   --color-navy-100: var(--navy-100);
+  --color-gold-800: var(--gold-800);
+  --color-gold-700: var(--gold-700);
   --color-gold-600: var(--gold-600);
   --color-gold-500: var(--gold-500);
   --color-gold-400: var(--gold-400);
+  --color-gold-300: var(--gold-300);
   --color-gold-100: var(--gold-100);
+  --color-gold-50:  var(--gold-50);
 
   --color-success: var(--status-success);
   --color-success-bg: var(--status-success-bg);
@@ -337,6 +345,14 @@
   /* Counter-clockwise spin (for secondary arc depth effect) */
   @keyframes spin-reverse {
     to { transform: rotate(-360deg); }
+  }
+
+  /* ── RouteProgress bar ──────────────────────────────────────── */
+  /* Used by route-progress.tsx: slides the progress bar from off-screen
+     left to full-width right (0.8 s spring easing). */
+  @keyframes dmh-progress {
+    from { transform: scaleX(0); transform-origin: left center; }
+    to   { transform: scaleX(1); transform-origin: left center; }
   }
 
   /* Dot-bounce for loading dots (3 staggered dots) */
