@@ -1102,6 +1102,18 @@ function CheckoutContent() {
                           </select>
                         </div>
 
+                        {/* Card/bank info note */}
+                        {payMethod !== "cash" && payMethod !== "upi" && (
+                          <p className="text-[11px] text-blue-600 flex items-center gap-1">
+                            <span>ℹ</span>
+                            {payMethod === "credit_card" || payMethod === "debit_card"
+                              ? "Collect via card machine, then record here"
+                              : payMethod === "bank_transfer"
+                              ? "Collect via net banking, then record here"
+                              : "Collect externally, then record here"}
+                          </p>
+                        )}
+
                         {/* UPI QR */}
                         {payMethod === "upi" && (
                           <div className="flex flex-col items-center gap-3 rounded-xl border bg-white p-4 shadow-sm">

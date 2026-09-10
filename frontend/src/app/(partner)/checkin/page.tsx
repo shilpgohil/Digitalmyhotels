@@ -3588,6 +3588,17 @@ function CheckinForm({
                   <option value="bank_transfer">Net Banking</option>
                   <option value="other">Other</option>
                 </select>
+                {/* Card/bank: friendly record note */}
+                {paymentMode !== "cash" && paymentMode !== "upi" && newAdvance > 0 && (
+                  <p className="mt-1 text-[11px] text-blue-600 flex items-center gap-1">
+                    <span>ℹ</span>
+                    {paymentMode === "credit_card" || paymentMode === "debit_card"
+                      ? t("manualRecordCard")
+                      : paymentMode === "bank_transfer"
+                      ? t("manualRecordBank")
+                      : t("manualRecordOther")}
+                  </p>
+                )}
                 {showQrCheckin && (
                   <div className="mt-2">
                     <UpiQrBlock

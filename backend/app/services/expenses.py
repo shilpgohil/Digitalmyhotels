@@ -168,54 +168,49 @@ async def expense_summary(
     today = datetime.now(tz).date()
     month_start = today.replace(day=1)
 
-    # Only APPROVED + PAID expenses count toward committed totals.
-    # SUBMITTED (pending) must NOT inflate the total before approval.
-    # REJECTED is always excluded.
-    committed = Expense.status.in_(("approved", "paid"))
+    # Use separate scalar queries for each stat — cleaner, avoids complex
+    # cross-product CASE expressions that can have SQLAlchemy dialect quirks.
+    # Committed = APPROVED + PAID (not submitted/pending).
 
-    row = (
-        await db.execute(
-            select(
-                # Committed total (approved + paid) — the real spending figure
-                func.coalesce(func.sum(case((committed, Expense.amount), else_=0)), 0),
-                # Today — committed only
-                func.coalesce(
-                    func.sum(
-                        case(
-                            (committed & (Expense.expense_date == today), Expense.amount),
-                            else_=0,
-                        )
-                    ),
-                    0,
-                ),
-                # This month — committed only
-                func.coalesce(
-                    func.sum(
-                        case(
-                            (committed & (Expense.expense_date >= month_start), Expense.amount),
-                            else_=0,
-                        )
-                    ),
-                    0,
-                ),
-                # Entry count across all non-rejected statuses
-                func.count(Expense.id),
-                # Pending amount — SUBMITTED expenses awaiting approval
-                func.coalesce(
-                    func.sum(
-                        case((Expense.status == "submitted", Expense.amount), else_=0)
-                    ),
-                    0,
-                ),
-            ).where(Expense.hotel_id == hotel_id, Expense.status != "rejected")
+    base_committed = (
+        select(func.coalesce(func.sum(Expense.amount), 0))
+        .where(
+            Expense.hotel_id == hotel_id,
+            Expense.status.in_(("approved", "paid")),
         )
-    ).one()
+    )
+
+    total_amount = await db.scalar(base_committed)
+
+    today_amount = await db.scalar(
+        base_committed.where(Expense.expense_date == today)
+    )
+
+    month_amount = await db.scalar(
+        base_committed.where(Expense.expense_date >= month_start)
+    )
+
+    entries = await db.scalar(
+        select(func.count(Expense.id)).where(
+            Expense.hotel_id == hotel_id,
+            Expense.status != "rejected",
+        )
+    )
+
+    # SUBMITTED only — shown on "Pending Approval" stat card
+    pending_amount = await db.scalar(
+        select(func.coalesce(func.sum(Expense.amount), 0)).where(
+            Expense.hotel_id == hotel_id,
+            Expense.status == "submitted",
+        )
+    )
+
     return {
-        "total_amount": row[0],
-        "today_amount": row[1],
-        "month_amount": row[2],
-        "entries": row[3],
-        "pending_amount": row[4],   # SUBMITTED expenses — shown separately on frontend
+        "total_amount": total_amount or 0,
+        "today_amount": today_amount or 0,
+        "month_amount": month_amount or 0,
+        "entries": entries or 0,
+        "pending_amount": pending_amount or 0,
     }
 
 

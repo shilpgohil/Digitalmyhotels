@@ -129,12 +129,18 @@ class ExpenseListOut(BaseModel):
 
 
 class ExpenseSummaryOut(BaseModel):
-    """Stat-card totals (rejected expenses excluded)."""
+    """Stat-card totals (rejected expenses excluded).
+
+    total_amount / today_amount / month_amount  — APPROVED + PAID only.
+    pending_amount — SUBMITTED (awaiting approval) shown separately on the
+    'Pending Approval' stat card so they don't inflate the committed total.
+    """
 
     total_amount: Decimal
     today_amount: Decimal
     month_amount: Decimal
     entries: int
+    pending_amount: Decimal = Decimal("0.00")
 
 
 class RecurringExpenseOut(ORMModel):
