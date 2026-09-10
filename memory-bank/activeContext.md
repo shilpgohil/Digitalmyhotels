@@ -1,5 +1,49 @@
 # Active Context — DigitalMyHotels
 
+## Logical gap fixes (2026-09-11) — COMMITTED 77764a9
+
+Five concrete logical gaps identified via screenshots + brainstorm session:
+
+1. **Multi-room add in advance booking check-in** — `RoomReplaceControl` "Add Room"
+   mode now uses multi-select. Staff can pick 2+ rooms at once; the component
+   loops over `pendingTarget[]` and calls `POST /bookings/{id}/add-room` once
+   per room, then shows a single success toast ("X rooms added"). i18n key
+   `roomsAdded` added to en + hi.
+
+2. **Advance booking 24h auto-no-show** — Already fully implemented:
+   - `sweep_auto_noshow()` in `backend/app/services/reminders.py` (every 15 min via
+     `reminders_loop`, 24h threshold, BOOKING_NOSHOW notification, idempotent via
+     `no_show_auto_at IS NULL`).
+   - Migration `f2e3d4c5b6a7` adds `bookings.no_show_auto_at` (auto-applies on Render
+     startup `alembic upgrade head`).
+   - Advance Bookings list shows "Missed arrival" badge at 2h (already committed).
+
+3. **Expenses pending_amount showing ₹0** — Root causes fixed:
+   - `ExpenseSummaryOut.pending_amount` = SUBMITTED-only (correct in service; was
+     confusingly ₹0 when no submitted expenses in DB at screenshot time).
+   - Stat card subtitle row now rendered (`subtitle` prop was defined but never
+     shown in JSX) — users now see "Approved + Paid" / "Awaiting Approval" etc.
+   - Integration test updated: expects `pending_amount` key in response and asserts
+     `pending_amount >= 500` instead of `today_amount >= 500` (submitted expense
+     is not yet approved so it shouldn't count in today_amount).
+
+4. **Payment mode "not acceptable" note** — Advance Booking page now shows the
+   same blue informational note as checkin/checkout/payments pages when
+   card/debit_card/bank_transfer/other is selected: "Collect payment via card
+   machine, then this records it in your accounts."
+
+5. **Room picker unicode icons** — Replaced `✓` (selected chip check) and `⚠`
+   (capacity warning) with Lucide `Check` / `AlertTriangle` icons.
+
+**Room availability "free by when" logic** — Already fully implemented:
+- `AvailableChip` shows "Free at {time}" when occupied room has `current_checkout_time`
+- `UnavailableCard` shows "Free from {date} {time}" when room is booked/occupied
+- Backend `rooms/availability` returns these fields from the active booking's checkout
+
+Quality: tsc --noEmit ✅ · eslint 0 errors ✅ · en=hi roomsAdded ✅
+
+---
+
 ## Figma design gap fixes (2026-09-09) — COMMITTED aad5f66
 
 After viewing all 35 Figma design PNG files from `main documents/client documentations/client updated figma/`:

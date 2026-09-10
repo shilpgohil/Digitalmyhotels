@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
@@ -139,7 +139,16 @@ function MobileNavDrawer() {
   );
 }
 
-export function PartnerHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+export function PartnerHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  /** Optional right-side slot rendered between the title block and the toolbar icons */
+  action?: ReactNode;
+}) {
   const t = useTranslations("auth");
   const tt = useTranslations("tour");
   const { user, logout } = useAuth();
@@ -164,6 +173,7 @@ export function PartnerHeader({ title, subtitle }: { title: string; subtitle?: s
         )}
         <h1 className="truncate font-display text-2xl text-foreground">{title}</h1>
       </div>
+      {action && <div className="ml-auto mr-2 shrink-0">{action}</div>}
       <GlobalSearch />
       <div className="flex shrink-0 items-center gap-3">
         <HotelSwitcher className="hidden lg:flex" />

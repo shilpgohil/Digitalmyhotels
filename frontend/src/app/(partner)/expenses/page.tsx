@@ -13,6 +13,9 @@ import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
+import { DataTable } from "@/components/ui/data-table";
+import { FilterBar } from "@/components/ui/filter-bar";
 import {
   Dialog,
   DialogClose,
@@ -23,11 +26,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
 } from "@/components/ui/table";
 import { StatusBadge } from "@/components/feedback/status-badge";
@@ -236,203 +236,142 @@ function ExpensesContent() {
           ))}
         </div>
 
-        {/* Stat cards (per Figma: total dark, today red, month gold, entries navy) */}
-        <section aria-label={t("statTotal")} className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-          {summary.isLoading &&
-            [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
-          {summary.data &&
-            (
-              [
-                {
-                  key: "total",
-                  labelKey: "statTotal",
-                  icon: Wallet,
-                  className: "bg-navy-950 text-white",
-                  value: fmtINR(summary.data.total_amount),
-                  subtitle: "Approved + Paid",
-                },
-                {
-                  key: "pending",
-                  labelKey: "statPending",
-                  icon: CalendarDays,
-                  className: "bg-amber-500 text-white",
-                  value: fmtINR(summary.data.pending_amount ?? "0"),
-                  subtitle: "Awaiting Approval",
-                },
-                {
-                  key: "month",
-                  labelKey: "statMonth",
-                  icon: CalendarRange,
-                  className: "bg-gold-500 text-navy-900",
-                  value: fmtINR(summary.data.month_amount),
-                  subtitle: "This Month",
-                },
-                {
-                  key: "entries",
-                  labelKey: "statEntries",
-                  icon: ListChecks,
-                  className: "bg-navy-800 text-white",
-                  value: String(summary.data.entries),
-                  subtitle: "All Entries",
-                },
-              ] as const
-            ).map((card) => {
-              const Icon = card.icon;
-              return (
-                <div
-                  key={card.key}
-                  className={cn("relative overflow-hidden rounded-lg p-4", card.className)}
-                >
-                  <Icon className="absolute right-3 bottom-3 size-8 opacity-25" aria-hidden />
-                  <p className="text-2xl font-semibold tabular-nums">{card.value}</p>
-                  <p className="mt-1 text-xs font-medium tracking-wide uppercase opacity-80">
-                    {t(card.labelKey)}
-                  </p>
-                  <p className="mt-0.5 text-[10px] opacity-60">{card.subtitle}</p>
-                </div>
-              );
-            })}
-        </section>
+        {/* Stat cards */}
+        <StatCardGrid className="mb-4">
+          <StatCard
+            label={t("statTotal")}
+            value={fmtINR(summary.data?.total_amount ?? 0)}
+            subtitle="Approved + Paid"
+            icon={Wallet}
+            tone="navy"
+            isLoading={summary.isLoading}
+          />
+          <StatCard
+            label={t("statPending")}
+            value={fmtINR(summary.data?.pending_amount ?? 0)}
+            subtitle="Awaiting Approval"
+            icon={CalendarDays}
+            tone="amber"
+            isLoading={summary.isLoading}
+          />
+          <StatCard
+            label={t("statMonth")}
+            value={fmtINR(summary.data?.month_amount ?? 0)}
+            subtitle="This Month"
+            icon={CalendarRange}
+            tone="gold"
+            isLoading={summary.isLoading}
+          />
+          <StatCard
+            label={t("statEntries")}
+            value={String(summary.data?.entries ?? 0)}
+            subtitle="All Entries"
+            icon={ListChecks}
+            tone="navy2"
+            isLoading={summary.isLoading}
+          />
+        </StatCardGrid>
 
         {/* Inline add-expense card (replaces the old dialog, per Figma) */}
         {can(PERMISSIONS.expensesCreate) && <InlineAddExpense onDone={invalidate} />}
 
         {/* Ledger filters */}
-        <div className="mb-4 flex flex-wrap items-end gap-3">
-          <div>
-            <Label>{t("fromDate")}</Label>
-            <DatePicker className="mt-1" value={fromDate} onChange={setFromDateManual} />
-          </div>
-          <div>
-            <Label>{t("toDate")}</Label>
-            <DatePicker className="mt-1" value={toDate} onChange={setToDateManual} />
-          </div>
-          {(categories.data?.length ?? 0) > 0 && (
-            <div className="min-w-40">
-              <Label>{t("category")}</Label>
-              <select
-                className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
-                value={filterCategoryId}
-                onChange={(e) => setFilterCategoryId(e.target.value)}
-              >
-                <option value="">{t("allCategories")}</option>
-                {categories.data?.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          <div className="min-w-40">
-            <Label>{t("paymentMode")}</Label>
-            <select
-              className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
-              value={filterMethod}
-              onChange={(e) => setFilterMethod(e.target.value)}
-            >
-              <option value="">{t("allMethods")}</option>
-              {FILTER_MODES.map((mode) => (
-                <option key={mode} value={mode}>
-                  {t(`mode_${mode}`)}
-                </option>
-              ))}
-            </select>
-          </div>
-          {(fromDate || toDate || filterCategoryId || filterMethod) && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                setFromDate("");
-                setToDate("");
-                setFilterCategoryId("");
-                setFilterMethod("");
-                setPeriod("all");
-              }}
-            >
-              {t("clearFilters")}
-            </Button>
-          )}
-        </div>
+        <FilterBar
+          className="mb-4"
+          fromDate={fromDate}
+          onFromDateChange={setFromDateManual}
+          fromLabel={t("fromDate")}
+          toDate={toDate}
+          onToDateChange={setToDateManual}
+          toLabel={t("toDate")}
+          selectValue={filterCategoryId}
+          onSelectChange={setFilterCategoryId}
+          selectOptions={(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
+          selectPlaceholder={t("allCategories")}
+          selectLabel={t("category")}
+          select2Value={filterMethod}
+          onSelect2Change={setFilterMethod}
+          select2Options={FILTER_MODES.map((m) => ({ value: m, label: t(`mode_${m}`) }))}
+          select2Placeholder={t("allMethods")}
+          select2Label={t("paymentMode")}
+          hasActiveFilters={!!(fromDate || toDate || filterCategoryId || filterMethod)}
+          onClear={() => {
+            setFromDate("");
+            setToDate("");
+            setFilterCategoryId("");
+            setFilterMethod("");
+            setPeriod("all");
+          }}
+        />
 
-        <div className="rounded-lg border bg-card">
-          {expenses.isLoading && <Skeleton className="h-48" />}
-          {expenses.isError && (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {tc("error")}
-            </p>
-          )}
-          {expenses.data?.items.length === 0 && (
-            <p className="p-6 text-sm text-muted-foreground">{t("noExpenses")}</p>
-          )}
-          {expenses.data && expenses.data.items.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("expenseDate")}</TableHead>
-                  <TableHead>{t("amount")}</TableHead>
-                  <TableHead>{t("description")}</TableHead>
-                  <TableHead>{t("vendorName")}</TableHead>
-                  <TableHead>{t("paymentMode")}</TableHead>
-                  <TableHead>{t("statusCol")}</TableHead>
-                  <TableHead>{tc("actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {expenses.data.items.map((ex) => (
-                  <TableRow key={ex.id}>
-                    <TableCell>{fmtApiDate(ex.expense_date)}</TableCell>
-                    <TableCell className="tabular-nums">{fmtINR(ex.amount)}</TableCell>
-                    <TableCell>{ex.description ?? "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {vendorById(ex.vendor_id) ?? "—"}
-                    </TableCell>
-                    <TableCell>
-                      {FILTER_MODES.includes(ex.payment_method)
-                        ? t(`mode_${ex.payment_method}`)
-                        : ex.payment_method}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge tone={TONE[ex.status] ?? "neutral"}>
-                        {t(`status_${ex.status}`)}
-                      </StatusBadge>
-                    </TableCell>
-                    <TableCell className="space-x-1">
-                      {ex.has_attachment && <ViewReceiptButton expenseId={ex.id} />}
-                      {ex.status === "draft" && can(PERMISSIONS.expensesCreate) && (
-                        <Button size="sm" variant="outline" onClick={() => act.mutate({ id: ex.id, action: "submit" })}>
-                          {t("submit")}
-                        </Button>
-                      )}
-                      {ex.status === "submitted" && can(PERMISSIONS.expensesApprove) && (
-                        <>
-                          <Button size="sm" onClick={() => act.mutate({ id: ex.id, action: "approve" })}>
-                            {t("approve")}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setRejectTarget(ex.id);
-                              rejectConfirm.show();
-                            }}
-                          >
-                            {t("reject")}
-                          </Button>
-                        </>
-                      )}
-                      {ex.status === "approved" && can(PERMISSIONS.expensesApprove) && (
-                        <Button size="sm" onClick={() => act.mutate({ id: ex.id, action: "mark-paid" })}>
-                          {t("markPaid")}
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
+        <DataTable
+          darkHeader
+          isLoading={expenses.isLoading}
+          isError={expenses.isError}
+          onRetry={() => expenses.refetch()}
+          isEmpty={expenses.data?.items.length === 0}
+          emptyTitle={t("noExpenses")}
+          columns={[
+            t("expenseDate"),
+            t("amount"),
+            t("description"),
+            t("vendorName"),
+            t("paymentMode"),
+            t("statusCol"),
+            tc("actions"),
+          ]}
+        >
+          {expenses.data?.items.map((ex) => (
+            <TableRow key={ex.id}>
+              <TableCell>{fmtApiDate(ex.expense_date)}</TableCell>
+              <TableCell className="tabular-nums">{fmtINR(ex.amount)}</TableCell>
+              <TableCell>{ex.description ?? "—"}</TableCell>
+              <TableCell className="text-muted-foreground">
+                {vendorById(ex.vendor_id) ?? "—"}
+              </TableCell>
+              <TableCell>
+                {FILTER_MODES.includes(ex.payment_method)
+                  ? t(`mode_${ex.payment_method}`)
+                  : ex.payment_method}
+              </TableCell>
+              <TableCell>
+                <StatusBadge tone={TONE[ex.status] ?? "neutral"}>
+                  {t(`status_${ex.status}`)}
+                </StatusBadge>
+              </TableCell>
+              <TableCell className="space-x-1">
+                {ex.has_attachment && <ViewReceiptButton expenseId={ex.id} />}
+                {ex.status === "draft" && can(PERMISSIONS.expensesCreate) && (
+                  <Button size="sm" variant="outline" onClick={() => act.mutate({ id: ex.id, action: "submit" })}>
+                    {t("submit")}
+                  </Button>
+                )}
+                {ex.status === "submitted" && can(PERMISSIONS.expensesApprove) && (
+                  <>
+                    <Button size="sm" onClick={() => act.mutate({ id: ex.id, action: "approve" })}>
+                      {t("approve")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setRejectTarget(ex.id);
+                        rejectConfirm.show();
+                      }}
+                    >
+                      {t("reject")}
+                    </Button>
+                  </>
+                )}
+                {ex.status === "approved" && can(PERMISSIONS.expensesApprove) && (
+                  <Button size="sm" onClick={() => act.mutate({ id: ex.id, action: "mark-paid" })}>
+                    {t("markPaid")}
+                  </Button>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </DataTable>
         {recurring.data && recurring.data.length > 0 && (
           <p className="mt-4 text-sm text-muted-foreground">
             {t("recurring")}: {recurring.data.map((r) => r.name).join(", ")}

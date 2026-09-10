@@ -18,6 +18,8 @@ import {
   Wrench,
   SquarePen,
 } from "lucide-react";
+import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
+import type { StatCardTone } from "@/components/ui/stat-card";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -54,67 +56,18 @@ import { RequirePermission } from "@/components/auth/require-permission";
 const STAT_CARDS: Array<{
   key: string;
   labelKey: string;
-  /** Which i18n namespace the label lives in. */
   labelNs: "rooms" | "dashboard";
   icon: React.ComponentType<{ className?: string }>;
-  className: string;
+  tone: StatCardTone;
   statuses: RoomStatus[] | null;
   filter: RoomStatus | "all";
 }> = [
-  {
-    key: "total",
-    labelKey: "statTotal",
-    labelNs: "rooms",
-    icon: Building2,
-    className: "bg-navy-900 text-white",
-    statuses: null,
-    filter: "all",
-  },
-  {
-    key: "booked",
-    labelKey: "statBooked",
-    labelNs: "rooms",
-    icon: DoorClosed,
-    className: "bg-danger text-white",
-    statuses: ["occupied"],
-    filter: "occupied",
-  },
-  {
-    key: "available",
-    labelKey: "available",
-    labelNs: "dashboard",
-    icon: DoorOpen,
-    className: "bg-success text-white",
-    statuses: ["available", "clean_ready"],
-    filter: "available",
-  },
-  {
-    key: "reserved",
-    labelKey: "reserved",
-    labelNs: "dashboard",
-    icon: Bookmark,
-    className: "bg-info text-white",
-    statuses: ["reserved"],
-    filter: "reserved",
-  },
-  {
-    key: "cleaning",
-    labelKey: "cleaning",
-    labelNs: "dashboard",
-    icon: Sparkles,
-    className: "bg-warning text-white",
-    statuses: ["cleaning_required", "cleaning_in_progress", "inspection_required"],
-    filter: "cleaning_required",
-  },
-  {
-    key: "maintenance",
-    labelKey: "maintenance",
-    labelNs: "dashboard",
-    icon: Wrench,
-    className: "bg-navy-700 text-white",
-    statuses: ["maintenance", "out_of_service"],
-    filter: "maintenance",
-  },
+  { key: "total",       labelKey: "statTotal",   labelNs: "rooms",      icon: Building2, tone: "navy",    statuses: null,                                                                         filter: "all"             },
+  { key: "booked",      labelKey: "statBooked",  labelNs: "rooms",      icon: DoorClosed, tone: "danger", statuses: ["occupied"],                                                                 filter: "occupied"        },
+  { key: "available",   labelKey: "available",   labelNs: "dashboard",  icon: DoorOpen,   tone: "success",statuses: ["available", "clean_ready"],                                                 filter: "available"       },
+  { key: "reserved",    labelKey: "reserved",    labelNs: "dashboard",  icon: Bookmark,   tone: "info",   statuses: ["reserved"],                                                                 filter: "reserved"        },
+  { key: "cleaning",    labelKey: "cleaning",    labelNs: "dashboard",  icon: Sparkles,   tone: "warning",statuses: ["cleaning_required", "cleaning_in_progress", "inspection_required"],         filter: "cleaning_required"},
+  { key: "maintenance", labelKey: "maintenance", labelNs: "dashboard",  icon: Wrench,     tone: "navy2",  statuses: ["maintenance", "out_of_service"],                                            filter: "maintenance"     },
 ];
 
 const GRID_FILTERS: Array<RoomStatus | "all"> = [
@@ -254,45 +207,23 @@ function RoomsContent() {
 
         <div>
             {/* Stat cards (figma: Room Status - Meridian Court) */}
-            <section
-              aria-label={t("statTotal")}
-              className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6"
-            >
-              {rooms.isLoading &&
-                STAT_CARDS.map((card) => (
-                  <Skeleton key={card.key} className="h-28 rounded-lg" />
-                ))}
-              {rooms.data &&
-                STAT_CARDS.map((card) => {
-                  const Icon = card.icon;
-                  const label =
-                    card.labelNs === "rooms" ? t(card.labelKey) : td(card.labelKey);
-                  return (
-                    <button
-                      key={card.key}
-                      type="button"
-                      onClick={() => setGridFilter(card.filter)}
-                      aria-pressed={gridFilter === card.filter}
-                      className={cn(
-                        "relative overflow-hidden rounded-lg p-4 text-left transition-shadow",
-                        card.className,
-                        gridFilter === card.filter && "ring-2 ring-gold-500 ring-offset-2",
-                      )}
-                    >
-                      <Icon
-                        className="absolute right-3 bottom-3 size-8 opacity-25"
-                        aria-hidden
-                      />
-                      <p className="text-3xl font-semibold tabular-nums">
-                        {cardValue(card.statuses)}
-                      </p>
-                      <p className="mt-1 text-xs font-medium tracking-wide uppercase opacity-80">
-                        {label}
-                      </p>
-                    </button>
-                  );
-                })}
-            </section>
+            <StatCardGrid cols={6} className="mb-4">
+              {STAT_CARDS.map((card) => {
+                const label = card.labelNs === "rooms" ? t(card.labelKey) : td(card.labelKey);
+                return (
+                  <StatCard
+                    key={card.key}
+                    label={label}
+                    value={rooms.data ? String(cardValue(card.statuses)) : "—"}
+                    icon={card.icon}
+                    tone={card.tone}
+                    isLoading={rooms.isLoading}
+                    active={gridFilter === card.filter}
+                    onClick={() => setGridFilter(card.filter)}
+                  />
+                );
+              })}
+            </StatCardGrid>
 
             {/* View toggle + status filter chips (grid mode) */}
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

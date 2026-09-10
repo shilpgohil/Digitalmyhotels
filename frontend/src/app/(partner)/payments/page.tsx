@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { PartnerHeader } from "@/components/layout/partner-header";
+import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -289,27 +290,14 @@ function PaymentsContent() {
         </div>
 
         {/* Summary cards — all six show ₹ amounts (client Figma). */}
-        {summary.data && (
-          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-            {(
-              [
-                ["totalCollected", fmtINR(summary.data.total_collected), "bg-navy-900 text-white"],
-                ["paidCard", fmtINR(summary.data.paid_amount), "bg-green-800 text-white"],
-                ["cash", fmtINR(summary.data.cash), "bg-gold-500 text-navy-900"],
-                ["upi", fmtINR(summary.data.upi), "bg-success text-white"],
-                ["partialCard", fmtINR(summary.data.partial_amount), "bg-amber-700 text-white"],
-                ["pendingCard", fmtINR(summary.data.pending_amount), "bg-danger text-white"],
-              ] as const
-            ).map(([key, value, className]) => (
-              <div key={key} className={`rounded-lg p-4 ${className}`}>
-                <p className="text-[10px] font-semibold uppercase tracking-widest opacity-80">
-                  {t(key)}
-                </p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-              </div>
-            ))}
-          </div>
-        )}
+        <StatCardGrid cols={6} className="mb-6">
+          <StatCard label={t("totalCollected")} value={fmtINR(summary.data?.total_collected ?? 0)} tone="navy"    isLoading={summary.isLoading} />
+          <StatCard label={t("paidCard")}        value={fmtINR(summary.data?.paid_amount    ?? 0)} tone="success" isLoading={summary.isLoading} />
+          <StatCard label={t("cash")}            value={fmtINR(summary.data?.cash           ?? 0)} tone="gold"    isLoading={summary.isLoading} />
+          <StatCard label={t("upi")}             value={fmtINR(summary.data?.upi            ?? 0)} tone="info"    isLoading={summary.isLoading} />
+          <StatCard label={t("partialCard")}     value={fmtINR(summary.data?.partial_amount ?? 0)} tone="amber"   isLoading={summary.isLoading} />
+          <StatCard label={t("pendingCard")}     value={fmtINR(summary.data?.pending_amount ?? 0)} tone="danger"  isLoading={summary.isLoading} />
+        </StatCardGrid>
 
         {/* ── Billing History: one row per booking (figma redesign) ── */}
         <section className="rounded-lg border bg-card">
