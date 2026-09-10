@@ -470,7 +470,7 @@ export default function AddHotelPage() {
             <Input
               id="ah-name"
               value={hotelName}
-              onChange={(e) => setHotelName(e.target.value)}
+              onChange={(e) => { setHotelName(e.target.value); setError(null); }}
               placeholder="e.g. Grand Horizon Enterprises"
               required
             />

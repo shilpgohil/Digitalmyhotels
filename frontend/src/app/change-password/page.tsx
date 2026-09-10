@@ -4,12 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { RequireAuth } from "@/components/auth/require-auth";
+import { useAuth } from "@/lib/auth/auth-context";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { apiFetch, ApiError } from "@/lib/api/client";
-import { useAuth } from "@/lib/auth/auth-context";
 
 function ChangePasswordForm() {
   const t = useTranslations("auth");
@@ -80,10 +79,23 @@ function ChangePasswordForm() {
   );
 }
 
+/** Minimal auth guard: just redirect to login if unauthenticated.
+ *  Does NOT use RequireAuth because that would redirect super admins away
+ *  from this page (partner-portal guard), breaking SA change-password. */
+function ChangePasswordGuard({ children }: { readonly children: React.ReactNode }) {
+  const { status } = useAuth();
+  const router = useRouter();
+  if (status === "unauthenticated") {
+    router.replace("/login");
+    return null;
+  }
+  return <>{children}</>;
+}
+
 export default function ChangePasswordPage() {
   return (
-    <RequireAuth>
+    <ChangePasswordGuard>
       <ChangePasswordForm />
-    </RequireAuth>
+    </ChangePasswordGuard>
   );
 }

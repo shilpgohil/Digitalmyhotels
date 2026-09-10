@@ -91,13 +91,22 @@ class AdminHotelDetailOut(BaseModel):
     address_line1: str | None
     status: str
     created_at: datetime
+    # GST info (client 9-10 rows 13/14: show complete hotel details)
+    gstin: str | None = None
+    is_gst_registered: bool = False
+    # Owner
     owner_name: str | None
     owner_email: str | None
     owner_phone: str | None
+    # Subscription summary
+    subscription_plan_name: str | None = None
+    subscription_status: str | None = None
+    subscription_expiry: str | None = None
 
 
 class AdminHotelUpdate(BaseModel):
-    """Super Admin edit of a hotel's profile (client 9-08 items 28/30)."""
+    """Super Admin edit of a hotel's profile (client 9-08 items 28/30,
+    expanded to include GSTIN per client 9-10 rows 13/14)."""
 
     name: str | None = Field(default=None, min_length=2, max_length=200)
     city: str | None = Field(default=None, max_length=120)
@@ -105,6 +114,7 @@ class AdminHotelUpdate(BaseModel):
     phone: str | None = Field(default=None, max_length=32)
     email: EmailStr | None = None
     address_line1: str | None = Field(default=None, max_length=255)
+    gstin: str | None = Field(default=None, max_length=15)
     # Backfills the OWNER user's phone so phone login works (item 30).
     owner_phone: str | None = Field(default=None, max_length=32)
 

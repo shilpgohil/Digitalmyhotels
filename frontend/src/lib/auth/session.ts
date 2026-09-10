@@ -1,21 +1,20 @@
 /**
- * Access-token holder — stored in sessionStorage so it survives page
- * refreshes (F5 / Cmd+R) without requiring a cookie round-trip every time.
+ * Access-token holder — primary in sessionStorage (tab-scoped security),
+ * with a localStorage backup so hard-refresh (Ctrl+F5) doesn't force a
+ * full logout. The localStorage copy carries a 60-minute expiry; it is
+ * only used if sessionStorage is empty (i.e., after a hard refresh that
+ * wiped it). The HttpOnly refresh-cookie is still the authoritative
+ * long-term credential.
  *
- * Security profile:
- *   • sessionStorage is tab-scoped: a new tab starts without a token (good).
- *   • It is cleared when the tab is closed, so long-term persistence still
- *     relies on the HttpOnly refresh cookie (which can mint a fresh token).
- *   • XSS exposure is identical to keeping it in memory — if JS is
- *     compromised the token is readable either way. sessionStorage adds no
- *     extra risk while dramatically improving UX.
- *
- * The HttpOnly refresh-cookie flow is kept as the authoritative long-term
- * credential; sessionStorage is only the short-lived cache.
+ * Fix (client 9-10 row 5): super-admin hard refresh was causing immediate
+ * logout because sessionStorage was cleared by the browser before the
+ * refresh-cookie round-trip completed.
  */
 
 const KEY_ACCESS = "dmh_access";
 const KEY_USER   = "dmh_user";       // cached /me response to skip the API call on reload
+const LS_ACCESS  = "dmh_access_ls";  // localStorage backup with expiry
+const LS_TTL_MS  = 60 * 60 * 1000;  // 60 minutes
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -34,11 +33,37 @@ function ss_del(key: string): void {
 }
 
 export function getAccessToken(): string | null {
-  return ss_get(KEY_ACCESS);
+  // Primary: sessionStorage (cleared by hard refresh)
+  const ss = ss_get(KEY_ACCESS);
+  if (ss) return ss;
+  // Fallback: localStorage backup (survives hard refresh, has TTL)
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(LS_ACCESS);
+    if (!raw) return null;
+    const { token, exp } = JSON.parse(raw) as { token: string; exp: number };
+    if (Date.now() > exp) { localStorage.removeItem(LS_ACCESS); return null; }
+    // Warm up sessionStorage so subsequent calls use the fast path.
+    ss_set(KEY_ACCESS, token);
+    return token;
+  } catch { return null; }
 }
 
 export function setAccessToken(token: string | null): void {
-  if (token) { ss_set(KEY_ACCESS, token); } else { ss_del(KEY_ACCESS); }
+  if (token) {
+    ss_set(KEY_ACCESS, token);
+    // Write localStorage backup with TTL
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem(LS_ACCESS, JSON.stringify({ token, exp: Date.now() + LS_TTL_MS }));
+      }
+    } catch { /* storage full — ignore */ }
+  } else {
+    ss_del(KEY_ACCESS);
+    if (typeof window !== "undefined") {
+      try { localStorage.removeItem(LS_ACCESS); } catch { /* ignore */ }
+    }
+  }
   listeners.forEach((fn) => fn());
 }
 
@@ -56,6 +81,9 @@ export function getCachedUser<T>(): T | null {
 export function clearSession(): void {
   ss_del(KEY_ACCESS);
   ss_del(KEY_USER);
+  if (typeof window !== "undefined") {
+    try { localStorage.removeItem(LS_ACCESS); } catch { /* ignore */ }
+  }
   listeners.forEach((fn) => fn());
 }
 

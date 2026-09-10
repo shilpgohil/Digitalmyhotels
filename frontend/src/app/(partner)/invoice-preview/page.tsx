@@ -14,7 +14,7 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
-import { fmtApiDate, fmtINR } from "@/lib/formatting";
+import { fmtApiDate, fmtApiDateTime, fmtINR } from "@/lib/formatting";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { GstSettingsOut, HotelOut, ListOut } from "@/types/hotel";
 import type { InvoiceOut } from "@/types/money";
@@ -262,8 +262,8 @@ function InvoicePreviewContent() {
                         .join(", ") || "—"}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {fmtApiDate(booking.data.check_in_date)} →{" "}
-                      {fmtApiDate(booking.data.check_out_date)}
+                      {fmtApiDateTime(booking.data.check_in_date, booking.data.check_in_time)} →{" "}
+                      {fmtApiDateTime(booking.data.check_out_date, booking.data.check_out_time)}
                     </p>
                   </>
                 )}

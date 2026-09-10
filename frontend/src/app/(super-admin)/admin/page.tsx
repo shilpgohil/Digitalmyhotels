@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api/client";
-import { fmtApiDate, fmtDate, fmtINR } from "@/lib/formatting";
+import { fmtApiDate, fmtDate, fmtDateTime, fmtINR } from "@/lib/formatting";
 
 interface PlatformTrendItem {
   month: string;
@@ -326,7 +326,7 @@ export default function AdminDashboardPage() {
                   </td>
                   <td className="px-4 py-3 font-medium tabular-nums">{fmtINR(r.amount)}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                    {fmtDate(r.created_at)}
+                    {fmtDateTime(r.created_at)}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -466,7 +466,7 @@ export default function AdminDashboardPage() {
                   <td className="px-4 py-3 text-muted-foreground">{h.owner_name ?? "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground">{h.city ?? "—"}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                    {fmtDate(h.created_at)}
+                    {fmtDateTime(h.created_at)}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{h.subscription_plan_name ?? "—"}</td>
                   <td className="px-4 py-3">

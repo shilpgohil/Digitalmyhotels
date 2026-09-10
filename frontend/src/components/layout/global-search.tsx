@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Search, CalendarRange, UserRound } from "lucide-react";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
-import { fmtApiDate } from "@/lib/formatting";
+import { fmtApiDateTime } from "@/lib/formatting";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { ListOut } from "@/types/hotel";
 import type { BookingOut, GuestOut } from "@/types/stay";
@@ -118,7 +118,7 @@ export function GlobalSearch() {
                   <CalendarRange className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="font-medium">{b.booking_number}</span>
                   <span className="truncate text-muted-foreground">
-                    {b.primary_guest_name ?? ""} · {fmtApiDate(b.check_in_date)}
+                    {b.primary_guest_name ?? ""} · {fmtApiDateTime(b.check_in_date, b.check_in_time)}
                   </span>
                 </button>
               ))}

@@ -37,9 +37,14 @@ interface AdminHotelDetail {
   email: string | null;
   address_line1: string | null;
   status: string;
+  gstin: string | null;
+  is_gst_registered: boolean;
   owner_name: string | null;
   owner_email: string | null;
   owner_phone: string | null;
+  subscription_plan_name: string | null;
+  subscription_status: string | null;
+  subscription_expiry: string | null;
 }
 
 export function EditHotelDialog({
@@ -130,6 +135,7 @@ export function EditHotelDialog({
                   ["phone", d.phone],
                   ["email", d.email],
                   ["address_line1", d.address_line1],
+                  ["gstin", d.gstin],
                   ["owner_phone", d.owner_phone],
                 ];
                 for (const [key, prev] of fields) {
@@ -171,6 +177,16 @@ export function EditHotelDialog({
                   <Input id="eh-email" name="email" type="email" defaultValue={d.email ?? ""} />
                 </div>
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="eh-gstin">GSTIN</Label>
+                <Input
+                  id="eh-gstin"
+                  name="gstin"
+                  defaultValue={d.gstin ?? ""}
+                  placeholder="22AAAAA0000A1Z5"
+                  className="font-mono uppercase"
+                />
+              </div>
               <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                   {t("owner")}: {d.owner_name ?? "—"}{" "}
@@ -187,6 +203,18 @@ export function EditHotelDialog({
                   />
                 </div>
               </div>
+              {/* Subscription summary — read-only, sync via /admin/plans */}
+              {d.subscription_plan_name && (
+                <div className="rounded-lg border bg-blue-50 px-3 py-2 text-xs space-y-0.5">
+                  <p className="font-semibold text-blue-800">
+                    Plan: {d.subscription_plan_name}
+                    {d.subscription_status ? ` · ${d.subscription_status}` : ""}
+                  </p>
+                  {d.subscription_expiry && (
+                    <p className="text-blue-600">Expires: {d.subscription_expiry}</p>
+                  )}
+                </div>
+              )}
               {error && (
                 <p className="text-sm text-danger" role="alert">
                   {error}

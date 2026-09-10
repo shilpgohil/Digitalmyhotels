@@ -68,6 +68,20 @@ export function fmtDate(iso: string | null | undefined): string {
 }
 
 /**
+ * Format an API date+optional time pair → "31/08/2026" or "31/08/2026, 14:00".
+ * Combines a YYYY-MM-DD date and an optional HH:MM time string.
+ * Use for booking listing cells where both date and time should be shown.
+ */
+export function fmtApiDateTime(
+  date: string | null | undefined,
+  time?: string | null,
+): string {
+  if (!date) return "—";
+  const d = fmtApiDate(date);
+  return time ? `${d}, ${time}` : d;
+}
+
+/**
  * Format a raw YYYY-MM-DD API date string → "31/08/2026" (DD/MM/YYYY).
  * Use for compact table cells and inline displays of API date fields.
  */

@@ -296,9 +296,10 @@ function RoomsContent() {
 
             {/* View toggle + status filter chips (grid mode) */}
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              {/* Filter chips — shown in BOTH grid AND table views (client 9-10 row 7:
+                  previously only visible in grid mode, causing inconsistency). */}
               <div className="flex flex-wrap gap-1.5">
-                {view === "grid" &&
-                  GRID_FILTERS.map((filter) => (
+                {GRID_FILTERS.map((filter) => (
                     <button
                       key={filter}
                       type="button"
@@ -425,7 +426,9 @@ function RoomsContent() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rooms.data.items.map((room) => (
+                    {rooms.data.items
+                      .filter((room) => gridFilter === "all" || room.status === gridFilter)
+                      .map((room) => (
                       <TableRow key={room.id}>
                         <TableCell className="font-medium">{room.room_number}</TableCell>
                         <TableCell>{room.floor ?? "—"}</TableCell>

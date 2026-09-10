@@ -369,11 +369,43 @@ async def _owner_for_hotel(db: AsyncSession, hotel_id: UUID) -> User | None:
 
 
 async def get_hotel_detail(db: AsyncSession, hotel_id: UUID) -> dict:
-    """Hotel profile + owner contact for the Super Admin edit page (item 28)."""
+    """Hotel profile + owner contact + GST + subscription for the Super Admin
+    edit page. Returns ALL fields entered during hotel creation so the admin
+    always sees the complete, up-to-date picture (client 9-10 rows 13/14)."""
     hotel = (await db.execute(select(Hotel).where(Hotel.id == hotel_id))).scalar_one_or_none()
     if hotel is None:
         raise NotFoundError("Hotel not found")
     owner = await _owner_for_hotel(db, hotel_id)
+
+    # GST settings (for GSTIN display)
+    from app.models.invoice import GstSettings
+
+    gst_row = (
+        await db.execute(select(GstSettings).where(GstSettings.hotel_id == hotel_id))
+    ).scalar_one_or_none()
+
+    # Latest subscription
+    latest_sub = (
+        await db.execute(
+            select(Subscription)
+            .where(Subscription.hotel_id == hotel_id)
+            .order_by(Subscription.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    plan_name: str | None = None
+    sub_status: str | None = None
+    sub_expiry: str | None = None
+    if latest_sub:
+        plan_result = await db.execute(
+            select(SubscriptionPlan).where(SubscriptionPlan.id == latest_sub.plan_id)
+        )
+        plan_obj = plan_result.scalar_one_or_none()
+        plan_name = plan_obj.name if plan_obj else None
+        sub_status = latest_sub.status
+        sub_expiry = str(latest_sub.expiry_date) if latest_sub.expiry_date else None
+
     return {
         "id": hotel.id,
         "name": hotel.name,
@@ -384,9 +416,14 @@ async def get_hotel_detail(db: AsyncSession, hotel_id: UUID) -> dict:
         "address_line1": hotel.address_line1,
         "status": hotel.status,
         "created_at": hotel.created_at,
+        "gstin": gst_row.gstin if gst_row else None,
+        "is_gst_registered": gst_row.is_gst_registered if gst_row else False,
         "owner_name": owner.full_name if owner else None,
         "owner_email": owner.email if owner else None,
         "owner_phone": owner.phone if owner else None,
+        "subscription_plan_name": plan_name,
+        "subscription_status": sub_status,
+        "subscription_expiry": sub_expiry,
     }
 
 
@@ -408,10 +445,26 @@ async def update_hotel_admin(
         raise NotFoundError("Hotel not found")
 
     owner_phone = changes.pop("owner_phone", None)
+    gstin = changes.pop("gstin", None)
     before = {k: str(getattr(hotel, k)) for k in changes if hasattr(hotel, k)}
     for key, value in changes.items():
         if hasattr(hotel, key):
             setattr(hotel, key, value)
+
+    # Update GSTIN in the hotel's GST settings row (client 9-10 rows 13/14)
+    if gstin is not None:
+        from app.models.invoice import GstSettings as _GstSettings
+
+        gst_row = (
+            await db.execute(
+                select(_GstSettings).where(_GstSettings.hotel_id == hotel_id)
+            )
+        ).scalar_one_or_none()
+        if gst_row is None:
+            gst_row = _GstSettings(hotel_id=hotel_id)
+            db.add(gst_row)
+        gst_row.gstin = gstin.strip().upper() if gstin.strip() else None
+        gst_row.is_gst_registered = bool(gst_row.gstin)
 
     if owner_phone is not None:
         owner = await _owner_for_hotel(db, hotel_id)

@@ -81,7 +81,7 @@ import { API_BASE, ApiError, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { docAspectFor, useImageEditor } from "@/components/media/image-editor";
 import { compressDocument } from "@/lib/compress-image";
-import { fmtApiDate, fmtINR, localToday, localTomorrow } from "@/lib/formatting";
+import { fmtApiDate, fmtApiDateTime, fmtINR, localToday, localTomorrow } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import type { ListOut, RoomAvailableItem } from "@/types/hotel";
 import type {
@@ -3037,9 +3037,9 @@ function CheckinForm({
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-muted/50 px-3 py-2 text-sm">
             <span className="font-semibold text-foreground">{booking.booking_number}</span>
             <span className="text-muted-foreground">
-              {fmtApiDate(booking.check_in_date)}{booking.check_in_time ? `, ${booking.check_in_time}` : ""}
+              {fmtApiDateTime(booking.check_in_date, booking.check_in_time)}
               {" → "}
-              {fmtApiDate(booking.check_out_date)}{booking.check_out_time ? `, ${booking.check_out_time}` : ""}
+              {fmtApiDateTime(booking.check_out_date, booking.check_out_time)}
             </span>
             {booking.guest_type && (
               <span className="rounded-full bg-gold-100 px-2 py-0.5 text-[11px] font-semibold text-gold-700 capitalize">
@@ -5299,10 +5299,8 @@ function ArrivalsStrip({
                 .join(", ") || t("noRooms")}
             </span>
             <span className="text-[10px] text-muted-foreground mt-0.5">
-              {fmtApiDate(booking.check_in_date)}
-              {`, ${booking.check_in_time || defaultInTime || "14:00"}`} →{" "}
-              {fmtApiDate(booking.check_out_date)}
-              {`, ${booking.check_out_time || defaultOutTime || "11:00"}`}
+              {fmtApiDateTime(booking.check_in_date, booking.check_in_time || defaultInTime || "14:00")} →{" "}
+              {fmtApiDateTime(booking.check_out_date, booking.check_out_time || defaultOutTime || "11:00")}
             </span>
           </button>
         ))}
