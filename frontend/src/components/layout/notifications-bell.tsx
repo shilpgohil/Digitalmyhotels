@@ -59,26 +59,26 @@ const CATEGORY_CONFIG: Record<
   { bg: string; dot: string; icon: React.ComponentType<{ className?: string }>; labelKey: string }
 > = {
   front_desk: {
-    bg: "bg-warning-bg dark:bg-amber-900/20",
-    dot: "bg-amber-400",
+    bg: "bg-warning-bg dark:bg-warning/10",
+    dot: "bg-warning",
     icon: Building2,
     labelKey: "cat_front_desk",
   },
   housekeeping: {
-    bg: "bg-info-bg dark:bg-blue-900/20",
-    dot: "bg-blue-400",
+    bg: "bg-info-bg dark:bg-info/10",
+    dot: "bg-info",
     icon: Sparkles,
     labelKey: "cat_housekeeping",
   },
   finance: {
-    bg: "bg-emerald-50 dark:bg-emerald-900/20",
-    dot: "bg-emerald-400",
+    bg: "bg-success-bg dark:bg-success/10",
+    dot: "bg-success",
     icon: IndianRupee,
     labelKey: "cat_finance",
   },
   operations: {
-    bg: "bg-purple-50 dark:bg-purple-900/20",
-    dot: "bg-purple-400",
+    bg: "bg-muted dark:bg-muted/20",
+    dot: "bg-muted-foreground",
     icon: Layers,
     labelKey: "cat_operations",
   },

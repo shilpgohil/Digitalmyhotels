@@ -173,7 +173,7 @@ function HotelRow({
           {kind === "suspended" && (
             <>
               {!showMeta && <HotelStatusBadge hotel={hotel} />}
-              <Button size="sm" onClick={() => onStatus("active")} disabled={pending}>
+              <Button size="sm" className="bg-success text-white hover:bg-success/90" onClick={() => onStatus("active")} disabled={pending}>
                 {activateLabel}
               </Button>
             </>
@@ -181,7 +181,7 @@ function HotelRow({
           {kind === "expired" && (
             <>
               <RenewDialog hotel={hotel} />
-              <Button size="sm" variant="outline" className="text-danger hover:text-danger" onClick={() => onStatus("suspended")} disabled={pending}>
+              <Button size="sm" className="bg-danger text-white hover:bg-danger/90" onClick={() => onStatus("suspended")} disabled={pending}>
                 {deactivateLabel}
               </Button>
             </>
@@ -189,7 +189,7 @@ function HotelRow({
           {(kind === "active" || kind === "trial") && (
             <>
               {!showMeta && <HotelStatusBadge hotel={hotel} />}
-              <Button size="sm" variant="outline" className="text-danger hover:text-danger" onClick={() => onStatus("suspended")} disabled={pending}>
+              <Button size="sm" className="bg-danger text-white hover:bg-danger/90" onClick={() => onStatus("suspended")} disabled={pending}>
                 {deactivateLabel}
               </Button>
               <RenewDialog hotel={hotel} />

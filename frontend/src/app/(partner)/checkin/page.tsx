@@ -1488,16 +1488,16 @@ function AutofillBanner({
   const t = useTranslations("checkin");
   if (!result.can_autofill) {
     return (
-      <div className="flex items-start gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm">
-        <AlertTriangle className="size-4 shrink-0 text-orange-500 mt-0.5" aria-hidden />
+      <div className="flex items-start gap-3 rounded-xl border border-warning/20 bg-warning-bg px-4 py-3 text-sm">
+        <AlertTriangle className="size-4 shrink-0 text-warning mt-0.5" aria-hidden />
         <div className="flex-1">
-          <p className="font-semibold text-orange-700">{t("unableAutofill")}</p>
-          <p className="mt-0.5 text-orange-600 text-xs">{result.message}</p>
+          <p className="font-semibold text-warning">{t("unableAutofill")}</p>
+          <p className="mt-0.5 text-warning text-xs">{result.message}</p>
         </div>
         <button
           type="button"
           onClick={onDismiss}
-          className="text-orange-400 hover:text-orange-600 text-base leading-none"
+          className="text-warning hover:text-warning text-base leading-none"
           aria-label={t("dismiss")}
         >
           ×
@@ -1528,7 +1528,7 @@ function AutofillBanner({
           <span className="text-sm font-semibold text-success">
             {t("idDetected")}
           </span>
-          <span className="rounded-full bg-green-200 px-2 py-0.5 text-micro font-bold text-success">
+          <span className="rounded-full bg-success-bg px-2 py-0.5 text-micro font-bold text-success">
             {t("confidencePct", { pct })}
           </span>
         </div>

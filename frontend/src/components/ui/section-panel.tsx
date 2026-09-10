@@ -63,16 +63,18 @@ export function SectionPanel({
         )}
       </div>
 
-      {/* Content */}
-      <div
-        className={cn(
-          !flat && "border-t",
-          !noPadding && "px-5 py-5",
-          contentClassName,
-        )}
-      >
-        {children}
-      </div>
+      {/* Content — only rendered when children are present */}
+      {children != null && children !== false && (
+        <div
+          className={cn(
+            !flat && "border-t",
+            !noPadding && "px-5 py-5",
+            contentClassName,
+          )}
+        >
+          {children}
+        </div>
+      )}
     </div>
   );
 }
