@@ -128,6 +128,19 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
         window.location.href = "/change-password";
       }
     }
+    // Hotel suspended by Super Admin — notify React components so they can
+    // show the full-screen "Account Deactivated" overlay immediately, without
+    // a full-page reload (which causes a flash of the normal UI first).
+    if (response.status === 403 && (err as ApiError).code === "hotel_suspended") {
+      if (typeof window !== "undefined") {
+        // Dispatch a CustomEvent so any React listener can react instantly.
+        window.dispatchEvent(new CustomEvent("dmh:hotel-suspended"));
+        // Fallback hard redirect for cases where no React listener is mounted.
+        if (!window.location.pathname.startsWith("/suspended")) {
+          window.location.href = "/suspended";
+        }
+      }
+    }
     throw err;
   }
   if (response.status === 204) return undefined as T;

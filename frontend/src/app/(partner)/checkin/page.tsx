@@ -1342,7 +1342,7 @@ function DocUpload({
               uploaded ? "bg-green-600/80 text-white" : "bg-gold-500/80 text-navy-900",
             )}>
               {overlayStatusText}
-            </div>
+        </div>
           </>
         ) : (
           <>
@@ -1498,6 +1498,7 @@ function QueuedDocUpload({
   guestId,
   existingDocId,
   idType,
+  onOcrResult,
 }: {
   readonly side: DocSide;
   readonly label: string;
@@ -1511,6 +1512,9 @@ function QueuedDocUpload({
   readonly existingDocId?: string | null;
   /** ID proof type — picks the matching crop frame (Aadhaar card vs passport). */
   readonly idType?: string | null;
+  /** OCR result — wired when front/back face is uploaded; same behaviour as
+   *  primary-guest DocUpload so co-guest identity can also be auto-filled. */
+  readonly onOcrResult?: (result: import("@/lib/id-ocr").IdOcrResult) => void;
 }) {
   const t = useTranslations("checkin");
   const { activeHotelId } = useAuth();
@@ -1550,6 +1554,8 @@ function QueuedDocUpload({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingDocId, guestId]);
 
+  const [ocrRunning, setOcrRunning] = useState(false);
+
   const onFile = async (file: File | undefined) => {
     if (!file) return;
     const edited = await edit(file, {
@@ -1568,6 +1574,22 @@ function QueuedDocUpload({
     } catch {
       setPreview(null);
       toast.error(t("processImageFailed"));
+      return;
+    }
+    // Run OCR for front/back faces — same pipeline as the primary-guest tile
+    // (client request: co-guests should have identical OCR autofill behaviour).
+    if ((side === "front" || side === "back") && onOcrResult) {
+      setOcrRunning(true);
+      try {
+        const { parseIdDocument } = await import("@/lib/id-ocr");
+        const ocrFile = edited; // use the cropped high-res image
+        const result = await parseIdDocument(ocrFile, side === "back" ? "back" : "front");
+        if (result) onOcrResult(result);
+      } catch {
+        // OCR failure is non-fatal — tile stays uploaded, autofill just won't fire.
+      } finally {
+        setOcrRunning(false);
+      }
     }
   };
 
@@ -1590,11 +1612,13 @@ function QueuedDocUpload({
               className={side === "selfie" ? "h-full w-full object-cover" : "h-full w-full bg-navy-900/5 object-contain"}
             />
             <div className="absolute bottom-0 left-0 right-0 bg-gold-500/80 px-2 py-1 text-[10px] font-semibold text-navy-900 text-center">
-              {queued
-                ? t("readyToUpload")
-                : showingExisting
-                  ? t("savedOnFile")
-                  : t("processing")}
+              {ocrRunning
+                ? t("readingId")
+                : queued
+                  ? t("readyToUpload")
+                  : showingExisting
+                    ? t("savedOnFile")
+                    : t("processing")}
             </div>
           </>
         ) : (
@@ -1620,7 +1644,7 @@ function QueuedDocUpload({
         >
           <Camera className="size-3.5" aria-hidden />
           {t("useCamera")}
-        </button>
+              </button>
       )}
       {side === "selfie" && cameraOpen && (
         <InlineCameraCapture
@@ -1628,7 +1652,7 @@ function QueuedDocUpload({
           onClose={() => setCameraOpen(false)}
         />
       )}
-    </div>
+            </div>
   );
 }
 
@@ -1872,6 +1896,8 @@ function AdditionalGuestEntry({
   const [saving, setSaving] = useState(false);
   /** Full details of an existing guest (from /autofill) — used to pre-fill edits. */
   const [autofill, setAutofill] = useState<GuestAutofill | null>(null);
+  /** OCR result from a co-guest doc upload — triggers auto-edit (client bug fix). */
+  const [coGuestOcrResult, setCoGuestOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
 
   // Foreign guest (Form C) — same fields as the primary guest's section.
   const [fgEnabled, setFgEnabled] = useState(false);
@@ -2107,8 +2133,8 @@ function AdditionalGuestEntry({
               {resolved.phone && (
                 <p className="text-xs text-muted-foreground tabular-nums">
                   {resolved.phone}
-                </p>
-              )}
+            </p>
+          )}
             </div>
         </div>
           <div className="flex items-center gap-1">
@@ -2137,11 +2163,50 @@ function AdditionalGuestEntry({
             </button>
           </div>
         </div>
+        {/* OCR confirm panel for co-guest — same autofill behaviour as primary guest */}
+        {coGuestOcrResult && (
+          <AutofillBanner
+            result={coGuestOcrResult}
+            onAccept={(fields) => {
+              setCoGuestOcrResult(null);
+              setEditing(true); // open edit form
+              // Pre-populate autofill so buildEditInitial uses the OCR fields
+              setAutofill((prev) => ({
+                ...(prev ?? {
+                  id: resolved.guest_id,
+                  full_name: resolved.full_name,
+                  phone: resolved.phone ?? "",
+                  email: null,
+                  address: null,
+                  city: null,
+                  state: null,
+                  country: "India",
+                  postal_code: null,
+                  gender: null,
+                  date_of_birth: null,
+                  id_proof_type: null,
+                  id_last4: null,
+                }),
+                ...(fields.name && { full_name: fields.name }),
+                ...(fields.gender && { gender: fields.gender }),
+                ...(fields.date_of_birth && { date_of_birth: fields.date_of_birth }),
+                ...(fields.address && { address: fields.address }),
+                ...(fields.pincode && { postal_code: fields.pincode }),
+                ...(fields.city && { city: fields.city }),
+                ...(fields.state && { state: fields.state }),
+                ...(fields.id_number && { id_last4: fields.id_number.slice(-4) }),
+              }));
+            }}
+            onDismiss={() => setCoGuestOcrResult(null)}
+          />
+        )}
+
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <QueuedDocUpload
             side="front"
             label={t("uploadFront")}
             onQueued={handleQueueDoc}
+            onOcrResult={(r) => { setCoGuestOcrResult(r); }}
             guestId={resolved.guest_id}
             existingDocId={existingDocs.front}
           />
@@ -2149,6 +2214,7 @@ function AdditionalGuestEntry({
             side="back"
             label={t("uploadBack")}
             onQueued={handleQueueDoc}
+            onOcrResult={(r) => { setCoGuestOcrResult(r); }}
             guestId={resolved.guest_id}
             existingDocId={existingDocs.back}
           />
@@ -2260,7 +2326,7 @@ function AdditionalGuestEntry({
                 <UserPlus className="size-3.5" aria-hidden />
                 {t("createNewGuest")}
               </button>
-            </div>
+        </div>
           )}
         </div>
       ) : (

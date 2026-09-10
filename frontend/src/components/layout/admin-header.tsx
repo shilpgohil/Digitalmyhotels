@@ -6,6 +6,8 @@ import { Search, Bell, Menu, User } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { useAuth } from "@/lib/auth/auth-context";
+import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api/client";
 
 /** Hamburger + slide-in drawer with the ADMIN navigation (mobile only).
  *  Previously mobile had no admin nav at all — and pages that borrowed the
@@ -32,10 +34,36 @@ function AdminMobileNav() {
   );
 }
 
+/** Sum of pending items the super admin should action (renewal + password requests). */
+function useAdminPendingCount() {
+  const renewals = useQuery({
+    queryKey: ["admin-renewal-requests", "pending"],
+    queryFn: () =>
+      apiFetch<{ items: unknown[]; total: number }>(
+        "/api/v1/super-admin/renewal-requests?status=pending",
+      ),
+    staleTime: 2 * 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+  const pwdReqs = useQuery({
+    queryKey: ["admin-password-requests", "pending"],
+    queryFn: () =>
+      apiFetch<unknown[]>("/api/v1/super-admin/password-requests"),
+    staleTime: 2 * 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+  // Renewal requests have a `total` field; password requests return a flat array.
+  const n =
+    (renewals.data?.total ?? 0) +
+    (Array.isArray(pwdReqs.data) ? pwdReqs.data.length : 0);
+  return n;
+}
+
 export function AdminHeader() {
   const { user } = useAuth();
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const pendingCount = useAdminPendingCount();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,12 +92,21 @@ export function AdminHeader() {
 
       {/* Right side */}
       <div className="flex items-center gap-3">
+        {/* Bell icon — shows count of pending renewal + password requests.
+            Clicking navigates to the renewal requests page for quick action. */}
         <button
           type="button"
+          onClick={() => router.push("/admin/registrations")}
           className="relative flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-muted transition-colors"
-          aria-label="Notifications"
+          aria-label={`Pending actions${pendingCount > 0 ? `: ${pendingCount}` : ""}`}
+          title={pendingCount > 0 ? `${pendingCount} pending action${pendingCount !== 1 ? "s" : ""}` : "Platform notifications"}
         >
           <Bell className="size-4" aria-hidden />
+          {pendingCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 flex min-w-4 h-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-bold text-white">
+              {pendingCount > 9 ? "9+" : pendingCount}
+            </span>
+          )}
         </button>
 
         <div className="flex items-center gap-2.5">

@@ -6,7 +6,7 @@
  * Mobile (touch):
  *   - Single-finger drag  → pan
  *   - Two-finger pinch    → zoom
- *   - Angle ruler         → native <input type="range"> works on touch
+ *   - Angle ruler         → PointerEvents drag (replaces range input for reliable iOS support)
  *   - 90° rotate buttons  → tap
  *
  * Desktop (mouse / trackpad):
@@ -490,6 +490,15 @@ const RULER_MAX = 45;
 const RULER_STEP = 0.5;
 const TICK_EVERY = 5; // major ticks every 5°
 
+/**
+ * AngleRuler — custom pointer-based slider for the image rotation angle.
+ *
+ * Uses PointerEvents (unified mouse + touch + stylus) instead of a native
+ * <input type="range"> because iOS Safari range inputs don't respond
+ * reliably to drag gestures (swipe doesn't fire onChange on mobile).
+ * touchAction:"none" on the container tells the browser this element owns
+ * horizontal gestures so the OS doesn't intercept the swipe as scroll.
+ */
 function AngleRuler({
   value,
   onChange,
@@ -498,13 +507,62 @@ function AngleRuler({
   readonly onChange: (deg: number) => void;
 }) {
   const clamp = (v: number) => Math.min(RULER_MAX, Math.max(RULER_MIN, v));
+  // 6 CSS pixels per degree — coarser than 1° steps so it's comfortable.
+  const PX_PER_DEG = 6;
+
+  // Drag tracking — stored in a ref so state updates don't interrupt drag.
+  const drag = useRef<{ startX: number; startValue: number } | null>(null);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    drag.current = { startX: e.clientX, startValue: value };
+    // Pointer capture ensures we receive move/up even when cursor leaves element.
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!drag.current) return;
+    const dx = e.clientX - drag.current.startX;
+    // Negative because dragging right should increase the angle (counter-
+    // intuitive if you think of the ruler sliding under a fixed needle, but
+    // "drag image clockwise" matches user expectation on a touch screen).
+    const newRaw = drag.current.startValue - dx / PX_PER_DEG;
+    // Snap to nearest step for crisp feel.
+    const snapped = Math.round(newRaw / RULER_STEP) * RULER_STEP;
+    onChange(clamp(snapped));
+  };
+
+  const onPointerUp = () => {
+    drag.current = null;
+  };
 
   // Ticks: -45 to +45 every 1°
   const ticks: number[] = [];
   for (let i = RULER_MIN; i <= RULER_MAX; i++) ticks.push(i);
 
   return (
-    <div className="relative px-4">
+    <div
+      className="relative select-none px-4 cursor-ew-resize"
+      // touch-action: none prevents the browser from treating horizontal
+      // pointer movement as a page scroll before our handler fires.
+      style={{ touchAction: "none" }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      role="slider"
+      tabIndex={0}
+      aria-label="Rotation angle"
+      aria-valuemin={RULER_MIN}
+      aria-valuemax={RULER_MAX}
+      aria-valuenow={value}
+      aria-valuetext={`${value.toFixed(1)} degrees`}
+      onKeyDown={(e) => {
+        // Keyboard support: arrow keys for fine control.
+        if (e.key === "ArrowLeft")  onChange(clamp(Math.round((value - RULER_STEP) / RULER_STEP) * RULER_STEP));
+        if (e.key === "ArrowRight") onChange(clamp(Math.round((value + RULER_STEP) / RULER_STEP) * RULER_STEP));
+        if (e.key === "Home") onChange(0);
+      }}
+    >
       {/* Center marker */}
       <div className="absolute left-1/2 top-0 -translate-x-px w-0.5 h-9 bg-amber-400 z-10 pointer-events-none rounded-full" />
 
@@ -520,13 +578,13 @@ function AngleRuler({
         )}
       </div>
 
-      {/* Visual tick ruler (aria-hidden — the range input handles a11y) */}
-      <div className="relative flex items-end justify-center h-9 overflow-hidden" aria-hidden>
+      {/* Visual tick ruler */}
+      <div className="relative flex items-end justify-center h-9 overflow-hidden pointer-events-none">
         {ticks.map((tick) => {
           const isMajor = tick % TICK_EVERY === 0;
           const dist = Math.abs(tick - value);
           const opacity = Math.max(0.12, 1 - dist / 28);
-          const translateX = (tick - value) * 6;
+          const translateX = (tick - value) * PX_PER_DEG;
           return (
             <div
               key={tick}
@@ -540,31 +598,6 @@ function AngleRuler({
           );
         })}
       </div>
-
-      {/* Native range — invisible overlay, handles all pointer AND touch input */}
-      <input
-        type="range"
-        min={RULER_MIN}
-        max={RULER_MAX}
-        step={RULER_STEP}
-        value={value}
-        onChange={(e) => onChange(clamp(Number(e.target.value)))}
-        style={{
-          position: "absolute",
-          insetInline: "1rem",
-          bottom: 0,
-          height: "3rem", // larger touch target
-          opacity: 0,
-          cursor: "ew-resize",
-          WebkitAppearance: "none",
-          touchAction: "pan-x", // allow horizontal drag
-        }}
-        aria-label="Rotation angle"
-        aria-valuemin={RULER_MIN}
-        aria-valuemax={RULER_MAX}
-        aria-valuenow={value}
-        aria-valuetext={`${value.toFixed(1)} degrees`}
-      />
     </div>
   );
 }

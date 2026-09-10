@@ -1,4 +1,11 @@
 {
+  "suspension": {
+    "title": "Hotel Account Deactivated",
+    "body": "Your hotel account has been deactivated by DigitalMyHotels. All bookings and payments are paused. Please contact our support team to reactivate your account.",
+    "contactTitle": "Need help? Contact us:",
+    "loggedInAs": "Logged in as {name}",
+    "signOut": "Sign out"
+  },
   "common": {
     "appName": "DigitalMyHotels",
     "loading": "Loading…",

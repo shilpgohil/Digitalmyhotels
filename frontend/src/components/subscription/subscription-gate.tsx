@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarX2 } from "lucide-react";
+import { AlertOctagon, CalendarX2, LogOut, Phone } from "lucide-react";
 import { fmtApiDate } from "@/lib/formatting";
 import {
   Dialog,
@@ -39,6 +39,56 @@ export function useSubscription() {
 
 /** sessionStorage flag so the expired modal shows at most once per browser session. */
 const EXPIRED_MODAL_FLAG = "dmh.expiredModalShown";
+
+/**
+ * HotelSuspendedOverlay — full-screen blocker shown the instant the
+ * backend returns `hotel_suspended`. Listens for the CustomEvent emitted
+ * by api/client.ts so it appears without a full-page redirect (no flash
+ * of normal UI). The /suspended route handles the hard-navigation fallback.
+ */
+export function HotelSuspendedOverlay() {
+  const ts = useTranslations("suspension");
+  const { user, logout } = useAuth();
+  const [suspended, setSuspended] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setSuspended(true);
+    window.addEventListener("dmh:hotel-suspended", handler);
+    return () => window.removeEventListener("dmh:hotel-suspended", handler);
+  }, []);
+
+  if (!suspended) return null;
+
+  return (
+    <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-navy-950/98 px-6 text-center">
+      <div className="mb-6 flex size-20 items-center justify-center rounded-full bg-red-500/10">
+        <AlertOctagon className="size-10 text-red-400" aria-hidden />
+      </div>
+      <h1 className="font-display text-3xl font-bold text-white">{ts("title")}</h1>
+      <p className="mt-3 max-w-md text-base text-white/60 leading-relaxed">{ts("body")}</p>
+      <div className="mt-8 rounded-xl border border-white/10 bg-white/5 px-6 py-4 text-sm text-white/70 max-w-sm w-full">
+        <p className="font-semibold text-white/90 mb-2">{ts("contactTitle")}</p>
+        <div className="flex items-center justify-center gap-2">
+          <Phone className="size-4 shrink-0" aria-hidden />
+          <a href="mailto:support@digitalmyhotels.in" className="text-gold-400 hover:underline">
+            support@digitalmyhotels.in
+          </a>
+        </div>
+      </div>
+      {user && (
+        <p className="mt-6 text-xs text-white/30">{ts("loggedInAs", { name: user.full_name })}</p>
+      )}
+      <button
+        type="button"
+        onClick={() => void logout()}
+        className="mt-6 inline-flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 text-sm text-white/60 hover:border-white/40 hover:text-white transition-colors"
+      >
+        <LogOut className="size-4" aria-hidden />
+        {ts("signOut")}
+      </button>
+    </div>
+  );
+}
 
 /** Shows the plan-expired modal once per session, plus a persistent banner. */
 export function SubscriptionGate() {
