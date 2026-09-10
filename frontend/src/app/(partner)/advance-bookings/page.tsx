@@ -268,6 +268,7 @@ function AdvanceBookingsContent() {
 
         <DataTable
           darkHeader
+          tableClassName="min-w-[760px]"
           isLoading={isLoading}
           isError={isError}
           onRetry={() => { pendingBookings.refetch(); confirmedBookings.refetch(); }}

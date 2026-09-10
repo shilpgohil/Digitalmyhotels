@@ -144,6 +144,7 @@ export function DataTable({
               <TableHead
                 key={i}
                 className={cn(
+                  "whitespace-nowrap",
                   darkHeader && "text-white",
                   rightAlignCols.includes(i) && "text-right",
                 )}

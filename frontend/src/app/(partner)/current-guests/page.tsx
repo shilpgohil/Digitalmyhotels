@@ -138,6 +138,7 @@ function CurrentGuestsContent() {
         />
         <DataTable
           darkHeader
+          tableClassName="min-w-[960px]"
           isLoading={guests.isLoading}
           isError={guests.isError}
           errorMessage={guests.error instanceof ApiError ? guests.error.message : tc("error")}
