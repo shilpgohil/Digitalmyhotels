@@ -39,6 +39,10 @@ class Hotel(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     timezone: Mapped[str] = mapped_column(String(64), default="Asia/Kolkata", nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="active", nullable=False, index=True)
     # active | suspended | trial | expired
+    # Declared total room count (for occupancy calculations when not all rooms are in inventory)
+    total_rooms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Google Maps embed ID or place ID for the hotel property
+    map_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     settings: Mapped[HotelSettings | None] = relationship(
         back_populates="hotel", uselist=False, cascade="all, delete-orphan"
@@ -136,6 +140,10 @@ class HotelPaymentConfig(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     logo_object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     qr_object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     qr_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Merchant display name shown on QR / payment receipt
+    merchant_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Optional payment page / UPI deep-link URL
+    payment_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     updated_by_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )

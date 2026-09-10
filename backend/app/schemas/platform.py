@@ -263,6 +263,14 @@ class CreateHotelRequest(BaseModel):
     # without a subscription row (admin assigns a plan later via RenewDialog).
     plan_code: str | None = None
     access_mode: str = "full"
+    # Additional fields per Figma Add-Hotel form
+    total_rooms: int | None = Field(default=None, ge=0)
+    map_id: str | None = Field(default=None, max_length=255)
+    # GST type selection
+    gst_type: str | None = None  # "included_by_hotel" | "included_by_customer" | "no_gst"
+    # Payment setup
+    merchant_name: str | None = Field(default=None, max_length=200)
+    payment_url: str | None = Field(default=None, max_length=1024)
 
 
 class PlatformDashboardOut(BaseModel):

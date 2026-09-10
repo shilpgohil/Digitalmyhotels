@@ -5,12 +5,13 @@
  *
  * Sections:
  *  1. Access Permissions   (hotel feature mode: full | checkin_only)
- *  2. Property Identity    (name, city, state, phone, address, GSTIN, email, logo)
- *  3. Create Property User (owner name, phone, email, temp password)
- *  4. UPI Payment Setup    (optional)
- *  5. Room Inventory Setup (optional)
- *  6. Special Requirements (optional)
- *  7. Emergency & Vehicle  (feature toggles)
+ *  2. Property Identity    (name, city, state, phone, address, GSTIN, email, logo, gallery, map_id)
+ *  3. GST & Rooms Limits   (gst type + total room count)
+ *  4. Create Property User (owner name, phone, email, temp password)
+ *  5. Payment Setup        (merchant name, UPI, payment URL)
+ *  6. Room Inventory Setup (optional)
+ *  7. Special Requirements (optional)
+ *  8. Emergency & Vehicle  (feature toggles)
  */
 
 import { useRef, useState } from "react";
@@ -23,22 +24,25 @@ import {
   ChevronDown,
   ChevronUp,
   ImagePlus,
+  MapPin,
   Plus,
   Trash2,
   Shield,
   Building2,
+  Receipt,
   Users,
   CreditCard,
   BedDouble,
   Star,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
-import { apiFetch, ApiError, API_BASE } from "@/lib/api/client";
+import { apiFetch, ApiError, API_BASE, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
-import { compressLogo } from "@/lib/compress-image";
+import { compressImage, compressLogo } from "@/lib/compress-image";
 import { useImageEditor } from "@/components/media/image-editor";
 import type { HotelOut } from "@/types/hotel";
 import { cn } from "@/lib/utils";
@@ -165,7 +169,7 @@ function RoomRow({
             min={1}
             max={20}
             value={entry.max_adults}
-            onChange={(e) => onChange(idx, "max_adults", parseInt(e.target.value, 10) || 1)}
+            onChange={(e) => onChange(idx, "max_adults", Number.parseInt(e.target.value, 10) || 1)}
           />
         </div>
         <div className="space-y-1.5">
@@ -175,7 +179,7 @@ function RoomRow({
             min={0}
             max={10}
             value={entry.max_children}
-            onChange={(e) => onChange(idx, "max_children", parseInt(e.target.value, 10) || 0)}
+            onChange={(e) => onChange(idx, "max_children", Number.parseInt(e.target.value, 10) || 0)}
           />
         </div>
       </div>
@@ -214,17 +218,28 @@ export default function AddHotelPage() {
   const [address, setAddress] = useState("");
   const [gstin, setGstin] = useState("");
   const [email, setEmail] = useState("");
+  const [mapId, setMapId] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  // Gallery: up to 5 images (position 0–4)
+  const [galleryFiles, setGalleryFiles] = useState<(File | null)[]>([null, null, null, null, null]);
+  const [galleryPreviews, setGalleryPreviews] = useState<(string | null)[]>([null, null, null, null, null]);
 
-  // --- Section 3: Owner ---
+  // --- Section 3: GST & Rooms Limits ---
+  type GstType = "included_by_hotel" | "included_by_customer" | "no_gst";
+  const [gstType, setGstType] = useState<GstType>("no_gst");
+  const [totalRooms, setTotalRooms] = useState("");
+
+  // --- Section 4: Owner ---
   const [ownerName, setOwnerName] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
   const [ownerPhone, setOwnerPhone] = useState("");
   const [ownerPassword, setOwnerPassword] = useState("");
 
-  // --- Section 4: UPI (optional) ---
+  // --- Section 5: Payment Setup (optional) ---
+  const [merchantName, setMerchantName] = useState("");
   const [upiId, setUpiId] = useState("");
+  const [paymentUrl, setPaymentUrl] = useState("");
 
   // --- Section 5: Rooms ---
   const [rooms, setRooms] = useState<RoomEntry[]>([
@@ -255,11 +270,16 @@ export default function AddHotelPage() {
           address: address.trim() || null,
           email: email.trim() || null,
           gstin: gstin.trim() || null,
+          map_id: mapId.trim() || null,
+          total_rooms: totalRooms.trim() ? Number.parseInt(totalRooms.trim(), 10) : null,
+          gst_type: gstType,
           owner_full_name: ownerName.trim(),
           owner_email: ownerEmail.trim(),
           owner_password: ownerPassword,
           owner_phone: ownerPhone.trim() || null,
           access_mode: accessMode,
+          merchant_name: merchantName.trim() || null,
+          payment_url: paymentUrl.trim() || null,
           // plan_code intentionally omitted → hotel created without subscription
           // Admin assigns plan later via RenewDialog
         },
@@ -287,16 +307,37 @@ export default function AddHotelPage() {
         }
       }
 
-      // Step 3 (optional): set UPI
-      if (upiId.trim()) {
+      // Step 3 (optional): set UPI / payment config
+      if (upiId.trim() || merchantName.trim() || paymentUrl.trim()) {
         try {
           await apiFetch("/api/v1/hotels/me/payment-config", {
             method: "PUT",
-            body: { upi_id: upiId.trim() },
+            body: {
+              ...(upiId.trim() ? { upi_id: upiId.trim() } : {}),
+              ...(merchantName.trim() ? { merchant_name: merchantName.trim() } : {}),
+              ...(paymentUrl.trim() ? { payment_url: paymentUrl.trim() } : {}),
+            },
             hotelId: hotel.id,
           });
         } catch {
           failedSteps.push(t("upiSetup"));
+        }
+      }
+
+      // Step 3b (optional): upload gallery images
+      for (let pos = 0; pos < galleryFiles.length; pos++) {
+        const gf = galleryFiles[pos];
+        if (!gf) continue;
+        try {
+          const compressed = await compressImage(gf).catch(() => gf);
+          const fd = new FormData();
+          fd.append("file", compressed);
+          await apiUpload(`/api/v1/hotels/me/gallery/${pos}`, fd, {
+            method: "PUT",
+            hotelId: hotel.id,
+          });
+        } catch {
+          failedSteps.push(`Gallery image ${pos + 1}`);
         }
       }
 
@@ -412,6 +453,30 @@ export default function AddHotelPage() {
     setLogoFile(edited);
     const url = URL.createObjectURL(edited);
     setLogoPreview(url);
+  };
+
+  const handleGalleryChange = async (pos: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const edited = await edit(file, { aspect: "free", maxDimension: 1600 });
+    if (!edited) return;
+    const url = URL.createObjectURL(edited);
+    setGalleryFiles((prev) => {
+      const next = [...prev];
+      next[pos] = edited;
+      return next;
+    });
+    setGalleryPreviews((prev) => {
+      const next = [...prev];
+      next[pos] = url;
+      return next;
+    });
+  };
+
+  const removeGallerySlot = (pos: number) => {
+    setGalleryFiles((prev) => { const next = [...prev]; next[pos] = null; return next; });
+    setGalleryPreviews((prev) => { const next = [...prev]; next[pos] = null; return next; });
   };
 
   return (
@@ -532,48 +597,155 @@ export default function AddHotelPage() {
               maxLength={15}
             />
           </div>
-          {/* Hotel Logo */}
+          {/* Map ID */}
           <div className="space-y-1.5">
-            <Label>{t("hotelLogo")}</Label>
-            <div className="flex items-center gap-3">
-              {logoPreview ? (
-                <img
-                  src={logoPreview}
-                  alt="Logo preview"
-                  className="h-14 w-14 rounded-lg object-cover border border-border"
-                />
-              ) : (
-                <div className="flex size-14 items-center justify-center rounded-lg border border-dashed border-border bg-muted/30">
-                  <ImagePlus className="size-5 text-muted-foreground" aria-hidden />
-                </div>
-              )}
-              <div>
+            <Label htmlFor="ah-mapid" className="flex items-center gap-1">
+              <MapPin className="size-3.5 text-muted-foreground" />
+              {t("mapId")}
+            </Label>
+            <Input
+              id="ah-mapid"
+              value={mapId}
+              onChange={(e) => setMapId(e.target.value)}
+              placeholder="Google Maps place/embed ID"
+            />
+          </div>
+        </div>
+
+        {/* Hotel Logo */}
+        <div className="mt-4 space-y-1.5">
+          <Label>{t("hotelLogo")}</Label>
+          <div className="flex items-center gap-3">
+            {logoPreview ? (
+              <img
+                src={logoPreview}
+                alt="Logo preview"
+                className="h-14 w-14 rounded-lg object-cover border border-border"
+              />
+            ) : (
+              <div className="flex size-14 items-center justify-center rounded-lg border border-dashed border-border bg-muted/30">
+                <ImagePlus className="size-5 text-muted-foreground" aria-hidden />
+              </div>
+            )}
+            <div>
+              <button
+                type="button"
+                onClick={() => logoInputRef.current?.click()}
+                className="inline-flex h-8 items-center rounded-lg border border-border bg-white px-3 text-xs font-medium hover:bg-muted transition-colors"
+              >
+                {logoPreview ? t("changeLogo") : t("uploadLogo")}
+              </button>
+              {logoPreview && (
                 <button
                   type="button"
-                  onClick={() => logoInputRef.current?.click()}
-                  className="inline-flex h-8 items-center rounded-lg border border-border bg-white px-3 text-xs font-medium hover:bg-muted transition-colors"
+                  onClick={() => { setLogoFile(null); setLogoPreview(null); }}
+                  className="ml-2 text-xs text-muted-foreground hover:text-danger"
                 >
-                  {logoPreview ? t("changeLogo") : t("uploadLogo")}
+                  {tc("delete")}
                 </button>
-                {logoPreview && (
+              )}
+              <p className="mt-1 text-[11px] text-muted-foreground">PNG, JPG, WebP • max 5 MB</p>
+            </div>
+          </div>
+          <input
+            ref={logoInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="sr-only"
+            onChange={handleLogoChange}
+          />
+        </div>
+
+        {/* Property Gallery */}
+        <div className="mt-4 space-y-1.5">
+          <Label>{t("propertyGallery")}</Label>
+          <p className="text-[11px] text-muted-foreground">{t("galleryHint")}</p>
+          <div className="grid grid-cols-5 gap-2">
+            {[0, 1, 2, 3, 4].map((pos) => (
+              <div key={pos} className="relative">
+                <label
+                  className="relative flex aspect-square cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-border transition-colors hover:border-gold-400"
+                >
+                  {galleryPreviews[pos] ? (
+                    <img
+                      src={galleryPreviews[pos]!}
+                      alt={`Gallery ${pos + 1}`}
+                      className="absolute inset-0 size-full object-cover"
+                    />
+                  ) : (
+                    <ImagePlus className="size-4 text-muted-foreground" aria-hidden />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="sr-only"
+                    onChange={(e) => handleGalleryChange(pos, e)}
+                  />
+                </label>
+                {galleryPreviews[pos] && (
                   <button
                     type="button"
-                    onClick={() => { setLogoFile(null); setLogoPreview(null); }}
-                    className="ml-2 text-xs text-muted-foreground hover:text-danger"
+                    onClick={() => removeGallerySlot(pos)}
+                    className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-danger text-white shadow hover:opacity-90"
+                    aria-label="Remove"
                   >
-                    {tc("delete")}
+                    <X className="size-3" aria-hidden />
                   </button>
                 )}
-                <p className="mt-1 text-[11px] text-muted-foreground">PNG, JPG, WebP • max 5 MB</p>
               </div>
-            </div>
-            <input
-              ref={logoInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="sr-only"
-              onChange={handleLogoChange}
+            ))}
+          </div>
+        </div>
+      </Section>
+
+      {/* 3. GST & Rooms Limits */}
+      <Section icon={Receipt} title={t("gstRoomsLimits")}>
+        <div className="grid gap-6 sm:grid-cols-2">
+          {/* GST Types */}
+          <div className="space-y-3">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("gstTypes")}
+            </Label>
+              {(["included_by_hotel", "included_by_customer", "no_gst"] as const).map((opt) => {
+              const labels: Record<string, string> = {
+                included_by_hotel: t("gstIncludedByHotel"),
+                included_by_customer: t("gstIncludedByCustomer"),
+                no_gst: t("noGstApplicable"),
+              };
+              const isSelected = gstType === opt;
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setGstType(opt)}
+                  className="flex cursor-pointer items-center gap-3 text-left"
+                >
+                  <div
+                    className={cn(
+                      "flex size-4 shrink-0 items-center justify-center rounded-full border-2",
+                      isSelected ? "border-gold-500 bg-gold-500" : "border-muted-foreground",
+                    )}
+                  >
+                    {isSelected && <div className="size-1.5 rounded-full bg-white" />}
+                  </div>
+                  <span className="text-sm font-medium">{labels[opt]}</span>
+                </button>
+              );
+            })}
+          </div>
+          {/* Rooms List */}
+          <div className="space-y-1.5">
+            <Label htmlFor="ah-total-rooms">{t("totalRooms")}</Label>
+            <Input
+              id="ah-total-rooms"
+              type="number"
+              min={0}
+              max={9999}
+              value={totalRooms}
+              onChange={(e) => setTotalRooms(e.target.value)}
+              placeholder="25"
             />
+            <p className="text-[11px] text-muted-foreground">{t("totalRoomsHint")}</p>
           </div>
         </div>
       </Section>
@@ -647,21 +819,45 @@ export default function AddHotelPage() {
         </div>
       </Section>
 
-      {/* 4. UPI Payment Setup (optional) */}
-      <Section icon={CreditCard} title={t("upiSetup")} defaultOpen={false}>
+      {/* 5. Payment Setup (optional) */}
+      <Section icon={CreditCard} title={t("paymentSetup")} defaultOpen={false}>
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">
-            Optional — the owner can configure UPI later in hotel settings.
+            Optional — the owner can configure payment details later in hotel settings.
           </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="ah-upi">{t("gpayUpi")}</Label>
-              <Input
-                id="ah-upi"
-                value={upiId}
-                onChange={(e) => setUpiId(e.target.value)}
-                placeholder="e.g. merchant@okhdfc"
-              />
+          <div className="rounded-lg border border-border p-4">
+            <p className="mb-3 text-xs font-semibold text-foreground uppercase tracking-wide">
+              {t("merchantInformation")}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="ah-merchant-name">{t("merchantName")}</Label>
+                <Input
+                  id="ah-merchant-name"
+                  value={merchantName}
+                  onChange={(e) => setMerchantName(e.target.value)}
+                  placeholder="e.g. Grand Horizon Hotel"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ah-upi">{t("gpayUpi")}</Label>
+                <Input
+                  id="ah-upi"
+                  value={upiId}
+                  onChange={(e) => setUpiId(e.target.value)}
+                  placeholder="e.g. merchant@okhdfc"
+                />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="ah-payment-url">{t("paymentUrl")}</Label>
+                <Input
+                  id="ah-payment-url"
+                  value={paymentUrl}
+                  onChange={(e) => setPaymentUrl(e.target.value)}
+                  placeholder="https://pay.example.com/hotel"
+                  type="url"
+                />
+              </div>
             </div>
           </div>
         </div>

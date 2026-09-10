@@ -302,16 +302,35 @@ async def create_hotel_with_owner(
         email=str(body.email) if body.email else None,
         address_line1=address_line1,
         status="trial",
+        total_rooms=body.total_rooms,
+        map_id=body.map_id,
     )
     db.add(hotel)
     await db.flush()
-    settings = HotelSettings(hotel_id=hotel.id, access_mode=body.access_mode)
+    # Determine tax_inclusive_pricing from gst_type
+    gst_type = body.gst_type or "no_gst"
+    tax_inclusive = gst_type == "included_by_hotel"
+    settings = HotelSettings(
+        hotel_id=hotel.id,
+        access_mode=body.access_mode,
+        tax_inclusive_pricing=tax_inclusive,
+    )
     db.add(settings)
     gst_settings = GstSettings(hotel_id=hotel.id)
     if body.gstin:
         gst_settings.is_gst_registered = True
         gst_settings.gstin = body.gstin
+    elif gst_type in ("included_by_hotel", "included_by_customer"):
+        gst_settings.is_gst_registered = True
     db.add(gst_settings)
+    # Payment config (merchant name + payment URL)
+    if body.merchant_name or body.payment_url:
+        from app.models.hotel import HotelPaymentConfig as _HPC
+        db.add(_HPC(
+            hotel_id=hotel.id,
+            merchant_name=body.merchant_name,
+            payment_url=body.payment_url,
+        ))
 
     owner = await create_user(
         db,

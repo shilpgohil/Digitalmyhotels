@@ -29,6 +29,8 @@ class HotelOut(ORMModel):
     description: str | None
     timezone: str
     status: str
+    total_rooms: int | None = None
+    map_id: str | None = None
 
 
 class ServiceItemOut(ORMModel):
@@ -69,6 +71,8 @@ class HotelUpdate(BaseModel):
     website: str | None = Field(default=None, max_length=255)
     description: str | None = Field(default=None, max_length=4000)
     timezone: str | None = Field(default=None, max_length=64)
+    total_rooms: int | None = Field(default=None, ge=0)
+    map_id: str | None = Field(default=None, max_length=255)
 
 
 class HotelSettingsOut(ORMModel):
@@ -163,10 +167,14 @@ class PaymentConfigOut(BaseModel):
     config_version: int
     has_logo: bool
     qr_version: int
+    merchant_name: str | None = None
+    payment_url: str | None = None
 
 
 class PaymentConfigUpdate(BaseModel):
-    upi_id: str = Field(min_length=3, max_length=256)
+    upi_id: str | None = Field(default=None, min_length=3, max_length=256)
+    merchant_name: str | None = Field(default=None, max_length=200)
+    payment_url: str | None = Field(default=None, max_length=1024)
 
     @field_validator("upi_id")
     @classmethod

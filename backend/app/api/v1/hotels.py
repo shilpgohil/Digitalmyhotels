@@ -457,6 +457,8 @@ async def get_payment_config(
         config_version=config.config_version,
         has_logo=config.logo_object_key is not None,
         qr_version=config.qr_version,
+        merchant_name=config.merchant_name,
+        payment_url=config.payment_url,
     )
 
 
@@ -468,13 +470,18 @@ async def update_payment_config(
     db: AsyncSession = Depends(get_db),
 ) -> PaymentConfigOut:
     config = await upi_service.update_upi_id(
-        db, tenant, body.upi_id, correlation_id=_correlation(request)
+        db, tenant, body.upi_id,
+        merchant_name=body.merchant_name,
+        payment_url=body.payment_url,
+        correlation_id=_correlation(request),
     )
     return PaymentConfigOut(
         upi_id=body.upi_id,
         config_version=config.config_version,
         has_logo=config.logo_object_key is not None,
         qr_version=config.qr_version,
+        merchant_name=config.merchant_name,
+        payment_url=config.payment_url,
     )
 
 

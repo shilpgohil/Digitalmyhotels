@@ -279,6 +279,7 @@ function EditHotelContent() {
   const [address, setAddress] = useState("");
   const [gstin, setGstin] = useState("");
   const [email, setEmail] = useState("");
+  const [mapId, setMapId] = useState("");
   const [identityInit, setIdentityInit] = useState(false);
   const [gstInit, setGstInit] = useState(false);
 
@@ -288,6 +289,7 @@ function EditHotelContent() {
       setPhone(hotel.data.phone ?? "");
       setAddress(hotel.data.address_line1 ?? "");
       setEmail(hotel.data.email ?? "");
+      setMapId((hotel.data as { map_id?: string | null }).map_id ?? "");
       setIdentityInit(true);
     }
   }, [hotel.data, identityInit]);
@@ -501,6 +503,7 @@ function EditHotelContent() {
             phone: phone.trim() || null,
             address_line1: address.trim() || null,
             email: email.trim() || null,
+            map_id: mapId.trim() || null,
           },
         }),
       );
@@ -769,6 +772,15 @@ function EditHotelContent() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="gm@hotel.com"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="eh-mapid">{t("mapId")}</Label>
+                    <Input
+                      id="eh-mapid"
+                      value={mapId}
+                      onChange={(e) => setMapId(e.target.value)}
+                      placeholder="Google Maps place/embed ID"
                     />
                   </div>
                 </div>

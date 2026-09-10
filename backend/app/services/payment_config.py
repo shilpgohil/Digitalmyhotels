@@ -30,17 +30,24 @@ MAX_LOGO_BYTES = 2 * 1024 * 1024
 async def update_upi_id(
     db: AsyncSession,
     tenant: TenantContext,
-    upi_id: str,
+    upi_id: str | None,
     *,
+    merchant_name: str | None = None,
+    payment_url: str | None = None,
     correlation_id: str | None = None,
 ) -> HotelPaymentConfig:
     hotel_id = tenant.require_hotel()
     config = await get_or_create_payment_config(db, hotel_id)
-    config.upi_id_encrypted = encrypt_sensitive(upi_id)
-    config.upi_id_last4 = upi_id.split("@", 1)[0][-4:]
-    config.config_version += 1
-    config.updated_by_id = tenant.user_id
-    await _regenerate_qr(db, hotel_id, config)
+    if upi_id is not None:
+        config.upi_id_encrypted = encrypt_sensitive(upi_id)
+        config.upi_id_last4 = upi_id.split("@", 1)[0][-4:]
+        config.config_version += 1
+        config.updated_by_id = tenant.user_id
+        await _regenerate_qr(db, hotel_id, config)
+    if merchant_name is not None:
+        config.merchant_name = merchant_name.strip() or None
+    if payment_url is not None:
+        config.payment_url = payment_url.strip() or None
     await write_audit(
         db,
         action="upi.config_updated",
