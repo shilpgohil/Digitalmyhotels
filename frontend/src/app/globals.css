@@ -315,20 +315,28 @@
     100% { transform: translateX(210%); }
   }
 
-  /* Route progress bar: slide from 0% → 88% fast, pause, complete */
-  @keyframes dmh-progress {
-    0%   { width: 0%;   opacity: 1; }
-    15%  { width: 45%;  opacity: 1; }
-    50%  { width: 72%;  opacity: 1; }
-    80%  { width: 88%;  opacity: 1; }
-    95%  { width: 100%; opacity: 1; }
-    100% { width: 100%; opacity: 0; }
+  /* ── RouteLoader logo spinner ───────────────────────────────── */
+
+  /* Pop-in entrance (spring-like cubic-bezier for satisfying scale) */
+  @keyframes dmh-loader-in {
+    from { opacity: 0; transform: scale(0.55); }
+    to   { opacity: 1; transform: scale(1);    }
   }
 
-  /* Route bar enter: immediately shows when navigation starts */
-  @keyframes dmh-progress-enter {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+  /* Pop-out exit */
+  @keyframes dmh-loader-out {
+    from { opacity: 1; transform: scale(1);    }
+    to   { opacity: 0; transform: scale(0.55); }
+  }
+
+  /* Standard clockwise spin (shared with other spinners) */
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Counter-clockwise spin (for secondary arc depth effect) */
+  @keyframes spin-reverse {
+    to { transform: rotate(-360deg); }
   }
 
   /* Dot-bounce for loading dots (3 staggered dots) */

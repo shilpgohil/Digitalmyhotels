@@ -4,7 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/sonner";
-import { RouteProgress } from "@/components/ui/route-progress";
+import { RouteLoader } from "@/components/ui/route-loader";
 import "./globals.css";
 
 const inter = Inter({
@@ -56,8 +56,8 @@ export default async function RootLayout({
         }
       >
         <NextIntlClientProvider locale={locale} messages={messages}>
-          {/* Gold route-transition bar — fires on every client navigation */}
-          <RouteProgress />
+          {/* Logo spinner — fires on every client navigation */}
+          <RouteLoader />
           <Providers>{children}</Providers>
           <Toaster position="top-right" richColors />
         </NextIntlClientProvider>
