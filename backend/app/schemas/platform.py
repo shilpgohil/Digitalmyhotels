@@ -281,5 +281,6 @@ class PlatformDashboardOut(BaseModel):
     expired_hotels: int
     total_users: int
     expiring_soon: int
+    recently_expired: int = 0  # expired in last 30 days
     today_checkins: int = 0
     total_revenue: Decimal = Decimal("0.00")

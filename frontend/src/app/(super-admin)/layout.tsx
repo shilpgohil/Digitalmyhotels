@@ -2,6 +2,7 @@ import { RequireAuth } from "@/components/auth/require-auth";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { AdminHeader } from "@/components/layout/admin-header";
 import { ImageEditorProvider } from "@/components/media/image-editor";
+import { PageTransition } from "@/components/ui/page-transition";
 
 export default function SuperAdminLayout({ children }: { readonly children: React.ReactNode }) {
   return (
@@ -13,7 +14,9 @@ export default function SuperAdminLayout({ children }: { readonly children: Reac
         </div>
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <AdminHeader />
-          <div className="flex-1 overflow-y-auto">{children}</div>
+          <PageTransition className="flex-1 overflow-y-auto">
+            {children}
+          </PageTransition>
         </div>
       </div>
       </ImageEditorProvider>

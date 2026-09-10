@@ -2,6 +2,7 @@ import { RequireAuth } from "@/components/auth/require-auth";
 import { PartnerSidebar } from "@/components/layout/partner-sidebar";
 import { HotelSuspendedOverlay, SubscriptionGate } from "@/components/subscription/subscription-gate";
 import { ImageEditorProvider } from "@/components/media/image-editor";
+import { PageTransition } from "@/components/ui/page-transition";
 
 export default function PartnerLayout({ children }: { readonly children: React.ReactNode }) {
   return (
@@ -17,7 +18,9 @@ export default function PartnerLayout({ children }: { readonly children: React.R
           </div>
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <SubscriptionGate />
-            {children}
+            <PageTransition className="flex min-w-0 flex-1 flex-col overflow-hidden">
+              {children}
+            </PageTransition>
           </div>
         </div>
       </ImageEditorProvider>

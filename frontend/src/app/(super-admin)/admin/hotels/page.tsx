@@ -5,12 +5,12 @@ import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { Search, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { fmtApiDate } from "@/lib/formatting";
 import type { HotelAdminListOut, HotelAdminOut } from "@/types/money";
 import { RenewDialog } from "@/components/admin/renew-dialog";
-import { EditHotelDialog } from "@/components/admin/edit-hotel-dialog";
 import {
   AdminListError,
   AdminListLoading,
@@ -167,6 +167,7 @@ function HotelRow({
   readonly deactivateLabel: string;
   readonly activateLabel: string;
 }) {
+  const tc = useTranslations("common");
   const kind = hotelDisplayStatus(hotel);
   return (
     <tr className="border-t hover:bg-muted/20 transition-colors">
@@ -194,8 +195,14 @@ function HotelRow({
       )}
       <td className="px-4 py-3 whitespace-nowrap">
         <div className="flex items-center gap-2">
-          {/* Edit is available for EVERY hotel status (client item 28). */}
-          <EditHotelDialog hotelId={hotel.id} hotelName={hotel.name} />
+          {/* Full-page edit — navigates to /admin/hotels/[id]/edit */}
+          <Link
+            href={`/admin/hotels/${hotel.id}/edit`}
+            className="inline-flex h-7 items-center gap-1 rounded-lg border border-input px-2.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors"
+          >
+            <Pencil className="size-3" aria-hidden />
+            {tc("edit")}
+          </Link>
           {kind === "suspended" && (
             <>
               {!showMeta && <HotelStatusBadge hotel={hotel} />}

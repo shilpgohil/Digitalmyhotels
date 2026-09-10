@@ -139,6 +139,21 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
         )
         or 0
     )
+    # Recently expired: hotels whose subscription expired in the last 30 days.
+    # Distinct from total expired_hotels (all-time count).
+    thirty_days_ago = today - timedelta(days=30)
+    recently_expired = int(
+        await db.scalar(
+            select(func.count())
+            .select_from(latest)
+            .join(Hotel, Hotel.id == latest.c.hotel_id)
+            .where(
+                latest.c.status == "expired",
+                latest.c.expiry_date >= thirty_days_ago,
+            )
+        )
+        or 0
+    )
     return PlatformDashboardOut(
         total_hotels=counts["total"],
         active_hotels=counts["active"],
@@ -147,6 +162,7 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
         expired_hotels=counts["expired"],
         total_users=users,
         expiring_soon=expiring,
+        recently_expired=recently_expired,
         today_checkins=today_checkins,
         total_revenue=total_revenue,
     )

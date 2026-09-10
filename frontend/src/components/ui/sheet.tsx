@@ -28,7 +28,10 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
     <SheetPrimitive.Backdrop
       data-slot="sheet-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/10 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs",
+        // Removed backdrop-blur-xs — it caused heavy blurring of background content
+        // on mobile (especially noticeable in the super-admin sidebar drawer).
+        // Replaced with a clean semi-transparent dark overlay + smooth opacity transition.
+        "fixed inset-0 z-50 bg-black/45 transition-opacity duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0",
         className
       )}
       {...props}

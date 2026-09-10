@@ -246,6 +246,7 @@ export interface PlatformDashboardOut {
   expired_hotels: number;
   total_users: number;
   expiring_soon: number;
+  recently_expired: number;
   today_checkins: number;
   total_revenue: string;
 }

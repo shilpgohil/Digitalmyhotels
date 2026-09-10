@@ -5,12 +5,11 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { fmtApiDate } from "@/lib/formatting";
 import type { HotelAdminListOut } from "@/types/money";
 import { RenewDialog } from "@/components/admin/renew-dialog";
-import { EditHotelDialog } from "@/components/admin/edit-hotel-dialog";
 import { AdminListError, AdminListLoading } from "@/components/admin/admin-list-state";
 
 const PAGE_SIZE = 10;
@@ -111,7 +110,13 @@ function ExpiredContent() {
                       >
                         {t("view")}
                       </Link>
-                      <EditHotelDialog hotelId={h.id} hotelName={h.name} />
+                      <Link
+                        href={`/admin/hotels/${h.id}/edit`}
+                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-input px-2.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors"
+                      >
+                        <Pencil className="size-3" aria-hidden />
+                        {tc("edit")}
+                      </Link>
                       <RenewDialog hotel={h} />
                     </div>
                   </td>

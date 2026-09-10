@@ -14,7 +14,7 @@
  *  8. Emergency & Vehicle  (feature toggles)
  */
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -255,6 +255,34 @@ export default function AddHotelPage() {
 
   const [error, setError] = useState<string | null>(null);
 
+  // Restore draft from localStorage on first mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("dmh.addHotelDraft");
+      if (!raw) return;
+      const d = JSON.parse(raw) as Record<string, string>;
+      if (d.hotelName) setHotelName(d.hotelName);
+      if (d.city) setCity(d.city);
+      if (d.state) setState(d.state);
+      if (d.phone) setPhone(d.phone);
+      if (d.address) setAddress(d.address);
+      if (d.gstin) setGstin(d.gstin);
+      if (d.email) setEmail(d.email);
+      if (d.mapId) setMapId(d.mapId);
+      if (d.gstType) setGstType(d.gstType as GstType);
+      if (d.totalRooms) setTotalRooms(d.totalRooms);
+      if (d.ownerName) setOwnerName(d.ownerName);
+      if (d.ownerEmail) setOwnerEmail(d.ownerEmail);
+      if (d.ownerPhone) setOwnerPhone(d.ownerPhone);
+      if (d.merchantName) setMerchantName(d.merchantName);
+      if (d.upiId) setUpiId(d.upiId);
+      if (d.paymentUrl) setPaymentUrl(d.paymentUrl);
+    } catch {
+      // ignore malformed draft
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const mutation = useMutation({
     mutationFn: async () => {
       const failedSteps: string[] = [];
@@ -412,6 +440,8 @@ export default function AddHotelPage() {
       if (failedSteps.length > 0) {
         toast.warning(`${t("optionalStepsFailed")}: ${failedSteps.join(", ")}`);
       }
+      // Clear draft after successful creation
+      try { localStorage.removeItem("dmh.addHotelDraft"); } catch { /* ignore */ }
       queryClient.invalidateQueries({ queryKey: ["admin-hotels-list"] });
       queryClient.invalidateQueries({ queryKey: ["admin-hotels"] });
       queryClient.invalidateQueries({ queryKey: ["platform-dashboard"] });
@@ -819,44 +849,67 @@ export default function AddHotelPage() {
         </div>
       </Section>
 
-      {/* 5. Payment Setup (optional) */}
-      <Section icon={CreditCard} title={t("paymentSetup")} defaultOpen={false}>
+      {/* 5. UPI Payment Setup (optional) */}
+      <Section icon={CreditCard} title={t("upiSetup")} defaultOpen={false}>
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">
             Optional — the owner can configure payment details later in hotel settings.
           </p>
+          {/* Merchant Information card — matches Figma layout */}
           <div className="rounded-lg border border-border p-4">
-            <p className="mb-3 text-xs font-semibold text-foreground uppercase tracking-wide">
+            <p className="mb-4 text-xs font-semibold text-foreground uppercase tracking-wide">
               {t("merchantInformation")}
             </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="ah-merchant-name">{t("merchantName")}</Label>
-                <Input
-                  id="ah-merchant-name"
-                  value={merchantName}
-                  onChange={(e) => setMerchantName(e.target.value)}
-                  placeholder="e.g. Grand Horizon Hotel"
-                />
+            <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+              {/* Left: input fields */}
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="ah-merchant-name">{t("merchantName")}</Label>
+                  <Input
+                    id="ah-merchant-name"
+                    value={merchantName}
+                    onChange={(e) => setMerchantName(e.target.value)}
+                    placeholder="e.g. Grand Horizon Hotel"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ah-upi">{t("gpayUpi")}</Label>
+                  <Input
+                    id="ah-upi"
+                    value={upiId}
+                    onChange={(e) => setUpiId(e.target.value)}
+                    placeholder="e.g. merchant@okhdfc"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ah-payment-url">{t("paymentUrl")}</Label>
+                  <Input
+                    id="ah-payment-url"
+                    value={paymentUrl}
+                    onChange={(e) => setPaymentUrl(e.target.value)}
+                    placeholder="https://pay.example.com/hotel"
+                    type="url"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {t("qrAfterCreation")}
+                </p>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="ah-upi">{t("gpayUpi")}</Label>
-                <Input
-                  id="ah-upi"
-                  value={upiId}
-                  onChange={(e) => setUpiId(e.target.value)}
-                  placeholder="e.g. merchant@okhdfc"
-                />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="ah-payment-url">{t("paymentUrl")}</Label>
-                <Input
-                  id="ah-payment-url"
-                  value={paymentUrl}
-                  onChange={(e) => setPaymentUrl(e.target.value)}
-                  placeholder="https://pay.example.com/hotel"
-                  type="url"
-                />
+              {/* Right: QR placeholder (generated after hotel creation) */}
+              <div className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-muted/20 p-4 text-center min-w-[100px]">
+                {/* Static QR-like pattern — stable, no Math.random */}
+                <div className="grid grid-cols-5 gap-0.5 opacity-20 p-1">
+                  {[1,1,1,1,1, 1,0,0,0,1, 1,0,1,0,1, 1,0,0,0,1, 1,1,1,1,1].map((fill, i) => (
+                    <div
+                      key={i}
+                      className="size-2.5 rounded-[1px]"
+                      style={{ background: fill ? "var(--foreground)" : "transparent" }}
+                    />
+                  ))}
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-tight">
+                  {t("qrPreviewHint")}
+                </p>
               </div>
             </div>
           </div>
@@ -1006,15 +1059,27 @@ export default function AddHotelPage() {
         </div>
       )}
 
-      {/* Sticky bottom action bar */}
+      {/* Sticky bottom action bar — matches Figma: Save Draft + Add Hotel */}
       <div className="fixed bottom-0 inset-x-0 z-10 flex items-center justify-end gap-3 border-t border-border bg-white px-8 py-3 shadow-md">
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.push("/admin/hotels")}
+          onClick={() => {
+            // Save draft to localStorage for resume later
+            try {
+              localStorage.setItem("dmh.addHotelDraft", JSON.stringify({
+                hotelName, city, state, phone, address, gstin, email, mapId,
+                gstType, totalRooms, ownerName, ownerEmail, ownerPhone,
+                merchantName, upiId, paymentUrl,
+              }));
+              toast.success(t("draftSaved"));
+            } catch {
+              router.push("/admin/hotels");
+            }
+          }}
           disabled={mutation.isPending}
         >
-          {tc("cancel")}
+          {t("saveDraft")}
         </Button>
         <Button
           type="button"

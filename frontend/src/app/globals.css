@@ -252,10 +252,41 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  /* Skeleton shimmer (used by Skeleton component) */
+  /* ── DMH Skeleton shimmer ───────────────────────────────────── */
+  /* Replaces animate-pulse (opacity only) with a proper sweep gradient.
+     The gradient moves from dark edge → light centre → dark edge, giving
+     the classic LinkedIn/Facebook "loading shine" effect. */
+  .dmh-skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--muted)      0%,
+      var(--muted)      30%,
+      color-mix(in srgb, var(--muted) 55%, white) 50%,
+      var(--muted)      70%,
+      var(--muted)      100%
+    );
+    background-size: 300% 100%;
+    animation: skeleton-sweep 1.5s ease-in-out infinite;
+  }
+
+  @keyframes skeleton-sweep {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
+
+  /* Legacy alias — keep for components that reference the old class */
   @keyframes shimmer {
     from { background-position: -200% 0; }
     to   { background-position:  200% 0; }
+  }
+
+  /* ── Page transition (subtle fade + lift) ───────────────────── */
+  /* Applied to the page content wrapper on every route change.
+     Opacity 0→1 + translateY -4px→0 over 150ms — barely perceptible
+     but makes navigation feel smooth rather than hard-cut. */
+  @keyframes page-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0);   }
   }
 
   /* ── DMH Brand Loading Animations ───────────────────────────── */
