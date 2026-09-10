@@ -15,9 +15,11 @@ import { useTranslations } from "next-intl";
 import { KeyRound, ShieldCheck, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
 
-export const ALL_CUSTOMERS_FLAG = "admin.allCustomersEnabled";
+// Internal flag — NOT exported (page files in App Router must only export `default`
+// and reserved Next.js names; named utility exports cause build errors).
+const ALL_CUSTOMERS_FLAG = "admin.allCustomersEnabled";
 
-export function readAllCustomersFlag(): boolean {
+function readAllCustomersFlag(): boolean {
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem(ALL_CUSTOMERS_FLAG) === "1";
 }

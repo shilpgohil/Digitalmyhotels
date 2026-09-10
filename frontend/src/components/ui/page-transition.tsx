@@ -21,14 +21,18 @@ import { usePathname } from "next/navigation";
 export function PageTransition({
   children,
   className,
+  id,
 }: Readonly<{
   children: React.ReactNode;
   className?: string;
+  /** Optional id — used by the skip-to-content link in the partner layout. */
+  id?: string;
 }>) {
   const pathname = usePathname();
 
   return (
     <div
+      id={id}
       key={pathname}
       className={className}
       style={{ animation: "page-in 0.15s ease backwards" }}

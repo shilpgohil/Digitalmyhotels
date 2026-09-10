@@ -338,7 +338,7 @@ export function DateTimePicker({
         <span
           className={cn(
             "flex-1 tabular-nums select-none",
-            !fieldText && "text-muted-foreground text-[13px]",
+            !fieldText && "text-muted-foreground text-caption",
           )}
         >
           {fieldText || "DD/MM/YYYY, HH:MM"}

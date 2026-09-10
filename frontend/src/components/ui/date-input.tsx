@@ -72,7 +72,7 @@ export function DateInput({
       <span
         className={cn(
           "flex-1 tabular-nums select-none pointer-events-none",
-          !displayValue && "text-muted-foreground text-[13px]",
+          !displayValue && "text-muted-foreground text-caption",
         )}
       >
         {displayValue || placeholder}

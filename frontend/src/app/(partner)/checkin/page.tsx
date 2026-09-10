@@ -347,7 +347,7 @@ function maskIdValue(v: string): string {
  */
 function MaskedIdInput({
   label,
-  labelClassName = "text-[11px] font-semibold uppercase tracking-wide text-muted-foreground",
+  labelClassName = "text-label font-semibold uppercase tracking-wide text-muted-foreground",
   value,
   onChange,
   placeholder,
@@ -369,7 +369,7 @@ function MaskedIdInput({
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <Label className={labelClassName}>{label}</Label>
-        <label className="flex cursor-pointer select-none items-center gap-1 text-[11px] text-muted-foreground">
+        <label className="flex cursor-pointer select-none items-center gap-1 text-label text-muted-foreground">
           <input
             type="checkbox"
             className="size-3 rounded border-input"
@@ -571,7 +571,7 @@ function RoomReplaceControl({
             <Plus className="size-3.5" />
             {t("addRoomTitle")}
           </p>
-          <p className="text-[11px] text-muted-foreground -mt-1">
+          <p className="text-label text-muted-foreground -mt-1">
             Select one or more rooms to add to this booking.
           </p>
           <RoomAvailabilityPicker
@@ -795,7 +795,7 @@ function SelectedServicesList({
   if (chosen.length === 0) return null;
   return (
     <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
-      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className="mb-1.5 text-label font-semibold uppercase tracking-wide text-muted-foreground">
         {t("selectedRequirements")}
       </p>
       <ul className="space-y-1">
@@ -890,7 +890,7 @@ function ForeignGuestSection({
   const set = (k: keyof ForeignGuestFormState, v: string) =>
     onChange({ ...value, [k]: v });
 
-  const lbl = "text-[11px] font-semibold uppercase tracking-wide text-muted-foreground";
+  const lbl = "text-label font-semibold uppercase tracking-wide text-muted-foreground";
 
   return (
     <div className="space-y-3">
@@ -1165,7 +1165,7 @@ function UpiQrBlock({
       {/* UPI ID — restricted to owner/admin (canViewUpiId) */}
       {canViewUpiId && upiConfigQuery.data?.upi_id && (
         <div className="flex items-center gap-2 rounded-lg border border-dashed border-gold-400 bg-gold-50 px-3 py-2">
-          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gold-700">
+          <span className="shrink-0 text-micro font-semibold uppercase tracking-wide text-gold-700">
             {tp("upiId")}
           </span>
           <span className="select-all font-mono text-sm font-semibold text-navy-900">
@@ -1223,7 +1223,7 @@ function Section({
             )}
           </div>
           {badge && (
-            <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-[10px] font-semibold text-gold-700">
+            <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-micro font-semibold text-gold-700">
               {badge}
             </span>
           )}
@@ -1421,7 +1421,7 @@ function DocUpload({
             />
             {/* Status overlay */}
             <div className={cn(
-              "absolute bottom-0 left-0 right-0 px-2 py-1 text-[10px] font-semibold text-center",
+              "absolute bottom-0 left-0 right-0 px-2 py-1 text-micro font-semibold text-center",
               uploaded ? "bg-green-600/80 text-white" : "bg-gold-500/80 text-navy-900",
             )}>
               {overlayStatusText}
@@ -1434,7 +1434,7 @@ function DocUpload({
               {tileLabelText}
             </span>
             {ocrRunning && (
-              <span className="text-[10px] text-gold-600">{t("extractingDetails")}</span>
+              <span className="text-micro text-gold-600">{t("extractingDetails")}</span>
             )}
           </>
         )}
@@ -1453,7 +1453,7 @@ function DocUpload({
           type="button"
           onClick={() => setCameraOpen(true)}
           disabled={!guestId || busy}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-[11px] font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors disabled:opacity-40"
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-label font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors disabled:opacity-40"
         >
           <Camera className="size-3.5" aria-hidden />
           {t("useCamera")}
@@ -1528,7 +1528,7 @@ function AutofillBanner({
           <span className="text-sm font-semibold text-green-800">
             {t("idDetected")}
           </span>
-          <span className="rounded-full bg-green-200 px-2 py-0.5 text-[10px] font-bold text-green-700">
+          <span className="rounded-full bg-green-200 px-2 py-0.5 text-micro font-bold text-green-700">
             {t("confidencePct", { pct })}
           </span>
         </div>
@@ -1694,7 +1694,7 @@ function QueuedDocUpload({
               alt={side === "selfie" ? t("selfieAlt") : t("idDocumentAlt")}
               className={side === "selfie" ? "h-full w-full object-cover" : "h-full w-full bg-navy-900/5 object-contain"}
             />
-            <div className="absolute bottom-0 left-0 right-0 bg-gold-500/80 px-2 py-1 text-[10px] font-semibold text-navy-900 text-center">
+            <div className="absolute bottom-0 left-0 right-0 bg-gold-500/80 px-2 py-1 text-micro font-semibold text-navy-900 text-center">
               {ocrRunning
                 ? t("readingId")
                 : queued
@@ -1723,7 +1723,7 @@ function QueuedDocUpload({
         <button
           type="button"
           onClick={() => setCameraOpen(true)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-[11px] font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-label font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
         >
           <Camera className="size-3.5" aria-hidden />
           {t("useCamera")}
@@ -3125,7 +3125,7 @@ function CheckinForm({
               {fmtApiDateTime(booking.check_out_date, booking.check_out_time)}
             </span>
             {booking.guest_type && (
-              <span className="rounded-full bg-gold-100 px-2 py-0.5 text-[11px] font-semibold text-gold-700 capitalize">
+              <span className="rounded-full bg-gold-100 px-2 py-0.5 text-label font-semibold text-gold-700 capitalize">
                 {booking.guest_type}
               </span>
             )}
@@ -3133,7 +3133,7 @@ function CheckinForm({
 
           <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("checkinDateTime")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("checkinDateTime")}</Label>
               <DateTimePicker
                 dateValue={checkInDate}
                 timeValue={checkInTime}
@@ -3142,7 +3142,7 @@ function CheckinForm({
               />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("checkoutDateTime")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("checkoutDateTime")}</Label>
               <DateTimePicker
                 dateValue={checkOutDate}
                 timeValue={checkOutTime}
@@ -3152,7 +3152,7 @@ function CheckinForm({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("guestTypeLabel")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("guestTypeLabel")}</Label>
               <select
                 value={pgPurpose}
                 onChange={(e) => setPgPurpose(e.target.value)}
@@ -3168,7 +3168,7 @@ function CheckinForm({
             </div>
             {pgPurpose === "Business" && (
               <div className="space-y-1.5 sm:col-span-2">
-                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("company")}</Label>
+                <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("company")}</Label>
                 <Input value={pgCompany} onChange={(e) => setPgCompany(e.target.value)} placeholder={t("companyPlaceholder")} />
               </div>
             )}
@@ -3176,7 +3176,7 @@ function CheckinForm({
 
           {/* Allocated room(s) with availability-aware replacement */}
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
               {t("allocatedRooms")}
             </Label>
             <RoomReplaceControl booking={booking} onReplaced={() => void refreshBooking()} />
@@ -3200,7 +3200,7 @@ function CheckinForm({
           {/* ID type + number */}
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("idType")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("idType")}</Label>
               <select
                 value={pgIdType}
                 onChange={(e) => setPgIdType(e.target.value)}
@@ -3296,15 +3296,15 @@ function CheckinForm({
           {/* Guest personal details */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tg("fullName")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{tg("fullName")}</Label>
               <Input value={pgName} onChange={(e) => setPgName(e.target.value)} placeholder={tg("fullName")} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
               <Input value={pgPhone} onChange={(e) => setPgPhone(e.target.value)} placeholder={t("phonePlaceholder")} inputMode="tel" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldGender")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldGender")}</Label>
               <select
                 value={pgGender}
                 onChange={(e) => setPgGender(e.target.value)}
@@ -3317,15 +3317,15 @@ function CheckinForm({
               </select>
           </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldDob")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldDob")}</Label>
               <DatePicker value={pgDob} onChange={setPgDob} max={localToday()} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>
               <Input value={pgAddress} onChange={(e) => setPgAddress(e.target.value)} placeholder={t("fieldAddress")} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldPincode")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldPincode")}</Label>
               <Input
                 value={pgPostalCode}
                 onChange={(e) => setPgPostalCode(e.target.value)}
@@ -3335,15 +3335,15 @@ function CheckinForm({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldCity")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldCity")}</Label>
               <Input value={pgCity} onChange={(e) => setPgCity(e.target.value)} placeholder={t("fieldCity")} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldState")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldState")}</Label>
               <Input value={pgState} onChange={(e) => setPgState(e.target.value)} placeholder={t("fieldState")} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldCountry")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldCountry")}</Label>
               <Input value={pgCountry} onChange={(e) => setPgCountry(e.target.value)} placeholder={t("fieldCountry")} />
             </div>
           </div>
@@ -3392,19 +3392,19 @@ function CheckinForm({
           {currentRooms.map((room) => (
             <div key={room.room_id} className="grid gap-3 sm:grid-cols-4 items-end">
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tr("roomNumber")}</Label>
+                <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{tr("roomNumber")}</Label>
                 <div className="h-9 rounded-lg border bg-muted/40 px-2.5 flex items-center text-sm font-medium">
                   {room.room_number}
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tr("roomType")}</Label>
+                <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{tr("roomType")}</Label>
                 <div className="h-9 rounded-lg border bg-muted/40 px-2.5 flex items-center text-sm text-muted-foreground">
                   {room.room_type_name}
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("adults")}</Label>
+                <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{tb("adults")}</Label>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -3428,7 +3428,7 @@ function CheckinForm({
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("children")}</Label>
+                <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{tb("children")}</Label>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -3477,7 +3477,7 @@ function CheckinForm({
             amounts={serviceAmounts}
           />
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
               {t("specialInstructions")}
             </Label>
             <textarea
@@ -3497,21 +3497,21 @@ function CheckinForm({
           {/* Top row: informational amounts */}
           <div className="grid gap-4 sm:grid-cols-4">
             <div className="space-y-1">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("bookingAmount")}
               </Label>
               <p className="mt-1 tabular-nums font-medium">{fmtINR(booking.total_amount)}</p>
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("gst")}
               </Label>
               <p className="mt-1 tabular-nums">{fmtINR(booking.tax_amount)}</p>
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("alreadyPaid")}
-                <span className="ml-1 text-[9px] font-normal text-muted-foreground/70">{t("fromBooking")}</span>
+                <span className="ml-1 text-micro font-normal text-muted-foreground/70">{t("fromBooking")}</span>
               </Label>
               {/* Read-only — this is advance paid when booking was created */}
               <p
@@ -3524,7 +3524,7 @@ function CheckinForm({
               </p>
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
                 {tb("securityDeposit")}
               </Label>
               <p className="mt-1 tabular-nums">{fmtINR(booking.security_deposit)}</p>
@@ -3536,11 +3536,11 @@ function CheckinForm({
             {/* Payment summary breakdown */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 rounded-lg border bg-background px-3 py-3">
               <div className="space-y-1 text-center">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Room Rent</p>
+                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Room Rent</p>
                 <p className="text-sm font-bold tabular-nums">{fmtINR(bookingTotal)}</p>
               </div>
               <div className="space-y-1 text-center">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Extra Charges</p>
+                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Extra Charges</p>
                 {/* Auto-filled: service chips + early fee + the manual entry below. */}
                 <p className="text-sm font-bold tabular-nums">{fmtINR(displayExtra)}</p>
                 <Input
@@ -3554,18 +3554,18 @@ function CheckinForm({
                 />
               </div>
               <div className="space-y-1 text-center">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Advance Paid</p>
+                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Advance Paid</p>
                 <p className="text-sm font-bold tabular-nums">{fmtINR(advPaid)}</p>
               </div>
               <div className="space-y-1 text-center">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">GST ({hotelGstRate}%)</p>
+                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">GST ({hotelGstRate}%)</p>
                 <p className="text-sm font-bold tabular-nums">{fmtINR(gstAmount)}</p>
               </div>
               <div className="space-y-1 text-center">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
+                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
                 <p className={cn("text-sm font-bold tabular-nums", balance > 0 ? "text-gold-600" : "text-green-600")}>{fmtINR(balance)}</p>
                 {overpaid > 0 && (
-                  <p className="text-[10px] font-medium text-amber-600">
+                  <p className="text-micro font-medium text-amber-600">
                     {t("overpaidHint", { amount: fmtINR(overpaid) })}
                   </p>
                 )}
@@ -3573,7 +3573,7 @@ function CheckinForm({
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
                   {t("collectAtCheckin")}
                 </Label>
                 <Input
@@ -3585,10 +3585,10 @@ function CheckinForm({
                   className="tabular-nums"
                   placeholder="0"
                 />
-                <p className="text-[10px] text-muted-foreground">{t("enterZeroHint")}</p>
+                <p className="text-micro text-muted-foreground">{t("enterZeroHint")}</p>
             </div>
             <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
                   {t("paymentMode")}
                 </Label>
                 <select
@@ -3606,7 +3606,7 @@ function CheckinForm({
                 </select>
                 {/* Card/bank: friendly record note */}
                 {paymentMode !== "cash" && paymentMode !== "upi" && newAdvance > 0 && (
-                  <p className="mt-1 text-[11px] text-blue-600 flex items-center gap-1">
+                  <p className="mt-1 text-label text-blue-600 flex items-center gap-1">
                     <span>ℹ</span>
                     {paymentMode === "credit_card" || paymentMode === "debit_card"
                       ? t("manualRecordCard")
@@ -3625,7 +3625,7 @@ function CheckinForm({
                 )}
           </div>
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
                   {t("balanceAfterCheckin")}
                 </Label>
                 <p
@@ -3637,10 +3637,10 @@ function CheckinForm({
                   {fmtINR(balance)}
                 </p>
                 {balance > 0 && (
-                  <p className="text-[10px] text-muted-foreground">{t("dueAtCheckout")}</p>
+                  <p className="text-micro text-muted-foreground">{t("dueAtCheckout")}</p>
                 )}
                 {balance === 0 && newAdvance > 0 && (
-                  <p className="text-[10px] text-green-600">{t("fullyPaid")}</p>
+                  <p className="text-micro text-green-600">{t("fullyPaid")}</p>
                 )}
               </div>
             </div>
@@ -3671,15 +3671,15 @@ function CheckinForm({
       <Section icon={AlertTriangle} title={t("emergencyContact")} subtitle={t("optional")} defaultOpen={false}>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactName")}</Label>
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactName")}</Label>
             <Input value={emName} onChange={(e) => setEmName(e.target.value)} placeholder={t("contactNamePlaceholder")} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactRelation")}</Label>
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactRelation")}</Label>
             <Input value={emRelation} onChange={(e) => setEmRelation(e.target.value)} placeholder={t("relationPlaceholder")} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
             <Input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} placeholder={t("phonePlaceholder")} inputMode="tel" />
           </div>
         </div>
@@ -3691,11 +3691,11 @@ function CheckinForm({
       <Section icon={Car} title={t("vehicleDetails")} subtitle={t("optional")} defaultOpen={false}>
         <div className="grid gap-3 sm:grid-cols-4">
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("vehicleNumber")}</Label>
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{ts("vehicleNumber")}</Label>
             <Input value={vehNumber} onChange={(e) => setVehNumber(e.target.value)} placeholder="MH 12 AB 1234" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("vehicleType")}</Label>
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{ts("vehicleType")}</Label>
             <select
               value={vehType}
               onChange={(e) => setVehType(e.target.value)}
@@ -3711,7 +3711,7 @@ function CheckinForm({
           </div>
           {vehType === "Other" && (
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("vehicleTypeName")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("vehicleTypeName")}</Label>
               <Input
                 value={vehTypeOther}
                 onChange={(e) => setVehTypeOther(e.target.value)}
@@ -3721,11 +3721,11 @@ function CheckinForm({
             </div>
           )}
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("makeName")}</Label>
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("makeName")}</Label>
             <Input value={vehMake} onChange={(e) => setVehMake(e.target.value)} placeholder={t("makePlaceholder")} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("parkingSlot")}</Label>
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{ts("parkingSlot")}</Label>
             <Input value={parkingSlot} onChange={(e) => setParkingSlot(e.target.value)} placeholder="A-12" />
           </div>
         </div>
@@ -4654,7 +4654,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5 lg:col-span-2">
-            <Label htmlFor="wi-cin" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Label htmlFor="wi-cin" className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
               {t("checkinDateTime")} *
             </Label>
             <DateTimePicker
@@ -4668,7 +4668,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             />
           </div>
           <div className="space-y-1.5 lg:col-span-2">
-            <Label htmlFor="wi-cout" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Label htmlFor="wi-cout" className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
               {t("checkoutDateTime")} *
             </Label>
             <DateTimePicker
@@ -4690,7 +4690,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             </div>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="wi-guest-type" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Label htmlFor="wi-guest-type" className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
               {t("guestTypeLabel")}
             </Label>
             <select
@@ -4709,7 +4709,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           </div>
           {guestType === "business" && (
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("company")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("company")}</Label>
               <Input value={pgCompany} onChange={(e) => setPgCompany(e.target.value)} placeholder={t("companyPlaceholder")} />
             </div>
           )}
@@ -4770,7 +4770,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               {/* ID type + number */}
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("idType")}</Label>
+                  <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("idType")}</Label>
                   <select
                     value={pgIdType}
                     onChange={(e) => setPgIdType(e.target.value)}
@@ -4863,15 +4863,15 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               {/* Guest personal details */}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tg("fullName")}</Label>
+                  <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{tg("fullName")}</Label>
                   <Input value={pgName} onChange={(e) => setPgName(e.target.value)} placeholder={tg("fullName")} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
+                  <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
                   <Input value={pgPhone} onChange={(e) => setPgPhone(e.target.value)} placeholder={t("phonePlaceholder")} inputMode="tel" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldGender")}</Label>
+                  <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldGender")}</Label>
                   <select
                     value={pgGender}
                     onChange={(e) => setPgGender(e.target.value)}
@@ -4884,15 +4884,15 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldDob")}</Label>
+                  <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldDob")}</Label>
                   <DatePicker value={pgDob} onChange={setPgDob} max={localToday()} />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>
+                  <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>
                   <Input value={pgAddress} onChange={(e) => setPgAddress(e.target.value)} placeholder={t("fieldAddress")} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldPincode")}</Label>
+                  <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldPincode")}</Label>
                   <Input
                     value={pgPostalCode}
                     onChange={(e) => setPgPostalCode(e.target.value)}
@@ -4902,15 +4902,15 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldCity")}</Label>
+                  <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldCity")}</Label>
                   <Input value={pgCity} onChange={(e) => setPgCity(e.target.value)} placeholder={t("fieldCity")} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldState")}</Label>
+                  <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldState")}</Label>
                   <Input value={pgState} onChange={(e) => setPgState(e.target.value)} placeholder={t("fieldState")} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldCountry")}</Label>
+                  <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldCountry")}</Label>
                   <Input value={pgCountry} onChange={(e) => setPgCountry(e.target.value)} placeholder={t("fieldCountry")} />
                 </div>
               </div>
@@ -4961,7 +4961,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         <div className="space-y-4">
           <div className="flex flex-wrap gap-6">
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("adults")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{tb("adults")}</Label>
               <CountControl
                 value={adultsCount}
                 onDelta={(d) => setAdultsCount((v) => Math.max(1, Math.min(40, v + d)))}
@@ -4972,7 +4972,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tb("children")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{tb("children")}</Label>
               <CountControl
                 value={childCount}
                 onDelta={(d) => setChildCount((v) => Math.max(0, Math.min(40, v + d)))}
@@ -4985,7 +4985,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
               {tb("selectRooms")} *
             </Label>
             <RoomAvailabilityPicker
@@ -5005,7 +5005,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               the computed default (base price per night, or day-use total). */}
           {selectedAvailRooms.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("roomRatesTitle")}
               </Label>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -5018,7 +5018,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                       <span className="block text-sm font-semibold">
                         {r.room_number}
                       </span>
-                      <span className="block text-[10px] text-muted-foreground">
+                      <span className="block text-micro text-muted-foreground">
                         {isSameDay ? t("rateDayUseTotal") : t("ratePerNight")}
                       </span>
                     </div>
@@ -5036,7 +5036,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   </div>
                 ))}
               </div>
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-micro text-muted-foreground">
                 {t("rateOverrideHint")}
               </p>
             </div>
@@ -5066,7 +5066,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             amounts={serviceAmounts}
           />
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
               {t("specialInstructions")}
             </Label>
             <textarea
@@ -5086,13 +5086,13 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           {/* Payment summary breakdown */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 rounded-lg border bg-background px-3 py-3">
             <div className="space-y-1 text-center">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Room Rent</p>
+              <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Room Rent</p>
               <p className={cn("text-sm font-bold tabular-nums", roomRentWalkIn === 0 ? "text-muted-foreground" : "")}>
                 {roomRentWalkIn === 0 ? "—" : fmtINR(roomRentWalkIn)}
               </p>
             </div>
             <div className="space-y-1 text-center">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Extra Charges</p>
+              <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Extra Charges</p>
               {/* Auto-filled: selected service chips + the manual entry below. */}
               <p className="text-sm font-bold tabular-nums">{fmtINR(displayExtraWI)}</p>
               <Input
@@ -5107,24 +5107,24 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                 placeholder="0"
               />
               {chipsTotalWI > 0 && (
-                <p className="text-[9px] text-muted-foreground">
+                <p className="text-micro text-muted-foreground">
                   {t("extraIncludesServices", { amount: fmtINR(chipsTotalWI) })}
                 </p>
               )}
             </div>
             <div className="space-y-1 text-center">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Advance Paid</p>
+              <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Advance Paid</p>
               <p className="text-sm font-bold tabular-nums">{fmtINR(collectedAdvanceWI)}</p>
             </div>
             <div className="space-y-1 text-center">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">GST ({hotelGstRate}%)</p>
+              <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">GST ({hotelGstRate}%)</p>
               <p className="text-sm font-bold tabular-nums">{fmtINR(gstAmountWI)}</p>
             </div>
             <div className="space-y-1 text-center">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
+              <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
               <p className={cn("text-sm font-bold tabular-nums", remainingWI > 0 ? "text-gold-600" : "text-green-600")}>{fmtINR(remainingWI)}</p>
               {overpaidWI > 0 && (
-                <p className="text-[10px] font-medium text-amber-600">
+                <p className="text-micro font-medium text-amber-600">
                   {t("overpaidHint", { amount: fmtINR(overpaidWI) })}
                 </p>
               )}
@@ -5132,7 +5132,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("collectAtCheckin")}
               </Label>
               <Input
@@ -5144,10 +5144,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                 className="tabular-nums"
                 placeholder="0"
               />
-              <p className="text-[10px] text-muted-foreground">{t("enterZeroHint")}</p>
+              <p className="text-micro text-muted-foreground">{t("enterZeroHint")}</p>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("paymentMode")}
               </Label>
               <select
@@ -5199,15 +5199,15 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       <Section icon={AlertTriangle} title={t("emergencyContact")} subtitle={t("optional")} defaultOpen={false}>
         <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactName")}</Label>
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactName")}</Label>
             <Input value={emName} onChange={(e) => setEmName(e.target.value)} placeholder={t("contactNamePlaceholder")} />
             </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactRelation")}</Label>
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactRelation")}</Label>
             <Input value={emRelation} onChange={(e) => setEmRelation(e.target.value)} placeholder={t("relationPlaceholder")} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
             <Input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} placeholder={t("phonePlaceholder")} inputMode="tel" />
           </div>
         </div>
@@ -5219,11 +5219,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       <Section icon={Car} title={t("vehicleDetails")} subtitle={t("optional")} defaultOpen={false}>
         <div className="grid gap-3 sm:grid-cols-4">
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("vehicleNumber")}</Label>
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{ts("vehicleNumber")}</Label>
             <Input value={vehNumber} onChange={(e) => setVehNumber(e.target.value)} placeholder="MH 12 AB 1234" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("vehicleType")}</Label>
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{ts("vehicleType")}</Label>
             <select
               value={vehType}
               onChange={(e) => setVehType(e.target.value)}
@@ -5239,7 +5239,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           </div>
           {vehType === "Other" && (
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("vehicleTypeName")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("vehicleTypeName")}</Label>
               <Input
                 value={vehTypeOther}
                 onChange={(e) => setVehTypeOther(e.target.value)}
@@ -5249,11 +5249,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             </div>
           )}
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("makeName")}</Label>
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("makeName")}</Label>
             <Input value={vehMake} onChange={(e) => setVehMake(e.target.value)} placeholder={t("makePlaceholder")} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{ts("parkingSlot")}</Label>
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{ts("parkingSlot")}</Label>
             <Input value={parkingSlot} onChange={(e) => setParkingSlot(e.target.value)} placeholder="A-12" />
           </div>
         </div>
@@ -5392,7 +5392,7 @@ function ArrivalsStrip({
                 .map((r) => r.room_number)
                 .join(", ") || t("noRooms")}
             </span>
-            <span className="text-[10px] text-muted-foreground mt-0.5">
+            <span className="text-micro text-muted-foreground mt-0.5">
               {fmtApiDateTime(booking.check_in_date, booking.check_in_time || defaultInTime || "14:00")} →{" "}
               {fmtApiDateTime(booking.check_out_date, booking.check_out_time || defaultOutTime || "11:00")}
             </span>
