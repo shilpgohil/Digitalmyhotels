@@ -25,12 +25,13 @@ function AdminMobileNav() {
         <Menu className="size-5" aria-hidden />
       </button>
       <Sheet open={open} onOpenChange={setOpen}>
-        {/* w-60 = exact match for AdminSidebar's w-60 (240px) — avoids the
-            48px white ghost-gap caused by a wider SheetContent (w-72=288px)
-            exceeding the sidebar's own width constraint. */}
+        {/* !w-60 forces 240px width, overriding the default data-[side=left]:w-3/4
+            class which has higher CSS specificity. Without !, the sheet is 75%
+            of viewport (281px on 375px phone) while sidebar is 240px → 41px gap.
+            AdminSidebar now uses w-full and fills exactly this 240px container. */}
         <SheetContent
           side="left"
-          className="w-60 gap-0 p-0"
+          className="!w-60 gap-0 p-0 overflow-y-auto"
           aria-label="Admin menu"
         >
           <SheetTitle className="sr-only">Admin menu</SheetTitle>

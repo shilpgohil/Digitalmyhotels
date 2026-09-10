@@ -352,7 +352,7 @@ export function PartnerSidebar() {
 
   return (
     <aside
-      className="flex h-full w-64 flex-col bg-sidebar text-sidebar-foreground"
+      className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground"
       data-tour="sidebar"
     >
       {/* Brand */}

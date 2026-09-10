@@ -290,13 +290,15 @@
     scrollbar-width: thin;
   }
 
-  /* ── Page transition (subtle fade + lift) ───────────────────── */
-  /* Applied to the page content wrapper on every route change.
-     Opacity 0→1 + translateY -4px→0 over 150ms — barely perceptible
-     but makes navigation feel smooth rather than hard-cut. */
+  /* ── Page transition (opacity fade only) ────────────────────── */
+  /* IMPORTANT: Must NOT use transform here. transform: translateY(0)
+     on the PageTransition wrapper (via fill-mode:both) creates a new
+     CSS containing block, breaking position:fixed in child pages
+     (sticky footers appear mid-page instead of at viewport bottom).
+     Opacity-only is safe: opacity:1 does not create a containing block. */
   @keyframes page-in {
-    from { opacity: 0; transform: translateY(4px); }
-    to   { opacity: 1; transform: translateY(0);   }
+    from { opacity: 0; }
+    to   { opacity: 1; }
   }
 
   /* ── DMH Brand Loading Animations ───────────────────────────── */

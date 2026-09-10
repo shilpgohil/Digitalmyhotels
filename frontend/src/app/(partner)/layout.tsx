@@ -13,7 +13,8 @@ export default function PartnerLayout({ children }: { readonly children: React.R
             while the hotel is deactivated by the platform. */}
         <HotelSuspendedOverlay />
         <div className="flex h-screen overflow-hidden">
-          <div className="hidden lg:block">
+          {/* w-64 here so PartnerSidebar (now w-full) fills exactly 256px on desktop */}
+          <div className="hidden lg:block w-64 shrink-0">
             <PartnerSidebar />
           </div>
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">

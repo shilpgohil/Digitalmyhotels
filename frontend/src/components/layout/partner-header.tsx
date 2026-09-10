@@ -120,11 +120,11 @@ function MobileNavDrawer() {
         <Menu className="size-5" aria-hidden />
       </button>
       <Sheet open={open} onOpenChange={setOpen}>
-        {/* w-64 = exact match for PartnerSidebar's w-64 (256px) — prevents
-            any gap between the sidebar content edge and the sheet boundary. */}
+        {/* !w-64 forces 256px, overriding data-[side=left]:w-3/4 CSS specificity.
+            PartnerSidebar content (brand + nav) fills this container naturally. */}
         <SheetContent
           side="left"
-          className="w-64 gap-0 bg-sidebar p-0 text-sidebar-foreground overflow-y-auto"
+          className="!w-64 gap-0 bg-sidebar p-0 text-sidebar-foreground overflow-y-auto"
           aria-label={t("openMenu")}
         >
           <SheetTitle className="sr-only">{t("openMenu")}</SheetTitle>

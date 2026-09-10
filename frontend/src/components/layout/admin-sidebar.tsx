@@ -70,7 +70,7 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
   }, []);
 
   return (
-    <aside className="flex w-60 flex-col bg-white border-r border-border lg:h-full">
+    <aside className="flex h-full w-full flex-col bg-white border-r border-border">
       {/* DMH horizontal logo — replaces generic "HotelAdmin" brand mark */}
       <div className="flex items-center justify-start px-5 py-4 border-b border-border">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -172,7 +172,7 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
 
 export function AdminSidebar({ onNavigate }: { readonly onNavigate?: () => void }) {
   return (
-    <Suspense fallback={<aside className="h-full w-60 border-r border-border bg-white" />}>
+    <Suspense fallback={<aside className="h-full w-full border-r border-border bg-white" />}>
       <AdminSidebarInner onNavigate={onNavigate} />
     </Suspense>
   );
