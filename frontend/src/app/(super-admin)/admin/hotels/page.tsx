@@ -6,17 +6,14 @@ import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Search, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { fmtApiDate } from "@/lib/formatting";
 import type { HotelAdminListOut, HotelAdminOut } from "@/types/money";
 import { RenewDialog } from "@/components/admin/renew-dialog";
-import {
-  AdminListError,
-  AdminListLoading,
-  HotelStatusBadge,
-  hotelDisplayStatus,
-} from "@/components/admin/admin-list-state";
+import { HotelStatusBadge, hotelDisplayStatus } from "@/components/admin/admin-list-state";
+import { DataTable } from "@/components/ui/data-table";
+import { FilterBar } from "@/components/ui/filter-bar";
 
 const PAGE_SIZE = 10;
 
@@ -80,75 +77,43 @@ function HotelsContent() {
         <p className="mt-0.5 text-sm text-muted-foreground">{t("dashboardSubtitle")}</p>
       </div>
 
-      <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b gap-4">
-          <h2 className="font-semibold text-foreground shrink-0">
-            {isTotal ? t("totalHotelsList") : t("activeHotelsList")}
-          </h2>
-          <div className="relative max-w-xs w-full">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <input
-              type="search"
-              placeholder={t("searchHotel")}
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(0);
-              }}
-              className="h-9 w-full rounded-lg border border-input pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-gold-500/40"
-            />
-          </div>
-        </div>
+      <FilterBar
+        searchValue={search}
+        onSearchChange={(v) => { setSearch(v); setPage(0); }}
+        searchPlaceholder={t("searchHotel")}
+      />
 
-        {hotels.isLoading && <AdminListLoading />}
-        {hotels.isError && !hotels.isLoading && (
-          <AdminListError onRetry={() => hotels.refetch()} />
-        )}
-        {!hotels.isLoading && !hotels.isError && (
-          <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
-          <table className="w-full text-sm min-w-[600px]">
-            <thead className="bg-muted/30">
-              <tr>
-                {columns.map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-label font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {(hotels.data?.items ?? []).map((h) => (
-                <HotelRow
-                  key={h.id}
-                  hotel={h}
-                  showMeta={isTotal}
-                  pending={statusMutation.isPending}
-                  onStatus={(next) => statusMutation.mutate({ id: h.id, next })}
-                  deactivateLabel={t("deactivate")}
-                  activateLabel={t("activate")}
-                />
-              ))}
-              {(hotels.data?.items ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={columns.length} className="px-4 py-10 text-center text-sm text-muted-foreground">
-                    {t("noHotels")}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-          </div>
-        )}
-        {total > PAGE_SIZE && (
-          <AdminPager
-            page={page}
-            total={total}
-            totalPages={totalPages}
-            pageSize={PAGE_SIZE}
-            onPage={setPage}
+      <DataTable
+        darkHeader
+        isLoading={hotels.isLoading}
+        isError={hotels.isError}
+        onRetry={() => hotels.refetch()}
+        isEmpty={!hotels.isLoading && !hotels.isError && (hotels.data?.items ?? []).length === 0}
+        emptyTitle={t("noHotels")}
+        columns={columns}
+      >
+        {!hotels.isLoading && !hotels.isError && (hotels.data?.items ?? []).map((h) => (
+          <HotelRow
+            key={h.id}
+            hotel={h}
+            showMeta={isTotal}
+            pending={statusMutation.isPending}
+            onStatus={(next) => statusMutation.mutate({ id: h.id, next })}
+            deactivateLabel={t("deactivate")}
+            activateLabel={t("activate")}
           />
-        )}
-      </div>
+        ))}
+      </DataTable>
+
+      {total > PAGE_SIZE && (
+        <AdminPager
+          page={page}
+          total={total}
+          totalPages={totalPages}
+          pageSize={PAGE_SIZE}
+          onPage={setPage}
+        />
+      )}
     </main>
   );
 }

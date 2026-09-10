@@ -31,6 +31,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
+import { SectionPanel } from "@/components/ui/section-panel";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { fmtApiDate, fmtDateTime, fmtINR } from "@/lib/formatting";
 
@@ -48,24 +50,22 @@ import type {
 } from "@/types/money";
 import { RenewDialog } from "@/components/admin/renew-dialog";
 
-interface StatCard {
+// ── Stat card definitions — key, tone, icon, optional href, optional format ──
+import type { StatCardTone } from "@/components/ui/stat-card";
+interface AdminStatDef {
   key: string;
   icon: React.ElementType;
-  iconBg: string;
-  iconColor: string;
+  tone: StatCardTone;
   format?: "currency";
   href?: string;
 }
-
-const STAT_CARDS: StatCard[] = [
-  { key: "totalHotels",         icon: LayoutGrid,   iconBg: "bg-amber-50",   iconColor: "text-amber-500", href: "/admin/hotels?filter=all" },
-  { key: "activeHotels",        icon: CheckCircle,  iconBg: "bg-green-50",   iconColor: "text-green-500", href: "/admin/hotels" },
-  { key: "todayCheckins",       icon: Calendar,     iconBg: "bg-blue-50",    iconColor: "text-blue-500" },
-  { key: "totalRevenue",        icon: IndianRupee,  iconBg: "bg-amber-50",   iconColor: "text-amber-600", format: "currency" },
-  // recentlyExpiredCard = hotels expired in the LAST 30 DAYS → links to recently-expired page
-  { key: "recentlyExpiredCard", icon: XCircle,      iconBg: "bg-red-50",     iconColor: "text-red-500",   href: "/admin/expired" },
-  // expiredHotelsCard  = ALL-TIME total expired hotels → links to full expired list
-  { key: "expiredHotelsCard",   icon: AlertTriangle, iconBg: "bg-orange-50", iconColor: "text-orange-500", href: "/admin/expired?filter=all" },
+const ADMIN_STATS: AdminStatDef[] = [
+  { key: "totalHotels",         icon: LayoutGrid,    tone: "gold",    href: "/admin/hotels?filter=all" },
+  { key: "activeHotels",        icon: CheckCircle,   tone: "success", href: "/admin/hotels" },
+  { key: "todayCheckins",       icon: Calendar,      tone: "info" },
+  { key: "totalRevenue",        icon: IndianRupee,   tone: "gold",    format: "currency" },
+  { key: "recentlyExpiredCard", icon: XCircle,       tone: "danger",  href: "/admin/expired" },
+  { key: "expiredHotelsCard",   icon: AlertTriangle, tone: "warning", href: "/admin/expired?filter=all" },
 ];
 
 function fmtRevenue(v: number | string): string {
@@ -159,57 +159,29 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Stat cards */}
-      {dash.isLoading ? (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-xl" />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          {STAT_CARDS.map((card) => {
-            const Icon = card.icon;
-            const raw = statValues[card.key] ?? 0;
-            const display =
-              card.format === "currency" ? fmtRevenue(raw) : String(raw);
-            const inner = (
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
-                    {t(card.key as Parameters<typeof t>[0])}
-                  </p>
-                  <p className="mt-1.5 text-2xl font-bold text-foreground tabular-nums">
-                    {display}
-                  </p>
-                </div>
-                <div className={`flex size-10 items-center justify-center rounded-full ${card.iconBg}`}>
-                  <Icon className={`size-5 ${card.iconColor}`} aria-hidden />
-                </div>
-              </div>
-            );
-            const cardClass = "rounded-xl border bg-white p-5 shadow-sm";
-            return card.href ? (
-              <Link key={card.key} href={card.href} className={`${cardClass} transition-colors hover:border-gold-400`}>
-                {inner}
-              </Link>
-            ) : (
-              <div key={card.key} className={cardClass}>
-                {inner}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <StatCardGrid cols={3}>
+        {ADMIN_STATS.map((card) => {
+          const raw = statValues[card.key] ?? 0;
+          const display = card.format === "currency" ? fmtRevenue(raw) : String(raw);
+          const sharedProps = {
+            key: card.key,
+            label: t(card.key as Parameters<typeof t>[0]),
+            value: display,
+            icon: card.icon as React.ComponentType<{ className?: string }>,
+            tone: card.tone,
+            isLoading: dash.isLoading,
+          };
+          return card.href
+            ? <StatCard {...sharedProps} href={card.href} />
+            : <StatCard {...sharedProps} />;
+        })}
+      </StatCardGrid>
 
       {/* ── Platform Trend Charts ─────────────────────────────────────────── */}
       <div className="grid gap-4 md:grid-cols-2">
         {/* Hotel Status Donut */}
         {dash.data && (
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
-            <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
-              <LayoutGrid className="size-4 text-amber-500" aria-hidden />
-              {t("hotelStatusDistribution")}
-            </h2>
+          <SectionPanel title={t("hotelStatusDistribution")} icon={LayoutGrid}>
             {/* Stacks on mobile (chart above legend), side-by-side on sm+ */}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
               <div className="mx-auto sm:mx-0 shrink-0" style={{ width: 160, height: 160 }}>
@@ -257,16 +229,12 @@ export default function AdminDashboardPage() {
                 ))}
               </ul>
             </div>
-          </div>
+          </SectionPanel>
         )}
         {dash.isLoading && <Skeleton className="h-48 rounded-xl" />}
 
         {/* Monthly Hotel Growth + Check-ins Line Chart */}
-        <div className="rounded-xl border bg-white p-5 shadow-sm">
-          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
-            <TrendingUp className="size-4 text-amber-500" aria-hidden />
-            {t("monthlyGrowth")}
-          </h2>
+        <SectionPanel title={t("monthlyGrowth")} icon={TrendingUp}>
           {platformTrend.isLoading && <Skeleton className="h-40 w-full" />}
           {platformTrend.data && (
             <ResponsiveContainer width="100%" height={170}>
@@ -287,19 +255,22 @@ export default function AdminDashboardPage() {
               </BarChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </SectionPanel>
       </div>
 
       {/* Pending subscription renewal requests (partner paid → verify & approve) */}
-      <section className="rounded-xl border bg-white shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="font-semibold text-foreground">{t("renewalRequests")}</h2>
-          {(renewals.data?.total ?? 0) > 0 && (
-            <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+      <SectionPanel
+        title={t("renewalRequests")}
+        icon={RefreshCw}
+        action={
+          (renewals.data?.total ?? 0) > 0 ? (
+            <span className="inline-flex rounded-full bg-warning-bg px-2.5 py-0.5 text-xs font-semibold text-warning">
               {renewals.data?.total}
             </span>
-          )}
-        </div>
+          ) : undefined
+        }
+        noPadding
+      >
         {renewals.isLoading && (
           <div className="space-y-2 p-4">
             {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
@@ -361,16 +332,15 @@ export default function AdminDashboardPage() {
           </table>
           </div>
         )}
-      </section>
+      </SectionPanel>
 
       {/* Recently Expired Hotels table */}
-      <section className="rounded-xl border bg-white shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="font-semibold text-foreground">{t("recentlyExpired")}</h2>
-          <Link href="/admin/expired" className="text-sm text-gold-600 font-medium hover:underline">
-            {t("viewAll")}
-          </Link>
-        </div>
+      <SectionPanel
+        title={t("recentlyExpired")}
+        icon={XCircle}
+        action={<Link href="/admin/expired" className="text-sm text-gold-600 font-medium hover:underline">{t("viewAll")}</Link>}
+        noPadding
+      >
         {expired.isLoading && (
           <div className="space-y-2 p-4">
             {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
@@ -427,16 +397,15 @@ export default function AdminDashboardPage() {
           </table>
           </div>
         )}
-      </section>
+      </SectionPanel>
 
       {/* Recent Hotel Registrations table */}
-      <section className="rounded-xl border bg-white shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="font-semibold text-foreground">{t("recentRegistrations")}</h2>
-          <Link href="/admin/registrations" className="text-sm text-gold-600 font-medium hover:underline">
-            {t("viewAll")}
-          </Link>
-        </div>
+      <SectionPanel
+        title={t("recentRegistrations")}
+        icon={FileBarChart2}
+        action={<Link href="/admin/registrations" className="text-sm text-gold-600 font-medium hover:underline">{t("viewAll")}</Link>}
+        noPadding
+      >
         {recent.isLoading && (
           <div className="space-y-2 p-4">
             {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
@@ -511,7 +480,7 @@ export default function AdminDashboardPage() {
           </table>
           </div>
         )}
-      </section>
+      </SectionPanel>
 
       {/* Quick Actions */}
       <section>

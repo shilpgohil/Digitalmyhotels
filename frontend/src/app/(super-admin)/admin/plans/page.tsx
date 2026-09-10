@@ -95,8 +95,8 @@ export default function AdminPlansPage() {
                 <span
                   className={`rounded-full px-2 py-0.5 text-label font-semibold ${
                     p.is_active
-                      ? "bg-green-100 text-green-700"
-                      : "bg-slate-200 text-slate-600"
+                      ? "bg-success-bg text-success"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {p.is_active ? t("planActive") : t("planInactive")}

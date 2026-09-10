@@ -11,8 +11,10 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { Eye, Search } from "lucide-react";
+import { Eye } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DataTable } from "@/components/ui/data-table";
+import { FilterBar } from "@/components/ui/filter-bar";
 import {
   Dialog,
   DialogClose,
@@ -72,147 +74,70 @@ export default function AdminCustomersPage() {
 
   const total = customers.data?.total ?? 0;
 
+  const cols = [t("customerName"), t("contactNumber"), t("hotelName"), t("city"), "ID", tc("actions")];
+
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 sm:p-6">
       <div>
         <p className="text-micro font-semibold uppercase tracking-widest text-gold-600">
           {t("portal")}
         </p>
         <h1 className="text-2xl font-bold text-foreground">{t("allCustomersSection")}</h1>
       </div>
-        <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
-            <h2 className="shrink-0 font-semibold">{t("allCustomersList")}</h2>
-            <div className="relative w-full max-w-xs">
-              <Search
-                className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                aria-hidden
-              />
-              <input
-                type="search"
-                placeholder={t("searchCustomers")}
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(0);
-                }}
-                className="h-9 w-full rounded-lg border border-input pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-gold-500/40"
-              />
-            </div>
-          </div>
 
-          {customers.isLoading && (
-            <div className="space-y-2 p-5">
-              {[0, 1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
-            </div>
-          )}
-          {customers.isError && (
-            <p className="p-8 text-center text-sm text-danger">
-              {customers.error instanceof ApiError
-                ? customers.error.message
-                : tc("error")}{" "}
-              <button
-                type="button"
-                className="underline"
-                onClick={() => customers.refetch()}
-              >
-                {tc("retry")}
+      <FilterBar
+        searchValue={search}
+        onSearchChange={(v) => { setSearch(v); setPage(0); }}
+        searchPlaceholder={t("searchCustomers")}
+      />
+
+      <DataTable
+        darkHeader
+        isLoading={customers.isLoading}
+        isError={customers.isError}
+        errorMessage={customers.error instanceof ApiError ? customers.error.message : tc("error")}
+        onRetry={() => customers.refetch()}
+        isEmpty={customers.data?.items.length === 0}
+        emptyTitle={t("noCustomers")}
+        columns={cols}
+      >
+        {customers.data?.items.map((c) => (
+          <tr key={c.guest_id} className="border-t hover:bg-muted/20">
+            <td className="px-4 py-3 font-medium">{c.full_name}</td>
+            <td className="px-4 py-3 tabular-nums text-muted-foreground">{c.phone_masked || "—"}</td>
+            <td className="px-4 py-3 text-muted-foreground">{c.hotel_name}</td>
+            <td className="px-4 py-3 text-muted-foreground">{c.city ?? "—"}</td>
+            <td className="px-4 py-3 text-muted-foreground">{c.id_last4 ? `••${c.id_last4}` : "—"}</td>
+            <td className="px-4 py-3">
+              <button type="button" onClick={() => setViewing(c)}
+                className="inline-flex h-7 items-center gap-1 rounded-lg border px-2.5 text-xs font-semibold hover:bg-muted"
+                title={t("viewCustomerHint")}>
+                <Eye className="size-3" aria-hidden />
+                {t("viewCustomer")}
               </button>
-            </p>
-          )}
-          {customers.data && (
-            <table className="w-full text-sm min-w-[600px]">
-              <thead className="bg-muted/30">
-                <tr>
-                  {[
-                    t("customerName"),
-                    t("contactNumber"),
-                    t("hotelName"),
-                    t("city"),
-                    "ID",
-                    tc("actions"),
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-label font-semibold uppercase tracking-wide text-muted-foreground"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {customers.data.items.map((c) => (
-                  <tr key={c.guest_id} className="border-t hover:bg-muted/20">
-                    <td className="px-4 py-3 font-medium">{c.full_name}</td>
-                    <td className="px-4 py-3 tabular-nums text-muted-foreground">
-                      {c.phone_masked || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{c.hotel_name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{c.city ?? "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {c.id_last4 ? `••${c.id_last4}` : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => setViewing(c)}
-                        className="inline-flex h-7 items-center gap-1 rounded-lg border px-2.5 text-xs font-semibold hover:bg-muted"
-                        title={t("viewCustomerHint")}
-                      >
-                        <Eye className="size-3" aria-hidden />
-                        {t("viewCustomer")}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {customers.data.items.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="px-4 py-10 text-center text-sm text-muted-foreground"
-                    >
-                      {t("noCustomers")}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
+            </td>
+          </tr>
+        ))}
+      </DataTable>
 
-          {total > PAGE_SIZE && (
-            <div className="flex items-center justify-between border-t px-5 py-3 text-sm">
-              <span className="text-muted-foreground">
-                {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} / {total}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={page === 0}
-                  onClick={() => setPage((p) => p - 1)}
-                  className="rounded-lg border px-3 py-1 disabled:opacity-40"
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  disabled={(page + 1) * PAGE_SIZE >= total}
-                  onClick={() => setPage((p) => p + 1)}
-                  className="rounded-lg border px-3 py-1 disabled:opacity-40"
-                >
-                  ›
-                </button>
-              </div>
-            </div>
-          )}
+      {total > PAGE_SIZE && (
+        <div className="flex items-center justify-between rounded-lg border bg-card px-5 py-3 text-sm">
+          <span className="text-muted-foreground">
+            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} / {total}
+          </span>
+          <div className="flex gap-2">
+            <button type="button" disabled={page === 0} onClick={() => setPage((p) => p - 1)}
+              className="rounded-lg border px-3 py-1 disabled:opacity-40">‹</button>
+            <button type="button" disabled={(page + 1) * PAGE_SIZE >= total} onClick={() => setPage((p) => p + 1)}
+              className="rounded-lg border px-3 py-1 disabled:opacity-40">›</button>
+          </div>
         </div>
+      )}
 
-        <CustomerDetailDialog
-          customer={viewing}
-          onClose={() => setViewing(null)}
-        />
+      <CustomerDetailDialog
+        customer={viewing}
+        onClose={() => setViewing(null)}
+      />
     </main>
   );
 }

@@ -16,6 +16,7 @@ import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SectionPanel } from "@/components/ui/section-panel";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { fmtDateTime } from "@/lib/formatting";
 
@@ -75,42 +76,25 @@ export default function AdminPasswordRequestsPage() {
         </p>
         <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t("passwordRequestsNav")}</h1>
       </div>
-        <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-          <div className="border-b px-5 py-4">
-            <h2 className="flex items-center gap-2 font-semibold">
-              <KeyRound className="size-4 text-gold-600" aria-hidden />
-              {t("passwordRequestsTitle")}
-            </h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {t("passwordRequestsHint")}
-            </p>
-          </div>
-
+        <SectionPanel
+          title={t("passwordRequestsTitle")}
+          icon={KeyRound}
+          subtitle={t("passwordRequestsHint")}
+          noPadding
+        >
           {requests.isLoading && (
             <div className="space-y-2 p-5">
-              {[0, 1, 2].map((i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
+              {[0, 1, 2].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
           )}
           {requests.isError && (
             <p className="p-8 text-center text-sm text-danger">
-              {requests.error instanceof ApiError
-                ? requests.error.message
-                : tc("error")}{" "}
-              <button
-                type="button"
-                className="underline"
-                onClick={() => requests.refetch()}
-              >
-                {tc("retry")}
-              </button>
+              {requests.error instanceof ApiError ? requests.error.message : tc("error")}{" "}
+              <button type="button" className="underline" onClick={() => requests.refetch()}>{tc("retry")}</button>
             </p>
           )}
           {requests.data && requests.data.length === 0 && (
-            <p className="p-10 text-center text-sm text-muted-foreground">
-              {t("noPasswordRequests")}
-            </p>
+            <p className="p-10 text-center text-sm text-muted-foreground">{t("noPasswordRequests")}</p>
           )}
           {requests.data && requests.data.length > 0 && (
             <ul className="divide-y">
@@ -119,44 +103,25 @@ export default function AdminPasswordRequestsPage() {
                   <div className="min-w-0">
                     <p className="font-medium">{req.full_name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {req.email}
-                      {req.hotel_name ? ` · ${req.hotel_name}` : ""}
+                      {req.email}{req.hotel_name ? ` · ${req.hotel_name}` : ""}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {fmtDateTime(req.requested_at)}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{fmtDateTime(req.requested_at)}</p>
                   </div>
                   <div className="ml-auto flex items-center gap-2">
                     <div className="w-48">
                       <PasswordInput
                         placeholder={t("tempPasswordPlaceholder")}
                         value={passwords[req.id] ?? ""}
-                        onChange={(e) =>
-                          setPasswords((prev) => ({ ...prev, [req.id]: e.target.value }))
-                        }
+                        onChange={(e) => setPasswords((prev) => ({ ...prev, [req.id]: e.target.value }))}
                         minLength={8}
                       />
                     </div>
-                    <Button
-                      size="sm"
-                      disabled={
-                        (passwords[req.id] ?? "").length < 8 || resetMutation.isPending
-                      }
-                      onClick={() =>
-                        resetMutation.mutate({
-                          userId: req.user_id,
-                          password: passwords[req.id],
-                        })
-                      }
-                    >
+                    <Button size="sm" disabled={(passwords[req.id] ?? "").length < 8 || resetMutation.isPending}
+                      onClick={() => resetMutation.mutate({ userId: req.user_id, password: passwords[req.id] })}>
                       {t("issueReset")}
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={dismissMutation.isPending}
-                      onClick={() => dismissMutation.mutate(req.id)}
-                    >
+                    <Button size="sm" variant="outline" disabled={dismissMutation.isPending}
+                      onClick={() => dismissMutation.mutate(req.id)}>
                       {t("dismissRequestAdmin")}
                     </Button>
                   </div>
@@ -164,7 +129,7 @@ export default function AdminPasswordRequestsPage() {
               ))}
             </ul>
           )}
-        </div>
+        </SectionPanel>
     </main>
   );
 }

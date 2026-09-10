@@ -67,16 +67,13 @@ export function HotelStatusBadge({
 }) {
   const kind = hotelDisplayStatus(hotel);
   const styles: Record<typeof kind, string> = {
-    active: "bg-green-100 text-green-700",
-    expired: "bg-red-100 text-red-600",
-    suspended: "bg-muted text-muted-foreground",
-    trial: "bg-amber-100 text-amber-800",
+    active:    "bg-success-bg text-success",
+    expired:   "bg-danger-bg  text-danger",
+    suspended: "bg-muted      text-muted-foreground",
+    trial:     "bg-warning-bg text-warning",
   };
   const labels: Record<typeof kind, string> = {
-    active: "Active",
-    expired: "Expired",
-    suspended: "Inactive",
-    trial: "Trial",
+    active: "Active", expired: "Expired", suspended: "Inactive", trial: "Trial",
   };
   return (
     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${styles[kind]}`}>
