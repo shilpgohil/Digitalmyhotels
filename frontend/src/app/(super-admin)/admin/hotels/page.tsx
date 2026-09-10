@@ -74,9 +74,9 @@ function HotelsContent() {
     : [t("hotelName"), t("owner"), t("city"), t("contactNumber"), tc("actions")];
 
   return (
-    <main className="p-6 space-y-6">
+    <main className="p-4 space-y-6 sm:p-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">{pageTitle}</h1>
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">{pageTitle}</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">{t("dashboardSubtitle")}</p>
       </div>
 
@@ -105,7 +105,8 @@ function HotelsContent() {
           <AdminListError onRetry={() => hotels.refetch()} />
         )}
         {!hotels.isLoading && !hotels.isError && (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
+          <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-muted/30">
               <tr>
                 {columns.map((h) => (
@@ -136,8 +137,8 @@ function HotelsContent() {
               )}
             </tbody>
           </table>
+          </div>
         )}
-
         {total > PAGE_SIZE && (
           <AdminPager
             page={page}
@@ -333,3 +334,6 @@ export default function AdminHotelsPage() {
     </Suspense>
   );
 }
+
+
+

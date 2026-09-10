@@ -25,7 +25,14 @@ function AdminMobileNav() {
         <Menu className="size-5" aria-hidden />
       </button>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="left" className="w-72 gap-0 p-0" aria-label="Admin menu">
+        {/* w-60 = exact match for AdminSidebar's w-60 (240px) — avoids the
+            48px white ghost-gap caused by a wider SheetContent (w-72=288px)
+            exceeding the sidebar's own width constraint. */}
+        <SheetContent
+          side="left"
+          className="w-60 gap-0 p-0"
+          aria-label="Admin menu"
+        >
           <SheetTitle className="sr-only">Admin menu</SheetTitle>
           <AdminSidebar onNavigate={() => setOpen(false)} />
         </SheetContent>
@@ -74,10 +81,9 @@ export function AdminHeader() {
   };
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-white px-4 lg:px-6">
+    <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-white px-3 lg:px-6 sm:gap-4">
       <AdminMobileNav />
       <form onSubmit={handleSearch} className="flex-1 flex justify-center">
-
         <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <input
@@ -109,9 +115,9 @@ export function AdminHeader() {
           )}
         </button>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <div className="text-right hidden sm:block">
-            <p className="text-xs font-semibold text-foreground leading-tight">
+            <p className="text-xs font-semibold text-foreground leading-tight truncate max-w-[120px]">
               {user?.full_name ?? "Admin User"}
             </p>
             <p className="text-[10px] text-muted-foreground">Super Admin</p>

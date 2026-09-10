@@ -42,9 +42,9 @@ function ExpiredContent() {
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <main className="p-6 space-y-6">
+    <main className="p-4 space-y-6 sm:p-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">
           {isAll ? t("allExpiredTitle") : t("recentlyExpired")}
         </h1>
         <p className="mt-0.5 text-sm text-muted-foreground">{t("dashboardSubtitle")}</p>
@@ -70,7 +70,8 @@ function ExpiredContent() {
           <AdminListError onRetry={() => hotels.refetch()} />
         )}
         {!hotels.isLoading && !hotels.isError && (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-muted/30">
               <tr>
                 {[t("hotelName"), t("owner"), t("city"), t("expiryDate"), t("subscriptionPlan"), "Status", tc("actions")].map((h) => (
@@ -131,6 +132,7 @@ function ExpiredContent() {
               )}
             </tbody>
           </table>
+          </div>
         )}
 
         {total > PAGE_SIZE && (
@@ -196,3 +198,6 @@ export default function ExpiredHotelsPage() {
     </Suspense>
   );
 }
+
+
+

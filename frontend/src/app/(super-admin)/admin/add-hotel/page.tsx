@@ -510,10 +510,10 @@ export default function AddHotelPage() {
   };
 
   return (
-    <main className="p-6 space-y-4 max-w-3xl mx-auto pb-20">
+    <main className="p-4 space-y-4 max-w-3xl mx-auto pb-20 sm:p-6">
       {/* Page title */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">{t("addNewHotel")}</h1>
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t("addNewHotel")}</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">{t("dashboardSubtitle")}</p>
       </div>
 
@@ -690,7 +690,8 @@ export default function AddHotelPage() {
         <div className="mt-4 space-y-1.5">
           <Label>{t("propertyGallery")}</Label>
           <p className="text-[11px] text-muted-foreground">{t("galleryHint")}</p>
-          <div className="grid grid-cols-5 gap-2">
+          {/* 3 columns on mobile (each ~75px at 375px) → 5 on tablet+ */}
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
             {[0, 1, 2, 3, 4].map((pos) => (
               <div key={pos} className="relative">
                 <label
@@ -1060,10 +1061,12 @@ export default function AddHotelPage() {
       )}
 
       {/* Sticky bottom action bar — matches Figma: Save Draft + Add Hotel */}
-      <div className="fixed bottom-0 inset-x-0 z-10 flex items-center justify-end gap-3 border-t border-border bg-white px-8 py-3 shadow-md">
+      {/* On mobile: full-width buttons; on sm+: right-aligned */}
+      <div className="fixed bottom-0 inset-x-0 z-10 flex items-center justify-end gap-3 border-t border-border bg-white px-4 py-3 shadow-md sm:px-8">
         <Button
           type="button"
           variant="outline"
+          className="flex-1 sm:flex-none"
           onClick={() => {
             // Save draft to localStorage for resume later
             try {
@@ -1085,7 +1088,7 @@ export default function AddHotelPage() {
           type="button"
           disabled={mutation.isPending || !canSubmit}
           onClick={() => mutation.mutate()}
-          className="bg-navy-900 hover:bg-navy-800 text-white"
+          className="flex-1 sm:flex-none bg-navy-900 hover:bg-navy-800 text-white"
         >
           {mutation.isPending ? tc("saving") : t("addHotelBtn")}
         </Button>
@@ -1093,3 +1096,4 @@ export default function AddHotelPage() {
     </main>
   );
 }
+

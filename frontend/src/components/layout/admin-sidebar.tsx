@@ -70,7 +70,7 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
   }, []);
 
   return (
-    <aside className="flex h-full w-60 flex-col bg-white border-r border-border">
+    <aside className="flex w-60 flex-col bg-white border-r border-border lg:h-full">
       {/* DMH horizontal logo — replaces generic "HotelAdmin" brand mark */}
       <div className="flex items-center justify-start px-5 py-4 border-b border-border">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -83,7 +83,9 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
         />
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
+      {/* overflow-y-auto only; NO flex-1 — prevents white-space gap on mobile.
+          On desktop (lg:h-full on aside) the spacer div pushes footer down. */}
+      <nav className="overflow-y-auto px-3 py-4">
         <ul className="space-y-0.5">
           {NAV_ITEMS.map((item) => {
             const active = hrefIsActive(pathname, filter, item.href);
@@ -108,6 +110,10 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
           })}
         </ul>
       </nav>
+
+      {/* Desktop-only spacer: pushes footer to bottom on full-height sidebar.
+          Hidden on mobile where the Sheet is h-auto (content-height). */}
+      <div className="hidden lg:flex lg:flex-1" aria-hidden />
 
       <div className="border-t border-border px-3 py-4 space-y-0.5">
         {customersEnabled && (

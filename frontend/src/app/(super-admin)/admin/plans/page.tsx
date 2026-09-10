@@ -58,12 +58,12 @@ export default function AdminPlansPage() {
   });
 
   return (
-    <main className="p-6 space-y-6">
+    <main className="p-4 space-y-6 sm:p-6">
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-widest text-gold-600">
           {t("portal")}
         </p>
-        <h1 className="text-2xl font-bold text-foreground">{t("plans")}</h1>
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t("plans")}</h1>
       </div>
       <div>
         {plans.isLoading && (
@@ -263,3 +263,5 @@ function EditPlanDialog({
     </Dialog>
   );
 }
+
+

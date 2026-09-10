@@ -123,7 +123,7 @@ export default function AdminCustomersPage() {
             </p>
           )}
           {customers.data && (
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[600px]">
               <thead className="bg-muted/30">
                 <tr>
                   {[
@@ -292,3 +292,4 @@ function CustomerDetailDialog({
     </Dialog>
   );
 }
+

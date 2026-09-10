@@ -656,7 +656,7 @@ export default function AdminEditHotelPage({
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <main className="p-6 pb-20 space-y-6 max-w-4xl mx-auto">
+    <main className="p-4 pb-20 space-y-6 max-w-4xl mx-auto sm:p-6">
       {/* Back nav */}
       <div className="flex items-center gap-3">
         <Link

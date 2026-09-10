@@ -280,6 +280,16 @@
     to   { background-position:  200% 0; }
   }
 
+  /* ── Responsive table wrapper ───────────────────────────────── */
+  /* Applied to section containers that hold <table> elements.
+     Gives mobile users horizontal scroll so table content is never clipped. */
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Thin scroll indicator on iOS */
+    scrollbar-width: thin;
+  }
+
   /* ── Page transition (subtle fade + lift) ───────────────────── */
   /* Applied to the page content wrapper on every route change.
      Opacity 0→1 + translateY -4px→0 over 150ms — barely perceptible

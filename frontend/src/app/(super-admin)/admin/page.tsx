@@ -153,10 +153,10 @@ export default function AdminDashboardPage() {
     : {};
 
   return (
-    <main className="p-6 space-y-6">
+    <main className="p-4 space-y-6 sm:p-6">
       {/* Page title */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">{t("dashboardTitle")}</h1>
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t("dashboardTitle")}</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">{t("dashboardSubtitle")}</p>
       </div>
 
@@ -212,35 +212,38 @@ export default function AdminDashboardPage() {
               <LayoutGrid className="size-4 text-amber-500" aria-hidden />
               {t("hotelStatusDistribution")}
             </h2>
-            <div className="flex items-center gap-4">
-              <ResponsiveContainer width={170} height={170}>
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: t("activeHotels"), value: dash.data.active_hotels, fill: "#166534" },
-                      { name: t("trialHotels"), value: dash.data.trial_hotels, fill: "#a08236" },
-                      { name: t("expiredHotels"), value: dash.data.expired_hotels, fill: "#991b1b" },
-                      { name: t("suspendedHotels"), value: dash.data.inactive_hotels, fill: "#475569" },
-                    ].filter((d) => d.value > 0)}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={48}
-                    outerRadius={78}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {[
-                      { name: t("activeHotels"), value: dash.data.active_hotels, fill: "#166534" },
-                      { name: t("trialHotels"), value: dash.data.trial_hotels, fill: "#a08236" },
-                      { name: t("expiredHotels"), value: dash.data.expired_hotels, fill: "#991b1b" },
-                      { name: t("suspendedHotels"), value: dash.data.inactive_hotels, fill: "#475569" },
-                    ].filter((d) => d.value > 0).map((entry, idx) => (
-                      <Cell key={idx} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                </PieChart>
-              </ResponsiveContainer>
+            {/* Stacks on mobile (chart above legend), side-by-side on sm+ */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="mx-auto sm:mx-0 shrink-0" style={{ width: 160, height: 160 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: t("activeHotels"), value: dash.data.active_hotels, fill: "#166534" },
+                        { name: t("trialHotels"), value: dash.data.trial_hotels, fill: "#a08236" },
+                        { name: t("expiredHotels"), value: dash.data.expired_hotels, fill: "#991b1b" },
+                        { name: t("suspendedHotels"), value: dash.data.inactive_hotels, fill: "#475569" },
+                      ].filter((d) => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={44}
+                      outerRadius={72}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {[
+                        { name: t("activeHotels"), value: dash.data.active_hotels, fill: "#166534" },
+                        { name: t("trialHotels"), value: dash.data.trial_hotels, fill: "#a08236" },
+                        { name: t("expiredHotels"), value: dash.data.expired_hotels, fill: "#991b1b" },
+                        { name: t("suspendedHotels"), value: dash.data.inactive_hotels, fill: "#475569" },
+                      ].filter((d) => d.value > 0).map((entry, idx) => (
+                        <Cell key={idx} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
               <ul className="flex-1 space-y-2 text-xs">
                 {[
                   { label: t("activeHotels"), count: dash.data.active_hotels, color: "#166534" },
@@ -305,7 +308,8 @@ export default function AdminDashboardPage() {
           </div>
         )}
         {!renewals.isLoading && (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[500px]">
             <thead className="bg-muted/30">
               <tr>
                 {[t("hotelName"), t("subscriptionPlan"), t("amount"), t("requestDate"), tc("actions")].map((h) => (
@@ -357,6 +361,7 @@ export default function AdminDashboardPage() {
               )}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
@@ -374,7 +379,8 @@ export default function AdminDashboardPage() {
           </div>
         )}
         {!expired.isLoading && (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[550px]">
             <thead className="bg-muted/30">
               <tr>
                 {[t("hotelName"), t("owner"), t("city"), t("expiryDate"), t("subscriptionPlan"), "Status", tc("actions")].map((h) => (
@@ -421,6 +427,7 @@ export default function AdminDashboardPage() {
               )}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
@@ -438,7 +445,8 @@ export default function AdminDashboardPage() {
           </div>
         )}
         {!recent.isLoading && (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[550px]">
             <thead className="bg-muted/30">
               <tr>
                 {[t("hotelName"), t("owner"), t("city"), t("registrationDate"), "Plan", "Status", tc("actions")].map((h) => (
@@ -503,6 +511,7 @@ export default function AdminDashboardPage() {
               )}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 

@@ -73,7 +73,7 @@ export default function AdminPasswordRequestsPage() {
         <p className="text-[10px] font-semibold uppercase tracking-widest text-gold-600">
           {t("portal")}
         </p>
-        <h1 className="text-2xl font-bold text-foreground">{t("passwordRequestsNav")}</h1>
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t("passwordRequestsNav")}</h1>
       </div>
         <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
           <div className="border-b px-5 py-4">
@@ -168,3 +168,5 @@ export default function AdminPasswordRequestsPage() {
     </main>
   );
 }
+
+

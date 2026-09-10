@@ -222,7 +222,7 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
   const { can } = useAuth();
 
   return (
-    <nav className="flex-1 overflow-y-auto px-3 pb-4" aria-label="Main">
+    <nav className="overflow-y-auto px-3 pb-4" aria-label="Main">
       {SECTIONS.map((section) => {
         const visible = section.items.filter(
           (item) => !item.permission || can(item.permission),
@@ -360,6 +360,10 @@ export function PartnerSidebar() {
 
       {/* Navigation */}
       <PartnerNav />
+
+      {/* Desktop spacer: pushes Upgrade CTA and footer to the bottom.
+          Not shown on mobile (sidebar is h-auto there). */}
+      <div className="flex-1" aria-hidden />
 
       {/* Upgrade plan CTA */}
       {can(PERMISSIONS.hotelManageSettings) && (
