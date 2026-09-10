@@ -54,7 +54,7 @@ export function SectionPanel({
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground truncate">{title}</p>
             {subtitle && (
-              <p className="text-[11px] text-muted-foreground truncate">{subtitle}</p>
+              <p className="text-label text-muted-foreground truncate">{subtitle}</p>
             )}
           </div>
         </div>

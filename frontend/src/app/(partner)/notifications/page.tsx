@@ -228,7 +228,7 @@ function NotificationsContent() {
                     )}
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">{n.body}</p>
-                  <p className="mt-1 text-[10px] text-muted-foreground/70">
+                  <p className="mt-1 text-micro text-muted-foreground/70">
                     {fmtDateTime(n.created_at)}
                     {!hasLink && n.deep_link && (
                       <span className="ml-2 text-muted-foreground/50">

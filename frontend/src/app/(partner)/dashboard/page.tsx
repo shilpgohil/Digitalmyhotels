@@ -170,7 +170,7 @@ function PaymentBar({ label, amount, pct, color }: { label: string; amount: numb
       <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
         <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <p className="mt-0.5 text-[11px] text-muted-foreground">{pct}%</p>
+      <p className="mt-0.5 text-label text-muted-foreground">{pct}%</p>
     </div>
   );
 }
@@ -373,7 +373,7 @@ export default function DashboardPage() {
         )}
         {d?.insights && d.insights.length > 0 && (
           <section>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+            <p className="mb-2 text-label font-bold uppercase tracking-widest text-muted-foreground">
               {t("smartInsights")}
             </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -394,7 +394,7 @@ export default function DashboardPage() {
                     <Icon className={cn("size-5 shrink-0 mt-0.5", style.icon)} />
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-foreground">{ins.title}</p>
-                      <p className="mt-0.5 text-[11px] leading-relaxed text-foreground/80">
+                      <p className="mt-0.5 text-label leading-relaxed text-foreground/80">
                         {ins.body}
                       </p>
                       {ins.metric && (
@@ -424,7 +424,7 @@ export default function DashboardPage() {
           title={t("trend30d")}
           icon={TrendingUp}
           action={
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-label text-muted-foreground">
               {t("last30days")}
             </span>
           }
@@ -518,14 +518,14 @@ export default function DashboardPage() {
                         style={{ width: `${Math.round(r.revenue / maxRev * 100)}%` }}
                       >
                         {r.revenue / maxRev > 0.3 && (
-                          <span className="text-[10px] font-bold text-navy-900">{fmtRev(r.revenue)}</span>
+                          <span className="text-micro font-bold text-navy-900">{fmtRev(r.revenue)}</span>
                         )}
                       </div>
                     </div>
                     {r.revenue / maxRev <= 0.3 && (
-                      <span className="text-[10px] text-muted-foreground tabular-nums">{fmtRev(r.revenue)}</span>
+                      <span className="text-micro text-muted-foreground tabular-nums">{fmtRev(r.revenue)}</span>
                     )}
-                    <p className="w-16 shrink-0 text-right text-[11px] text-muted-foreground">
+                    <p className="w-16 shrink-0 text-right text-label text-muted-foreground">
                       ADR {fmtRev(r.adr)}
                     </p>
                   </div>
@@ -579,7 +579,7 @@ export default function DashboardPage() {
                     <PaymentBar label={t("otherMethods")} amount={todayOther} pct={otherPct} color="bg-slate-400" />
                   )}
                   {todayRefunds > 0 && (
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-label text-muted-foreground">
                       {t("refundsDeducted", { amount: fmtINR(todayRefunds) })}
                     </p>
                   )}
@@ -629,7 +629,7 @@ export default function DashboardPage() {
             action={
               <div className="flex items-center gap-3">
                 {inHouse.data?.total ? (
-                  <span className="rounded-full bg-navy-900 px-2 py-0.5 text-[10px] font-bold text-white">
+                  <span className="rounded-full bg-navy-900 px-2 py-0.5 text-micro font-bold text-white">
                     {inHouse.data.total}
                   </span>
                 ) : null}

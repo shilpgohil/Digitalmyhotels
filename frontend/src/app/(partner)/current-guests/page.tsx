@@ -627,7 +627,7 @@ function DocThumbnail({
       ) : (
         <Skeleton className="h-20 w-20 rounded-md" />
       )}
-      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <span className="text-label text-muted-foreground">{label}</span>
     </div>
   );
 }

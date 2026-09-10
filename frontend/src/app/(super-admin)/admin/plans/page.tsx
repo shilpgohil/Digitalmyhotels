@@ -60,7 +60,7 @@ export default function AdminPlansPage() {
   return (
     <main className="p-4 space-y-6 sm:p-6">
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-gold-600">
+        <p className="text-micro font-semibold uppercase tracking-widest text-gold-600">
           {t("portal")}
         </p>
         <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t("plans")}</h1>
@@ -93,7 +93,7 @@ export default function AdminPlansPage() {
                   <p className="mt-1 text-sm text-muted-foreground">{p.code}</p>
                 </div>
                 <span
-                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                  className={`rounded-full px-2 py-0.5 text-label font-semibold ${
                     p.is_active
                       ? "bg-green-100 text-green-700"
                       : "bg-slate-200 text-slate-600"

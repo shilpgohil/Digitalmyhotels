@@ -419,7 +419,7 @@ export function DateTimePicker({
                 {WEEKDAYS.map((wd) => (
                   <span
                     key={wd}
-                    className="py-1 text-[11px] font-medium text-muted-foreground"
+                    className="py-1 text-label font-medium text-muted-foreground"
                   >
                     {wd}
                   </span>

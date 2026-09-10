@@ -41,7 +41,7 @@ export default function AdminSettingsPage() {
   return (
     <main className="max-w-2xl space-y-4 p-6">
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-gold-600">
+        <p className="text-micro font-semibold uppercase tracking-widest text-gold-600">
           {t("portal")}
         </p>
         <h1 className="text-2xl font-bold text-foreground">{t("settings")}</h1>

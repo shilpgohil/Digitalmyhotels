@@ -765,7 +765,7 @@ function CollectDialog({ bookingId, onDone }: { bookingId: string; onDone: () =>
               <option value="other">{t("otherMethod")}</option>
             </select>
             {method !== "cash" && method !== "upi" && (
-              <p className="mt-1 text-[11px] text-blue-600 flex items-center gap-1">
+              <p className="mt-1 text-label text-blue-600 flex items-center gap-1">
                 <span>ℹ</span>
                 {method === "credit_card" || method === "debit_card"
                   ? "Collected via card machine — recorded for your accounts"

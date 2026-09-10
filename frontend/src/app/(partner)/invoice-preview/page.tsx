@@ -226,7 +226,7 @@ function InvoicePreviewContent() {
                   )}
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest opacity-70">
+                  <p className="text-micro font-semibold uppercase tracking-widest opacity-70">
                     {ti("invoiceNumber")}
                   </p>
                   <p className="text-lg font-semibold">{invoice.invoice_number}</p>
@@ -240,7 +240,7 @@ function InvoicePreviewContent() {
             {/* Billed to + stay details */}
             <div className="grid gap-6 p-6 sm:grid-cols-2">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                <p className="text-micro font-semibold uppercase tracking-widest text-muted-foreground">
                   {t("billedTo")}
                 </p>
                 <p className="mt-1.5 text-sm font-medium">{invoice.guest_name}</p>
@@ -250,7 +250,7 @@ function InvoicePreviewContent() {
                 )}
               </div>
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                <p className="text-micro font-semibold uppercase tracking-widest text-muted-foreground">
                   {t("stayDetails")}
                 </p>
                 {booking.isLoading && <Skeleton className="mt-1.5 h-10" />}
@@ -275,10 +275,10 @@ function InvoicePreviewContent() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left">
-                    <th className="py-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    <th className="py-2 text-micro font-semibold uppercase tracking-widest text-muted-foreground">
                       {t("colDescription")}
                     </th>
-                    <th className="py-2 text-right text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    <th className="py-2 text-right text-micro font-semibold uppercase tracking-widest text-muted-foreground">
                       {t("colAmount")}
                     </th>
                   </tr>

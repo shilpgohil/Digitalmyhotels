@@ -113,16 +113,16 @@ export function StatCard({
         <Icon className="absolute right-3 bottom-3 size-8 opacity-20" aria-hidden />
       )}
       <p className="text-2xl font-semibold tabular-nums leading-tight">{value}</p>
-      <p className="mt-1 text-[10px] font-bold uppercase tracking-widest opacity-80">
+      <p className="mt-1 text-micro font-bold uppercase tracking-widest opacity-80">
         {label}
       </p>
       {subtitle && (
-        <p className="mt-0.5 text-[10px] opacity-60">{subtitle}</p>
+        <p className="mt-0.5 text-micro opacity-60">{subtitle}</p>
       )}
       {trend !== undefined && trend !== 0 && (
         <p
           className={cn(
-            "mt-1.5 flex items-center gap-0.5 text-[11px] font-semibold",
+            "mt-1.5 flex items-center gap-0.5 text-label font-semibold",
             trend > 0 ? "text-emerald-300" : "text-red-300",
           )}
         >

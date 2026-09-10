@@ -206,10 +206,10 @@ function NotifRow({
         <p className={cn("text-xs leading-snug", !n.is_read && "font-semibold")}>
           {n.title}
         </p>
-        <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">
+        <p className="mt-0.5 line-clamp-2 text-label text-muted-foreground">
           {n.body}
         </p>
-        <div className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+        <div className="mt-1 flex items-center gap-1.5 text-micro text-muted-foreground">
           <Icon className="size-3 shrink-0" aria-hidden />
           <span>{categoryLabel}</span>
           <span className="ml-auto">{fmtDateTime(n.created_at)}</span>
@@ -341,7 +341,7 @@ export function NotificationsBell() {
       >
         <Bell className="size-4" aria-hidden />
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-danger text-[9px] font-bold text-white animate-pulse">
+          <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-danger text-micro font-bold text-white animate-pulse">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
@@ -359,7 +359,7 @@ export function NotificationsBell() {
             {unread > 0 && (
               <button
                 type="button"
-                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
+                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-label text-muted-foreground hover:bg-muted"
                 onClick={() => markAll.mutate()}
                 disabled={markAll.isPending}
               >
@@ -369,7 +369,7 @@ export function NotificationsBell() {
             )}
             <button
               type="button"
-              className="text-[11px] text-gold-600 hover:underline"
+              className="text-label text-gold-600 hover:underline"
               onClick={() => router.push("/notifications")}
             >
               {t("viewAll")}
@@ -400,7 +400,7 @@ export function NotificationsBell() {
                   type="button"
                   onClick={() => selectTab(tab)}
                   className={cn(
-                    "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+                    "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-label font-medium transition-colors",
                     isActive
                       ? "bg-navy-900 text-white"
                       : "text-muted-foreground hover:bg-muted",
@@ -410,7 +410,7 @@ export function NotificationsBell() {
                   {tabUnread > 0 && (
                     <span
                       className={cn(
-                        "flex min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold",
+                        "flex min-w-4 items-center justify-center rounded-full px-1 text-micro font-bold",
                         isActive ? "bg-white/20 text-white" : "bg-danger text-white",
                       )}
                     >
@@ -464,14 +464,14 @@ export function NotificationsBell() {
                   className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 transition-colors"
                 >
                   <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex-1">
+                  <span className="text-micro font-semibold uppercase tracking-wider text-muted-foreground flex-1">
                     {t(cfg.labelKey)}
                   </span>
                   {/* Unread badge */}
                   {catUnread > 0 && (
                     <span
                       className={cn(
-                        "flex size-4 items-center justify-center rounded-full text-[9px] font-bold text-white shrink-0",
+                        "flex size-4 items-center justify-center rounded-full text-micro font-bold text-white shrink-0",
                         cfg.dot,
                       )}
                     >
@@ -480,7 +480,7 @@ export function NotificationsBell() {
                   )}
                   {/* Total count when collapsed */}
                   {isCollapsed && catUnread === 0 && (
-                    <span className="text-[10px] text-muted-foreground shrink-0">
+                    <span className="text-micro text-muted-foreground shrink-0">
                       {items.length}
                     </span>
                   )}
@@ -506,7 +506,7 @@ export function NotificationsBell() {
                       <button
                         type="button"
                         onClick={() => toggleShowMore(category)}
-                        className="w-full px-3 py-1.5 text-[11px] text-gold-600 font-medium hover:bg-muted/40 transition-colors text-center"
+                        className="w-full px-3 py-1.5 text-label text-gold-600 font-medium hover:bg-muted/40 transition-colors text-center"
                       >
                         {isShowingMore
                           ? t("showLess")

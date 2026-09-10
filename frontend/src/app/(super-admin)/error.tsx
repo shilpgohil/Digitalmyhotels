@@ -35,7 +35,7 @@ export default function AdminError({
         <h2 className="mt-4 text-lg font-bold">{t("adminSectionErrorTitle")}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{t("adminSectionErrorBody")}</p>
         {error.digest && (
-          <p className="mt-2 font-mono text-[11px] text-muted-foreground">#{error.digest}</p>
+          <p className="mt-2 font-mono text-label text-muted-foreground">#{error.digest}</p>
         )}
         <div className="mt-5 flex justify-center gap-3">
           <Button onClick={reset}>{t("tryAgain")}</Button>

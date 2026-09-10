@@ -99,7 +99,7 @@ export function FilterBar({
       {/* Date range */}
       {onFromDateChange !== undefined && (
         <div className="min-w-[130px]">
-          <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
             {fromLabel}
           </Label>
           <DatePicker
@@ -111,7 +111,7 @@ export function FilterBar({
       )}
       {onToDateChange !== undefined && (
         <div className="min-w-[130px]">
-          <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
             {toLabel}
           </Label>
           <DatePicker
@@ -126,7 +126,7 @@ export function FilterBar({
       {onSelectChange !== undefined && selectOptions && (
         <div className="min-w-[140px]">
           {selectLabel && (
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
               {selectLabel}
             </Label>
           )}
@@ -149,7 +149,7 @@ export function FilterBar({
       {onSelect2Change !== undefined && select2Options && (
         <div className="min-w-[140px]">
           {select2Label && (
-            <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
               {select2Label}
             </Label>
           )}

@@ -83,7 +83,7 @@ function MaskedIdInput({
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <Label className="text-xs">{label}</Label>
-        <label className="flex cursor-pointer select-none items-center gap-1 text-[11px] text-muted-foreground">
+        <label className="flex cursor-pointer select-none items-center gap-1 text-label text-muted-foreground">
           <input
             type="checkbox"
             className="size-3 rounded border-input"
@@ -282,7 +282,7 @@ function QueuedDocUpload({
               alt={side === "selfie" ? t("selfieAlt") : t("idDocumentAlt")}
               className={side === "selfie" ? "h-full w-full object-cover" : "h-full w-full bg-navy-900/5 object-contain"}
             />
-            <div className="absolute bottom-0 left-0 right-0 bg-gold-500/80 px-2 py-1 text-[10px] font-semibold text-navy-900 text-center">
+            <div className="absolute bottom-0 left-0 right-0 bg-gold-500/80 px-2 py-1 text-micro font-semibold text-navy-900 text-center">
               {queued ? t("readyToUpload") : t("processing")}
             </div>
           </>
@@ -305,7 +305,7 @@ function QueuedDocUpload({
         <button
           type="button"
           onClick={() => setCameraOpen(true)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-[11px] font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-label font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
         >
           <Camera className="size-3.5" aria-hidden />
           {t("useCamera")}
@@ -381,7 +381,7 @@ function AutofillBanner({
         <div className="flex items-center gap-2">
           <BadgeCheck className="size-4 text-green-600" aria-hidden />
           <span className="text-sm font-semibold text-green-800">{t("idDetected")}</span>
-          <span className="rounded-full bg-green-200 px-2 py-0.5 text-[10px] font-bold text-green-700">
+          <span className="rounded-full bg-green-200 px-2 py-0.5 text-micro font-bold text-green-700">
             {t("confidencePct", { pct })}
           </span>
         </div>

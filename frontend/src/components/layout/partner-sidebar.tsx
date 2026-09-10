@@ -230,7 +230,7 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
         if (visible.length === 0) return null;
         return (
           <div key={section.labelKey} className="mt-4 first:mt-0">
-            <p className="px-2 pb-1 text-[10px] font-semibold tracking-widest uppercase opacity-60">
+            <p className="px-2 pb-1 text-micro font-semibold tracking-widest uppercase opacity-60">
               {t(section.labelKey)}
             </p>
             <ul className="space-y-0.5">
@@ -334,7 +334,7 @@ export function PartnerBrand() {
       </div>
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-white">{hotelName}</p>
-        <p className="truncate text-[10px] tracking-widest uppercase">
+        <p className="truncate text-micro tracking-widest uppercase">
           Front Desk Suite
         </p>
       </div>
@@ -383,7 +383,7 @@ export function PartnerSidebar() {
         <div className="flex items-center gap-2.5">
           <UserRound className="size-4 shrink-0 opacity-70" aria-hidden />
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-wider opacity-60">
+            <p className="text-micro uppercase tracking-wider opacity-60">
               {t("loggedInAs")}
             </p>
             <p className="truncate text-sm font-medium text-white">{user?.full_name}</p>
@@ -404,7 +404,7 @@ export function PartnerSidebar() {
             style={{ filter: "brightness(0) invert(1)" }}
             draggable={false}
           />
-          <p className="text-[9px] tracking-widest uppercase font-medium text-sidebar-foreground">
+          <p className="text-micro tracking-widest uppercase font-medium text-sidebar-foreground">
             Powered by DigitalMyHotels
           </p>
         </div>

@@ -110,7 +110,7 @@ function HotelsContent() {
             <thead className="bg-muted/30">
               <tr>
                 {columns.map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                  <th key={h} className="px-4 py-3 text-left text-label font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
                     {h}
                   </th>
                 ))}

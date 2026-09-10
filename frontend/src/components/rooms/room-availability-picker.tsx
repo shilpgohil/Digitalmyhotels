@@ -159,7 +159,7 @@ function AvailableChip({
         {room.room_type_name ?? "—"}
       </span>
       {room.bed_type && (
-        <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground mt-0.5">
+        <span className="flex items-center gap-0.5 text-micro text-muted-foreground mt-0.5">
           <BedDouble className="size-2.5" aria-hidden />
           {room.bed_type}
         </span>
@@ -179,13 +179,13 @@ function AvailableChip({
       </span>
       {/* Show current status as a small hint — room is still bookable */}
       {hint && (
-        <span className={cn("mt-1 rounded px-1.5 py-0.5 text-[9px] font-semibold", hint.colour)}>
+        <span className={cn("mt-1 rounded px-1.5 py-0.5 text-micro font-semibold", hint.colour)}>
           {hint.label}
         </span>
       )}
       {/* Free-at hint: show when this occupied room will be vacated */}
       {room.status === "occupied" && room.current_checkout_time && (
-        <span className="mt-0.5 flex items-center gap-0.5 text-[9px] font-medium text-green-700">
+        <span className="mt-0.5 flex items-center gap-0.5 text-micro font-medium text-green-700">
           <Clock className="size-2.5" aria-hidden />
           Free at {room.current_checkout_time}
         </span>
@@ -201,7 +201,7 @@ function UnavailableCard({ room }: { readonly room: RoomUnavailableItem }) {
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-sm text-foreground">{room.room_number}</span>
-          <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold", colour)}>
+          <span className={cn("rounded-full border px-2 py-0.5 text-micro font-semibold", colour)}>
             {label}
           </span>
         </div>
@@ -209,10 +209,10 @@ function UnavailableCard({ room }: { readonly room: RoomUnavailableItem }) {
       </div>
       {room.occupied_until && (
         <div className="ml-3 shrink-0 text-right">
-          <p className="text-[10px] text-muted-foreground">Free from</p>
+          <p className="text-micro text-muted-foreground">Free from</p>
           <p className="text-xs font-semibold text-foreground">{fmtDate(room.occupied_until)}</p>
           {room.occupied_until_time && (
-            <p className="text-[10px] text-green-700 font-medium flex items-center justify-end gap-0.5 mt-0.5">
+            <p className="text-micro text-green-700 font-medium flex items-center justify-end gap-0.5 mt-0.5">
               <Clock className="size-2.5" aria-hidden />
               {room.occupied_until_time}
             </p>
@@ -411,7 +411,7 @@ export function RoomAvailabilityPicker({
             ))}
           </div>
           <span className={cn(
-            "rounded-full px-2 py-0.5 text-[10px] font-bold",
+            "rounded-full px-2 py-0.5 text-micro font-bold",
             filteredAvailable.length > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600",
           )}>
             {filteredAvailable.length} room{filteredAvailable.length !== 1 ? "s" : ""}
@@ -460,7 +460,7 @@ export function RoomAvailabilityPicker({
               <span>
                 {filteredComingSoon.length} room{filteredComingSoon.length !== 1 ? "s" : ""} booked for these dates
               </span>
-              <span className="text-[10px] text-muted-foreground font-normal">
+              <span className="text-micro text-muted-foreground font-normal">
                 — earliest free: {fmtDate(filteredComingSoon[0]?.occupied_until)}
               </span>
             </span>
@@ -482,7 +482,7 @@ export function RoomAvailabilityPicker({
       {/* ── Not bookable (maintenance / OOS) ──────────────────────────────── */}
       {filteredNotBookable.length > 0 && (
         <div>
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">
+          <p className="text-micro uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">
             Unavailable — Maintenance / Out of service
           </p>
           <div className="grid gap-1.5 sm:grid-cols-2">

@@ -211,7 +211,7 @@ function GstTaxContent() {
               ] as const
             ).map(([key, value, className]) => (
               <div key={key} className={`rounded-lg p-4 ${className}`}>
-                <p className="text-[10px] font-semibold uppercase tracking-widest opacity-80">
+                <p className="text-micro font-semibold uppercase tracking-widest opacity-80">
                   {t(key)}
                 </p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums">{fmtINR(value)}</p>

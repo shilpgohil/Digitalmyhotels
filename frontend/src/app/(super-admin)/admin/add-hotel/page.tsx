@@ -674,7 +674,7 @@ export default function AddHotelPage() {
                   {tc("delete")}
                 </button>
               )}
-              <p className="mt-1 text-[11px] text-muted-foreground">PNG, JPG, WebP • max 5 MB</p>
+              <p className="mt-1 text-label text-muted-foreground">PNG, JPG, WebP • max 5 MB</p>
             </div>
           </div>
           <input
@@ -689,7 +689,7 @@ export default function AddHotelPage() {
         {/* Property Gallery */}
         <div className="mt-4 space-y-1.5">
           <Label>{t("propertyGallery")}</Label>
-          <p className="text-[11px] text-muted-foreground">{t("galleryHint")}</p>
+          <p className="text-label text-muted-foreground">{t("galleryHint")}</p>
           {/* 3 columns on mobile (each ~75px at 375px) → 5 on tablet+ */}
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
             {[0, 1, 2, 3, 4].map((pos) => (
@@ -777,7 +777,7 @@ export default function AddHotelPage() {
               onChange={(e) => setTotalRooms(e.target.value)}
               placeholder="25"
             />
-            <p className="text-[11px] text-muted-foreground">{t("totalRoomsHint")}</p>
+            <p className="text-label text-muted-foreground">{t("totalRoomsHint")}</p>
           </div>
         </div>
       </Section>
@@ -893,7 +893,7 @@ export default function AddHotelPage() {
                     type="url"
                   />
                 </div>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-label text-muted-foreground">
                   {t("qrAfterCreation")}
                 </p>
               </div>
@@ -909,7 +909,7 @@ export default function AddHotelPage() {
                     />
                   ))}
                 </div>
-                <p className="text-[10px] text-muted-foreground leading-tight">
+                <p className="text-micro text-muted-foreground leading-tight">
                   {t("qrPreviewHint")}
                 </p>
               </div>

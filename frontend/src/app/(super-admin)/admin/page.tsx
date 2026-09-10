@@ -175,7 +175,7 @@ export default function AdminDashboardPage() {
             const inner = (
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
                     {t(card.key as Parameters<typeof t>[0])}
                   </p>
                   <p className="mt-1.5 text-2xl font-bold text-foreground tabular-nums">
@@ -311,7 +311,7 @@ export default function AdminDashboardPage() {
             <thead className="bg-muted/30">
               <tr>
                 {[t("hotelName"), t("subscriptionPlan"), t("amount"), t("requestDate"), tc("actions")].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                  <th key={h} className="px-4 py-3 text-left text-label font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
                     {h}
                   </th>
                 ))}
@@ -382,7 +382,7 @@ export default function AdminDashboardPage() {
             <thead className="bg-muted/30">
               <tr>
                 {[t("hotelName"), t("owner"), t("city"), t("expiryDate"), t("subscriptionPlan"), "Status", tc("actions")].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                  <th key={h} className="px-4 py-3 text-left text-label font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
                     {h}
                   </th>
                 ))}
@@ -448,7 +448,7 @@ export default function AdminDashboardPage() {
             <thead className="bg-muted/30">
               <tr>
                 {[t("hotelName"), t("owner"), t("city"), t("registrationDate"), "Plan", "Status", tc("actions")].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                  <th key={h} className="px-4 py-3 text-left text-label font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
                     {h}
                   </th>
                 ))}
@@ -460,7 +460,7 @@ export default function AdminDashboardPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted">
-                        <span className="text-[10px] font-bold text-muted-foreground">
+                        <span className="text-micro font-bold text-muted-foreground">
                           {h.name.slice(0, 1).toUpperCase()}
                         </span>
                       </div>
@@ -515,7 +515,7 @@ export default function AdminDashboardPage() {
 
       {/* Quick Actions */}
       <section>
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="mb-3 text-label font-semibold uppercase tracking-wide text-muted-foreground">
           {t("quickActions")}
         </p>
         <div className="flex flex-wrap gap-3">

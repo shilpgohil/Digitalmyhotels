@@ -440,7 +440,7 @@ function ImageEditorDialog({
 
         {/* Pinch-zoom hint shown while two-fingers active */}
         {pinch.current && (
-          <div className="absolute bottom-3 left-0 right-0 text-center text-[11px] text-white/50 pointer-events-none">
+          <div className="absolute bottom-3 left-0 right-0 text-center text-label text-white/50 pointer-events-none">
             {t("pinchToZoom")}
           </div>
         )}
@@ -454,7 +454,7 @@ function ImageEditorDialog({
           <button
             type="button"
             onClick={() => rotate90(-1)}
-            className="flex flex-col items-center gap-1 text-[11px] text-white/70 active:text-white"
+            className="flex flex-col items-center gap-1 text-label text-white/70 active:text-white"
           >
             <span className="flex size-11 items-center justify-center rounded-full bg-white/10 active:bg-white/20">
               <RotateCcw className="size-4" />
@@ -462,14 +462,14 @@ function ImageEditorDialog({
             {t("rotateLeft")}
           </button>
 
-          <p className="text-[11px] text-white/40 text-center max-w-[160px]">
+          <p className="text-label text-white/40 text-center max-w-[160px]">
             {t("dragZoomHint")}
           </p>
 
           <button
             type="button"
             onClick={() => rotate90(1)}
-            className="flex flex-col items-center gap-1 text-[11px] text-white/70 active:text-white"
+            className="flex flex-col items-center gap-1 text-label text-white/70 active:text-white"
           >
             <span className="flex size-11 items-center justify-center rounded-full bg-white/10 active:bg-white/20">
               <RotateCw className="size-4" />

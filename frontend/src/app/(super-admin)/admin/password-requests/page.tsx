@@ -70,7 +70,7 @@ export default function AdminPasswordRequestsPage() {
   return (
     <main className="space-y-6 p-6">
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-gold-600">
+        <p className="text-micro font-semibold uppercase tracking-widest text-gold-600">
           {t("portal")}
         </p>
         <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t("passwordRequestsNav")}</h1>

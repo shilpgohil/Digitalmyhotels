@@ -110,7 +110,7 @@ export function AdminHeader() {
         >
           <Bell className="size-4" aria-hidden />
           {pendingCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex min-w-4 h-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-bold text-white">
+            <span className="absolute -top-0.5 -right-0.5 flex min-w-4 h-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-micro font-bold text-white">
               {pendingCount > 9 ? "9+" : pendingCount}
             </span>
           )}
@@ -121,7 +121,7 @@ export function AdminHeader() {
             <p className="text-xs font-semibold text-foreground leading-tight truncate max-w-[120px]">
               {user?.full_name ?? "Admin User"}
             </p>
-            <p className="text-[10px] text-muted-foreground">Super Admin</p>
+            <p className="text-micro text-muted-foreground">Super Admin</p>
           </div>
           <div className="flex size-8 items-center justify-center rounded-full bg-navy-900 text-white shrink-0">
             <User className="size-4" aria-hidden />

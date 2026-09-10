@@ -92,7 +92,7 @@ export function GlobalSearch() {
           )}
           {(bookings.data?.items.length ?? 0) > 0 && (
             <div className="py-1">
-              <p className="px-3 py-1 text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+              <p className="px-3 py-1 text-micro font-semibold tracking-widest text-muted-foreground uppercase">
                 {t("bookings")}
               </p>
               {bookings.data?.items.map((b) => (
@@ -126,7 +126,7 @@ export function GlobalSearch() {
           )}
           {(guests.data?.items.length ?? 0) > 0 && (
             <div className="border-t py-1">
-              <p className="px-3 py-1 text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+              <p className="px-3 py-1 text-micro font-semibold tracking-widest text-muted-foreground uppercase">
                 {t("guests")}
               </p>
               {guests.data?.items.map((g) => (

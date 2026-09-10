@@ -187,6 +187,19 @@
 }
 
 @layer utilities {
+  /* ── Named micro-typography tokens ──────────────────────────────────── */
+  /* Replaces 35+ arbitrary text-[10px] / text-[11px] usages with semantic
+     tokens. text-[9px] is also aliased for backward compat. */
+  .text-micro   { font-size: 0.625rem;  line-height: 1rem;    }  /* 10px — metadata, section labels */
+  .text-label   { font-size: 0.6875rem; line-height: 1rem;    }  /* 11px — status badges, small labels */
+  .text-caption { font-size: 0.75rem;   line-height: 1.25rem; }  /* 12px — captions, table sub-text  */
+
+  /* Tabular-nums shorthand for financial data columns */
+  .font-tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
   /* ── Smooth micro-interactions ─────────────────────────────────────── */
 
   /* Interactive rows and list items */

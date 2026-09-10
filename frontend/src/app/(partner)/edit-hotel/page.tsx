@@ -804,7 +804,7 @@ function EditHotelContent() {
                       <span className="text-xs font-medium text-muted-foreground">
                         {t("dragDropLogo")}
                       </span>
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-micro text-muted-foreground">
                         {t("clickToUpload")}
                       </span>
                       <AuthedImage

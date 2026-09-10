@@ -163,15 +163,15 @@ export function PartnerHeader({
   };
 
   return (
-    <header className="flex items-center justify-between gap-4 border-b bg-card px-4 py-4 lg:px-6">
+    <header className="flex items-center justify-between gap-4 border-b bg-card px-4 py-3 lg:px-6">
       <MobileNavDrawer />
       <div className="min-w-0">
         {subtitle && (
-          <p className="text-[10px] font-semibold tracking-widest text-gold-600 uppercase">
+          <p className="text-micro font-semibold tracking-widest text-gold-600 uppercase">
             {subtitle}
           </p>
         )}
-        <h1 className="truncate font-display text-2xl text-foreground">{title}</h1>
+        <h1 className="truncate font-display text-xl text-foreground">{title}</h1>
       </div>
       {action && <div className="ml-auto mr-2 shrink-0">{action}</div>}
       <GlobalSearch />

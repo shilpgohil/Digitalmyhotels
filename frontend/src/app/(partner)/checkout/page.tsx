@@ -622,7 +622,7 @@ function CheckoutContent() {
         {/* UPI ID — restricted to owner/admin (canViewUpiId) */}
         {canViewUpiId && upiConfigQuery.data?.upi_id && (
           <div className="flex items-center gap-2 rounded-lg border border-dashed border-gold-400 bg-gold-50 px-3 py-2">
-            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gold-700">
+            <span className="shrink-0 text-micro font-semibold uppercase tracking-wide text-gold-700">
               {tp("upiId")}
             </span>
             <span className="select-all font-mono text-sm font-semibold text-navy-900">
@@ -1104,7 +1104,7 @@ function CheckoutContent() {
 
                         {/* Card/bank info note */}
                         {payMethod !== "cash" && payMethod !== "upi" && (
-                          <p className="text-[11px] text-blue-600 flex items-center gap-1">
+                          <p className="text-label text-blue-600 flex items-center gap-1">
                             <span>ℹ</span>
                             {payMethod === "credit_card" || payMethod === "debit_card"
                               ? "Collect via card machine, then record here"

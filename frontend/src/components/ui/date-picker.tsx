@@ -291,7 +291,7 @@ export function DatePicker({
           {/* Calendar grid */}
           <div className="p-3">
             {/* Weekday header */}
-            <div className="mb-1 grid grid-cols-7 text-center text-[11px] font-medium text-muted-foreground">
+            <div className="mb-1 grid grid-cols-7 text-center text-label font-medium text-muted-foreground">
               {WEEKDAYS.map((d) => <span key={d}>{d}</span>)}
             </div>
 

@@ -352,7 +352,7 @@ function PlanContent() {
                   )}
                 >
                   {best && (
-                    <span className="absolute -top-3 right-4 inline-flex items-center gap-1 rounded-full bg-gold-500 px-2.5 py-0.5 text-[10px] font-bold uppercase text-navy-900">
+                    <span className="absolute -top-3 right-4 inline-flex items-center gap-1 rounded-full bg-gold-500 px-2.5 py-0.5 text-micro font-bold uppercase text-navy-900">
                       <Crown className="size-3" aria-hidden />
                       {t("bestValue")}
                     </span>

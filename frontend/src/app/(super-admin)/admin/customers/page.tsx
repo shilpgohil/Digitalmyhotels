@@ -75,7 +75,7 @@ export default function AdminCustomersPage() {
   return (
     <main className="space-y-6 p-6">
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-gold-600">
+        <p className="text-micro font-semibold uppercase tracking-widest text-gold-600">
           {t("portal")}
         </p>
         <h1 className="text-2xl font-bold text-foreground">{t("allCustomersSection")}</h1>
@@ -136,7 +136,7 @@ export default function AdminCustomersPage() {
                   ].map((h) => (
                     <th
                       key={h}
-                      className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                      className="px-4 py-3 text-left text-label font-semibold uppercase tracking-wide text-muted-foreground"
                     >
                       {h}
                     </th>
@@ -275,7 +275,7 @@ function CustomerDetailDialog({
               ] as Array<[string, string | null]>
             ).map(([label, value]) => (
               <div key={label} className={label === "Address" ? "col-span-2" : ""}>
-                <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <dt className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
                   {label}
                 </dt>
                 <dd className="mt-0.5 font-medium">{value || "—"}</dd>
