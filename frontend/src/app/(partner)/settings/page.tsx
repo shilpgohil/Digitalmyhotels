@@ -69,7 +69,7 @@ function SettingsContent() {
   return (
     <>
       <PartnerHeader title={t("title")} subtitle={tn("operations")} />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {/* Tab bar — custom implementation to avoid Base UI multi-panel rendering bug */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div className="flex w-fit flex-wrap gap-1 rounded-lg bg-muted p-1">

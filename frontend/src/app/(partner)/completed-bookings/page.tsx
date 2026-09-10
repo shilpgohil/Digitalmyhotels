@@ -7,16 +7,14 @@ import { toast } from "sonner";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import { ApiError } from "@/lib/api/client";
-import { Input } from "@/components/ui/input";
-import { DatePicker } from "@/components/ui/date-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { DataTable } from "@/components/ui/data-table";
+import { FilterBar } from "@/components/ui/filter-bar";
 import {
-  Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
 } from "@/components/ui/table";
 import {
@@ -692,35 +690,21 @@ function CompletedBookingsContent() {
   return (
     <>
       <PartnerHeader title={t("completedBookingsTitle")} subtitle={tn("frontDesk")} />
-      <main className="flex-1 overflow-y-auto p-6">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div className="flex flex-wrap items-end gap-2">
-            <Input
-              placeholder={t("searchPlaceholder")}
-              className="max-w-xs"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <DatePicker
-              className="w-40"
-              aria-label={t("checkinDate")}
-              value={fromDate}
-              onChange={(v) => {
-                setQuickRange("all");
-                setFromDate(v);
-              }}
-            />
-            <DatePicker
-              className="w-40"
-              aria-label={t("checkoutDate")}
-              value={toDate}
-              onChange={(v) => {
-                setQuickRange("all");
-                setToDate(v);
-              }}
-            />
-          </div>
-        </div>
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <FilterBar
+          className="mb-4"
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder={t("searchPlaceholder")}
+          fromDate={fromDate}
+          onFromDateChange={(v) => { setQuickRange("all"); setFromDate(v); }}
+          fromLabel={t("checkinDate")}
+          toDate={toDate}
+          onToDateChange={(v) => { setQuickRange("all"); setToDate(v); }}
+          toLabel={t("checkoutDate")}
+          hasActiveFilters={!!(search || fromDate || toDate)}
+          onClear={() => { setSearch(""); setFromDate(""); setToDate(""); setQuickRange("all"); }}
+        />
 
         {/* Quick date-range chips */}
         <div className="mb-3 flex flex-wrap gap-2">
@@ -765,45 +749,22 @@ function CompletedBookingsContent() {
           ))}
         </div>
 
-        <div className="rounded-lg border bg-card">
-          {bookings.isLoading && (
-            <div className="space-y-2 p-4">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
-            </div>
-          )}
-          {bookings.isError && (
-            <div className="p-8 text-center text-sm text-danger">
-              {tc("error")}{" "}
-              <button type="button" className="underline" onClick={() => bookings.refetch()}>
-                {tc("retry")}
-              </button>
-            </div>
-          )}
-          {bookings.data && bookings.data.items.length === 0 && (
-            <p className="p-10 text-center text-sm text-muted-foreground">
-              {t("noBookings")}
-            </p>
-          )}
-          {bookings.data && bookings.data.items.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-navy-900 hover:bg-navy-900">
-                  <TableHead className="text-white">{t("bookingNumber")}</TableHead>
-                  <TableHead className="text-white">{t("guest")}</TableHead>
-                  <TableHead className="text-white">{t("roomsCol")}</TableHead>
-                  <TableHead className="text-white">{t("dates")}</TableHead>
-                  <TableHead className="text-white">{t("total")}</TableHead>
-                  <TableHead className="text-white">{t("statusCol")}</TableHead>
-                  <TableHead className="text-white">{t("payment")}</TableHead>
-                  <TableHead className="text-white">
-                    <span className="sr-only">{t("actions")}</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {bookings.data.items.map((booking) => (
+        <DataTable
+          darkHeader
+          isLoading={bookings.isLoading}
+          isError={bookings.isError}
+          onRetry={() => bookings.refetch()}
+          isEmpty={bookings.data?.items.length === 0}
+          emptyTitle={t("noBookings")}
+          columns={[
+            t("bookingNumber"), t("guest"), t("roomsCol"),
+            t("dates"), t("total"), t("statusCol"), t("payment"),
+            <span key="act" className="sr-only">{t("actions")}</span>,
+          ]}
+        >
+          {bookings.data && (
+            <TableBody>
+              {bookings.data.items.map((booking) => (
                   <TableRow key={booking.id}>
                     <TableCell className="font-medium">{booking.booking_number}</TableCell>
                     <TableCell>{booking.primary_guest_name ?? "—"}</TableCell>
@@ -851,10 +812,9 @@ function CompletedBookingsContent() {
                     </TableCell>
                   </TableRow>
                 ))}
-              </TableBody>
-            </Table>
+            </TableBody>
           )}
-        </div>
+        </DataTable>
 
         {bookings.data && bookings.data.total > PAGE_SIZE && (
           <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">

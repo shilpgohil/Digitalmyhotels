@@ -209,7 +209,7 @@ function PaymentsContent() {
   return (
     <>
       <PartnerHeader title={t("paymentsTitle")} subtitle={tn("money")} />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {/* ── Filter bar: quick chips + dates + payment mode + apply/clear ── */}
         <div className="mb-4 rounded-lg border bg-card p-4">
           <div className="mb-3 flex flex-wrap gap-2">

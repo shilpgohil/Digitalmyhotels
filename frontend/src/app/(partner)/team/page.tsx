@@ -105,7 +105,7 @@ function TeamContent() {
   return (
     <>
       <PartnerHeader title={t("title")} subtitle={tn("settings")} />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {/* Pending reset requests — staff asked for help signing in. */}
         {(passwordRequests.data?.length ?? 0) > 0 && (
           <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4">

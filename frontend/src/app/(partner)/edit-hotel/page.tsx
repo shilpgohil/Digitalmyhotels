@@ -711,7 +711,7 @@ function EditHotelContent() {
   return (
     <>
       <PartnerHeader title={t("title")} subtitle={tn("property")} />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {loading ? (
           <div className="mx-auto max-w-4xl space-y-4">
             {GALLERY_SLOTS.map((i) => (

@@ -87,7 +87,7 @@ function HousekeepingContent() {
   return (
     <>
       <PartnerHeader title={t("housekeepingTitle")} subtitle={tn("property")} />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mb-4 flex justify-end">
           {can(PERMISSIONS.maintenanceManage) && <OpenMaintenanceDialog onDone={invalidate} />}
         </div>

@@ -33,12 +33,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { DataTable } from "@/components/ui/data-table";
+import { FilterBar } from "@/components/ui/filter-bar";
 import {
-  Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
 } from "@/components/ui/table";
 import { PaymentStatusBadge } from "@/components/stay/booking-badges";
@@ -130,58 +129,30 @@ function CurrentGuestsContent() {
   return (
     <>
       <PartnerHeader title={t("currentGuestsTitle")} subtitle={tn("frontDesk")} />
-      <main className="flex-1 overflow-y-auto p-6">
-        <div className="mb-4">
-          <Input
-            placeholder={tb("searchPlaceholder")}
-            className="max-w-xs"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-        <div className="rounded-lg border bg-card">
-          {guests.isLoading && (
-            <div className="space-y-2 p-4">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
-            </div>
-          )}
-          {guests.isError && (
-            <div className="p-8 text-center text-sm text-danger">
-              {/* Show the real API error message so failures are diagnosable
-                  (a generic message hid a 422 for hours — client bug 09/2026). */}
-              {guests.error instanceof ApiError ? guests.error.message : tc("error")}{" "}
-              <button className="underline" onClick={() => guests.refetch()}>
-                {tc("retry")}
-              </button>
-            </div>
-          )}
-          {guests.data && guests.data.items.length === 0 && (
-            <p className="p-10 text-center text-sm text-muted-foreground">
-              {t("noCurrentGuests")}
-            </p>
-          )}
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <FilterBar
+          className="mb-4"
+          searchValue={search}
+          onSearchChange={(v) => { setSearch(v); setPage(1); }}
+          searchPlaceholder={tb("searchPlaceholder")}
+        />
+        <DataTable
+          darkHeader
+          isLoading={guests.isLoading}
+          isError={guests.isError}
+          errorMessage={guests.error instanceof ApiError ? guests.error.message : tc("error")}
+          onRetry={() => guests.refetch()}
+          isEmpty={guests.data?.items.length === 0}
+          emptyTitle={t("noCurrentGuests")}
+          columns={[
+            tb("bookingNumber"), tb("guest"), t("mobile"), tb("roomsCol"),
+            t("roomStatus"), t("checkedInAt"), t("expectedCheckout"),
+            tb("payment"), tb("due"), tc("actions"),
+          ]}
+          rightAlignCols={[9]}
+        >
           {guests.data && guests.data.items.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-navy-900 hover:bg-navy-900">
-                  <TableHead className="text-white">{tb("bookingNumber")}</TableHead>
-                  <TableHead className="text-white">{tb("guest")}</TableHead>
-                  <TableHead className="text-white">{t("mobile")}</TableHead>
-                  <TableHead className="text-white">{tb("roomsCol")}</TableHead>
-                  <TableHead className="text-white">{t("roomStatus")}</TableHead>
-                  <TableHead className="text-white">{t("checkedInAt")}</TableHead>
-                  <TableHead className="text-white">{t("expectedCheckout")}</TableHead>
-                  <TableHead className="text-white">{tb("payment")}</TableHead>
-                  <TableHead className="text-white">{tb("due")}</TableHead>
-                  <TableHead className="text-right text-white">{tc("actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <TableBody>
                 {pageItems.map((entry) => (
                   <TableRow key={entry.booking_id}>
                     <TableCell className="font-medium">{entry.booking_number}</TableCell>
@@ -296,22 +267,22 @@ function CurrentGuestsContent() {
                     </TableCell>
                   </TableRow>
                 ))}
-              </TableBody>
-            </Table>
+            </TableBody>
           )}
-          {guests.data && allItems.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
-              <p className="text-sm text-muted-foreground">
-                {t("showingActiveGuests", {
-                  shown: pageItems.length,
-                  total: allItems.length,
-                })}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage <= 1}
+        </DataTable>
+        {guests.data && allItems.length > 0 && (
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-3">
+            <p className="text-sm text-muted-foreground">
+              {t("showingActiveGuests", {
+                shown: pageItems.length,
+                total: allItems.length,
+              })}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage <= 1}
                   onClick={() => setPage(currentPage - 1)}
                 >
                   {tc("previous")}
@@ -330,7 +301,6 @@ function CurrentGuestsContent() {
               </div>
             </div>
           )}
-        </div>
 
         <StayDetailDialog
           entry={viewTarget}

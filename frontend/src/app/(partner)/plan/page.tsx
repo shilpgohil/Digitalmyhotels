@@ -263,7 +263,7 @@ function PlanContent() {
   return (
     <>
       <PartnerHeader title={t("title")} subtitle={tn("overview")} />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mx-auto max-w-6xl">
           <div className="text-center">
             <h1 className="font-display text-3xl">{t("chooseTitle")}</h1>

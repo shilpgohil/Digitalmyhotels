@@ -68,6 +68,9 @@ import {
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buttonVariants } from "@/components/ui/button";
+import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
+import { SectionPanel } from "@/components/ui/section-panel";
+import type { StatCardTone } from "@/components/ui/stat-card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -154,41 +157,8 @@ function shortDate(iso: string) {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
-function SectionCard({ title, icon: Icon, action, children }: {
-  title: string; icon: React.ElementType; action?: React.ReactNode; children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Icon className="size-4 text-gold-600" />
-          {title}
-        </h2>
-        {action}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function KpiChip({ label, value, sub, wow }: { label: string; value: string; sub?: string; wow?: number }) {
-  const up = wow !== undefined && wow > 0;
-  return (
-    <div className="rounded-xl border bg-white p-4 shadow-sm">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</p>
-      <p className="mt-1 text-xl font-bold tabular-nums text-foreground">{value}</p>
-      {sub && <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>}
-      {wow !== undefined && wow !== 0 && (
-        <p className={cn("mt-1 text-[11px] font-semibold flex items-center gap-0.5",
-            up ? "text-green-600" : "text-red-600")}>
-          {up ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
-          {up ? "+" : ""}{wow.toFixed(1)}% vs prior
-        </p>
-      )}
-    </div>
-  );
-}
+// Local SectionCard alias → use shared SectionPanel (keeps existing call-sites unchanged)
+const SectionCard = SectionPanel;
 
 function PaymentBar({ label, amount, pct, color }: { label: string; amount: number; pct: number; color: string }) {
   return (
@@ -214,16 +184,16 @@ const ROOM_CARDS: Array<{
   labelNs: "rooms" | "dashboard";
   labelKey: string;
   icon: React.ElementType;
-  className: string;
+  tone: StatCardTone;
   statuses: string[] | null;
   filter: string;
 }> = [
-  { key: "total", labelNs: "rooms", labelKey: "statTotal", icon: Building2, className: "bg-navy-900 text-white", statuses: null, filter: "all" },
-  { key: "booked", labelNs: "rooms", labelKey: "statBooked", icon: DoorClosed, className: "bg-danger text-white", statuses: ["occupied"], filter: "occupied" },
-  { key: "available", labelNs: "dashboard", labelKey: "available", icon: DoorOpen, className: "bg-success text-white", statuses: ["available", "clean_ready"], filter: "available" },
-  { key: "reserved", labelNs: "dashboard", labelKey: "reserved", icon: Bookmark, className: "bg-info text-white", statuses: ["reserved"], filter: "reserved" },
-  { key: "cleaning", labelNs: "dashboard", labelKey: "cleaning", icon: Sparkles, className: "bg-warning text-white", statuses: ["cleaning_required", "cleaning_in_progress", "inspection_required"], filter: "cleaning_required" },
-  { key: "maintenance", labelNs: "dashboard", labelKey: "maintenance", icon: Wrench, className: "bg-navy-700 text-white", statuses: ["maintenance", "out_of_service"], filter: "maintenance" },
+  { key: "total",       labelNs: "rooms",     labelKey: "statTotal",  icon: Building2, tone: "navy",    statuses: null,                                                                        filter: "all"              },
+  { key: "booked",      labelNs: "rooms",     labelKey: "statBooked", icon: DoorClosed, tone: "danger", statuses: ["occupied"],                                                                filter: "occupied"         },
+  { key: "available",   labelNs: "dashboard", labelKey: "available",  icon: DoorOpen,   tone: "success",statuses: ["available", "clean_ready"],                                                filter: "available"        },
+  { key: "reserved",    labelNs: "dashboard", labelKey: "reserved",   icon: Bookmark,   tone: "info",   statuses: ["reserved"],                                                                filter: "reserved"         },
+  { key: "cleaning",    labelNs: "dashboard", labelKey: "cleaning",   icon: Sparkles,   tone: "warning",statuses: ["cleaning_required", "cleaning_in_progress", "inspection_required"],        filter: "cleaning_required"},
+  { key: "maintenance", labelNs: "dashboard", labelKey: "maintenance",icon: Wrench,     tone: "navy2",  statuses: ["maintenance", "out_of_service"],                                           filter: "maintenance"      },
 ];
 
 function RoomStatusCards() {
@@ -252,32 +222,22 @@ function RoomStatusCards() {
       : statuses.reduce((sum, s) => sum + (counts[s] ?? 0), 0);
 
   return (
-    <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-      {rooms.isLoading
-        ? ROOM_CARDS.map((c) => <Skeleton key={c.key} className="h-20 rounded-xl" />)
-        : ROOM_CARDS.map((card) => {
-            const Icon = card.icon;
-            const label = card.labelNs === "rooms" ? tr(card.labelKey) : t(card.labelKey);
-            return (
-              <Link
-                key={card.key}
-                href={`/rooms?filter=${card.filter}`}
-                className={cn(
-                  "rounded-xl p-4 shadow-sm transition-transform hover:scale-[1.02]",
-                  card.className,
-                )}
-              >
-                <div className="flex items-center justify-between">
-                  <Icon className="size-4 opacity-80" aria-hidden />
-                  <span className="text-2xl font-bold tabular-nums">{value(card.statuses)}</span>
-                </div>
-                <p className="mt-1 truncate text-[11px] font-semibold uppercase tracking-wide opacity-90">
-                  {label}
-                </p>
-              </Link>
-            );
-          })}
-    </section>
+    <StatCardGrid cols={6}>
+      {ROOM_CARDS.map((card) => {
+        const label = card.labelNs === "rooms" ? tr(card.labelKey) : t(card.labelKey);
+        return (
+          <StatCard
+            key={card.key}
+            label={label}
+            value={rooms.isLoading ? "—" : String(value(card.statuses))}
+            icon={card.icon as React.ComponentType<{ className?: string }>}
+            tone={card.tone}
+            isLoading={rooms.isLoading}
+            href={`/rooms?filter=${card.filter}`}
+          />
+        );
+      })}
+    </StatCardGrid>
   );
 }
 
@@ -451,17 +411,11 @@ export default function DashboardPage() {
         {/* ── 2. Hero KPI chips — finance metrics only for Owner/Manager ─── */}
         {showFinanceMetrics && (
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {dash.isLoading ? (
-              [0,1,2,3,4].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)
-            ) : kpis ? (
-              <>
-                <KpiChip label={t("revpar")} value={fmtINR(p(kpis.revpar))} sub={t("per30days")} wow={p(kpis.revpar_wow)} />
-                <KpiChip label={t("adr")} value={fmtINR(p(kpis.adr))} sub={t("perOccRoomNight")} />
-                <KpiChip label={t("alos")} value={`${p(kpis.alos).toFixed(1)} ${t("nights")}`} sub={t("avgStay")} />
-                <KpiChip label={t("leadDays")} value={`${p(kpis.lead_days).toFixed(0)} ${t("days")}`} sub={t("bookingLead")} />
-                <KpiChip label={t("occupancyNow")} value={`${Math.round(p(d?.today_occupancy_pct))}%`} sub={`${d?.in_house_count ?? 0} in-house · ${d?.available_rooms ?? 0} free`} />
-              </>
-            ) : null}
+            <StatCard tone="white" isLoading={dash.isLoading} label={t("revpar")}       value={fmtINR(p(kpis?.revpar))}                                    subtitle={t("per30days")}          trend={p(kpis?.revpar_wow)} />
+            <StatCard tone="white" isLoading={dash.isLoading} label={t("adr")}          value={fmtINR(p(kpis?.adr))}                                       subtitle={t("perOccRoomNight")} />
+            <StatCard tone="white" isLoading={dash.isLoading} label={t("alos")}         value={`${p(kpis?.alos).toFixed(1)} ${t("nights")}`}                subtitle={t("avgStay")} />
+            <StatCard tone="white" isLoading={dash.isLoading} label={t("leadDays")}     value={`${p(kpis?.lead_days).toFixed(0)} ${t("days")}`}             subtitle={t("bookingLead")} />
+            <StatCard tone="white" isLoading={dash.isLoading} label={t("occupancyNow")} value={`${Math.round(p(d?.today_occupancy_pct))}%`}                 subtitle={`${d?.in_house_count ?? 0} in-house · ${d?.available_rooms ?? 0} free`} />
           </section>
         )}
 

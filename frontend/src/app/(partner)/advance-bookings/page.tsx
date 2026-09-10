@@ -7,10 +7,10 @@ import { toast } from "sonner";
 import { Plus, MoreVertical, LogIn, XCircle, UserX } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
-import { Input } from "@/components/ui/input";
-import { DatePicker } from "@/components/ui/date-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
+import { DataTable } from "@/components/ui/data-table";
+import { FilterBar } from "@/components/ui/filter-bar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,11 +18,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
 } from "@/components/ui/table";
 import {
@@ -177,28 +174,21 @@ function AdvanceBookingsContent() {
   return (
     <>
       <PartnerHeader title={t("advanceBookingsTitle")} subtitle={tn("frontDesk")} />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div className="flex flex-wrap items-end gap-2">
-            <Input
-              placeholder={t("searchPlaceholder")}
-              className="max-w-xs"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <DatePicker
-              className="w-40"
-              aria-label={t("checkinDate")}
-              value={fromDate}
-              onChange={setFromDate}
-            />
-            <DatePicker
-              className="w-40"
-              aria-label={t("checkoutDate")}
-              value={toDate}
-              onChange={setToDate}
-            />
-          </div>
+          <FilterBar
+            searchValue={search}
+            onSearchChange={setSearch}
+            searchPlaceholder={t("searchPlaceholder")}
+            fromDate={fromDate}
+            onFromDateChange={setFromDate}
+            fromLabel={t("checkinDate")}
+            toDate={toDate}
+            onToDateChange={setToDate}
+            toLabel={t("checkoutDate")}
+            hasActiveFilters={!!(search || fromDate || toDate)}
+            onClear={() => { setSearch(""); setFromDate(""); setToDate(""); }}
+          />
           <button
             type="button"
             onClick={() => router.push("/advance-booking")}
@@ -276,50 +266,23 @@ function AdvanceBookingsContent() {
           ))}
         </div>
 
-        <div className="rounded-lg border bg-card">
-          {isLoading && (
-            <div className="space-y-2 p-4">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
-            </div>
-          )}
-          {!isLoading && isError && (
-            <div className="p-8 text-center text-sm text-danger">
-              {tc("error")}{" "}
-              <button
-                type="button"
-                className="underline"
-                onClick={() => {
-                  pendingBookings.refetch();
-                  confirmedBookings.refetch();
-                }}
-              >
-                {tc("retry")}
-              </button>
-            </div>
-          )}
-          {!isLoading && !isError && items.length === 0 && (
-            <p className="p-10 text-center text-sm text-muted-foreground">
-              {t("noBookings")}
-            </p>
-          )}
-          {!isLoading && !isError && items.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-navy-900 hover:bg-navy-900">
-                  <TableHead className="text-white">{t("bookingNumber")}</TableHead>
-                  <TableHead className="text-white">{t("guest")}</TableHead>
-                  <TableHead className="text-white">{t("roomsCol")}</TableHead>
-                  <TableHead className="text-white">{t("dates")}</TableHead>
-                  <TableHead className="text-white">{t("total")}</TableHead>
-                  <TableHead className="text-white">{t("statusCol")}</TableHead>
-                  <TableHead className="text-white">{t("payment")}</TableHead>
-                  <TableHead className="text-right text-white">{tc("actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginate(items, page, 10).map((booking) => (
+        <DataTable
+          darkHeader
+          isLoading={isLoading}
+          isError={isError}
+          onRetry={() => { pendingBookings.refetch(); confirmedBookings.refetch(); }}
+          isEmpty={!isLoading && !isError && items.length === 0}
+          emptyTitle={t("noBookings")}
+          columns={[
+            t("bookingNumber"), t("guest"), t("roomsCol"),
+            t("dates"), t("total"), t("statusCol"), t("payment"),
+            tc("actions"),
+          ]}
+          rightAlignCols={[7]}
+        >
+          {!isLoading && !isError && (
+            <TableBody>
+              {paginate(items, page, 10).map((booking) => (
                   <TableRow key={booking.id}>
                     <TableCell className="font-medium">{booking.booking_number}</TableCell>
                     <TableCell>{booking.primary_guest_name ?? "—"}</TableCell>
@@ -393,18 +356,17 @@ function AdvanceBookingsContent() {
                     </TableCell>
                   </TableRow>
                 ))}
-              </TableBody>
-            </Table>
+            </TableBody>
           )}
-          {!isLoading && !isError && items.length > 0 && (
-            <PaginationFooter
-              page={page}
-              total={items.length}
-              pageSize={10}
-              onPageChange={setPage}
-            />
-          )}
-        </div>
+        </DataTable>
+        {!isLoading && !isError && items.length > 0 && (
+          <PaginationFooter
+            page={page}
+            total={items.length}
+            pageSize={10}
+            onPageChange={setPage}
+          />
+        )}
       </main>
     </>
   );

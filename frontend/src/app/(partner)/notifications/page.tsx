@@ -115,7 +115,7 @@ function NotificationsContent() {
   return (
     <>
       <PartnerHeader title={t("title")} subtitle={tn("overview")} />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {/* Category filter chips — only categories this role can see */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap gap-1.5">

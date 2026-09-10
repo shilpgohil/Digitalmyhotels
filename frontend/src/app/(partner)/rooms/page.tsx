@@ -190,7 +190,7 @@ function RoomsContent() {
   return (
     <>
       <PartnerHeader title={t("title")} subtitle={tn("property")} />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {/* Rooms & room types are managed on the Edit Hotel page — this page
             only shows live status (client request, 09/2026). */}
         {can(PERMISSIONS.hotelManageSettings) && (

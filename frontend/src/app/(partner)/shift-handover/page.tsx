@@ -74,7 +74,7 @@ function ShiftHandoverContent() {
   return (
     <>
       <PartnerHeader title={t("handoverTitle")} subtitle={tn("operations")} />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {/* Create form — single horizontal row (wraps on small screens). */}
         <section className="mb-6 rounded-lg border bg-card p-5">
           <div className="flex flex-wrap items-end gap-3">
