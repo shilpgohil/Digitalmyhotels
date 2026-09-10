@@ -11,6 +11,7 @@ from app.core.permissions import Permission
 from app.core.tenant import TenantContext
 from app.db.session import get_db
 from app.schemas.booking import (
+    BookingAddRoomRequest,
     BookingCancel,
     BookingCreate,
     BookingListOut,
@@ -202,6 +203,30 @@ async def replace_booking_room(
         from_room_id=body.from_room_id,
         to_room_id=body.to_room_id,
         reason=body.reason,
+        correlation_id=_correlation(request),
+    )
+    return await bookings_service.to_out(db, booking)
+
+
+@router.post("/{booking_id}/add-room", response_model=BookingOut)
+async def add_room_to_booking(
+    booking_id: UUID,
+    body: BookingAddRoomRequest,
+    request: Request,
+    tenant: TenantContext = Depends(require_permissions(Permission.BOOKINGS_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> BookingOut:
+    """Add an extra room to a confirmed advance booking before check-in.
+
+    Allows staff to accommodate guests who want more rooms than originally
+    booked. Priced at the room type's default rate — the booking total and
+    ledger are updated atomically.
+    """
+    booking = await bookings_service.add_room_to_booking(
+        db,
+        tenant,
+        booking_id,
+        new_room_id=body.room_id,
         correlation_id=_correlation(request),
     )
     return await bookings_service.to_out(db, booking)

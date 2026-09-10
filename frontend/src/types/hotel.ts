@@ -111,6 +111,10 @@ export interface RoomAvailableItem {
   room_type_hourly_rate: string | null;
   max_occupancy: number;
   amenities: string[];
+  /** For currently-occupied rooms: ISO date of current guest's checkout. */
+  current_checkout_date: string | null;
+  /** For currently-occupied rooms: "HH:MM" checkout time (hotel local time). */
+  current_checkout_time: string | null;
 }
 
 export type UnavailableReason =
@@ -124,6 +128,8 @@ export interface RoomUnavailableItem extends RoomAvailableItem {
   unavailable_reason: UnavailableReason;
   /** ISO date string — when this room will next be free (for booked rooms). */
   occupied_until: string | null;
+  /** "HH:MM" checkout time on the occupied_until date (hotel local). */
+  occupied_until_time: string | null;
   overlapping_booking_count: number;
 }
 

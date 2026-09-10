@@ -113,6 +113,12 @@ class Booking(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     # Set once when the missed-arrival alert fires (scheduled check-in + 2 h
     # grace passed, still confirmed). Release stays MANUAL (no-show/cancel).
+    # Set by sweep_auto_noshow() when booking is automatically marked no_show
+    # (24 h after scheduled check-in with no arrival). Distinguishes from
+    # manual mark_no_show which leaves this as NULL.
+    no_show_auto_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     missed_arrival_notified_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

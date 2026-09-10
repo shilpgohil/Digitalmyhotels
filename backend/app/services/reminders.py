@@ -371,6 +371,122 @@ async def sweep_low_availability(
     return fired
 
 
+# ── Auto no-show sweep ────────────────────────────────────────────────────────
+
+_AUTO_NOSHOW_HOURS = 24  # mark no-show 24 h after scheduled check-in time
+
+async def sweep_auto_noshow(
+    db: AsyncSession,
+    *,
+    now_utc: datetime | None = None,
+) -> int:
+    """Automatically mark confirmed advance bookings as no_show when the guest
+    has not arrived within 24 h of their scheduled check-in time.
+
+    Decision rules:
+    - Only `source == 'advance'` bookings (walk-in bookings already had a
+      live guest present at creation and are never auto-cancelled this way).
+    - Only `status == 'confirmed'` (already checked_in/cancelled/no_show skip).
+    - `no_show_auto_at IS NULL` — run once per booking.
+    - Current time >= scheduled_check_in_datetime + 24h.
+
+    On match:
+    - Sets booking.status = 'no_show' and booking.no_show_auto_at = now.
+    - The advance payment (if any) is retained automatically — no ledger changes.
+      The payment rows stay and the hotel keeps the deposit as compensation.
+    - Fires a BOOKING_NOSHOW notification so staff are informed.
+    """
+    from app.models.booking import Booking
+    from app.models.hotel import Hotel, HotelSettings
+    from app.models.guest import Guest
+    from app.services.notification_events import NE, fire
+
+    now = now_utc or datetime.now(UTC)
+
+    # Pre-filter: check_in_date must be at most (today - 1 day) to be a candidate
+    # (we can't miss-arrive today if it's still today + less than 24h).
+    cutoff_date = (now - timedelta(hours=_AUTO_NOSHOW_HOURS)).date()
+
+    result = await db.execute(
+        select(Booking, Hotel.timezone, HotelSettings.check_in_time)
+        .join(Hotel, Hotel.id == Booking.hotel_id)
+        .outerjoin(HotelSettings, HotelSettings.hotel_id == Booking.hotel_id)
+        .where(
+            Booking.status == "confirmed",
+            Booking.source == "advance",
+            Booking.no_show_auto_at.is_(None),
+            Booking.check_in_date <= cutoff_date,
+        )
+    )
+    rows = result.all()
+    marked = 0
+
+    for booking, hotel_tz, hotel_check_in_time in rows:
+        try:
+            tz = ZoneInfo(hotel_tz)
+        except (KeyError, ValueError):
+            tz = ZoneInfo("Asia/Kolkata")
+
+        # Determine the scheduled check-in datetime
+        raw_time = (booking.check_in_time or "").strip()
+        if raw_time:
+            try:
+                hour, minute = (int(p) for p in raw_time.split(":")[:2])
+            except ValueError:
+                hour, minute = 14, 0
+        elif hotel_check_in_time is not None:
+            hour, minute = hotel_check_in_time.hour, hotel_check_in_time.minute
+        else:
+            hour, minute = 14, 0
+
+        scheduled = datetime(
+            booking.check_in_date.year,
+            booking.check_in_date.month,
+            booking.check_in_date.day,
+            hour,
+            minute,
+            tzinfo=tz,
+        ).astimezone(UTC)
+
+        cutoff = scheduled + timedelta(hours=_AUTO_NOSHOW_HOURS)
+        if now < cutoff:
+            continue  # not yet past the 24-hour window
+
+        # Mark as no_show
+        booking.status = "no_show"
+        booking.no_show_auto_at = now
+
+        # Notify hotel staff
+        guest = (
+            await db.get(Guest, booking.primary_guest_id)
+            if booking.primary_guest_id
+            else None
+        )
+        try:
+            await fire(
+                db,
+                hotel_id=booking.hotel_id,
+                event=NE.BOOKING_NOSHOW,
+                data={
+                    "booking_number": booking.booking_number,
+                    "guest_name": guest.full_name if guest else "Guest",
+                    "check_in_time": f"{hour:02d}:{minute:02d}",
+                    "check_in_date": booking.check_in_date.isoformat(),
+                    "booking_id": str(booking.id),
+                    "auto": True,
+                },
+            )
+        except Exception:
+            logger.exception("auto_noshow notification failed for booking %s", booking.id)
+
+        marked += 1
+
+    if marked:
+        await db.commit()
+        logger.info("sweep_auto_noshow: %d booking(s) auto-marked as no_show", marked)
+    return marked
+
+
 # ── Background loop ───────────────────────────────────────────────────────────
 
 async def reminders_loop() -> None:
@@ -383,6 +499,7 @@ async def reminders_loop() -> None:
             sweep_arrival_today,
             sweep_missed_arrivals,
             sweep_checkout_reminders,
+            sweep_auto_noshow,  # auto-marks no_show after 24h — runs every cycle
         ):
             try:
                 async with AsyncSessionLocal() as session:

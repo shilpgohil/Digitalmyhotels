@@ -117,10 +117,11 @@ export interface ExpenseCategoryOut {
 
 /** Stat-card totals for the expenses page (rejected excluded). */
 export interface ExpenseSummaryOut {
-  total_amount: string;
-  today_amount: string;
-  month_amount: string;
+  total_amount: string;    // APPROVED + PAID only
+  today_amount: string;    // APPROVED + PAID for today
+  month_amount: string;    // APPROVED + PAID for this month
   entries: number;
+  pending_amount: string;  // SUBMITTED (awaiting approval) — shown separately
 }
 
 export interface RecurringExpenseOut {

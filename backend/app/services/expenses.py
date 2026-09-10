@@ -168,26 +168,45 @@ async def expense_summary(
     today = datetime.now(tz).date()
     month_start = today.replace(day=1)
 
+    # Only APPROVED + PAID expenses count toward committed totals.
+    # SUBMITTED (pending) must NOT inflate the total before approval.
+    # REJECTED is always excluded.
+    committed = Expense.status.in_(("approved", "paid"))
+
     row = (
         await db.execute(
             select(
-                func.coalesce(func.sum(Expense.amount), 0),
-                func.coalesce(
-                    func.sum(
-                        case((Expense.expense_date == today, Expense.amount), else_=0)
-                    ),
-                    0,
-                ),
+                # Committed total (approved + paid) — the real spending figure
+                func.coalesce(func.sum(case((committed, Expense.amount), else_=0)), 0),
+                # Today — committed only
                 func.coalesce(
                     func.sum(
                         case(
-                            (Expense.expense_date >= month_start, Expense.amount),
+                            (committed & (Expense.expense_date == today), Expense.amount),
                             else_=0,
                         )
                     ),
                     0,
                 ),
+                # This month — committed only
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (committed & (Expense.expense_date >= month_start), Expense.amount),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ),
+                # Entry count across all non-rejected statuses
                 func.count(Expense.id),
+                # Pending amount — SUBMITTED expenses awaiting approval
+                func.coalesce(
+                    func.sum(
+                        case((Expense.status == "submitted", Expense.amount), else_=0)
+                    ),
+                    0,
+                ),
             ).where(Expense.hotel_id == hotel_id, Expense.status != "rejected")
         )
     ).one()
@@ -196,6 +215,7 @@ async def expense_summary(
         "today_amount": row[1],
         "month_amount": row[2],
         "entries": row[3],
+        "pending_amount": row[4],   # SUBMITTED expenses — shown separately on frontend
     }
 
 

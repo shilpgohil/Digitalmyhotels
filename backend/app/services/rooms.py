@@ -468,6 +468,28 @@ async def check_availability(
     )
     all_rooms = list(rooms_result.scalars().all())
 
+    # Step 1b: Batch query for currently checked-in guests per room.
+    # Used to show "Free at HH:MM" on occupied rooms so staff can plan.
+    # Only fetches rooms with status='checked_in' — O(1) extra query, no N+1.
+    checkedin_result = await db.execute(
+        select(
+            BookingRoom.room_id,
+            Booking.check_out_date,
+            Booking.check_out_time,
+        )
+        .join(Booking, Booking.id == BookingRoom.booking_id)
+        .where(
+            BookingRoom.hotel_id == hotel_id,
+            BookingRoom.is_current.is_(True),
+            Booking.status == "checked_in",
+        )
+    )
+    # Map room_id → (checkout_date, checkout_time)
+    current_checkout: dict[UUID, tuple[date, str | None]] = {
+        row.room_id: (row.check_out_date, row.check_out_time)
+        for row in checkedin_result.all()
+    }
+
     # Step 2: single batch query — for every room, find overlapping bookings
     # and record the latest checkout date (= when the room will be free).
     # Day-use bookings (check_in == check_out) still block that calendar day,
@@ -526,11 +548,14 @@ async def check_availability(
             # Room has an active booking that overlaps the requested date window.
             # This is the only reliable signal for date-based unavailability.
             free_from, booking_count = overlaps[room.id]
+            # Also surface the checkout TIME so UI can show "Free on Aug 8 at 11:00"
+            co_date, co_time = current_checkout.get(room.id, (None, None))
             unavailable.append(
                 RoomUnavailableItem(
                     **item_data,
                     unavailable_reason="booked",
                     occupied_until=free_from,
+                    occupied_until_time=co_time,
                     overlapping_booking_count=booking_count,
                 )
             )
@@ -541,6 +566,7 @@ async def check_availability(
                     **item_data,
                     unavailable_reason=room.status,
                     occupied_until=None,
+                    occupied_until_time=None,
                     overlapping_booking_count=0,
                 )
             )
@@ -553,7 +579,15 @@ async def check_availability(
             # be ready by the requested check-in.  The current physical status is
             # surfaced as `status` on the chip so staff can see it, but it does
             # NOT prevent the booking from being created.
-            available.append(RoomAvailableItem(**item_data))
+            #
+            # For currently-occupied available rooms, also surface the checkout
+            # date+time so staff can tell the new guest "Room will be ready at X".
+            co_date, co_time = current_checkout.get(room.id, (None, None))
+            available.append(RoomAvailableItem(
+                **item_data,
+                current_checkout_date=co_date,
+                current_checkout_time=co_time,
+            ))
 
     # Sort unavailable: "booked" rooms by earliest free date first
     # (best suggestions show at the top), then maintenance/oos last.

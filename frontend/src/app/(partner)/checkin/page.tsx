@@ -415,6 +415,8 @@ function RoomReplaceControl({
   const tc = useTranslations("common");
   const api = useApi();
   const [openFor, setOpenFor] = useState<string | null>(null);
+  /** "add" mode opens the room picker for adding a NEW room (not replacing). */
+  const [addMode, setAddMode] = useState(false);
   /** Room chosen in the picker, awaiting explicit confirmation. */
   const [pendingTarget, setPendingTarget] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -451,10 +453,28 @@ function RoomReplaceControl({
     }
   };
 
+  const addRoom = async (newRoomId: string) => {
+    setBusy(true);
+    try {
+      await api(`/api/v1/bookings/${booking.id}/add-room`, {
+        method: "POST",
+        body: { room_id: newRoomId },
+      });
+      toast.success(t("roomAdded"));
+      setAddMode(false);
+      setPendingTarget([]);
+      onReplaced();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : tc("error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-3">
       {/* Current allocation, one chip per room with its own Change action. */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 items-center">
         {currentRooms.map((r) => (
           <div
             key={r.room_id}
@@ -473,6 +493,7 @@ function RoomReplaceControl({
               className="text-xs font-medium text-gold-700 underline hover:text-gold-800"
               onClick={() => {
                 setPendingTarget([]);
+                setAddMode(false);
                 setOpenFor(openFor === r.room_id ? null : r.room_id);
               }}
               disabled={busy}
@@ -481,6 +502,16 @@ function RoomReplaceControl({
             </button>
           </div>
         ))}
+        {/* Add Another Room button */}
+        <button
+          type="button"
+          onClick={() => { setPendingTarget([]); setOpenFor(null); setAddMode(!addMode); }}
+          disabled={busy}
+          className="flex items-center gap-1 rounded-lg border-2 border-dashed border-gold-400 px-3 py-1.5 text-xs font-medium text-gold-700 hover:bg-gold-50 transition-colors"
+        >
+          <Plus className="size-3.5" aria-hidden />
+          {t("addRoom")}
+        </button>
       </div>
 
       {/* Full room picker — the SAME status-filtered, badge-rich component
@@ -510,12 +541,7 @@ function RoomReplaceControl({
                 {t("confirmReplaceHint", { from: fromRoom.room_number })}
               </p>
               <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => setPendingTarget([])}
-                >
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => setPendingTarget([])}>
                   {tc("cancel")}
                 </Button>
                 <Button
@@ -525,6 +551,47 @@ function RoomReplaceControl({
                   onClick={() => void replace(pendingTarget[0])}
                 >
                   {busy ? tc("saving") : t("confirmReplace")}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Add Room mode — opens picker for adding extra room to the booking */}
+      {addMode && (
+        <div className="space-y-3 rounded-xl border border-gold-300 bg-gold-50/40 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gold-700 flex items-center gap-1.5">
+            <Plus className="size-3.5" />
+            {t("addRoomTitle")}
+          </p>
+          <RoomAvailabilityPicker
+            checkIn={availFrom}
+            checkOut={availTo}
+            adults={1}
+            guestChildren={0}
+            selectedRooms={pendingTarget}
+            onSelectionChange={(ids) => {
+              const fresh = ids.filter((id) => !currentIds.has(id));
+              setPendingTarget(fresh.slice(-1));
+            }}
+          />
+          {pendingTarget.length === 1 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gold-400 bg-white px-4 py-3">
+              <p className="text-sm font-medium text-navy-900">
+                {t("confirmAddHint")}
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => setPendingTarget([])}>
+                  {tc("cancel")}
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-navy-900 text-white hover:bg-navy-900/90"
+                  disabled={busy}
+                  onClick={() => void addRoom(pendingTarget[0])}
+                >
+                  {busy ? tc("saving") : t("confirmAdd")}
                 </Button>
               </div>
             </div>

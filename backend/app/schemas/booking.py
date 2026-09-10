@@ -150,6 +150,11 @@ class BookingRoomReplaceRequest(BaseModel):
     reason: str | None = Field(default=None, max_length=500)
 
 
+class BookingAddRoomRequest(BaseModel):
+    """Add an extra room to a confirmed booking before check-in."""
+    room_id: UUID
+
+
 class BookingUpdate(BaseModel):
     check_in_date: date | None = None
     check_out_date: date | None = None

@@ -118,6 +118,11 @@ class RoomAvailableItem(BaseModel):
     room_type_hourly_rate: Decimal | None = None
     max_occupancy: int
     amenities: list[str]
+    # For physically-occupied rooms that are still available for the REQUESTED
+    # date range: the expected checkout time of the CURRENT in-house guest.
+    # Format: "HH:MM" (hotel local time).  NULL if room is not currently occupied.
+    current_checkout_date: date | None = None
+    current_checkout_time: str | None = None
 
 
 class RoomUnavailableItem(RoomAvailableItem):
@@ -131,6 +136,8 @@ class RoomUnavailableItem(RoomAvailableItem):
     # For "booked": the latest checkout date among overlapping bookings.
     # Sorted ascending → earliest-free rooms appear first (best suggestions).
     occupied_until: date | None
+    # The expected checkout TIME on the occupied_until date (hotel local time).
+    occupied_until_time: str | None = None
     overlapping_booking_count: int
 
 

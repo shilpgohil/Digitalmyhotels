@@ -697,6 +697,136 @@ async def replace_booking_room(
     return await get_booking(db, tenant, booking_id)
 
 
+async def add_room_to_booking(
+    db: AsyncSession,
+    tenant: TenantContext,
+    booking_id: UUID,
+    *,
+    new_room_id: UUID,
+    correlation_id: str | None = None,
+) -> "Booking":
+    """Add an extra room to a confirmed (advance) booking before check-in.
+
+    Allows the arriving guest to take more rooms than originally reserved —
+    the additional room is appended to the booking, priced at the room type's
+    base rate, and the booking total is updated with a debit ledger entry.
+    """
+    hotel_id = tenant.require_hotel()
+    booking = await get_booking(db, tenant, booking_id)
+
+    if booking.status not in ("pending", "confirmed"):
+        raise ValidationAppError(
+            "Extra rooms can only be added before check-in.",
+            code="booking_not_modifiable",
+        )
+    if any(br.is_current and br.room_id == new_room_id for br in booking.rooms):
+        raise ValidationAppError(
+            "That room is already allocated to this booking.", code="room_already_allocated"
+        )
+
+    locked = await _lock_rooms(db, hotel_id, [new_room_id])
+    new_room_typed = (
+        await db.execute(
+            select(Room)
+            .options(selectinload(Room.room_type))
+            .where(Room.id == new_room_id)
+        )
+    ).scalar_one()
+
+    # Availability re-check inside the lock — double-booking guard.
+    await _assert_no_overlap(
+        db,
+        hotel_id,
+        [new_room_id],
+        booking.check_in_date,
+        booking.check_out_date,
+        exclude_booking_id=booking.id,
+    )
+    if booking.check_in_date <= date.today() and not is_allocatable(new_room_typed.status):
+        raise ConflictError(
+            f"Room {new_room_typed.room_number} is not available "
+            f"(status: {new_room_typed.status})",
+            code="room_not_allocatable",
+        )
+
+    # Rate: use the room type's default base rate (staff can override later).
+    new_rate = new_room_typed.room_type.base_price if new_room_typed.room_type else Decimal("0.00")
+
+    db.add(
+        BookingRoom(
+            hotel_id=hotel_id,
+            booking_id=booking.id,
+            room_id=new_room_id,
+            room_type_id=new_room_typed.room_type_id,
+            rate=new_rate,
+            is_current=True,
+        )
+    )
+
+    # Reserve the new room.
+    if new_room_typed.status in (RoomStatus.AVAILABLE.value, RoomStatus.CLEAN_READY.value):
+        new_room_typed.status = RoomStatus.RESERVED.value
+
+    # Reprice booking total.
+    from app.models.payment import HotelCharge
+
+    charges_result = await db.execute(
+        select(func.coalesce(func.sum(HotelCharge.total_amount), 0)).where(
+            HotelCharge.booking_id == booking.id,
+            HotelCharge.hotel_id == hotel_id,
+            HotelCharge.voided_at.is_(None),
+        )
+    )
+    charges_total = Decimal(str(charges_result.scalar_one()))
+    nights = _nights(booking.check_in_date, booking.check_out_date)
+    room_subtotal = (
+        sum(
+            (br.rate for br in booking.rooms if br.is_current),
+            Decimal("0.00"),
+        )
+        + new_rate
+    ) * nights
+
+    old_total = booking.total_amount
+    booking.total_amount = money(
+        max(room_subtotal + charges_total - booking.discount_amount, Decimal("0.00"))
+    )
+    settle_booking_amounts(booking)
+
+    delta = booking.total_amount - old_total
+    if delta > 0:
+        from app.services.ledger import append_entry
+
+        await append_entry(
+            db,
+            hotel_id=hotel_id,
+            booking_id=booking.id,
+            entry_type="debit",
+            amount=delta,
+            description=f"Extra room added: {new_room_typed.room_number}",
+            reference_type="booking_room_added",
+            reference_id=booking.id,
+            created_by_id=tenant.user_id,
+        )
+
+    await db.flush()
+    await write_audit(
+        db,
+        action="bookings.room_added",
+        entity_type="booking",
+        entity_id=booking.id,
+        actor_id=tenant.user_id,
+        hotel_id=hotel_id,
+        after={
+            "room": new_room_typed.room_number,
+            "rate": str(new_rate),
+            "new_total": str(booking.total_amount),
+        },
+        correlation_id=correlation_id,
+    )
+    return await get_booking(db, tenant, booking_id)
+
+
 async def _release_rooms(db: AsyncSession, booking: Booking) -> None:
     room_ids = [br.room_id for br in booking.rooms if br.is_current]
     if not room_ids:

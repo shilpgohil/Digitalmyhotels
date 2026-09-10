@@ -181,6 +181,13 @@ function AvailableChip({
           {hint.label}
         </span>
       )}
+      {/* Free-at hint: show when this occupied room will be vacated */}
+      {room.status === "occupied" && room.current_checkout_time && (
+        <span className="mt-0.5 flex items-center gap-0.5 text-[9px] font-medium text-green-700">
+          <Clock className="size-2.5" aria-hidden />
+          Free at {room.current_checkout_time}
+        </span>
+      )}
     </button>
   );
 }
@@ -202,6 +209,12 @@ function UnavailableCard({ room }: { readonly room: RoomUnavailableItem }) {
         <div className="ml-3 shrink-0 text-right">
           <p className="text-[10px] text-muted-foreground">Free from</p>
           <p className="text-xs font-semibold text-foreground">{fmtDate(room.occupied_until)}</p>
+          {room.occupied_until_time && (
+            <p className="text-[10px] text-green-700 font-medium flex items-center justify-end gap-0.5 mt-0.5">
+              <Clock className="size-2.5" aria-hidden />
+              {room.occupied_until_time}
+            </p>
+          )}
         </div>
       )}
       {!room.occupied_until && room.unavailable_reason === "cleaning" && (

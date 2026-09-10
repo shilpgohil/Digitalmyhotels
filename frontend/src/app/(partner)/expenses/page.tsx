@@ -249,13 +249,15 @@ function ExpensesContent() {
                   icon: Wallet,
                   className: "bg-navy-950 text-white",
                   value: fmtINR(summary.data.total_amount),
+                  subtitle: "Approved + Paid",
                 },
                 {
-                  key: "today",
-                  labelKey: "statToday",
+                  key: "pending",
+                  labelKey: "statPending",
                   icon: CalendarDays,
-                  className: "bg-danger text-white",
-                  value: fmtINR(summary.data.today_amount),
+                  className: "bg-amber-500 text-white",
+                  value: fmtINR(summary.data.pending_amount ?? "0"),
+                  subtitle: "Awaiting Approval",
                 },
                 {
                   key: "month",
@@ -263,6 +265,7 @@ function ExpensesContent() {
                   icon: CalendarRange,
                   className: "bg-gold-500 text-navy-900",
                   value: fmtINR(summary.data.month_amount),
+                  subtitle: "This Month",
                 },
                 {
                   key: "entries",
@@ -270,6 +273,7 @@ function ExpensesContent() {
                   icon: ListChecks,
                   className: "bg-navy-800 text-white",
                   value: String(summary.data.entries),
+                  subtitle: "All Entries",
                 },
               ] as const
             ).map((card) => {
