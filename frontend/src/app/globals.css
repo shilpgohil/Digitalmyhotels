@@ -229,10 +229,12 @@
   }
 
   /*
-   * CLIENT FORM SPEC (09/2026): all text inputs and selects across the
-   * platform must be: white background, 42px height, 6px border radius.
+   * CLIENT FORM SPEC (09/2026) — STRICT: all text inputs and selects across
+   * the platform must be: WHITE background, 42px height, 6px border radius.
+   * !important is deliberate — scattered utility classes (bg-transparent,
+   * bg-background, bg-muted, rounded-lg) on raw <select>/<input> elements
+   * were producing gray/short fields. This rule wins everywhere.
    * min-height beats Tailwind h-8/h-9 utilities (min-height > height).
-   * background/radius act as base defaults — explicit utilities still win.
    */
   input[type="text"],
   input[type="email"],
@@ -246,12 +248,19 @@
   input[type="datetime-local"],
   select {
     min-height: 42px;
-    background-color: #ffffff;
-    border-radius: 6px;
+    background-color: #ffffff !important;
+    border-radius: 6px !important;
   }
   textarea {
-    background-color: #ffffff;
-    border-radius: 6px;
+    background-color: #ffffff !important;
+    border-radius: 6px !important;
+  }
+  /* Exception: tiny inline selects inside the calendar panels (month/year
+     dropdowns) keep their compact look. */
+  [role="dialog"] select.bg-transparent {
+    min-height: 0;
+    background-color: transparent !important;
+    border-radius: 6px !important;
   }
   /*
    * TOUCH TARGET EXPANSION

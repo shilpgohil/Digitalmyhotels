@@ -330,7 +330,7 @@ export function DateTimePicker({
         aria-expanded={open}
         data-required={required || undefined}
         className={cn(
-          "flex h-9 w-full cursor-pointer items-center rounded-lg border border-input bg-background px-2.5 text-sm text-left",
+          "flex h-[42px] w-full cursor-pointer items-center rounded-md border border-input bg-white px-2.5 text-sm text-left",
           "hover:border-gold-400 focus:outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20",
           disabled && "cursor-not-allowed opacity-60",
         )}

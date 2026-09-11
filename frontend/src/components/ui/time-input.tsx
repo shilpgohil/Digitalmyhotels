@@ -57,7 +57,7 @@ export function TimeInput({
   return (
     <div
       className={cn(
-        "relative flex h-9 w-full cursor-pointer items-center rounded-lg border border-input bg-background px-2.5 text-sm",
+        "relative flex h-[42px] w-full cursor-pointer items-center rounded-md border border-input bg-white px-2.5 text-sm",
         "hover:border-gold-400 focus-within:border-gold-500 focus-within:ring-2 focus-within:ring-gold-500/20",
         disabled && "cursor-not-allowed opacity-60",
         className,
