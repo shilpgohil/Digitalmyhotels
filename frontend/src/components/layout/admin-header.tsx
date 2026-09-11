@@ -31,12 +31,11 @@ function AdminMobileNav() {
             AdminSidebar now uses w-full and fills exactly this 240px container. */}
         <SheetContent
           side="left"
-          className="!w-64 gap-0 glass-nav bg-background/95 p-0 text-foreground overflow-y-auto"
+          className="!w-64 gap-0 sidebar-navy p-0 text-sidebar-foreground overflow-y-auto"
           aria-label="Admin menu"
         >
           <SheetTitle className="sr-only">Admin menu</SheetTitle>
-          {/* alwaysExpanded: labels always visible, w-full fills the 256px drawer */}
-          <AdminSidebar onNavigate={() => setOpen(false)} alwaysExpanded />
+          <AdminSidebar onNavigate={() => setOpen(false)} />
         </SheetContent>
       </Sheet>
     </>
@@ -83,7 +82,7 @@ export function AdminHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-2 glass-nav bg-background/70 px-3 lg:px-6 sm:gap-4">
+    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-2 bg-background/90 glass-nav px-3 shadow-[0_1px_3px_rgba(16,24,40,0.04)] lg:px-6 sm:gap-4">
       <AdminMobileNav />
       <form onSubmit={handleSearch} className="flex-1 flex justify-center">
         <div className="relative w-full max-w-md">

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Plus_Jakarta_Sans, Noto_Sans_Devanagari } from "next/font/google";
+import { Inter, Source_Serif_4, Noto_Sans_Devanagari } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { Providers } from "@/components/providers";
@@ -14,16 +14,14 @@ const inter = Inter({
 });
 
 /**
- * Plus Jakarta Sans replaces Source Serif 4 for display/heading text.
- * Rationale: warm humanist-geometric feel matches hospitality SaaS;
- * crisp at all sizes; better than a serif for an operational dashboard.
- * Weights: 400 body-level, 500/600/700/800 for hierarchy.
+ * Source Serif 4 — display/heading font (client-approved classic hotel feel).
+ * Restored from the original design after client feedback that the
+ * sans-serif headings felt oversized. Inter remains the body font.
  */
-const plusJakarta = Plus_Jakarta_Sans({
+const sourceSerif = Source_Serif_4({
   subsets: ["latin"],
-  variable: "--font-plus-jakarta",
+  variable: "--font-source-serif",
   display: "swap",
-  weight: ["400", "500", "600", "700", "800"],
 });
 
 const notoDevanagari = Noto_Sans_Devanagari({
@@ -54,11 +52,11 @@ export default async function RootLayout({
   return (
     <html lang={locale} suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${plusJakarta.variable} ${notoDevanagari.variable} font-sans`}
+        className={`${inter.variable} ${sourceSerif.variable} ${notoDevanagari.variable} font-sans`}
         style={
           {
             "--font-sans-stack": `var(--font-inter), var(--font-devanagari), system-ui, sans-serif`,
-            "--font-display-stack": `var(--font-plus-jakarta), var(--font-devanagari), system-ui, sans-serif`,
+            "--font-display-stack": `var(--font-source-serif), var(--font-devanagari), serif`,
           } as React.CSSProperties
         }
       >

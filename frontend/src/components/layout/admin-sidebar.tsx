@@ -48,13 +48,7 @@ function hrefIsActive(pathname: string, filter: string | null, href: string): bo
   return true;
 }
 
-function AdminSidebarInner({
-  onNavigate,
-  alwaysExpanded = false,
-}: {
-  readonly onNavigate?: () => void;
-  readonly alwaysExpanded?: boolean;
-}) {
+function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void }) {
   const t = useTranslations("admin");
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -76,20 +70,11 @@ function AdminSidebarInner({
   }, []);
 
   return (
-    <aside className={cn(
-      "group flex h-full flex-col overflow-hidden",
-      // Desktop: hover-expand 56px → 212px. Mobile drawer: w-full fills container.
-      alwaysExpanded
-        ? "w-full"
-        : "w-[56px] hover:w-[212px] transition-[width] duration-300 ease-[cubic-bezier(0.175,0.885,0.32,1.1)]",
-      // Glass: warm cream on desktop, transparent on mobile drawer
-      alwaysExpanded ? "text-foreground" : "glass-sidebar-warm",
-    )}>
-      {/* Brand — logo always visible, "Platform Admin" text animates in */}
-      {/* Brand — same structure as partner sidebar: icon + name + subtitle on hover */}
-      <div className="flex items-center gap-2.5 px-3 py-4 flex-shrink-0">
-        {/* Logo badge — matches partner's gold badge style */}
-        <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gold-500 shadow-[0_2px_8px_rgba(192,154,46,0.35)]">
+    <aside className="flex h-full w-full flex-col sidebar-navy text-sidebar-foreground">
+      {/* Brand — same structure as partner sidebar */}
+      <div className="flex items-center gap-3 px-4 py-4 flex-shrink-0">
+        {/* Logo badge — gold with soft glow */}
+        <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gold-500 shadow-[0_2px_10px_rgba(192,154,46,0.35)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/dmh-icon.png"
@@ -98,20 +83,14 @@ function AdminSidebarInner({
             draggable={false}
           />
         </div>
-        {/* Name + subtitle — animate in on hover */}
-        <div className={cn(
-          "min-w-0 overflow-hidden transition-all duration-300 delay-50",
-          alwaysExpanded
-            ? "max-w-[150px] opacity-100"
-            : "max-w-0 opacity-0 group-hover:max-w-[150px] group-hover:opacity-100",
-        )}>
-          <p className="truncate text-[11px] font-bold text-foreground whitespace-nowrap">DigitalMyHotels</p>
-          <p className="truncate text-micro tracking-widest uppercase text-muted-foreground whitespace-nowrap">Platform Admin</p>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-white">DigitalMyHotels</p>
+          <p className="truncate text-micro tracking-widest uppercase text-sidebar-foreground/70">Platform Admin</p>
         </div>
       </div>
 
-      {/* Navigation — labels animate in on hover */}
-      <nav className="scroll-fade-y overflow-y-auto px-2 py-3 flex-1">
+      {/* Navigation — always expanded */}
+      <nav className="scroll-fade-y overflow-y-auto px-3 py-2 flex-1">
         <ul className="space-y-0.5">
           {NAV_ITEMS.map((item) => {
             const active = hrefIsActive(pathname, filter, item.href);
@@ -121,23 +100,15 @@ function AdminSidebarInner({
                 <Link
                   href={item.href}
                   onClick={onNavigate}
-                  title={t(item.labelKey)}
                   className={cn(
-                    "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-200",
+                    "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-all duration-200",
                     active
-                      ? "border-l-[2px] border-gold-500 bg-gold-100/70 pl-[9px] text-gold-800 font-semibold"
-                      : "text-muted-foreground hover:bg-black/[0.04] hover:text-foreground",
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[0_2px_14px_rgba(192,154,46,0.30)]"
+                      : "text-sidebar-foreground hover:bg-white/[0.06] hover:text-white",
                   )}
                 >
                   <Icon className="size-4 shrink-0" aria-hidden />
-                  <span className={cn(
-                    "whitespace-nowrap overflow-hidden transition-all duration-250",
-                    alwaysExpanded
-                      ? "max-w-[150px] opacity-100"
-                      : "max-w-0 opacity-0 group-hover:max-w-[150px] group-hover:opacity-100 delay-75",
-                  )}>
-                    {t(item.labelKey)}
-                  </span>
+                  <span className="truncate">{t(item.labelKey)}</span>
                 </Link>
               </li>
             );
@@ -149,57 +120,41 @@ function AdminSidebarInner({
           Hidden on mobile where the Sheet is h-auto (content-height). */}
       <div className="hidden lg:flex lg:flex-1" aria-hidden />
 
-      <div className="px-2 py-3 space-y-0.5 flex-shrink-0">
-        {/* Helper: label span respects alwaysExpanded */}
+      <div className="border-t border-white/[0.08] px-3 py-3 space-y-0.5 flex-shrink-0">
         {customersEnabled && (
-          <Link href="/admin/customers" onClick={onNavigate} title={alwaysExpanded ? undefined : t("allCustomersSection")}
-            className={cn("flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-200",
-              customersActive ? "border-l-[2px] border-gold-500 bg-gold-100/70 pl-[9px] text-gold-800 font-semibold" : "text-muted-foreground hover:bg-black/[0.04] hover:text-foreground")}>
+          <Link href="/admin/customers" onClick={onNavigate}
+            className={cn("flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-all duration-200",
+              customersActive ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[0_2px_14px_rgba(192,154,46,0.30)]" : "text-sidebar-foreground hover:bg-white/[0.06] hover:text-white")}>
             <Users className="size-4 shrink-0" aria-hidden />
-            <span className={cn("whitespace-nowrap overflow-hidden transition-all duration-250",
-              alwaysExpanded ? "max-w-[150px] opacity-100" : "max-w-0 opacity-0 group-hover:max-w-[150px] group-hover:opacity-100 delay-75")}>{t("allCustomersSection")}</span>
+            <span className="truncate">{t("allCustomersSection")}</span>
           </Link>
         )}
-        <Link href="/admin/plans" onClick={onNavigate} title={alwaysExpanded ? undefined : t("plans")}
-          className={cn("flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-200",
-            plansActive ? "border-l-[2px] border-gold-500 bg-gold-100/70 pl-[9px] text-gold-800 font-semibold" : "text-muted-foreground hover:bg-black/[0.04] hover:text-foreground")}>
+        <Link href="/admin/plans" onClick={onNavigate}
+          className={cn("flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-all duration-200",
+            plansActive ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[0_2px_14px_rgba(192,154,46,0.30)]" : "text-sidebar-foreground hover:bg-white/[0.06] hover:text-white")}>
           <CreditCard className="size-4 shrink-0" aria-hidden />
-          <span className={cn("whitespace-nowrap overflow-hidden transition-all duration-250",
-            alwaysExpanded ? "max-w-[150px] opacity-100" : "max-w-0 opacity-0 group-hover:max-w-[150px] group-hover:opacity-100 delay-75")}>{t("plans")}</span>
+          <span className="truncate">{t("plans")}</span>
         </Link>
-        <Link href="/admin/settings" onClick={onNavigate} title={alwaysExpanded ? undefined : t("settings")}
-          className={cn("flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-200",
-            settingsActive ? "border-l-[2px] border-gold-500 bg-gold-100/70 pl-[9px] text-gold-800 font-semibold" : "text-muted-foreground hover:bg-black/[0.04] hover:text-foreground")}>
+        <Link href="/admin/settings" onClick={onNavigate}
+          className={cn("flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-all duration-200",
+            settingsActive ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[0_2px_14px_rgba(192,154,46,0.30)]" : "text-sidebar-foreground hover:bg-white/[0.06] hover:text-white")}>
           <Settings className="size-4 shrink-0" aria-hidden />
-          <span className={cn("whitespace-nowrap overflow-hidden transition-all duration-250",
-            alwaysExpanded ? "max-w-[150px] opacity-100" : "max-w-0 opacity-0 group-hover:max-w-[150px] group-hover:opacity-100 delay-75")}>{t("settings")}</span>
+          <span className="truncate">{t("settings")}</span>
         </Link>
-        <button type="button" onClick={() => logout().then(() => router.replace("/login"))} title={alwaysExpanded ? undefined : t("logout")}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground hover:bg-danger-bg hover:text-danger transition-all duration-200">
+        <button type="button" onClick={() => logout().then(() => router.replace("/login"))}
+          className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-sidebar-foreground hover:bg-danger/20 hover:text-white transition-all duration-200">
           <LogOut className="size-4 shrink-0" aria-hidden />
-          <span className={cn("whitespace-nowrap overflow-hidden transition-all duration-250",
-            alwaysExpanded ? "max-w-[150px] opacity-100" : "max-w-0 opacity-0 group-hover:max-w-[150px] group-hover:opacity-100 delay-75")}>{t("logout")}</span>
+          <span className="truncate">{t("logout")}</span>
         </button>
       </div>
     </aside>
   );
 }
 
-export function AdminSidebar({
-  onNavigate,
-  alwaysExpanded = false,
-}: {
-  readonly onNavigate?: () => void;
-  readonly alwaysExpanded?: boolean;
-}) {
+export function AdminSidebar({ onNavigate }: { readonly onNavigate?: () => void }) {
   return (
-    <Suspense fallback={
-      <aside className={cn(
-        "flex-shrink-0 h-full flex flex-col",
-        alwaysExpanded ? "w-full" : "w-[56px] glass-sidebar-warm",
-      )} />
-    }>
-      <AdminSidebarInner onNavigate={onNavigate} alwaysExpanded={alwaysExpanded} />
+    <Suspense fallback={<aside className="h-full w-full sidebar-navy" />}>
+      <AdminSidebarInner onNavigate={onNavigate} />
     </Suspense>
   );
 }

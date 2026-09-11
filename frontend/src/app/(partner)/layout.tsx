@@ -26,21 +26,14 @@ export default function PartnerLayout({ children }: { readonly children: React.R
             while the hotel is deactivated by the platform. */}
         <HotelSuspendedOverlay />
 
-        {/* Page edge vignette — premium depth effect */}
-        <div className="edge-vignette-top" aria-hidden />
-        <div className="edge-vignette-bottom" aria-hidden />
-
-        <div className="relative flex h-screen overflow-hidden bg-gradient-to-br from-[#efebe3]/60 via-background to-background">
-          {/* Absolute overlay sidebar — floats over content, no column boundary.
-              Collapsed: 56px transparent (invisible panel, just icons floating).
-              Expanded on hover: glass panel appears over content.
-              lg:pl-14 on content reserves 56px for the icon strip only. */}
-          <div className="hidden lg:block absolute left-0 top-0 bottom-0 z-30">
+        <div className="flex h-screen overflow-hidden">
+          {/* Fixed 256px navy sidebar — always expanded (classic frame) */}
+          <div className="hidden lg:block w-64 shrink-0">
             <PartnerSidebar />
           </div>
 
-          {/* Content — full height, 56px left indent on desktop for icon strip */}
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden lg:pl-14">
+          {/* Main content */}
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <SubscriptionGate />
             <PageTransition id="main-content" className="flex min-w-0 flex-1 flex-col overflow-hidden">
               {/* Mobile: add bottom padding so content clears the floating tab bar */}

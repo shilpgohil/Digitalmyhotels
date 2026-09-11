@@ -36,7 +36,7 @@
   --status-info-bg: #e0eff5;
 
   /* shadcn semantic tokens */
-  --background: #f4f3f1;  /* Warm off-white — premium hospitality feel vs clinical cool grey */
+  --background: #f6f7f9;  /* Clean cool off-white — calm, minimal (client-approved old tone) */
   --foreground: #16202e;
   --card: #ffffff;
   --card-foreground: #16202e;
@@ -56,7 +56,7 @@
   --input: #d4dbe4;
   --ring: #c09a2e;
 
-  --radius: 0.75rem;  /* 12px — premium feel; was 8px (too tight/corporate) */
+  --radius: 0.5rem;  /* 8px — tight, professional (client preferred old proportions) */
 
   /* Sidebar (dark navy shell) */
   --sidebar: #0b1526;
@@ -156,11 +156,11 @@
   --font-sans: var(--font-sans-stack);
   --font-display: var(--font-display-stack);
 
-  --radius-sm: calc(var(--radius) - 8px);   /*  4px — pills, tiny badges */
-  --radius-md: calc(var(--radius) - 2px);   /* 10px — small controls */
-  --radius-lg: var(--radius);               /* 12px — standard controls */
-  --radius-xl: calc(var(--radius) + 8px);   /* 20px — panels, stat cards */
-  --radius-2xl: calc(var(--radius) + 16px); /* 28px — modals, login card */
+  --radius-sm: calc(var(--radius) - 4px);   /*  4px — pills, tiny badges */
+  --radius-md: calc(var(--radius) - 2px);   /*  6px — small controls */
+  --radius-lg: var(--radius);               /*  8px — standard controls */
+  --radius-xl: calc(var(--radius) + 4px);   /* 12px — panels, stat cards */
+  --radius-2xl: calc(var(--radius) + 8px);  /* 16px — modals, login card */
 }
 
 @layer base {
@@ -169,9 +169,37 @@
   }
   body {
     @apply text-foreground antialiased;
-    background: radial-gradient(ellipse at 25% 0%, #efebe3 0%, var(--background) 55%);
+    background: var(--background); /* Flat, calm — depth comes from shadows, not gradients */
     font-feature-settings: 'cv01', 'cv02', 'cv11', 'ss01';
     text-rendering: optimizeLegibility;
+  }
+
+  /* ── Minimalist scrollbars — everywhere ─────────────────────────────── */
+  /* Thin (6px), transparent track, rounded soft thumb. Firefox + WebKit. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+  }
+  *::-webkit-scrollbar { width: 6px; height: 6px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.30);
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.50); }
+  *::-webkit-scrollbar-corner { background: transparent; }
+
+  /* Navy sidebar variant — light thumb on dark background */
+  .sidebar-navy {
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  }
+  .sidebar-navy *::-webkit-scrollbar-thumb,
+  .sidebar-navy::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .sidebar-navy *::-webkit-scrollbar-thumb:hover,
+  .sidebar-navy::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.28);
   }
 
   /*
@@ -241,27 +269,12 @@
 }
 
 @layer utilities {
-  /* ── Sidebar — gradient fade, NO hard right edge ───────────────────── */
-  /* Collapsed: fully transparent — icons float on the page, zero panel.
-     Hovered: gradient fades LEFT (opaque, readable) → RIGHT (transparent).
-     The right edge is always transparent = no visible partition line ever. */
-  .glass-sidebar-warm {
-    background: transparent;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    transition: background 0.25s ease, backdrop-filter 0.25s ease, -webkit-backdrop-filter 0.25s ease;
-  }
-  .glass-sidebar-warm:hover {
-    /* Gradient: warm cream at left (behind icons/text) → transparent at right edge.
-       Right edge is 0% opacity = no visible boundary against the content. */
-    background: linear-gradient(
-      to right,
-      rgba(250, 248, 244, 0.92) 0%,
-      rgba(250, 248, 244, 0.85) 60%,
-      rgba(250, 248, 244, 0.0) 100%
-    );
-    -webkit-backdrop-filter: blur(20px) saturate(150%);
-    backdrop-filter: blur(20px) saturate(150%);
+  /* ── Navy sidebar — classic frame with modern depth ─────────────────── */
+  /* Fixed, always-expanded dark navy (client-approved old structure).
+     Subtle vertical gradient gives dimensionality without decoration.
+     Depth from light: slightly lighter at top, darker at bottom. */
+  .sidebar-navy {
+    background: linear-gradient(180deg, #0e1a33 0%, #0b1526 45%, #0a1322 100%);
   }
 
   /* ── White frost + gold glow — mobile bottom tab bar (Option E) ─────── */
@@ -274,36 +287,6 @@
       0 -4px 32px rgba(192, 154, 46, 0.07),
       0 -1px 0 rgba(192, 154, 46, 0.10),
       inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  }
-
-  /* ── Page edge vignette — top & bottom depth illusion ───────────────── */
-  /* Creates a subtle gradient at the top and bottom of the content area
-     that makes the UI feel framed and premium, like iOS app edges. */
-  .edge-vignette-top {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    height: 56px;
-    background: linear-gradient(
-      to bottom,
-      rgba(11, 21, 38, 0.045) 0%,
-      rgba(11, 21, 38, 0.015) 50%,
-      transparent 100%
-    );
-    z-index: 15;
-    pointer-events: none;
-  }
-  .edge-vignette-bottom {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    height: 72px;
-    background: linear-gradient(
-      to top,
-      rgba(192, 154, 46, 0.045) 0%,
-      rgba(192, 154, 46, 0.015) 50%,
-      transparent 100%
-    );
-    z-index: 15;
-    pointer-events: none;
   }
 
   /* ── Scroll-edge ghost fade ─────────────────────────────────────────── */

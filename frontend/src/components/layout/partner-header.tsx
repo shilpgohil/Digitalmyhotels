@@ -124,15 +124,15 @@ function MobileNavDrawer() {
             PartnerSidebar content (brand + nav) fills this container naturally. */}
         <SheetContent
           side="left"
-          className="!w-64 gap-0 glass-nav bg-background/95 p-0 text-foreground overflow-y-auto"
+          className="!w-64 gap-0 sidebar-navy p-0 text-sidebar-foreground overflow-y-auto"
           aria-label={t("openMenu")}
         >
           <SheetTitle className="sr-only">{t("openMenu")}</SheetTitle>
           <PartnerBrand />
           <div className="px-3 pb-1">
-            <HotelSwitcher className="w-full border-border/40" />
+            <HotelSwitcher className="w-full border-white/15 text-sidebar-foreground" />
           </div>
-          <PartnerNav onNavigate={() => setOpen(false)} alwaysExpanded />
+          <PartnerNav onNavigate={() => setOpen(false)} />
         </SheetContent>
       </Sheet>
     </>
@@ -163,7 +163,7 @@ export function PartnerHeader({
   };
 
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between gap-4 glass-nav bg-background/70 px-4 py-3 lg:px-6">
+    <header className="sticky top-0 z-20 flex items-center justify-between gap-4 bg-background/90 glass-nav px-4 py-3 shadow-[0_1px_3px_rgba(16,24,40,0.04)] lg:px-6">
       <MobileNavDrawer />
       <div className="min-w-0">
         {subtitle && (
