@@ -318,13 +318,13 @@ function ExpensesContent() {
             tc("actions"),
           ]}
           columnClasses={[
-            "w-[80px]",  // Date
-            "w-[78px]",  // Amount
-            "w-auto",    // Description (flexible)
-            "w-[100px]", // Vendor
-            "w-[100px]", // Payment Mode
-            "w-[90px]",  // Status
-            "w-[90px]",  // Actions
+            "w-[10%]",  // Date
+            "w-[10%]",  // Amount
+            "w-[22%]",  // Description
+            "w-[14%]",  // Vendor
+            "w-[14%]",  // Payment Mode
+            "w-[12%]",  // Status
+            "w-[18%]",  // Actions
           ]}
         >
           {expenses.data?.items.map((ex) => (

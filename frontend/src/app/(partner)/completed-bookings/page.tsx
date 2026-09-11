@@ -763,14 +763,14 @@ function CompletedBookingsContent() {
             <span key="act" className="sr-only">{t("actions")}</span>,
           ]}
           columnClasses={[
-            "w-[86px]",  // Booking No.
-            "w-auto",    // Guest (flexible)
-            "w-[70px]",  // Rooms
-            "w-[156px]", // Dates
-            "w-[78px]",  // Total
-            "w-[100px]", // Status
-            "w-[88px]",  // Payment
-            "w-[70px]",  // Actions (view + reverse)
+            "w-[10%]",  // Booking No.
+            "w-[14%]",  // Guest
+            "w-[8%]",   // Rooms
+            "w-[22%]",  // Dates (two dates, stacked)
+            "w-[9%]",   // Total
+            "w-[13%]",  // Status
+            "w-[12%]",  // Payment
+            "w-[12%]",  // Actions (view + reverse)
           ]}
         >
           {bookings.data && (

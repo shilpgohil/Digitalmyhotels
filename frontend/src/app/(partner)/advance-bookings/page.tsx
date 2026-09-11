@@ -280,14 +280,14 @@ function AdvanceBookingsContent() {
             tc("actions"),
           ]}
           columnClasses={[
-            "w-[86px]",  // Booking No.
-            "w-auto",    // Guest (flexible)
-            "w-[70px]",  // Rooms
-            "w-[156px]", // Dates (two dates, allow wrapping)
-            "w-[78px]",  // Total
-            "w-[116px]", // Status + possible Missed arrival badge
-            "w-[88px]",  // Payment
-            "w-[48px]",  // Actions
+            "w-[10%]",  // Booking No.
+            "w-[14%]",  // Guest
+            "w-[8%]",   // Rooms
+            "w-[22%]",  // Dates (two dates, stacked)
+            "w-[9%]",   // Total
+            "w-[14%]",  // Status + Missed arrival badge
+            "w-[12%]",  // Payment
+            "w-[11%]",  // Actions
           ]}
           rightAlignCols={[7]}
         >

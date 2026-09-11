@@ -151,16 +151,16 @@ function CurrentGuestsContent() {
             tb("payment"), tb("due"), tc("actions"),
           ]}
           columnClasses={[
-            "w-[88px]",   // Booking No.
-            "w-auto",     // Guest (flexible)
-            "w-[108px]",  // Mobile
-            "w-[76px]",   // Rooms
-            "w-[108px]",  // Room Status
-            "w-[116px]",  // Checked In
-            "w-[120px]",  // Expected Check-out
-            "w-[106px]",  // Payment
-            "w-[68px]",   // Due
-            "w-[44px]",   // Actions
+            "w-[9%]",   // Booking No.
+            "w-[13%]",  // Guest
+            "w-[11%]",  // Mobile
+            "w-[7%]",   // Rooms
+            "w-[11%]",  // Room Status
+            "w-[12%]",  // Checked In
+            "w-[13%]",  // Expected Check-out
+            "w-[11%]",  // Payment
+            "w-[7%]",   // Due
+            "w-[6%]",   // Actions
           ]}
           rightAlignCols={[9]}
         >
