@@ -296,23 +296,21 @@
   /* Applied to scrollable nav containers. Items fade to transparent at the
      top and bottom edges, giving the "content disappears into chrome" feel
      used by Linear, Notion, and Apple's sidebars. */
+  /* scroll-fade-y — fade only at the BOTTOM to indicate more items below.
+     No top fade: items at the top of the list must always be fully visible. */
   .scroll-fade-y {
     -webkit-mask-image: linear-gradient(
       to bottom,
-      transparent 0%,
-      rgba(0,0,0,0.6) 5%,
-      black 12%,
-      black 88%,
-      rgba(0,0,0,0.6) 95%,
+      black 0%,
+      black 82%,
+      rgba(0,0,0,0.5) 95%,
       transparent 100%
     );
     mask-image: linear-gradient(
       to bottom,
-      transparent 0%,
-      rgba(0,0,0,0.6) 5%,
-      black 12%,
-      black 88%,
-      rgba(0,0,0,0.6) 95%,
+      black 0%,
+      black 82%,
+      rgba(0,0,0,0.5) 95%,
       transparent 100%
     );
   }
