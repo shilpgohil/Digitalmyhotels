@@ -131,7 +131,7 @@ export function FilterBar({
             </Label>
           )}
           <select
-            className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            className="mt-1 h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm"
             value={selectValue ?? ""}
             onChange={(e) => onSelectChange(e.target.value)}
           >
@@ -154,7 +154,7 @@ export function FilterBar({
             </Label>
           )}
           <select
-            className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            className="mt-1 h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm"
             value={select2Value ?? ""}
             onChange={(e) => onSelect2Change(e.target.value)}
           >
@@ -171,10 +171,11 @@ export function FilterBar({
       {/* Search */}
       {onSearchChange !== undefined && (
         <div className="min-w-[180px] flex-1">
+          {/* Client spec 09/2026: 42px controls across the filter row */}
           <div className="relative mt-5">
-            <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <Input
-              className="pl-8 h-8"
+              className="pl-8 h-[42px]"
               placeholder={searchPlaceholder}
               value={searchValue ?? ""}
               onChange={(e) => onSearchChange(e.target.value)}
@@ -188,7 +189,7 @@ export function FilterBar({
         <button
           type="button"
           onClick={onClear}
-          className="mt-5 flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 h-8 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          className="mt-5 flex h-[42px] items-center gap-1 rounded-md border border-border bg-background px-3 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         >
           <X className="size-3" aria-hidden />
           Clear

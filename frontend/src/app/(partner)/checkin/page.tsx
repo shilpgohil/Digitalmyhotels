@@ -192,12 +192,19 @@ function buildForeignGuestPayload(
   };
 }
 
-// ─── Walk-in draft (localStorage) ────────────────────────────────────────────
+// ─── Walk-in drafts (localStorage) ───────────────────────────────────────────
+// Multiple drafts are kept (client 09/2026: "only the last draft stays" was a
+// bug — every saved draft must survive until restored+checked-in or discarded).
 
-const DRAFT_KEY = "dmh.checkinDraft.v1";
+const DRAFTS_KEY = "dmh.checkinDrafts.v2";
+/** Pre-multi-draft key — migrated into the list on first read. */
+const LEGACY_DRAFT_KEY = "dmh.checkinDraft.v1";
+const MAX_DRAFTS = 10;
 
 /** Serialized walk-in form state saved to localStorage via "Save Draft". */
 interface CheckinDraft {
+  /** Unique per saved draft (missing on legacy drafts — backfilled on read). */
+  id?: string;
   savedAt: string;
   checkInDate: string;
   checkOutDate: string;
@@ -235,13 +242,46 @@ interface CheckinDraft {
   foreignGuest: ForeignGuestFormState;
 }
 
-function readDraft(): CheckinDraft | null {
+function draftId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `d-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Read ALL saved drafts (newest first), migrating any legacy single draft. */
+function readDrafts(): CheckinDraft[] {
   try {
-    const raw = localStorage.getItem(DRAFT_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as CheckinDraft;
+    const raw = localStorage.getItem(DRAFTS_KEY);
+    let list: CheckinDraft[] = raw ? (JSON.parse(raw) as CheckinDraft[]) : [];
+    if (!Array.isArray(list)) list = [];
+
+    // One-time migration: the old single-draft key joins the list.
+    const legacyRaw = localStorage.getItem(LEGACY_DRAFT_KEY);
+    if (legacyRaw) {
+      try {
+        const legacy = JSON.parse(legacyRaw) as CheckinDraft;
+        legacy.id = legacy.id ?? draftId();
+        list.push(legacy);
+      } catch {
+        // corrupt legacy draft — drop it
+      }
+      localStorage.removeItem(LEGACY_DRAFT_KEY);
+      localStorage.setItem(DRAFTS_KEY, JSON.stringify(list));
+    }
+
+    // Backfill ids for any old entries so per-draft discard always works.
+    for (const d of list) d.id = d.id ?? draftId();
+    return list;
   } catch {
-    return null;
+    return [];
+  }
+}
+
+function writeDrafts(list: CheckinDraft[]): void {
+  try {
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(list));
+  } catch {
+    // storage full/blocked — non-fatal
   }
 }
 
@@ -3495,15 +3535,19 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const roomsSectionRef = useRef<HTMLDivElement | null>(null);
   const termsSectionRef = useRef<HTMLDivElement | null>(null);
 
-  // ── Draft (localStorage) ──
-  // Read once on mount; a non-null value shows the "Restore / Discard" banner.
-  const [draft, setDraft] = useState<CheckinDraft | null>(null);
+  // ── Drafts (localStorage) ──
+  // ALL saved drafts are listed (newest first); each can be restored or
+  // discarded independently. A restored draft is only deleted after its
+  // check-in completes — abandoning the restore never loses the draft.
+  const [drafts, setDrafts] = useState<CheckinDraft[]>([]);
+  const [restoredDraftId, setRestoredDraftId] = useState<string | null>(null);
   useEffect(() => {
-    setDraft(readDraft());
+    setDrafts(readDrafts());
   }, []);
 
   const saveDraft = () => {
     const d: CheckinDraft = {
+      id: draftId(),
       savedAt: new Date().toISOString(),
       checkInDate,
       checkOutDate,
@@ -3536,7 +3580,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       foreignGuest: fgForm,
     };
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+      // Newest first; keep at most MAX_DRAFTS (oldest dropped).
+      const next = [d, ...drafts].slice(0, MAX_DRAFTS);
+      localStorage.setItem(DRAFTS_KEY, JSON.stringify(next));
+      setDrafts(next);
       toast.success(t("draftSaved"));
     } catch {
       toast.error(t("draftSaveFailed"));
@@ -3576,17 +3623,17 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       // Re-select the guest (also re-fetches identity autofill, non-fatal).
       void handleGuestSelected(d.guest);
     }
-    setDraft(null);
+    // Keep the draft in the list until this check-in actually completes —
+    // deleted then (or via its own Discard button), never on restore alone.
+    setRestoredDraftId(d.id ?? null);
     toast.success(t("draftRestored"));
   };
 
-  const discardDraft = () => {
-    try {
-      localStorage.removeItem(DRAFT_KEY);
-    } catch {
-      // ignore
-    }
-    setDraft(null);
+  const discardDraft = (id: string | undefined) => {
+    const next = drafts.filter((d) => d.id !== id);
+    writeDrafts(next);
+    setDrafts(next);
+    if (restoredDraftId === id) setRestoredDraftId(null);
   };
 
   // Same-day is allowed as a day-use stay when both times are set and
@@ -3777,13 +3824,14 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     onSuccess: (result) => {
       setCheckinResult(result);
       setError(null);
-      // Check-in completed — the saved draft (if any) is now stale.
-      try {
-        localStorage.removeItem(DRAFT_KEY);
-      } catch {
-        // ignore
+      // Check-in completed — only the RESTORED draft (if any) is now stale.
+      // Other saved drafts belong to other guests and must survive.
+      if (restoredDraftId) {
+        const next = drafts.filter((d) => d.id !== restoredDraftId);
+        writeDrafts(next);
+        setDrafts(next);
+        setRestoredDraftId(null);
       }
-      setDraft(null);
       queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
       queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
       queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
@@ -3865,31 +3913,42 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
 
   return (
     <div className="space-y-4">
-      {/* ── Saved draft banner ─────────────────────────────────────────────── */}
-      {draft && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold-300 bg-gold-50 px-4 py-3 text-sm">
-          <div className="flex items-center gap-2">
-            <FileText className="size-4 shrink-0 text-gold-600" aria-hidden />
-            <span className="text-gold-800">
-              {t("draftFrom", { date: new Date(draft.savedAt).toLocaleString() })}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => restoreDraft(draft)}
-              className="inline-flex h-8 items-center rounded-lg bg-navy-900 px-3 text-xs font-semibold text-white hover:bg-navy-900/90"
+      {/* ── Saved drafts (ALL of them — each restorable/discardable) ───────── */}
+      {drafts.length > 0 && (
+        <div className="space-y-2 rounded-xl border border-gold-300 bg-gold-50 px-4 py-3 text-sm">
+          {drafts.map((d) => (
+            <div
+              key={d.id}
+              className="flex flex-wrap items-center justify-between gap-3 border-b border-gold-200 pb-2 last:border-b-0 last:pb-0"
             >
-              {t("restore")}
-            </button>
-            <button
-              type="button"
-              onClick={discardDraft}
-              className="inline-flex h-8 items-center rounded-lg border border-gold-400 px-3 text-xs font-medium text-gold-700 hover:bg-gold-100"
-            >
-              {t("discard")}
+              <div className="flex min-w-0 items-center gap-2">
+                <FileText className="size-4 shrink-0 text-gold-600" aria-hidden />
+                <span className="truncate text-gold-800">
+                  {t("draftFrom", { date: new Date(d.savedAt).toLocaleString() })}
+                  {d.guest?.full_name ? ` — ${d.guest.full_name}` : ""}
+                  {!d.guest?.full_name && d.selectedRooms?.length
+                    ? ` — ${d.selectedRooms.length} room(s)`
+                    : ""}
+                </span>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={() => restoreDraft(d)}
+                  className="inline-flex h-8 items-center rounded-lg bg-navy-900 px-3 text-xs font-semibold text-white hover:bg-navy-900/90"
+                >
+                  {t("restore")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => discardDraft(d.id)}
+                  className="inline-flex h-8 items-center rounded-lg border border-gold-400 px-3 text-xs font-medium text-gold-700 hover:bg-gold-100"
+                >
+                  {t("discard")}
                 </button>
               </div>
+            </div>
+          ))}
         </div>
       )}
 

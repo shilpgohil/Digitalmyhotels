@@ -191,7 +191,7 @@ function AdvanceBookingsContent() {
           <button
             type="button"
             onClick={() => router.push("/advance-booking")}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-gold-500 px-2.5 text-sm font-medium text-navy-900 hover:bg-gold-400"
+            className="inline-flex h-[42px] items-center gap-1.5 rounded-md bg-gold-500 px-3.5 text-sm font-medium text-navy-900 hover:bg-gold-400"
           >
             <Plus className="size-4" aria-hidden />
             {t("newBooking")}
@@ -320,7 +320,8 @@ function AdvanceBookingsContent() {
                           >
                             <MoreVertical className="size-4" aria-hidden />
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          {/* min-w keeps "Mark No-show" on one line (client 09/2026) */}
+                          <DropdownMenuContent align="end" className="min-w-48 whitespace-nowrap">
                             {booking.status === "confirmed" && (
                               <DropdownMenuItem
                                 onClick={() => router.push(`/checkin?booking=${booking.id}`)}
