@@ -1,5 +1,72 @@
 # Active Context — DigitalMyHotels
 
+## Client round 5 09/2026 (commits 9f5d449, 32b3462)
+- Checkout page: Load Guest/Check Out/invoice-action buttons + selects all
+  42px; discount row divider removed.
+- NEW `SegmentedChips` (`components/ui/segmented-chips.tsx`) — THE filter
+  chip pattern platform-wide (bordered pill group, navy active pill) +
+  shared `periodRange`/`PERIODS`. Used on: Expenses, Advance Bookings
+  (period chips added + status), Completed Bookings (period + status),
+  Room Status (status), Payments (period), Restaurant Billing, GST & Tax.
+  Do NOT reintroduce rounded-full standalone chips.
+- Invoice: guest address removed from styled card AND backend PDF.
+
+## Client round 4 09/2026 (commits 59524b4, 3ae1fb2)
+- Check-in DRAFTS are now a LIST (`dmh.checkinDrafts.v2`, cap 10, legacy
+  key auto-migrates). Banner lists all drafts w/ per-draft Restore/Discard.
+  Restored draft deleted ONLY after its check-in succeeds.
+- FilterBar controls all 42px (search/selects/Clear); Advance Bookings
+  New Booking 42px; action dropdowns min-w-48 nowrap.
+- DASHBOARD ORDER (client sketch — do not revert): Smart Insights → KPI
+  chips → 30-day trend → Room-status chips → Arrivals/Today's Collection/
+  Quick Actions → Guest Mix/Weekly Demand → Revenue by Room Type →
+  In-House table.
+- Expenses header actions (Add Vendor / Add Recurring / Generate Due
+  Recurring) 42px white bordered; recurring dialog selects 42px.
+- Global smoothness: baseline 180ms transition on a/button/input/select/
+  textarea (globals.css), page fade 280ms cubic-bezier(0.2,0,0,1)
+  (page-transition.tsx), dropdown/select menus duration-150 ease-out,
+  html smooth scroll (reduced-motion respected).
+
+## Client round 2 09/2026 (commit bd901d9)
+1. Edit Stay enriched further: read-only rooms/rates + Total/Advance/Due
+   summary panel, Guest Type select (backend BookingUpdate +
+   _CHECKED_IN_EDITABLE now include guest_type), guest Gender / DOB /
+   ID Proof Type selects. Uses `checkin` namespace keys (fieldGender,
+   fieldDob, guestTypeLabel, guestType_*, male/female/genderOther).
+2. Image editor (`image-editor.tsx`): crop frame now FREELY resizable via
+   4 corner drag handles (any ratio, min 90px, clamped to stage). Presets
+   (id_card/passport/square/receipt) only set the initial frame.
+   `computeMinScaleFor(box,...)` refactor keeps image covering the frame.
+3. OCR (`id-ocr.ts`): `cleanAddressText` token scrubber — drops no-vowel
+   consonant runs, stray 1–2 letter tokens (allowlist: no/st/rd/opp/…),
+   VID/7+ digit runs, URLs, emails; keeps C/O-S/O markers, "MG Road"-style
+   uppercase initials before road words, and 3–5 letter ALL-CAPS acronyms
+   (HDFC). Applied to Aadhaar-back + Voter ID address paths. Logic
+   verified with node test cases.
+
+## Client round 09/2026 (commit 6e47f1a) — 7-item screenshot batch DONE
+1. Reverse-checkout dialog: added missing `bookings.checkoutReversed` key (en+hi);
+   the other reverse* keys already existed in the `bookings` namespace.
+2. Registration card print: auto-print now WAITS for the payments query
+   (was printing without the Payments table); prints guest phone and
+   readable purpose labels (money.purpose_*).
+3. ONE invoice: `/invoice-preview` page + sidebar entry REMOVED. Styled card
+   (navy header / billed-to / total-due) merged into `/invoices` (row "View"
+   selects it; Print + WhatsApp share included). Backend
+   `render_invoice_pdf` restyled to the SAME design (navy band, Rs. amounts,
+   Advance Paid in gold, TOTAL DUE) — verified via offline fpdf smoke render.
+4. Check-in search buttons: 42px (`h-[42px]` navy) matching field height.
+5. Current Guests → Checkout deep-link `?booking=` works (effect re-reads URL).
+6. Edit Stay DETAILED: added Emergency Contact (name/relation/phone) and
+   Vehicle (number/type/parking slot) sections — the full set of fields
+   backend `update_booking` allows for checked-in stays. Dialog widened to
+   sm:max-w-2xl with scroll. NOTE: the reference zip `Digitalmyhotels-master
+   (4).zip` had the IDENTICAL small dialog — the "old detailed version" was
+   satisfied by exposing all backend-editable fields.
+7. Expenses Cash/UPI stat cards: `expense_summary` returns `cash_amount` /
+   `upi_amount` (per-mode committed sums, date-scoped); 6-card grid on page.
+
 ## MASTER RENOVATION COMPLETE (2026-09-11) — all commits pushed to master
 
 ### Renovation summary (commits from this session):
