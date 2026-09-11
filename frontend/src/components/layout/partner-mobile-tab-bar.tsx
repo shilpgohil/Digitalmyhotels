@@ -13,9 +13,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BedDouble,
   BookOpen,
   LayoutDashboard,
   LogIn,
+  Sparkles,
   UserCheck,
   Users,
   Wallet,
@@ -25,7 +27,13 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS, type PermissionCode } from "@/lib/permissions";
 
-const TAB_ITEMS: readonly {
+/**
+ * Tab candidates in PRIORITY order — the bar shows the first 5 the current
+ * role is allowed to use, so every hotel member gets a bar that matches
+ * their job (client 09/2026: role-respective bottom bar; staff attendance
+ * is a priority destination for everyone).
+ */
+const TAB_CANDIDATES: readonly {
   href: string;
   labelKey: string;
   icon: typeof LayoutDashboard;
@@ -36,6 +44,12 @@ const TAB_ITEMS: readonly {
     labelKey: "dashboard",
     icon: LayoutDashboard,
     permission: null,
+  },
+  {
+    href: "/my-attendance",
+    labelKey: "myAttendance",
+    icon: UserCheck,
+    permission: PERMISSIONS.staffAttendanceSelf,
   },
   {
     href: "/checkin",
@@ -61,29 +75,40 @@ const TAB_ITEMS: readonly {
     icon: Wallet,
     permission: PERMISSIONS.paymentsView,
   },
+  // Housekeeping-oriented tabs — surface when front-desk tabs are not allowed.
+  {
+    href: "/rooms",
+    labelKey: "roomStatus",
+    icon: BedDouble,
+    permission: PERMISSIONS.roomsView,
+  },
+  {
+    href: "/housekeeping",
+    labelKey: "housekeeping",
+    icon: Sparkles,
+    permission: PERMISSIONS.housekeepingManage,
+  },
 ] as const;
+
+const MAX_TABS = 5;
 
 export function PartnerMobileTabBar() {
   const t = useTranslations("nav");
   const pathname = usePathname();
   const { can } = useAuth();
 
-  // Attendance-only staff (general_staff): their home is My Attendance.
+  // Attendance-only staff (general_staff): their home IS My Attendance —
+  // a Dashboard tab would only bounce them back there.
   const attendanceOnly =
     !can(PERMISSIONS.roomsView) &&
     !can(PERMISSIONS.bookingsView) &&
     can(PERMISSIONS.staffAttendanceSelf);
 
   const items = attendanceOnly
-    ? [
-        {
-          href: "/my-attendance",
-          labelKey: "myAttendance",
-          icon: UserCheck,
-          permission: null,
-        },
-      ]
-    : TAB_ITEMS.filter((item) => item.permission === null || can(item.permission));
+    ? TAB_CANDIDATES.filter((item) => item.href === "/my-attendance")
+    : TAB_CANDIDATES.filter(
+        (item) => item.permission === null || can(item.permission),
+      ).slice(0, MAX_TABS);
 
   return (
     /* Wrapper — centered pill, mobile only */

@@ -60,6 +60,7 @@ import {
   Sparkles,
   TrendingDown,
   TrendingUp,
+  UserCheck,
   UserX,
   Wallet,
   Wrench,
@@ -534,6 +535,11 @@ export default function DashboardPage() {
               {can(PERMISSIONS.checkout) && (
                 <Link href="/checkout" className={cn(buttonVariants(), "w-full justify-start gap-2 bg-navy-900 text-white hover:bg-navy-800")}>
                   <LogOut className="size-4" />{t("processCheckout")}
+                </Link>
+              )}
+              {can(PERMISSIONS.staffAttendanceSelf) && (
+                <Link href="/my-attendance" className={cn(buttonVariants({ variant: "outline" }), "w-full justify-start gap-2 border-gold-400 text-gold-700 hover:bg-gold-50")}>
+                  <UserCheck className="size-4" />{tn("myAttendance")}
                 </Link>
               )}
               <Link href="/rooms" className={cn(buttonVariants({ variant: "outline" }), "w-full justify-start gap-2")}>
