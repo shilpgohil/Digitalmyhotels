@@ -279,7 +279,6 @@ function PaymentsContent() {
                 <option value="upi">{t("upi")}</option>
                 <option value="credit_card">{t("creditCard")}</option>
                 <option value="debit_card">{t("debitCard")}</option>
-                <option value="card">{t("card")}</option>
                 <option value="bank_transfer">{t("bankTransfer")}</option>
                 <option value="other">{t("otherMethod")}</option>
               </select>

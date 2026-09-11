@@ -981,6 +981,7 @@ function NewGuestForm({
   confirmLabel,
   pending = false,
   onConfirm,
+  beforeConfirm,
 }: {
   /** Seeds the mobile field (e.g. the phone that was searched with no match). */
   readonly initialPhone?: string;
@@ -993,6 +994,10 @@ function NewGuestForm({
     form: GuestCreatePayload,
     docs: { side: DocSide; file: File }[],
   ) => void;
+  /** Rendered between the form fields and the confirm button — used to slot
+   *  the Foreign Guest (Form C) section so the confirm button always sits
+   *  BELOW all guest inputs (client UX request 09/2026). */
+  readonly beforeConfirm?: React.ReactNode;
 }) {
   const t = useTranslations("checkin");
   const tc = useTranslations("common");
@@ -1163,6 +1168,9 @@ function NewGuestForm({
           <Input value={form.country ?? ""} onChange={(e) => set("country", e.target.value)} placeholder={t("fieldCountry")} />
         </div>
       </div>
+
+      {/* Slot for Foreign Guest (Form C) etc. — keeps confirm button LAST */}
+      {beforeConfirm}
 
       <Button
         type="button"
@@ -1642,9 +1650,19 @@ function AdditionalGuestEntry({
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Shared rich identity form (same one the primary guest uses). */}
+          {/* Shared rich identity form (same one the primary guest uses).
+              Foreign guest (Form C) is slotted INSIDE via beforeConfirm so
+              the Confirm button always renders below it (client UX 09/2026). */}
           <NewGuestForm
             confirmLabel={t("confirmGuestDetails")}
+            beforeConfirm={
+              <ForeignGuestSection
+                enabled={fgEnabled}
+                onEnabledChange={(v) => applyForeign(v, fgForm)}
+                value={fgForm}
+                onChange={(f) => applyForeign(fgEnabled, f)}
+              />
+            }
             onConfirm={(form, formDocs) => {
               // Will be created in the mutation; mark as pending-creation.
               setDocs(formDocs);
@@ -1661,16 +1679,9 @@ function AdditionalGuestEntry({
               onResolved(pending);
             }}
           />
-          {/* Foreign guest (Form C) — per co-guest, same fields as the primary. */}
-          <ForeignGuestSection
-            enabled={fgEnabled}
-            onEnabledChange={(v) => applyForeign(v, fgForm)}
-            value={fgForm}
-            onChange={(f) => applyForeign(fgEnabled, f)}
-          />
         </div>
-          )}
-        </div>
+      )}
+    </div>
   );
 }
 

@@ -139,10 +139,19 @@ function ExpensesContent() {
     enabled: !!activeHotelId && can(PERMISSIONS.expensesCreate),
   });
 
+  // Stat cards follow the active date window (time chips / manual dates) so
+  // they always mirror the filtered ledger below (client 09/2026).
+  const summaryQs = [
+    fromDate && `from_date=${fromDate}`,
+    toDate && `to_date=${toDate}`,
+  ]
+    .filter(Boolean)
+    .join("&");
   const summary = useQuery({
     // Prefixed with ["expenses", hotelId] so invalidate() refreshes it too.
-    queryKey: ["expenses", activeHotelId, "summary"],
-    queryFn: () => api<ExpenseSummaryOut>("/api/v1/expenses/summary"),
+    queryKey: ["expenses", activeHotelId, "summary", summaryQs],
+    queryFn: () =>
+      api<ExpenseSummaryOut>(`/api/v1/expenses/summary${summaryQs ? `?${summaryQs}` : ""}`),
     enabled: !!activeHotelId,
   });
 
@@ -579,11 +588,15 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
   );
 }
 
-/** Modes offered when RECORDING an expense (client 9-08 item 14 set). */
-const PAYMENT_MODES = ["cash", "upi", "credit_card", "debit_card", "bank_transfer"] as const;
+/** Canonical payment modes — same list used by check-in, checkout, advance
+ *  booking, and payments. Matches the backend CHECK constraint exactly
+ *  (minus legacy 'card', which the UI no longer offers — client 09/2026). */
+const PAYMENT_MODES = ["cash", "upi", "credit_card", "debit_card", "bank_transfer", "other"] as const;
 
-/** Ledger filter modes — includes legacy "card" so old rows stay findable. */
-const FILTER_MODES: string[] = [...PAYMENT_MODES, "card", "other"];
+/** Ledger filter uses the same canonical list. Legacy 'card' rows are
+ *  still visible under "All Payment Modes" — they just can't be filtered
+ *  individually (client found the extra 'Card' option confusing). */
+const FILTER_MODES: string[] = [...PAYMENT_MODES];
 
 /** Fetches the receipt with auth headers and opens it in a new tab. */
 function ViewReceiptButton({ expenseId }: { expenseId: string }) {

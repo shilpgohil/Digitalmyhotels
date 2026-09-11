@@ -114,11 +114,16 @@ async def run_recurring(
 
 @router.get("/summary", response_model=ExpenseSummaryOut)
 async def expense_summary(
+    from_date: date | None = Query(default=None),
+    to_date: date | None = Query(default=None),
     tenant: TenantContext = Depends(require_permissions(Permission.EXPENSES_VIEW)),
     db: AsyncSession = Depends(get_db),
 ) -> ExpenseSummaryOut:
-    """Stat-card totals: all-time / today / this-month amounts + entry count."""
-    data = await expenses_service.expense_summary(db, tenant)
+    """Stat-card totals. Optional from/to date window scopes total / entries /
+    pending so the cards mirror the filtered ledger (client 09/2026)."""
+    data = await expenses_service.expense_summary(
+        db, tenant, from_date=from_date, to_date=to_date
+    )
     return ExpenseSummaryOut.model_validate(data)
 
 

@@ -31,7 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { cn } from "@/lib/utils";
-import { fmtINR } from "@/lib/formatting";
+import { fmtApiDateTime, fmtINR } from "@/lib/formatting";
 import type {
   RoomAvailabilityOut,
   RoomAvailableItem,
@@ -183,11 +183,14 @@ function AvailableChip({
           {hint.label}
         </span>
       )}
-      {/* Free-at hint: show when this occupied room will be vacated */}
+      {/* Free-at hint: date + time so staff know WHICH DAY the room frees up
+          (client 09/2026 — time alone was confusing). */}
       {room.status === "occupied" && room.current_checkout_time && (
         <span className="mt-0.5 flex items-center gap-0.5 text-micro font-medium text-success">
           <Clock className="size-2.5" aria-hidden />
-          Free at {room.current_checkout_time}
+          {room.current_checkout_date
+            ? `Free ${fmtApiDateTime(room.current_checkout_date, room.current_checkout_time)}`
+            : `Free at ${room.current_checkout_time}`}
         </span>
       )}
     </button>

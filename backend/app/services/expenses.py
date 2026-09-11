@@ -146,13 +146,22 @@ async def list_expenses(
 
 
 async def expense_summary(
-    db: AsyncSession, tenant: TenantContext
+    db: AsyncSession,
+    tenant: TenantContext,
+    *,
+    from_date: date | None = None,
+    to_date: date | None = None,
 ) -> dict[str, object]:
     """Totals for the stat cards: all-time / today / this-month / entry count.
 
     Rejected expenses are excluded. 'Today' and 'this month' are calendar
     boundaries in the HOTEL's timezone (expense_date is a plain date, so only
     the boundary dates need timezone awareness — same approach as reports).
+
+    When from_date/to_date are provided (the page's time-period filter),
+    total_amount / entries / pending_amount are scoped to that window so the
+    stat cards mirror the filtered ledger (client 09/2026). today/month cards
+    keep their fixed calendar semantics.
     """
     hotel_id = tenant.require_hotel()
 
@@ -180,7 +189,14 @@ async def expense_summary(
         )
     )
 
-    total_amount = await db.scalar(base_committed)
+    # Optional date-window scoping (from the page's time-period filter).
+    ranged_committed = base_committed
+    if from_date is not None:
+        ranged_committed = ranged_committed.where(Expense.expense_date >= from_date)
+    if to_date is not None:
+        ranged_committed = ranged_committed.where(Expense.expense_date <= to_date)
+
+    total_amount = await db.scalar(ranged_committed)
 
     today_amount = await db.scalar(
         base_committed.where(Expense.expense_date == today)
@@ -190,20 +206,26 @@ async def expense_summary(
         base_committed.where(Expense.expense_date >= month_start)
     )
 
-    entries = await db.scalar(
-        select(func.count(Expense.id)).where(
-            Expense.hotel_id == hotel_id,
-            Expense.status != "rejected",
-        )
+    entries_q = select(func.count(Expense.id)).where(
+        Expense.hotel_id == hotel_id,
+        Expense.status != "rejected",
     )
+    if from_date is not None:
+        entries_q = entries_q.where(Expense.expense_date >= from_date)
+    if to_date is not None:
+        entries_q = entries_q.where(Expense.expense_date <= to_date)
+    entries = await db.scalar(entries_q)
 
     # SUBMITTED only — shown on "Pending Approval" stat card
-    pending_amount = await db.scalar(
-        select(func.coalesce(func.sum(Expense.amount), 0)).where(
-            Expense.hotel_id == hotel_id,
-            Expense.status == "submitted",
-        )
+    pending_q = select(func.coalesce(func.sum(Expense.amount), 0)).where(
+        Expense.hotel_id == hotel_id,
+        Expense.status == "submitted",
     )
+    if from_date is not None:
+        pending_q = pending_q.where(Expense.expense_date >= from_date)
+    if to_date is not None:
+        pending_q = pending_q.where(Expense.expense_date <= to_date)
+    pending_amount = await db.scalar(pending_q)
 
     return {
         "total_amount": total_amount or 0,
