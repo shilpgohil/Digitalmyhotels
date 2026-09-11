@@ -112,7 +112,7 @@ export function StatCard({
       {Icon && (
         <Icon className="absolute right-3 bottom-3 size-8 opacity-20" aria-hidden />
       )}
-      <p className="text-xl font-semibold tabular-nums leading-tight">{value}</p>
+      <p className="text-lg sm:text-xl font-semibold tabular-nums leading-tight">{value}</p>
       <p className="mt-1 text-micro font-bold uppercase tracking-widest opacity-80">
         {label}
       </p>

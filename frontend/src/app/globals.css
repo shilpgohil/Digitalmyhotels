@@ -227,6 +227,32 @@
   textarea {
     font-size: max(16px, 1rem);
   }
+
+  /*
+   * CLIENT FORM SPEC (09/2026): all text inputs and selects across the
+   * platform must be: white background, 42px height, 6px border radius.
+   * min-height beats Tailwind h-8/h-9 utilities (min-height > height).
+   * background/radius act as base defaults — explicit utilities still win.
+   */
+  input[type="text"],
+  input[type="email"],
+  input[type="search"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="password"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  select {
+    min-height: 42px;
+    background-color: #ffffff;
+    border-radius: 6px;
+  }
+  textarea {
+    background-color: #ffffff;
+    border-radius: 6px;
+  }
   /*
    * TOUCH TARGET EXPANSION
    * WCAG 2.5.5 recommends 44×44px minimum for interactive targets.
@@ -277,16 +303,15 @@
     background: linear-gradient(180deg, #0e1a33 0%, #0b1526 45%, #0a1322 100%);
   }
 
-  /* ── White frost + gold glow — mobile bottom tab bar (Option E) ─────── */
+  /* ── Mobile bottom tab bar — clean frosted pill, no solid slab ──────── */
+  /* No border ring, no inset highlight, no gold glow strip — those read
+     as a "solid thing" behind the pill (client feedback 09/2026).
+     Just translucent white + blur + one soft drop shadow. */
   .glass-tabbar-warm {
-    background: rgba(255, 255, 255, 0.76);
-    -webkit-backdrop-filter: blur(30px) saturate(200%) brightness(1.06);
-    backdrop-filter: blur(30px) saturate(200%) brightness(1.06);
-    border: 1px solid rgba(255, 255, 255, 0.88);
-    box-shadow:
-      0 -4px 32px rgba(192, 154, 46, 0.07),
-      0 -1px 0 rgba(192, 154, 46, 0.10),
-      inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.82);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.10);
   }
 
   /* ── Scroll-edge ghost fade ─────────────────────────────────────────── */

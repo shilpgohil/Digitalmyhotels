@@ -55,17 +55,25 @@ export function RouteLoader() {
   const isLeaving = phase === "leaving";
 
   return (
+    /* Position wrapper:
+       - Mobile (< lg): centered on screen (client request 09/2026)
+       - Desktop (lg+): bottom-right, non-intrusive
+       The scale/opacity animation lives on the INNER div so it never
+       conflicts with the centering translate transform. */
     <div
       aria-hidden
-      className="fixed bottom-6 right-6 z-[9998]"
-      style={{
-        animation: isEntering
-          ? "dmh-loader-in 0.18s cubic-bezier(0.34,1.56,0.64,1) both"
-          : isLeaving
-          ? "dmh-loader-out 0.15s ease both"
-          : undefined,
-      }}
+      className="fixed z-[9998] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 lg:top-auto lg:left-auto lg:translate-x-0 lg:translate-y-0 lg:bottom-6 lg:right-6"
     >
+      <div
+        className="relative"
+        style={{
+          animation: isEntering
+            ? "dmh-loader-in 0.18s cubic-bezier(0.34,1.56,0.64,1) both"
+            : isLeaving
+            ? "dmh-loader-out 0.15s ease both"
+            : undefined,
+        }}
+      >
       {/* Outer glow ring — subtle white halo */}
       <div
         className="absolute inset-0 rounded-full"
@@ -121,6 +129,7 @@ export function RouteLoader() {
             animation: "spin-reverse 1.4s linear infinite",
           }}
         />
+      </div>
       </div>
     </div>
   );

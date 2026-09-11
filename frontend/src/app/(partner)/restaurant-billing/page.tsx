@@ -200,7 +200,7 @@ function RestaurantBillingContent() {
                 <p className="text-micro font-semibold uppercase tracking-widest opacity-80">
                   {t(key)}
                 </p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums">{fmtINR(value)}</p>
+                <p className="mt-1 text-lg sm:text-xl font-semibold tabular-nums">{fmtINR(value)}</p>
               </div>
             ))}
           </div>
