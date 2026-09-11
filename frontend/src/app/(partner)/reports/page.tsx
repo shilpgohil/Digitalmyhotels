@@ -310,7 +310,7 @@ function ReportsContent() {
         >
           <DataTable
             darkHeader
-            tableClassName="min-w-[600px]"
+            tableClassName="table-fixed w-full"
             isLoading={roomUtil.isLoading}
             isError={roomUtil.isError}
             onRetry={() => roomUtil.refetch()}
@@ -390,7 +390,7 @@ function ReportsContent() {
           >
             <DataTable
               darkHeader
-              tableClassName="min-w-[700px]"
+              tableClassName="table-fixed w-full"
               isLoading={gstRows.isLoading}
               isError={gstRows.isError}
               onRetry={() => gstRows.refetch()}

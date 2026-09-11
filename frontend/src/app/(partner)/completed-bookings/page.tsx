@@ -762,6 +762,16 @@ function CompletedBookingsContent() {
             t("dates"), t("total"), t("statusCol"), t("payment"),
             <span key="act" className="sr-only">{t("actions")}</span>,
           ]}
+          columnClasses={[
+            "w-[86px]",  // Booking No.
+            "w-auto",    // Guest (flexible)
+            "w-[70px]",  // Rooms
+            "w-[156px]", // Dates
+            "w-[78px]",  // Total
+            "w-[100px]", // Status
+            "w-[88px]",  // Payment
+            "w-[70px]",  // Actions (view + reverse)
+          ]}
         >
           {bookings.data && (
             <TableBody>
@@ -772,9 +782,10 @@ function CompletedBookingsContent() {
                     <TableCell>
                       {booking.rooms.map((r) => r.room_number).join(", ")}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {fmtApiDateTime(booking.check_in_date, booking.check_in_time)} →{" "}
-                      {fmtApiDateTime(booking.check_out_date, booking.check_out_time)}
+                    <TableCell className="text-muted-foreground text-xs">
+                      <span className="whitespace-nowrap">{fmtApiDateTime(booking.check_in_date, booking.check_in_time)}</span>
+                      {" → "}
+                      <span className="whitespace-nowrap">{fmtApiDateTime(booking.check_out_date, booking.check_out_time)}</span>
                     </TableCell>
                     <TableCell className="tabular-nums">{fmtINR(booking.total_amount)}</TableCell>
                     <TableCell>

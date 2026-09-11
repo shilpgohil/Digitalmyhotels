@@ -279,6 +279,16 @@ function AdvanceBookingsContent() {
             t("dates"), t("total"), t("statusCol"), t("payment"),
             tc("actions"),
           ]}
+          columnClasses={[
+            "w-[86px]",  // Booking No.
+            "w-auto",    // Guest (flexible)
+            "w-[70px]",  // Rooms
+            "w-[156px]", // Dates (two dates, allow wrapping)
+            "w-[78px]",  // Total
+            "w-[116px]", // Status + possible Missed arrival badge
+            "w-[88px]",  // Payment
+            "w-[48px]",  // Actions
+          ]}
           rightAlignCols={[7]}
         >
           {!isLoading && !isError && (
@@ -293,9 +303,10 @@ function AdvanceBookingsContent() {
                         .map((r) => r.room_number)
                         .join(", ")}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {fmtApiDateTime(booking.check_in_date, booking.check_in_time)} →{" "}
-                      {fmtApiDateTime(booking.check_out_date, booking.check_out_time)}
+                    <TableCell className="text-muted-foreground text-xs">
+                      <span className="whitespace-nowrap">{fmtApiDateTime(booking.check_in_date, booking.check_in_time)}</span>
+                      {" → "}
+                      <span className="whitespace-nowrap">{fmtApiDateTime(booking.check_out_date, booking.check_out_time)}</span>
                     </TableCell>
                     <TableCell className="tabular-nums">{fmtINR(booking.total_amount)}</TableCell>
                     <TableCell>

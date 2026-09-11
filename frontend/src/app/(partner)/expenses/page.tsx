@@ -317,6 +317,15 @@ function ExpensesContent() {
             t("statusCol"),
             tc("actions"),
           ]}
+          columnClasses={[
+            "w-[80px]",  // Date
+            "w-[78px]",  // Amount
+            "w-auto",    // Description (flexible)
+            "w-[100px]", // Vendor
+            "w-[100px]", // Payment Mode
+            "w-[90px]",  // Status
+            "w-[90px]",  // Actions
+          ]}
         >
           {expenses.data?.items.map((ex) => (
             <TableRow key={ex.id}>
