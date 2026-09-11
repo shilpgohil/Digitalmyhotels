@@ -241,23 +241,27 @@
 }
 
 @layer utilities {
-  /* ── Sidebar glass — icons float freely, glass appears only on hover ── */
-  /* Collapsed: fully transparent — just icons, no panel, no background.
-     Hovered/expanded: warm cream glass appears as labels slide in.
-     Transition matches the width spring so background fades in together. */
+  /* ── Sidebar — gradient fade, NO hard right edge ───────────────────── */
+  /* Collapsed: fully transparent — icons float on the page, zero panel.
+     Hovered: gradient fades LEFT (opaque, readable) → RIGHT (transparent).
+     The right edge is always transparent = no visible partition line ever. */
   .glass-sidebar-warm {
     background: transparent;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-    transition:
-      background 0.25s ease,
-      backdrop-filter 0.25s ease,
-      -webkit-backdrop-filter 0.25s ease;
+    transition: background 0.25s ease, backdrop-filter 0.25s ease, -webkit-backdrop-filter 0.25s ease;
   }
   .glass-sidebar-warm:hover {
-    background: rgba(255, 252, 248, 0.82);
-    -webkit-backdrop-filter: blur(24px) saturate(160%) brightness(1.02);
-    backdrop-filter: blur(24px) saturate(160%) brightness(1.02);
+    /* Gradient: warm cream at left (behind icons/text) → transparent at right edge.
+       Right edge is 0% opacity = no visible boundary against the content. */
+    background: linear-gradient(
+      to right,
+      rgba(250, 248, 244, 0.92) 0%,
+      rgba(250, 248, 244, 0.85) 60%,
+      rgba(250, 248, 244, 0.0) 100%
+    );
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    backdrop-filter: blur(20px) saturate(150%);
   }
 
   /* ── White frost + gold glow — mobile bottom tab bar (Option E) ─────── */
