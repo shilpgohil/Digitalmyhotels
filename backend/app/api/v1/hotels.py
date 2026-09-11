@@ -90,7 +90,21 @@ async def update_my_hotel(
 ) -> HotelOut:
     hotel = await get_hotel(db, tenant.require_hotel())
     changes = body.model_dump(exclude_unset=True)
-    before = {k: getattr(hotel, k) for k in changes}
+
+    # Geofence toggle needs coordinates — either already stored or included
+    # in this same PATCH (client 09/2026 staff attendance).
+    if changes.get("geofence_enabled"):
+        eff_lat = changes.get("latitude", hotel.latitude)
+        eff_lng = changes.get("longitude", hotel.longitude)
+        if eff_lat is None or eff_lng is None:
+            from app.core.errors import ValidationAppError
+
+            raise ValidationAppError(
+                "Set the property location before enabling the geofence",
+                code="geofence_requires_location",
+            )
+
+    before = {k: str(getattr(hotel, k)) for k in changes}
     for key, value in changes.items():
         setattr(hotel, key, value)
     if changes:

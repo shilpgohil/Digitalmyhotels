@@ -31,6 +31,11 @@ class HotelOut(ORMModel):
     status: str
     total_rooms: int | None = None
     map_id: str | None = None
+    # Staff-attendance geofence (client 09/2026)
+    geofence_enabled: bool = False
+    latitude: Decimal | None = None
+    longitude: Decimal | None = None
+    geofence_radius_m: int = 200
 
 
 class ServiceItemOut(ORMModel):
@@ -73,6 +78,13 @@ class HotelUpdate(BaseModel):
     timezone: str | None = Field(default=None, max_length=64)
     total_rooms: int | None = Field(default=None, ge=0)
     map_id: str | None = Field(default=None, max_length=255)
+    # Staff-attendance geofence — toggle + property coordinates + radius.
+    # Enabling requires coordinates; validated in the service layer against
+    # the stored values (a PATCH may enable using previously saved coords).
+    geofence_enabled: bool | None = None
+    latitude: Decimal | None = Field(default=None, ge=-90, le=90)
+    longitude: Decimal | None = Field(default=None, ge=-180, le=180)
+    geofence_radius_m: int | None = Field(default=None, ge=50, le=2000)
 
 
 class HotelSettingsOut(ORMModel):

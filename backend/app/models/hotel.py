@@ -44,6 +44,13 @@ class Hotel(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # Google Maps embed ID or place ID for the hotel property
     map_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
+    # ── Staff-attendance geofence (admin-configurable, OFF by default) ──
+    # Toggle may only be enabled once latitude+longitude are set.
+    geofence_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
+    geofence_radius_m: Mapped[int] = mapped_column(Integer, default=200, nullable=False)
+
     settings: Mapped[HotelSettings | None] = relationship(
         back_populates="hotel", uselist=False, cascade="all, delete-orphan"
     )

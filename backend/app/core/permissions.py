@@ -57,6 +57,15 @@ class Permission(StrEnum):
     AUDIT_VIEW = "audit.view"
     NOTIFICATIONS_VIEW = "notifications.view"
 
+    # Staff attendance (client 09/2026 staff check-in flow)
+    STAFF_VIEW = "staff.view"
+    STAFF_MANAGE = "staff.manage"
+    STAFF_SALARY_VIEW = "staff.salary_view"
+    STAFF_ATTENDANCE_SELF = "staff.attendance_self"
+    STAFF_ATTENDANCE_VIEW = "staff.attendance_view"
+    STAFF_ATTENDANCE_RECORD = "staff.attendance_record"
+    STAFF_ATTENDANCE_CORRECT = "staff.attendance_correct"
+
 
 class RoleCode(StrEnum):
     SUPER_ADMIN = "super_admin"
@@ -64,6 +73,8 @@ class RoleCode(StrEnum):
     MANAGER = "manager"
     ADMIN = "admin"
     HOUSEKEEPING = "housekeeping"
+    RECEPTIONIST = "receptionist"
+    GENERAL_STAFF = "general_staff"
 
 
 ROLE_PERMISSIONS: dict[RoleCode, frozenset[Permission]] = {
@@ -104,6 +115,13 @@ ROLE_PERMISSIONS: dict[RoleCode, frozenset[Permission]] = {
             Permission.REPORTS_VIEW,
             Permission.AUDIT_VIEW,
             Permission.NOTIFICATIONS_VIEW,
+            Permission.STAFF_VIEW,
+            Permission.STAFF_MANAGE,
+            Permission.STAFF_SALARY_VIEW,
+            Permission.STAFF_ATTENDANCE_SELF,
+            Permission.STAFF_ATTENDANCE_VIEW,
+            Permission.STAFF_ATTENDANCE_RECORD,
+            Permission.STAFF_ATTENDANCE_CORRECT,
         }
     ),
     RoleCode.MANAGER: frozenset(
@@ -140,6 +158,13 @@ ROLE_PERMISSIONS: dict[RoleCode, frozenset[Permission]] = {
             Permission.REPORTS_VIEW,
             Permission.AUDIT_VIEW,
             Permission.NOTIFICATIONS_VIEW,
+            # Staff module — manager runs day-to-day attendance (no salary).
+            Permission.STAFF_VIEW,
+            Permission.STAFF_MANAGE,
+            Permission.STAFF_ATTENDANCE_SELF,
+            Permission.STAFF_ATTENDANCE_VIEW,
+            Permission.STAFF_ATTENDANCE_RECORD,
+            Permission.STAFF_ATTENDANCE_CORRECT,
         }
     ),
     RoleCode.ADMIN: frozenset(
@@ -169,6 +194,11 @@ ROLE_PERMISSIONS: dict[RoleCode, frozenset[Permission]] = {
             Permission.SHIFT_HANDOVER,
             Permission.REPORTS_VIEW,
             Permission.NOTIFICATIONS_VIEW,
+            # Admin/Reception can view staff + record attendance at the desk.
+            Permission.STAFF_VIEW,
+            Permission.STAFF_ATTENDANCE_SELF,
+            Permission.STAFF_ATTENDANCE_VIEW,
+            Permission.STAFF_ATTENDANCE_RECORD,
         }
     ),
     RoleCode.HOUSEKEEPING: frozenset(
@@ -180,6 +210,41 @@ ROLE_PERMISSIONS: dict[RoleCode, frozenset[Permission]] = {
             Permission.HOUSEKEEPING_MANAGE,
             Permission.MAINTENANCE_MANAGE,
             Permission.NOTIFICATIONS_VIEW,
+            Permission.STAFF_ATTENDANCE_SELF,
+        }
+    ),
+    # Front-desk staff account created from Add New Staff (access tier 2).
+    RoleCode.RECEPTIONIST: frozenset(
+        {
+            Permission.HOTEL_VIEW,
+            Permission.HOTEL_VIEW_PAYMENT_QR,
+            Permission.ROOMS_VIEW,
+            Permission.ROOMS_UPDATE_STATUS,
+            Permission.GUESTS_VIEW,
+            Permission.GUESTS_MANAGE,
+            Permission.GUESTS_VIEW_FULL_ID,
+            Permission.BOOKINGS_VIEW,
+            Permission.BOOKINGS_MANAGE,
+            Permission.CHECKIN,
+            Permission.CHECKOUT,
+            Permission.ROOM_TRANSFER,
+            Permission.PAYMENTS_COLLECT,
+            Permission.PAYMENTS_VIEW,
+            Permission.INVOICES_MANAGE,
+            Permission.SHIFT_HANDOVER,
+            Permission.NOTIFICATIONS_VIEW,
+            Permission.STAFF_VIEW,
+            Permission.STAFF_ATTENDANCE_SELF,
+            Permission.STAFF_ATTENDANCE_VIEW,
+            Permission.STAFF_ATTENDANCE_RECORD,
+        }
+    ),
+    # Housekeeping/restaurant workers (access tier 3): own attendance only.
+    RoleCode.GENERAL_STAFF: frozenset(
+        {
+            Permission.HOTEL_VIEW,
+            Permission.NOTIFICATIONS_VIEW,
+            Permission.STAFF_ATTENDANCE_SELF,
         }
     ),
 }
@@ -200,6 +265,8 @@ ROLE_NOTIFICATION_CATEGORIES: dict[RoleCode, frozenset[str]] = {
     RoleCode.MANAGER: ALL_NOTIFICATION_CATEGORIES,
     RoleCode.ADMIN: frozenset({"front_desk", "housekeeping", "operations"}),
     RoleCode.HOUSEKEEPING: frozenset({"housekeeping", "operations"}),
+    RoleCode.RECEPTIONIST: frozenset({"front_desk", "operations"}),
+    RoleCode.GENERAL_STAFF: frozenset({"operations"}),
 }
 
 

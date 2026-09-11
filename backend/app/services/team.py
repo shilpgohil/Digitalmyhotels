@@ -18,7 +18,13 @@ from app.services.auth import create_user
 
 # Owner-creatable roles. Owners must never create another owner
 # (Super Admin authorization required per SRS rule 22).
-CREATABLE_ROLES = {RoleCode.MANAGER, RoleCode.ADMIN, RoleCode.HOUSEKEEPING}
+CREATABLE_ROLES = {
+    RoleCode.MANAGER,
+    RoleCode.ADMIN,
+    RoleCode.HOUSEKEEPING,
+    RoleCode.RECEPTIONIST,
+    RoleCode.GENERAL_STAFF,
+}
 
 
 def _to_out(membership: HotelMembership) -> TeamMemberOut:

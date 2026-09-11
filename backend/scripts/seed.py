@@ -33,6 +33,8 @@ ROLE_DEFS = [
     (RoleCode.MANAGER, "Hotel Manager", "Operations and financials"),
     (RoleCode.ADMIN, "Admin / Reception", "Front desk operations"),
     (RoleCode.HOUSEKEEPING, "Housekeeping", "Cleaning and maintenance"),
+    (RoleCode.RECEPTIONIST, "Receptionist / Front Desk", "Front-desk staff account"),
+    (RoleCode.GENERAL_STAFF, "General Staff", "Own attendance self-service only"),
 ]
 
 # Note: .local/.test domains are rejected by the API's email validation.
