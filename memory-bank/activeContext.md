@@ -1,5 +1,19 @@
 # Active Context — DigitalMyHotels
 
+## STAFF PHASE 2 SHIPPED 12/09/2026 (commit 01d8138)
+- LEAVE MANAGEMENT: staff_leaves table (migration c8d9e0f1a2b3). Self-apply
+  from My Attendance (overlap-blocked, 60-day cap), owner/manager decide on
+  /staff/leaves (approve materializes attendance status='leave' days;
+  reject needs a reason). i18n staff.leave* keys en+hi.
+- PHONE LOGIN already existed end-to-end (backend authenticate_user accepts
+  email OR phone; login form is free-text) — verified, no change needed.
+- Attendance-only routing (commit 7a0e408): general_staff hitting /dashboard
+  redirects to /my-attendance; mobile tab bar permission-gated.
+- Deploy-blocking fixes found by real-Postgres verification: hotel-update
+  audit Decimal JSON error (9d684a7) + migration role-seed uuid cast
+  (54a2fb3). 76 staff/unit tests green; migrations verified via
+  alembic upgrade head on docker postgres (port 5434).
+
 ## STAFF ATTENDANCE MODULE SHIPPED 12/09/2026
 Commits: fdbc952 (db) · a468176 (api) · 43bee57 (ui) · dc831eb (chore).
 Spec: memory-bank/staffAttendanceImplementation.md (follow it for changes).
