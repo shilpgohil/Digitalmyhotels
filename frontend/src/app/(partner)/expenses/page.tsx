@@ -436,16 +436,16 @@ function AddVendorDialog({ onDone }: { onDone: () => void }) {
         </DialogHeader>
         <div className="grid gap-3">
           <div>
-            <Label>{t("vendorName")}</Label>
-            <Input className="mt-1" value={name} onChange={(e) => setName(e.target.value)} />
+            <Label htmlFor="vendor-name">{t("vendorName")}</Label>
+            <Input id="vendor-name" className="mt-1" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div>
-            <Label>{t("vendorPhone")}</Label>
-            <Input className="mt-1" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <Label htmlFor="vendor-phone">{t("vendorPhone")}</Label>
+            <Input id="vendor-phone" className="mt-1" value={phone} onChange={(e) => setPhone(e.target.value)} />
           </div>
           <div>
-            <Label>GSTIN</Label>
-            <Input className="mt-1" value={gstin} onChange={(e) => setGstin(e.target.value)} />
+            <Label htmlFor="vendor-gstin">GSTIN</Label>
+            <Input id="vendor-gstin" className="mt-1" value={gstin} onChange={(e) => setGstin(e.target.value)} />
           </div>
         </div>
         <DialogFooter>
@@ -512,17 +512,18 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
         </DialogHeader>
         <div className="grid gap-3">
           <div>
-            <Label>{t("name")}</Label>
-            <Input className="mt-1" value={name} onChange={(e) => setName(e.target.value)} />
+            <Label htmlFor="rec-name">{t("name")}</Label>
+            <Input id="rec-name" className="mt-1" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>{t("amount")}</Label>
-              <Input className="mt-1" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <Label htmlFor="rec-amount">{t("amount")}</Label>
+              <Input id="rec-amount" className="mt-1" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
             <div>
-              <Label>{t("frequency")}</Label>
+              <Label htmlFor="rec-frequency">{t("frequency")}</Label>
               <select
+                id="rec-frequency"
                 className="mt-1 h-8 w-full rounded-lg border px-2.5 text-sm"
                 value={frequency}
                 onChange={(e) => setFrequency(e.target.value)}
@@ -537,16 +538,18 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>{t("startDate")}</Label>
+              <Label htmlFor="rec-start">{t("startDate")}</Label>
               <DatePicker
+                id="rec-start"
                 className="mt-1"
                 value={startDate}
                 onChange={setStartDate}
               />
             </div>
             <div>
-              <Label>{t("category")}</Label>
+              <Label htmlFor="rec-category">{t("category")}</Label>
               <select
+                id="rec-category"
                 className="mt-1 h-8 w-full rounded-lg border px-2.5 text-sm"
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
@@ -717,12 +720,13 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
       <h2 className="mb-3 text-sm font-semibold">{t("addExpense")}</h2>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <div>
-          <Label>{t("expenseDate")}</Label>
-          <DatePicker className="mt-1" value={expenseDate} onChange={setExpenseDate} />
+          <Label htmlFor="exp-date">{t("expenseDate")}</Label>
+          <DatePicker id="exp-date" className="mt-1" value={expenseDate} onChange={setExpenseDate} />
         </div>
         <div>
-          <Label>{t("category")}</Label>
+          <Label htmlFor="exp-category">{t("category")}</Label>
           <select
+            id="exp-category"
             className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
@@ -736,16 +740,18 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
           </select>
         </div>
         <div>
-          <Label>{t("description")}</Label>
+          <Label htmlFor="exp-description">{t("description")}</Label>
           <Input
+            id="exp-description"
             className="mt-1"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
         <div>
-          <Label>{t("amount")}</Label>
+          <Label htmlFor="exp-amount">{t("amount")}</Label>
           <Input
+            id="exp-amount"
             className="mt-1"
             inputMode="decimal"
             value={amount}
@@ -753,8 +759,9 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
           />
         </div>
         <div>
-          <Label>{t("paymentMode")}</Label>
+          <Label htmlFor="exp-method">{t("paymentMode")}</Label>
           <select
+            id="exp-method"
             className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
             value={paymentMethod}
             onChange={(e) => setPaymentMethod(e.target.value)}
@@ -767,8 +774,9 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
           </select>
         </div>
         <div>
-          <Label>{t("paidTo")}</Label>
+          <Label htmlFor="exp-vendor">{t("paidTo")}</Label>
           <select
+            id="exp-vendor"
             className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
             value={vendorId}
             onChange={(e) => setVendorId(e.target.value)}

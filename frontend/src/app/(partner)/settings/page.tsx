@@ -166,12 +166,12 @@ function ServicesPanel() {
       <p className="text-sm text-muted-foreground">{t("servicesHint")}</p>
       <div className="flex flex-wrap items-end gap-2">
         <div>
-          <Label>{t("serviceName")}</Label>
-          <Input className="mt-1" value={name} onChange={(e) => setName(e.target.value)} />
+          <Label htmlFor="svc-name">{t("serviceName")}</Label>
+          <Input id="svc-name" className="mt-1" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div>
-          <Label>{t("servicePrice")}</Label>
-          <Input className="mt-1 w-32" value={price} onChange={(e) => setPrice(e.target.value)} />
+          <Label htmlFor="svc-price">{t("servicePrice")}</Label>
+          <Input id="svc-price" className="mt-1 w-32" value={price} onChange={(e) => setPrice(e.target.value)} />
         </div>
         <Button
           disabled={name.length < 2 || !price || create.isPending}

@@ -79,8 +79,9 @@ function ShiftHandoverContent() {
         <section className="mb-6 rounded-lg border bg-card p-5">
           <div className="flex flex-wrap items-end gap-3">
             <div className="w-36">
-              <Label>{t("openingCash")}</Label>
+              <Label htmlFor="sh-opening">{t("openingCash")}</Label>
               <Input
+                id="sh-opening"
                 className="mt-1"
                 inputMode="decimal"
                 value={opening}
@@ -88,8 +89,9 @@ function ShiftHandoverContent() {
               />
             </div>
             <div className="w-36">
-              <Label>{t("closingCash")}</Label>
+              <Label htmlFor="sh-closing">{t("closingCash")}</Label>
               <Input
+                id="sh-closing"
                 className="mt-1"
                 inputMode="decimal"
                 value={closing}
@@ -97,8 +99,9 @@ function ShiftHandoverContent() {
               />
             </div>
             <div className="w-48 min-w-40 flex-1">
-              <Label>{t("handoverTo")}</Label>
+              <Label htmlFor="sh-handover-to">{t("handoverTo")}</Label>
               <Input
+                id="sh-handover-to"
                 className="mt-1"
                 maxLength={200}
                 value={toName}
@@ -106,8 +109,8 @@ function ShiftHandoverContent() {
               />
             </div>
             <div className="w-56 min-w-44 flex-1">
-              <Label>{t("notes")}</Label>
-              <Input className="mt-1" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <Label htmlFor="sh-notes">{t("notes")}</Label>
+              <Input id="sh-notes" className="mt-1" value={notes} onChange={(e) => setNotes(e.target.value)} />
             </div>
             <Button onClick={() => create.mutate()} disabled={create.isPending}>
               {t("createHandover")}

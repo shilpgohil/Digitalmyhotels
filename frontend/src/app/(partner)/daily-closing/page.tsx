@@ -136,8 +136,8 @@ function DailyClosingContent() {
                   </div>
                 )}
                 <div>
-                  <Label>{t("notes")}</Label>
-                  <Input className="mt-1" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  <Label htmlFor="dc-notes">{t("notes")}</Label>
+                  <Input id="dc-notes" className="mt-1" value={notes} onChange={(e) => setNotes(e.target.value)} />
                 </div>
                 <Button onClick={() => closeDay.mutate()} disabled={closeDay.isPending}>
                   {t("closeDay")}
