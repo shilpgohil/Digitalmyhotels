@@ -227,7 +227,7 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
   const { can } = useAuth();
 
   return (
-    <nav className="scroll-fade-y overflow-y-auto px-3 pb-4 flex-1" aria-label="Main">
+    <nav className="overflow-y-auto px-3 pb-4" aria-label="Main">
       {SECTIONS.map((section) => {
         const visible = section.items.filter(
           (item) => !item.permission || can(item.permission),

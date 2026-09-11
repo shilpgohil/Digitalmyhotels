@@ -90,7 +90,7 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
       </div>
 
       {/* Navigation — always expanded */}
-      <nav className="scroll-fade-y overflow-y-auto px-3 py-2 flex-1">
+      <nav className="overflow-y-auto px-3 py-2">
         <ul className="space-y-0.5">
           {NAV_ITEMS.map((item) => {
             const active = hrefIsActive(pathname, filter, item.href);
