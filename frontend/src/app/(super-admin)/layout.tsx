@@ -19,12 +19,13 @@ export default function SuperAdminLayout({ children }: { readonly children: Reac
       <div className="edge-vignette-bottom" aria-hidden />
 
       <div className="relative flex h-screen overflow-hidden bg-gradient-to-br from-[#efebe3]/60 via-background to-background">
-        {/* Inline admin sidebar — takes its own space, content pushes right on hover-expand */}
-        <div className="hidden lg:flex shrink-0">
+        {/* Absolute overlay sidebar — no column boundary, no partition.
+            Transparent when collapsed (just icons). Glass floats when hovered. */}
+        <div className="hidden lg:block absolute left-0 top-0 bottom-0 z-30">
           <AdminSidebar />
         </div>
-        {/* Content — fills remaining flex space */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Content — 56px left indent reserves space for the icon strip */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden lg:pl-14">
           <AdminHeader />
           <PageTransition id="main-content" className="flex-1 overflow-y-auto">
             {children}

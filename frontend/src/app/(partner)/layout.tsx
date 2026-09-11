@@ -31,15 +31,16 @@ export default function PartnerLayout({ children }: { readonly children: React.R
         <div className="edge-vignette-bottom" aria-hidden />
 
         <div className="relative flex h-screen overflow-hidden bg-gradient-to-br from-[#efebe3]/60 via-background to-background">
-          {/* Inline sidebar — takes its own space in the flex row.
-              Collapsed: 56px. Hover-expands to 212px. Content shifts right
-              naturally — no overlap, no empty dead zone. */}
-          <div className="hidden lg:flex shrink-0">
+          {/* Absolute overlay sidebar — floats over content, no column boundary.
+              Collapsed: 56px transparent (invisible panel, just icons floating).
+              Expanded on hover: glass panel appears over content.
+              lg:pl-14 on content reserves 56px for the icon strip only. */}
+          <div className="hidden lg:block absolute left-0 top-0 bottom-0 z-30">
             <PartnerSidebar />
           </div>
 
-          {/* Main content — fills remaining flex space */}
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {/* Content — full height, 56px left indent on desktop for icon strip */}
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden lg:pl-14">
             <SubscriptionGate />
             <PageTransition id="main-content" className="flex min-w-0 flex-1 flex-col overflow-hidden">
               {/* Mobile: add bottom padding so content clears the floating tab bar */}
