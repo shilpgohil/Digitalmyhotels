@@ -749,6 +749,8 @@
     "freq_monthly": "Monthly",
     "freq_quarterly": "Quarterly",
     "freq_yearly": "Yearly",
+    "freq_custom": "Custom",
+    "customIntervalDays": "Repeat every (days)",
     "startDate": "Start Date",
     "name": "Name",
     "receiptOptional": "Bill / Receipt (optional)",

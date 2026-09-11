@@ -805,6 +805,8 @@
     "freq_monthly": "मासिक",
     "freq_quarterly": "त्रैमासिक",
     "freq_yearly": "वार्षिक",
+    "freq_custom": "कस्टम",
+    "customIntervalDays": "हर (दिनों) में दोहराएं",
     "startDate": "आरंभ तिथि",
     "name": "नाम",
     "receiptOptional": "बिल / रसीद (वैकल्पिक)",

@@ -852,7 +852,8 @@ function ChargeDialog({ bookingId, onDone }: { bookingId: string; onDone: () => 
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             >
-              {["food", "laundry", "room_service", "extra_bed", "minibar", "transport", "other"].map(
+              {/* Full backend charge-category set (was missing restaurant/damage) */}
+              {["food", "restaurant", "laundry", "room_service", "extra_bed", "minibar", "transport", "damage", "other"].map(
                 (c) => (
                   <option key={c} value={c}>
                     {t(`category_${c}`)}

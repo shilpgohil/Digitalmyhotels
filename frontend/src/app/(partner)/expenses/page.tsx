@@ -478,6 +478,8 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [frequency, setFrequency] = useState("monthly");
+  // Interval in days — only used when frequency === "custom" (backend 1–365).
+  const [customDays, setCustomDays] = useState("30");
   const [startDate, setStartDate] = useState(localToday);
   const [categoryId, setCategoryId] = useState("");
 
@@ -495,6 +497,8 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
           name,
           amount,
           frequency,
+          custom_interval_days:
+            frequency === "custom" ? Number.parseInt(customDays, 10) || 30 : null,
           start_date: startDate,
           category_id: categoryId || null,
         },
@@ -536,7 +540,7 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
                 value={frequency}
                 onChange={(e) => setFrequency(e.target.value)}
               >
-                {["monthly", "quarterly", "yearly"].map((f) => (
+                {["monthly", "quarterly", "yearly", "custom"].map((f) => (
                   <option key={f} value={f}>
                     {t(`freq_${f}`)}
                   </option>
@@ -544,6 +548,21 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
               </select>
             </div>
           </div>
+          {/* Custom interval — only for frequency === "custom" (backend 1–365 days) */}
+          {frequency === "custom" && (
+            <div>
+              <Label htmlFor="rec-custom-days">{t("customIntervalDays")}</Label>
+              <Input
+                id="rec-custom-days"
+                className="mt-1"
+                type="number"
+                min={1}
+                max={365}
+                value={customDays}
+                onChange={(e) => setCustomDays(e.target.value)}
+              />
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="rec-start">{t("startDate")}</Label>

@@ -230,11 +230,14 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
                 data-guest-field="id_proof_type"
                 className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
+                {/* Canonical display-label values — same set the check-in
+                    forms store, so guest records stay consistent. */}
                 <option value="">—</option>
-                <option value="aadhaar">Aadhaar</option>
-                <option value="passport">Passport</option>
-                <option value="driving_license">Driving License</option>
-                <option value="voter_id">Voter ID</option>
+                <option value="Aadhar Card">Aadhar Card</option>
+                <option value="PAN Card">PAN Card</option>
+                <option value="Passport">Passport</option>
+                <option value="Driving License">Driving License</option>
+                <option value="Voter ID">Voter ID</option>
               </select>
             </div>
             <div className="space-y-1">
