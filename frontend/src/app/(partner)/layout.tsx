@@ -38,9 +38,8 @@ export default function PartnerLayout({ children }: { readonly children: React.R
             <PartnerSidebar />
           </div>
 
-          {/* Main content — full width. 56px left padding on desktop reserves
-              space for the collapsed sidebar icon strip. */}
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden lg:pl-[56px]">
+          {/* Main content — full width. Sidebar overlays it as a ghost. */}
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <SubscriptionGate />
             <PageTransition id="main-content" className="flex min-w-0 flex-1 flex-col overflow-hidden">
               {/* Mobile: add bottom padding so content clears the floating tab bar */}

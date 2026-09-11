@@ -23,8 +23,8 @@ export default function SuperAdminLayout({ children }: { readonly children: Reac
         <div className="hidden lg:block absolute left-0 top-0 bottom-0 z-30">
           <AdminSidebar />
         </div>
-        {/* Content full width with 56px left padding for the collapsed icon strip */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden lg:pl-[56px]">
+        {/* Content full width — admin sidebar overlays as a ghost */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <AdminHeader />
           <PageTransition id="main-content" className="flex-1 overflow-y-auto">
             {children}

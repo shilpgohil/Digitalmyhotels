@@ -33,7 +33,7 @@ const TONE_CLASSES: Record<string, string> = {
   warning: "bg-warning text-white",
   info:    "bg-info text-white",
   // Neutral white surface (for KpiChip-style secondary metrics)
-  white:   "bg-white border border-border/80 text-foreground shadow-card",
+  white:   "bg-white text-foreground shadow-[0_2px_12px_rgba(0,0,0,0.07),0_1px_3px_rgba(0,0,0,0.04)]",
   // "Muted" — lighter surface for less prominent metrics
   muted:   "bg-muted text-foreground border border-border",
 };

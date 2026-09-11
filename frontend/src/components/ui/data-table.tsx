@@ -94,7 +94,7 @@ export function DataTable({
   // ── Loading ──────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className={cn("rounded-lg border bg-card overflow-hidden", className)}>
+      <div className={cn("rounded-xl bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.05)]", className)}>
         <div className="space-y-px">
           {Array.from({ length: skeletonRows }).map((_, i) => (
             <Skeleton key={i} className="h-12 w-full rounded-none first:rounded-t-lg last:rounded-b-lg" />
@@ -107,7 +107,7 @@ export function DataTable({
   // ── Error ────────────────────────────────────────────────────────────────
   if (isError) {
     return (
-      <div className={cn("rounded-lg border border-danger/30 bg-danger-bg px-4 py-8 text-center", className)}>
+      <div className={cn("rounded-xl bg-danger-bg px-4 py-8 text-center shadow-[0_2px_12px_rgba(0,0,0,0.06)]", className)}>
         <AlertCircle className="mx-auto mb-2 size-5 text-danger" aria-hidden />
         <p className="text-sm font-medium text-danger">{errorMessage}</p>
         {onRetry && (
@@ -127,7 +127,7 @@ export function DataTable({
   // ── Empty ────────────────────────────────────────────────────────────────
   if (isEmpty) {
     return (
-      <div className={cn("rounded-lg border bg-card", className)}>
+      <div className={cn("rounded-xl bg-card shadow-[0_2px_12px_rgba(0,0,0,0.06)]", className)}>
         <EmptyState title={emptyTitle} subtitle={emptySubtitle} action={emptyAction} />
       </div>
     );
@@ -135,7 +135,7 @@ export function DataTable({
 
   // ── Table ────────────────────────────────────────────────────────────────
   return (
-    <div className={cn("rounded-lg border bg-card overflow-x-auto", className)}>
+    <div className={cn("rounded-xl bg-card overflow-x-auto shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)]", className)}>
       <Table className={tableClassName}>
         <TableHeader>
           <TableRow

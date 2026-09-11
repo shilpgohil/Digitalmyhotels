@@ -42,7 +42,7 @@ export function SectionPanel({
   noPadding = false,
 }: SectionPanelProps) {
   return (
-    <div className={cn("rounded-xl border bg-card shadow-card overflow-hidden transition-shadow duration-200", className)}>
+    <div className={cn("rounded-xl bg-card overflow-hidden transition-shadow duration-200", "shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)]", className)}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-5 py-4">
         <div className="flex items-center gap-3 min-w-0">
@@ -67,7 +67,7 @@ export function SectionPanel({
       {children != null && children !== false && (
         <div
           className={cn(
-            !flat && "border-t",
+            !flat && "border-t border-border/30",
             !noPadding && "px-5 py-5",
             contentClassName,
           )}

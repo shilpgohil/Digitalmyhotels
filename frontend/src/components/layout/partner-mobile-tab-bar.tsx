@@ -30,22 +30,22 @@ const TAB_ITEMS = [
   },
   {
     href: "/checkin",
-    labelKey: "checkin",
+    labelKey: "guestCheckin",  // nav.guestCheckin = "Guest Check-in"
     icon: LogIn,
   },
   {
     href: "/current-guests",
-    labelKey: "currentGuests",
+    labelKey: "currentGuests", // nav.currentGuests = "Current Guests"
     icon: Users,
   },
   {
     href: "/advance-bookings",
-    labelKey: "advanceBookings",
+    labelKey: "advanceBookings", // nav.advanceBookings = "Advance Bookings"
     icon: BookOpen,
   },
   {
     href: "/payments",
-    labelKey: "paymentDetails",
+    labelKey: "payments",  // nav.payments = "Payment Details"
     icon: Wallet,
   },
 ] as const;
