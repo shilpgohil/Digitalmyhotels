@@ -397,8 +397,8 @@ async def sweep_auto_noshow(
     - Fires a BOOKING_NOSHOW notification so staff are informed.
     """
     from app.models.booking import Booking
-    from app.models.hotel import Hotel, HotelSettings
     from app.models.guest import Guest
+    from app.models.hotel import Hotel, HotelSettings
     from app.services.notification_events import NE, fire
 
     now = now_utc or datetime.now(UTC)

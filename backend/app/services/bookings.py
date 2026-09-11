@@ -704,7 +704,7 @@ async def add_room_to_booking(
     *,
     new_room_id: UUID,
     correlation_id: str | None = None,
-) -> "Booking":
+) -> Booking:
     """Add an extra room to a confirmed (advance) booking before check-in.
 
     Allows the arriving guest to take more rooms than originally reserved —
@@ -724,7 +724,7 @@ async def add_room_to_booking(
             "That room is already allocated to this booking.", code="room_already_allocated"
         )
 
-    locked = await _lock_rooms(db, hotel_id, [new_room_id])
+    await _lock_rooms(db, hotel_id, [new_room_id])
     new_room_typed = (
         await db.execute(
             select(Room)
