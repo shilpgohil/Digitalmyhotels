@@ -73,6 +73,20 @@ function isCheckoutOverdue(date: string, time?: string | null): boolean {
 /** Client-side page size for the current-guests table (figma pagination footer). */
 const PAGE_SIZE = 10;
 
+/**
+ * Compact room-status labels for the dense Current Guests table.
+ * Full labels ("Inspection Required" = 19 chars) force the Room Status
+ * column too wide; these table-context short forms keep columns tight.
+ * Missing keys fall back to the full i18n label.
+ */
+const COMPACT_ROOM_STATUS: Record<string, string> = {
+  cleaning_required: "Cleaning",
+  cleaning_in_progress: "Cleaning",
+  inspection_required: "Inspection",
+  clean_ready: "Ready",
+  out_of_service: "Out of service",
+};
+
 /** Day use (same check-in/out date) with both times known. */
 function isDayUseWithTimes(b: BookingOut): boolean {
   return (
@@ -138,7 +152,6 @@ function CurrentGuestsContent() {
         />
         <DataTable
           darkHeader
-          tableClassName="table-fixed w-full"
           isLoading={guests.isLoading}
           isError={guests.isError}
           errorMessage={guests.error instanceof ApiError ? guests.error.message : tc("error")}
@@ -150,18 +163,6 @@ function CurrentGuestsContent() {
             t("roomStatus"), t("checkedInAt"), t("expectedCheckout"),
             tb("payment"), tb("due"), tc("actions"),
           ]}
-          columnClasses={[
-            "w-[9%]",   // Booking No.
-            "w-[13%]",  // Guest
-            "w-[11%]",  // Mobile
-            "w-[7%]",   // Rooms
-            "w-[11%]",  // Room Status
-            "w-[12%]",  // Checked In
-            "w-[13%]",  // Expected Check-out
-            "w-[11%]",  // Payment
-            "w-[7%]",   // Due
-            "w-[6%]",   // Actions
-          ]}
           rightAlignCols={[9]}
         >
           {guests.data && guests.data.items.length > 0 && (
@@ -169,7 +170,7 @@ function CurrentGuestsContent() {
                 {pageItems.map((entry) => (
                   <TableRow key={entry.booking_id}>
                     <TableCell className="font-medium whitespace-nowrap">{entry.booking_number}</TableCell>
-                    <TableCell className="overflow-hidden">
+                    <TableCell className="max-w-[150px]">
                       <span className="block truncate font-medium">{entry.primary_guest_name}</span>
                       {entry.guest_count > 1 && (
                         <span className="text-xs text-muted-foreground">
@@ -183,14 +184,16 @@ function CurrentGuestsContent() {
                         "—"}
                     </TableCell>
                     <TableCell>
-                      {entry.rooms.map((room) => (
-                        <span
-                          key={room}
-                          className="mr-1 inline-flex rounded-full bg-info-bg px-2 py-0.5 text-xs font-medium text-info"
-                        >
-                          {room}
-                        </span>
-                      ))}
+                      <div className="flex flex-wrap gap-1">
+                        {entry.rooms.map((room) => (
+                          <span
+                            key={room}
+                            className="inline-flex rounded-full bg-info-bg px-2 py-0.5 text-xs font-medium text-info"
+                          >
+                            {room}
+                          </span>
+                        ))}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {(() => {
@@ -204,9 +207,8 @@ function CurrentGuestsContent() {
                               <StatusBadge
                                 key={status}
                                 tone={ROOM_STATUS_TONE[status] ?? "neutral"}
-                                className="max-w-full truncate"
                               >
-                                {tr(`status_${status}`)}
+                                {COMPACT_ROOM_STATUS[status] ?? tr(`status_${status}`)}
                               </StatusBadge>
                             ))}
                           </div>

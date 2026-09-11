@@ -268,7 +268,6 @@ function AdvanceBookingsContent() {
 
         <DataTable
           darkHeader
-          tableClassName="table-fixed w-full"
           isLoading={isLoading}
           isError={isError}
           onRetry={() => { pendingBookings.refetch(); confirmedBookings.refetch(); }}
@@ -278,16 +277,6 @@ function AdvanceBookingsContent() {
             t("bookingNumber"), t("guest"), t("roomsCol"),
             t("dates"), t("total"), t("statusCol"), t("payment"),
             tc("actions"),
-          ]}
-          columnClasses={[
-            "w-[10%]",  // Booking No.
-            "w-[14%]",  // Guest
-            "w-[8%]",   // Rooms
-            "w-[22%]",  // Dates (two dates, stacked)
-            "w-[9%]",   // Total
-            "w-[14%]",  // Status + Missed arrival badge
-            "w-[12%]",  // Payment
-            "w-[11%]",  // Actions
           ]}
           rightAlignCols={[7]}
         >

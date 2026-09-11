@@ -302,7 +302,6 @@ function ExpensesContent() {
 
         <DataTable
           darkHeader
-          tableClassName="table-fixed w-full"
           isLoading={expenses.isLoading}
           isError={expenses.isError}
           onRetry={() => expenses.refetch()}
@@ -316,15 +315,6 @@ function ExpensesContent() {
             t("paymentMode"),
             t("statusCol"),
             tc("actions"),
-          ]}
-          columnClasses={[
-            "w-[10%]",  // Date
-            "w-[10%]",  // Amount
-            "w-[22%]",  // Description
-            "w-[14%]",  // Vendor
-            "w-[14%]",  // Payment Mode
-            "w-[12%]",  // Status
-            "w-[18%]",  // Actions
           ]}
         >
           {expenses.data?.items.map((ex) => (

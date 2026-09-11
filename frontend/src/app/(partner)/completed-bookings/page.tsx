@@ -751,7 +751,6 @@ function CompletedBookingsContent() {
 
         <DataTable
           darkHeader
-          tableClassName="table-fixed w-full"
           isLoading={bookings.isLoading}
           isError={bookings.isError}
           onRetry={() => bookings.refetch()}
@@ -761,16 +760,6 @@ function CompletedBookingsContent() {
             t("bookingNumber"), t("guest"), t("roomsCol"),
             t("dates"), t("total"), t("statusCol"), t("payment"),
             <span key="act" className="sr-only">{t("actions")}</span>,
-          ]}
-          columnClasses={[
-            "w-[10%]",  // Booking No.
-            "w-[14%]",  // Guest
-            "w-[8%]",   // Rooms
-            "w-[22%]",  // Dates (two dates, stacked)
-            "w-[9%]",   // Total
-            "w-[13%]",  // Status
-            "w-[12%]",  // Payment
-            "w-[12%]",  // Actions (view + reverse)
           ]}
         >
           {bookings.data && (
