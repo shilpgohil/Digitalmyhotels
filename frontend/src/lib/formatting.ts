@@ -11,7 +11,13 @@
  * and will show yesterday's date for users east of UTC (e.g. IST) after midnight.
  */
 export function localToday(): string {
-  const d = new Date();
+  return localYmd(new Date());
+}
+
+/** Format any Date as YYYY-MM-DD in the user's LOCAL timezone.
+ *  Never use toISOString().slice(0,10) for calendar dates — it converts to
+ *  UTC first, which shifts the date for IST users (client 09/2026). */
+export function localYmd(d: Date): string {
   return [
     d.getFullYear(),
     String(d.getMonth() + 1).padStart(2, "0"),

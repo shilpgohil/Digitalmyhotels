@@ -220,7 +220,8 @@ async def _today_status(
         )
     ).scalar_one_or_none()
     if rec is None:
-        return "not_checked_in"
+        # Profile-level leave shows as On Leave, not "not checked in".
+        return "on_leave" if profile.status == "on_leave" else "not_checked_in"
     if rec.status in ("absent", "leave", "off", "holiday"):
         return rec.status
     if rec.check_in_at and not rec.check_out_at:

@@ -17,7 +17,7 @@ import { RequirePermission } from "@/components/auth/require-permission";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
-import { fmtApiDate, localToday } from "@/lib/formatting";
+import { fmtApiDate, localToday, localYmd } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import { STAFF_DEPARTMENTS, type AnomaliesOut } from "@/types/staff";
 
@@ -33,7 +33,7 @@ function fmtClock(iso: string | null): string {
 function weekAgo(): string {
   const d = new Date();
   d.setDate(d.getDate() - 7);
-  return d.toISOString().slice(0, 10);
+  return localYmd(d);
 }
 
 type AnomalyFilter = "all" | "late" | "early" | "missing";

@@ -17,6 +17,7 @@ import { RequirePermission } from "@/components/auth/require-permission";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
+import { localToday } from "@/lib/formatting";
 import type { CalendarOut, SelfTodayOut } from "@/types/staff";
 
 function MyAttendanceContent() {
@@ -31,7 +32,7 @@ function MyAttendanceContent() {
     enabled: !!activeHotelId,
   });
 
-  const month = new Date().toISOString().slice(0, 7);
+  const month = localToday().slice(0, 7);
   const calendar = useQuery({
     queryKey: ["staff-self-calendar", activeHotelId, month],
     queryFn: () => api<CalendarOut>(`/api/v1/staff/me/attendance/calendar?month=${month}`),

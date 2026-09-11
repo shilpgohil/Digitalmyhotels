@@ -93,7 +93,12 @@ export function PartnerMobileTabBar() {
         aria-label="Mobile navigation"
       >
         {items.map(({ href, labelKey, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(`${href}/`);
+          // Longest-prefix wins so nested routes never light two tabs at once.
+          const matches = items
+            .map((i) => i.href)
+            .filter((h) => pathname === h || pathname.startsWith(`${h}/`))
+            .sort((a, b) => b.length - a.length);
+          const active = matches[0] === href;
           return (
             <Link
               key={href}

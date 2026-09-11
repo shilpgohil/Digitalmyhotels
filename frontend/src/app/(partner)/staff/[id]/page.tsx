@@ -27,7 +27,7 @@ import { RequirePermission } from "@/components/auth/require-permission";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
-import { fmtApiDate, fmtINR } from "@/lib/formatting";
+import { fmtApiDate, fmtINR, localToday } from "@/lib/formatting";
 import type { CalendarOut, HistoryOut, StaffOut } from "@/types/staff";
 
 function fmtClock(iso: string | null): string {
@@ -60,7 +60,7 @@ function StaffProfileContent({ staffId }: { readonly staffId: string }) {
     enabled: !!activeHotelId,
   });
 
-  const month = new Date().toISOString().slice(0, 7);
+  const month = localToday().slice(0, 7);
   const calendar = useQuery({
     queryKey: ["staff-calendar", activeHotelId, staffId, month],
     queryFn: () =>

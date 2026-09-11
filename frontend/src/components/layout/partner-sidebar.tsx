@@ -268,6 +268,16 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
   const pathname = usePathname();
   const { can } = useAuth();
 
+  // Longest-prefix-wins active detection: with nested routes that share a
+  // prefix (/staff, /staff/checkin, /staff/attendance, /staff/attendance/
+  // history…), plain startsWith lit MULTIPLE items at once (client 09/2026
+  // screenshot: Staff List + Staff Check-in/out both gold). Exactly ONE item
+  // — the most specific matching href — may be active.
+  const activeHref = SECTIONS.flatMap((s) => s.items)
+    .map((item) => item.href)
+    .filter((href) => pathname === href || pathname.startsWith(`${href}/`))
+    .sort((a, b) => b.length - a.length)[0];
+
   return (
     <nav className="overflow-y-auto px-3 pb-4" aria-label="Main">
       {SECTIONS.map((section) => {
@@ -283,8 +293,7 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
             </p>
             <ul className="space-y-0.5">
               {visible.map((item) => {
-                const active =
-                  pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const active = item.href === activeHref;
                 const Icon = item.icon;
                 return (
                   <li key={item.href}>

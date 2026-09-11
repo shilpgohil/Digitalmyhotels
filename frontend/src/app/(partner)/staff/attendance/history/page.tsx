@@ -19,7 +19,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { PERMISSIONS } from "@/lib/permissions";
-import { fmtApiDate, localToday } from "@/lib/formatting";
+import { fmtApiDate, localToday, localYmd } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import { STAFF_DEPARTMENTS, type HistoryOut } from "@/types/staff";
 
@@ -35,7 +35,7 @@ function fmtClock(iso: string | null): string {
 function monthAgo(): string {
   const d = new Date();
   d.setDate(d.getDate() - 30);
-  return d.toISOString().slice(0, 10);
+  return localYmd(d);
 }
 
 function HistoryContent() {

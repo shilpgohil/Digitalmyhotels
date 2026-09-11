@@ -23,6 +23,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ApiError, apiUpload } from "@/lib/api/client";
 import { useImageEditor } from "@/components/media/image-editor";
+import { localToday } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import {
   STAFF_ACCESS_ROLES,
@@ -71,7 +72,7 @@ export function StaffForm({
     existing?.employment_type ?? "full_time",
   );
   const [joiningDate, setJoiningDate] = useState(
-    existing?.joining_date ?? new Date().toISOString().slice(0, 10),
+    existing?.joining_date ?? localToday(),
   );
   const [shiftStart, setShiftStart] = useState(existing?.shift_start?.slice(0, 5) ?? "");
   const [shiftEnd, setShiftEnd] = useState(existing?.shift_end?.slice(0, 5) ?? "");
@@ -224,7 +225,7 @@ export function StaffForm({
               id="sf-dob"
               value={dob}
               onChange={setDob}
-              max={new Date().toISOString().slice(0, 10)}
+              max={localToday()}
             />
           </div>
           <div className="space-y-1.5">

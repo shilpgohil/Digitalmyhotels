@@ -16,6 +16,7 @@ import { RequirePermission } from "@/components/auth/require-permission";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
+import { localToday } from "@/lib/formatting";
 import type { CalendarOut, StaffListOut } from "@/types/staff";
 
 function shiftMonth(month: string, delta: number): string {
@@ -31,7 +32,7 @@ function CalendarContent() {
   const { activeHotelId } = useAuth();
 
   const [staffId, setStaffId] = useState("");
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [month, setMonth] = useState(localToday().slice(0, 7));
 
   const staff = useQuery({
     queryKey: ["staff", activeHotelId, "calendar-list"],

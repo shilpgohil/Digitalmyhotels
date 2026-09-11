@@ -32,7 +32,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { PERMISSIONS } from "@/lib/permissions";
-import { fmtApiDate, localToday } from "@/lib/formatting";
+import { fmtApiDate, localToday, localYmd } from "@/lib/formatting";
 import { STAFF_DEPARTMENTS, type TodayAttendanceOut } from "@/types/staff";
 
 function fmtClock(iso: string | null): string {
@@ -50,9 +50,10 @@ function fmtHrs(minutes: number | null): string {
 }
 
 function shiftDate(iso: string, days: number): string {
+  // Local-time arithmetic — toISOString() here shifted a day for IST users.
   const d = new Date(`${iso}T00:00:00`);
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return localYmd(d);
 }
 
 function TodaysAttendanceContent() {
