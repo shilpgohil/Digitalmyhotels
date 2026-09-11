@@ -1609,10 +1609,16 @@ function AdditionalGuestEntry({
                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleSearch())}
               />
             </div>
-            <Button type="button" size="sm" onClick={handleSearch} disabled={searching}>
+            {/* Client spec 09/2026: NavyBlue solid, 46px height (matches primary guest search) */}
+            <Button
+              type="button"
+              className="h-[46px] bg-navy-900 text-white hover:bg-navy-800 px-4"
+              onClick={handleSearch}
+              disabled={searching}
+            >
               <Search className="size-4" aria-hidden />
               {searching ? "…" : tc("search")}
-                      </Button>
+            </Button>
           </div>
           {searchResults.length > 0 && (
             <ul className="rounded-lg border divide-y">

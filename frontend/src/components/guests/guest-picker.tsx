@@ -148,7 +148,8 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
         />
         <Button
           type="button"
-          variant="outline"
+          /* Client spec 09/2026: NavyBlue solid, 46px height (was outline) */
+          className="h-[46px] bg-navy-900 text-white hover:bg-navy-800 px-4"
           onClick={() => search.mutate()}
           disabled={search.isPending || (phone.length < 3 && last4.length !== 4)}
         >
