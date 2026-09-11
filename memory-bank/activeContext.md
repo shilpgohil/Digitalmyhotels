@@ -1,5 +1,95 @@
 # Active Context — DigitalMyHotels
 
+## MASTER RENOVATION COMPLETE (2026-09-11) — all commits pushed to master
+
+### Renovation summary (commits from this session):
+
+**Phase 1 — Design System Foundation**
+- `gold-50/300/700/800` tokens added to `@theme inline` (were used but missing)
+- `dmh-progress` keyframe added (was referenced but never defined)
+- Typography token system: `text-micro` (10px), `text-label` (11px), `text-caption` (12px), `font-tabular`
+- Applied across ALL 40+ files — zero `text-[Xpx]` arbitrary sizes remain (except checkin/page.tsx deferred)
+
+**Phase 2 — Shared Component Library**
+New in `src/components/ui/`:
+- `StatCard` + `StatCardGrid` — unified KPI tiles (4 implementations merged)
+- `DataTable` — table wrapper with skeleton/error/empty states built-in
+- `SectionPanel` — card container with icon+title+subtitle+action slot
+- `FilterBar` — date range + selects + search + clear-all in one composable row
+- `EmptyState` — icon + title + subtitle + optional action (10 bare `<p>` texts replaced)
+`PartnerHeader`: added optional `action?: ReactNode` slot
+
+**Phase 3 — Component rollout across 26 partner pages**
+- Expenses, Payments, Rooms: StatCard×4/6/6 replacing inline stat arrays
+- Advance Bookings, Completed Bookings, Current Guests: DataTable + FilterBar
+- Dashboard: KpiChip → StatCard (white tone), SectionCard → SectionPanel alias
+- All 26 pages: `overflow-y-auto p-6` → `overflow-y-auto p-4 sm:p-6` (responsive gutter)
+
+**Phase 5a+b — Check-in page modular extraction**
+11 components in `src/components/checkin/`:
+  `types.ts`, `service-utils.ts`, `autofill-banner.tsx`, `reveal-id-button.tsx`,
+  `selected-services-list.tsx`, `service-chips.tsx`, `collapsible-section.tsx`,
+  `inline-camera-capture.tsx`, `masked-id-input.tsx`, `room-replace-control.tsx`,
+  `upi-qr-block.tsx`
+checkin/page.tsx: 5,549 → 4,777 lines (−14%)
+
+**Phase 6 — Super Admin pages modernised**
+- 6 stat cards: StatCard with gold/success/info/danger/warning tones
+- Chart sections, renewal table, expired/registrations → SectionPanel
+- Hotels/expired/customers tables → DataTable + FilterBar
+- Password requests → SectionPanel
+- Plans page: semantic color tokens on active/inactive badges
+- HotelStatusBadge: arbitrary Tailwind → semantic tokens (success/danger/warning/muted)
+
+**Phase 7 — Mobile + Accessibility**
+- iOS zoom prevention: `font-size: max(16px,1rem)` on all inputs/selects/textareas
+- `prefers-reduced-motion`: full block disabling animations for reduce-motion users
+- Touch target expansion via CSS `::before` pseudo-element for icon buttons on coarse-pointer devices
+- Skip-to-content link in both partner and super-admin layouts
+- PageTransition: `id="main-content"` prop added
+
+**Phase 8 — Cross-platform visual polish**
+- 3 emoji-as-icons replaced (⚠→AlertTriangle, ✓→Check)
+- ~200 hardcoded color class swaps across 30 files → semantic tokens:
+  `bg-green-*`→`bg-success-bg`, `text-red-*`→`text-danger`, etc.
+- Dashboard `LEVEL_STYLES`: insight tone map → semantic tokens
+- Room picker: all status/reason colours → semantic tokens
+- Admin hotels: raw green/red buttons → `Button` component
+- Admin dashboard: approve/reject → `Button`; inline status pills → semantic tokens
+- RenewDialog: `bg-[#7a6540]` hex → `bg-gold-600`
+- Advance-booking local `Card()` removed, aliased to `SectionPanel`
+- Admin settings 3 sections → `SectionPanel`
+
+**Logical gaps fixed**
+- Multi-room add in advance-booking check-in (multi-select, loops add-room calls)
+- Expenses pending_amount stat card subtitle now visible; test updated
+- 24h auto-no-show: `sweep_auto_noshow` already wired in `reminders_loop`
+- Payment mode record-only note added to advance-booking page
+- Room picker: unicode ✓/⚠ → Lucide Check/AlertTriangle
+
+**Bug fixes**
+- Table column overflow root cause: removed `whitespace-nowrap` default from `TableCell`;
+  Expected Checkout OVERDUE badge now on new line; Room Status `flex-wrap`; `min-w-[800px]`
+- Current Guests `min-w` and `whitespace-nowrap` on column headers
+- admin/settings: illegal named exports removed (caused production build failure)
+
+**Rich empty states** (10 pages)
+audit, notifications, invoices, team, housekeeping (×2), payments (×2), checkout, gst-tax, restaurant-billing
+
+**Form accessibility**
+`htmlFor` + `id` wired on Expenses (12 pairs), Shift Handover (4), Daily Closing (1), Settings (2)
+
+### Current production commit: 1ee3f9b
+Quality: tsc ✅ eslint 0 ✅ next build ✅ (all 40 routes)
+
+### What remains (NOT done — for future sessions)
+- Further checkin page extraction (DocUpload, NewGuestForm, ForeignGuestSection, AdditionalGuestEntry — state-heavy, needs React context or prop drilling)
+- Live Playwright visual audit
+- Production Neon data inspection (requires controller credentials)
+- RESEND_API_KEY for invoice email (env var on Render)
+
+---
+
 ## Logical gap fixes (2026-09-11) — COMMITTED 77764a9
 
 Five concrete logical gaps identified via screenshots + brainstorm session:
