@@ -31,11 +31,12 @@ function AdminMobileNav() {
             AdminSidebar now uses w-full and fills exactly this 240px container. */}
         <SheetContent
           side="left"
-          className="!w-60 gap-0 p-0 overflow-y-auto"
+          className="!w-64 gap-0 glass-nav bg-background/95 p-0 text-foreground overflow-y-auto"
           aria-label="Admin menu"
         >
           <SheetTitle className="sr-only">Admin menu</SheetTitle>
-          <AdminSidebar onNavigate={() => setOpen(false)} />
+          {/* alwaysExpanded: labels always visible, w-full fills the 256px drawer */}
+          <AdminSidebar onNavigate={() => setOpen(false)} alwaysExpanded />
         </SheetContent>
       </Sheet>
     </>

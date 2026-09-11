@@ -124,7 +124,7 @@ function MobileNavDrawer() {
             PartnerSidebar content (brand + nav) fills this container naturally. */}
         <SheetContent
           side="left"
-          className="!w-64 gap-0 glass-nav bg-background/95 p-0 text-foreground overflow-y-auto border-r border-black/[0.06] shadow-[4px_0_24px_rgba(0,0,0,0.08)]"
+          className="!w-64 gap-0 glass-nav bg-background/95 p-0 text-foreground overflow-y-auto"
           aria-label={t("openMenu")}
         >
           <SheetTitle className="sr-only">{t("openMenu")}</SheetTitle>
