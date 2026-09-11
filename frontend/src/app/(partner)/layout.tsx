@@ -31,14 +31,14 @@ export default function PartnerLayout({ children }: { readonly children: React.R
         <div className="edge-vignette-bottom" aria-hidden />
 
         <div className="relative flex h-screen overflow-hidden bg-gradient-to-br from-[#efebe3]/60 via-background to-background">
-          {/* Hover-expand sidebar — ABSOLUTE OVERLAY, no reserved space.
-              Collapsed: 56px wide (icon strip). Expanded on hover: 212px.
-              Content flows behind it; leftmost 56px is gently overlapped. */}
-          <div className="hidden lg:block absolute left-0 top-0 bottom-0 z-30">
+          {/* Inline sidebar — takes its own space in the flex row.
+              Collapsed: 56px. Hover-expands to 212px. Content shifts right
+              naturally — no overlap, no empty dead zone. */}
+          <div className="hidden lg:flex shrink-0">
             <PartnerSidebar />
           </div>
 
-          {/* Main content — full width. Sidebar overlays it as a ghost. */}
+          {/* Main content — fills remaining flex space */}
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <SubscriptionGate />
             <PageTransition id="main-content" className="flex min-w-0 flex-1 flex-col overflow-hidden">
