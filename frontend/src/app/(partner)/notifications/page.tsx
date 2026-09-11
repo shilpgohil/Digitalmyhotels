@@ -29,21 +29,21 @@ const CATEGORIES = [
 ];
 
 const DOT: Record<string, string> = {
-  front_desk: "bg-amber-400",
-  housekeeping: "bg-blue-400",
-  finance: "bg-emerald-400",
-  operations: "bg-purple-400",
-  admin: "bg-navy-600",
-  platform: "bg-indigo-400",
+  front_desk:  "bg-warning",
+  housekeeping:"bg-info",
+  finance:     "bg-success",
+  operations:  "bg-muted-foreground",
+  admin:       "bg-navy-600",
+  platform:    "bg-navy-700",
 };
 
 const ROW_BG: Record<string, string> = {
-  front_desk: "border-l-amber-400",
-  housekeeping: "border-l-blue-400",
-  finance: "border-l-emerald-400",
-  operations: "border-l-purple-400",
-  admin: "border-l-navy-600",
-  platform: "border-l-indigo-400",
+  front_desk:  "border-l-warning",
+  housekeeping:"border-l-info",
+  finance:     "border-l-success",
+  operations:  "border-l-muted-foreground",
+  admin:       "border-l-navy-600",
+  platform:    "border-l-navy-700",
 };
 
 const DEEP_LINK_PERMISSION: [RegExp, string][] = [

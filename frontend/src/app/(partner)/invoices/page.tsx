@@ -230,8 +230,9 @@ function GenerateDialog({ onDone }: { onDone: () => void }) {
         </DialogHeader>
         <div className="grid gap-3">
           <div>
-            <Label>Booking</Label>
+            <Label htmlFor="inv-booking">Booking</Label>
             <select
+              id="inv-booking"
               className="mt-1 h-8 w-full rounded-lg border px-2.5 text-sm"
               value={bookingId}
               onChange={(e) => setBookingId(e.target.value)}

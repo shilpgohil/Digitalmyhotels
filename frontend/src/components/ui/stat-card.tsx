@@ -27,7 +27,7 @@ const TONE_CLASSES: Record<string, string> = {
   navy:    "bg-navy-950 text-white",
   navy2:   "bg-navy-800 text-white",
   gold:    "bg-gold-500 text-navy-900",
-  amber:   "bg-amber-600 text-white",
+  amber:   "bg-warning text-white",
   success: "bg-success text-white",
   danger:  "bg-danger text-white",
   warning: "bg-warning text-white",
@@ -123,7 +123,7 @@ export function StatCard({
         <p
           className={cn(
             "mt-1.5 flex items-center gap-0.5 text-label font-semibold",
-            trend > 0 ? "text-emerald-300" : "text-danger",
+            trend > 0 ? "text-success" : "text-danger",
           )}
         >
           {trend > 0

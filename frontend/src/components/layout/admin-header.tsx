@@ -110,7 +110,7 @@ export function AdminHeader() {
         >
           <Bell className="size-4" aria-hidden />
           {pendingCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex min-w-4 h-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-micro font-bold text-white">
+            <span className="absolute -top-0.5 -right-0.5 flex min-w-4 h-4 items-center justify-center rounded-full bg-danger px-0.5 text-micro font-bold text-white">
               {pendingCount > 9 ? "9+" : pendingCount}
             </span>
           )}
