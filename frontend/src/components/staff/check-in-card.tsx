@@ -15,7 +15,7 @@
  * callout with the computed distance.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -23,7 +23,7 @@ import { LogIn, LogOut, MapPinOff, ScanFace } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineSpinner } from "@/components/ui/inline-spinner";
-import { InlineCameraCapture } from "@/components/checkin/inline-camera-capture";
+import { FaceCapture } from "@/components/staff/face-capture";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { apiUpload, ApiError } from "@/lib/api/client";
@@ -56,10 +56,6 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [pendingPos, setPendingPos] = useState<GeoPosition | null>(null);
-  // InlineCameraCapture fires onCapture AND THEN onClose — this guard makes
-  // sure the check-in POST runs exactly once per camera session (a double
-  // call produced a spurious 409 "already checked in" right after success).
-  const cameraHandled = useRef(false);
   // Live clock (30s tick keeps the working duration fresh).
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -114,7 +110,6 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
       const pos = await acquirePosition();
       setPendingPos(pos);
       // Face Check-In: selfie evidence is part of the flow (mockup).
-      cameraHandled.current = false;
       setShowCamera(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : tc("error"));
@@ -179,17 +174,12 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
   return (
     <div className="rounded-xl border bg-card p-5 shadow-sm">
       {showCamera && (
-        <InlineCameraCapture
-          onCapture={(file) => {
-            cameraHandled.current = true;
-            void completeCheckIn(file);
-          }}
-          onClose={() => {
-            // Runs after onCapture too — only act when NOT already handled.
-            if (cameraHandled.current) return;
-            cameraHandled.current = true;
-            // Selfie skipped/unavailable — proceed without evidence photo
-            // (the selfie is optional evidence; GPS + audit still apply).
+        <FaceCapture
+          // FaceCapture guarantees exactly ONE callback fires per session.
+          onCapture={(file) => void completeCheckIn(file)}
+          onSkip={() => {
+            // Camera unavailable or user skipped — proceed without evidence
+            // photo (GPS + audit trail still apply).
             void completeCheckIn(null);
           }}
         />

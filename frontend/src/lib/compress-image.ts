@@ -79,3 +79,12 @@ export const compressDocument = (file: File) =>
 /** Compress for expense receipts (medium quality). */
 export const compressReceipt = (file: File) =>
   compressImage(file, { maxDimension: 1200, quality: 0.82, outputType: "image/jpeg" });
+
+/** Compress for staff check-in selfies — identity evidence only, so a small
+ *  720px JPEG keeps daily uploads light on mobile data. */
+export const compressSelfie = (file: File) =>
+  compressImage(file, { maxDimension: 720, quality: 0.8, outputType: "image/jpeg" });
+
+/** Compress for staff profile photos (avatar-sized). */
+export const compressStaffPhoto = (file: File) =>
+  compressImage(file, { maxDimension: 800, quality: 0.85, outputType: "image/jpeg" });

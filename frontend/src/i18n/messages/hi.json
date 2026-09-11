@@ -630,6 +630,9 @@
     "leaveRejectedToast": "अवकाश अनुरोध अस्वीकृत किया गया",
     "attendanceBtn": "उपस्थिति",
     "allRoles": "सभी भूमिकाएँ",
+    "positionFace": "आगमन समय दर्ज करने के लिए अपना चेहरा फ्रेम के भीतर रखें।",
+    "skipSelfie": "छोड़ें",
+    "captureSelfie": "सेल्फ़ी लें",
     "exportReport": "रिपोर्ट निर्यात करें",
     "recordCheckIn": "चेक-इन दर्ज करें",
     "recordCheckOut": "चेक-आउट दर्ज करें"

@@ -23,6 +23,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ApiError, apiUpload } from "@/lib/api/client";
 import { useImageEditor } from "@/components/media/image-editor";
+import { compressStaffPhoto } from "@/lib/compress-image";
 import { localToday } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import {
@@ -91,8 +92,10 @@ export function StaffForm({
     if (!file) return;
     const edited = await editor.edit(file, { aspect: "square", maxDimension: 800 });
     if (!edited) return;
-    setPhoto(edited);
-    setPhotoPreview(URL.createObjectURL(edited));
+    // Compress after cropping — keeps profile photos small (≤800px, q0.85).
+    const compressed = await compressStaffPhoto(edited);
+    setPhoto(compressed);
+    setPhotoPreview(URL.createObjectURL(compressed));
   };
 
   const mutation = useMutation({

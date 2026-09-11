@@ -630,6 +630,9 @@
     "leaveRejectedToast": "Leave request rejected",
     "attendanceBtn": "Attendance",
     "allRoles": "All Roles",
+    "positionFace": "Position your face within the frame to record your arrival time.",
+    "skipSelfie": "Skip",
+    "captureSelfie": "Capture selfie",
     "exportReport": "Export Report",
     "recordCheckIn": "Record Check-in",
     "recordCheckOut": "Record Check-out"
