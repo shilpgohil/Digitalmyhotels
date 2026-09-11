@@ -39,6 +39,12 @@ interface DataTableProps {
   columns: (string | ReactNode)[];
   /** Right-aligned columns by index (0-based) */
   rightAlignCols?: number[];
+  /**
+   * Optional Tailwind classes per column header cell, e.g. `["w-[90px]", ""]`.
+   * When provided alongside `tableClassName="table-fixed"`, gives reliable
+   * fixed-width columns that prevent content from forcing the table wider.
+   */
+  columnClasses?: string[];
   /** Show skeleton rows while loading */
   isLoading?: boolean;
   /** Number of skeleton rows to show */
@@ -70,6 +76,7 @@ interface DataTableProps {
 export function DataTable({
   columns,
   rightAlignCols = [],
+  columnClasses = [],
   isLoading = false,
   skeletonRows = 5,
   isError = false,
@@ -143,6 +150,7 @@ export function DataTable({
                   "whitespace-nowrap",
                   darkHeader && "text-white",
                   rightAlignCols.includes(i) && "text-right",
+                  columnClasses[i],
                 )}
               >
                 {col}

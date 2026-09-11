@@ -138,7 +138,7 @@ function CurrentGuestsContent() {
         />
         <DataTable
           darkHeader
-          tableClassName="min-w-[800px]"
+          tableClassName="table-fixed w-full"
           isLoading={guests.isLoading}
           isError={guests.isError}
           errorMessage={guests.error instanceof ApiError ? guests.error.message : tc("error")}
@@ -150,22 +150,34 @@ function CurrentGuestsContent() {
             t("roomStatus"), t("checkedInAt"), t("expectedCheckout"),
             tb("payment"), tb("due"), tc("actions"),
           ]}
+          columnClasses={[
+            "w-[88px]",   // Booking No.
+            "w-auto",     // Guest (flexible)
+            "w-[108px]",  // Mobile
+            "w-[76px]",   // Rooms
+            "w-[108px]",  // Room Status
+            "w-[116px]",  // Checked In
+            "w-[120px]",  // Expected Check-out
+            "w-[106px]",  // Payment
+            "w-[68px]",   // Due
+            "w-[44px]",   // Actions
+          ]}
           rightAlignCols={[9]}
         >
           {guests.data && guests.data.items.length > 0 && (
             <TableBody>
                 {pageItems.map((entry) => (
                   <TableRow key={entry.booking_id}>
-                    <TableCell className="font-medium">{entry.booking_number}</TableCell>
-                    <TableCell>
-                      <span className="font-medium">{entry.primary_guest_name}</span>
+                    <TableCell className="font-medium whitespace-nowrap">{entry.booking_number}</TableCell>
+                    <TableCell className="overflow-hidden">
+                      <span className="block truncate font-medium">{entry.primary_guest_name}</span>
                       {entry.guest_count > 1 && (
-                        <span className="ml-2 text-xs text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           +{entry.guest_count - 1}
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap tabular-nums">
+                    <TableCell className="tabular-nums whitespace-nowrap text-xs">
                       {entry.primary_guest_phone ||
                         entry.primary_guest_phone_masked ||
                         "—"}
@@ -180,7 +192,7 @@ function CurrentGuestsContent() {
                         </span>
                       ))}
                     </TableCell>
-                    <TableCell className="max-w-[120px]">
+                    <TableCell>
                       {(() => {
                         const statuses = Array.from(
                           new Set((entry.room_statuses ?? []).filter(Boolean)),
@@ -192,6 +204,7 @@ function CurrentGuestsContent() {
                               <StatusBadge
                                 key={status}
                                 tone={ROOM_STATUS_TONE[status] ?? "neutral"}
+                                className="max-w-full truncate"
                               >
                                 {tr(`status_${status}`)}
                               </StatusBadge>

@@ -302,7 +302,7 @@ function ExpensesContent() {
 
         <DataTable
           darkHeader
-          tableClassName="min-w-[700px]"
+          tableClassName="table-fixed w-full"
           isLoading={expenses.isLoading}
           isError={expenses.isError}
           onRetry={() => expenses.refetch()}

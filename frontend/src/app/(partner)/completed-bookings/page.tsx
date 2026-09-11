@@ -751,7 +751,7 @@ function CompletedBookingsContent() {
 
         <DataTable
           darkHeader
-          tableClassName="min-w-[760px]"
+          tableClassName="table-fixed w-full"
           isLoading={bookings.isLoading}
           isError={bookings.isError}
           onRetry={() => bookings.refetch()}
