@@ -834,6 +834,7 @@ function EditStayForm({
   const t = useTranslations("stay");
   const tb = useTranslations("bookings");
   const tc = useTranslations("common");
+  const tk = useTranslations("checkin");
   const api = useApi();
   const queryClient = useQueryClient();
 
@@ -841,6 +842,7 @@ function EditStayForm({
   const [checkOutTime, setCheckOutTime] = useState(booking.check_out_time ?? "");
   const [adults, setAdults] = useState(String(booking.adults));
   const [children, setChildren] = useState(String(booking.children));
+  const [guestType, setGuestType] = useState(booking.guest_type ?? "");
   const [specialRequests, setSpecialRequests] = useState(
     booking.special_requests ?? "",
   );
@@ -868,6 +870,9 @@ function EditStayForm({
   const [guestCity, setGuestCity] = useState(guest?.city ?? "");
   const [guestState, setGuestState] = useState(guest?.state ?? "");
   const [guestCountry, setGuestCountry] = useState(guest?.country ?? "India");
+  const [guestGender, setGuestGender] = useState(guest?.gender ?? "");
+  const [guestDob, setGuestDob] = useState(guest?.date_of_birth ?? "");
+  const [guestIdProof, setGuestIdProof] = useState(guest?.id_proof_type ?? "");
 
   const mutation = useMutation({
     mutationFn: async ({
@@ -921,6 +926,9 @@ function EditStayForm({
     if (requests !== (booking.special_requests ?? "")) {
       patch.special_requests = requests || null;
     }
+    if (guestType && guestType !== (booking.guest_type ?? "")) {
+      patch.guest_type = guestType;
+    }
 
     // Emergency contact + vehicle — diff-based, null clears a field.
     const diffField = (key: string, next: string, prev: string | null) => {
@@ -959,6 +967,15 @@ function EditStayForm({
       if (state !== (guest.state ?? "")) guestPatch.state = state || null;
       const country = guestCountry.trim();
       if (country !== (guest.country ?? "")) guestPatch.country = country || null;
+      if (guestGender !== (guest.gender ?? "")) {
+        guestPatch.gender = guestGender || null;
+      }
+      if (guestDob !== (guest.date_of_birth ?? "")) {
+        guestPatch.date_of_birth = guestDob || null;
+      }
+      if (guestIdProof !== (guest.id_proof_type ?? "")) {
+        guestPatch.id_proof_type = guestIdProof || null;
+      }
     }
 
     if (Object.keys(patch).length === 0 && Object.keys(guestPatch).length === 0) {
@@ -968,8 +985,43 @@ function EditStayForm({
     mutation.mutate({ bookingPatch: patch, guestPatch });
   };
 
+  const currentRooms = booking.rooms.filter((r) => r.is_current);
+
   return (
     <form className="space-y-4" onSubmit={submit}>
+      {/* ── Read-only stay summary: rooms, rates and money ── */}
+      <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+        <p className="mb-1.5 text-label font-semibold uppercase tracking-wide text-muted-foreground">
+          {tb("roomsCol")}
+        </p>
+        <ul className="space-y-0.5">
+          {currentRooms.map((r) => (
+            <li key={r.room_number} className="flex justify-between">
+              <span>
+                {r.room_number} ({r.room_type_name})
+              </span>
+              <span className="tabular-nums text-muted-foreground">
+                {fmtINR(r.rate)}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-2 grid grid-cols-3 gap-2 border-t pt-2">
+          <div>
+            <p className="text-label text-muted-foreground">{tb("total")}</p>
+            <p className="font-semibold tabular-nums">{fmtINR(booking.total_amount)}</p>
+          </div>
+          <div>
+            <p className="text-label text-muted-foreground">{tb("advance")}</p>
+            <p className="font-semibold tabular-nums">{fmtINR(booking.advance_amount)}</p>
+          </div>
+          <div>
+            <p className="text-label text-muted-foreground">{tb("due")}</p>
+            <p className="font-semibold tabular-nums">{fmtINR(booking.due_amount)}</p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         {/* Check-in is read-only: the guest is already in-house. */}
         <div className="space-y-1.5">
@@ -1010,6 +1062,24 @@ function EditStayForm({
             value={children}
             onChange={(e) => setChildren(e.target.value)}
           />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="es-guest-type">{tk("guestTypeLabel")}</Label>
+          <select
+            id="es-guest-type"
+            className="h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm"
+            value={guestType}
+            onChange={(e) => setGuestType(e.target.value)}
+          >
+            <option value="">—</option>
+            {(["business", "personal", "family", "group", "other"] as const).map(
+              (gt) => (
+                <option key={gt} value={gt}>
+                  {tk(`guestType_${gt}`)}
+                </option>
+              ),
+            )}
+          </select>
         </div>
         <div className="col-span-full space-y-1.5">
           <Label htmlFor="es-requests">{tb("specialRequests")}</Label>
@@ -1161,6 +1231,53 @@ function EditStayForm({
                 value={guestCountry}
                 onChange={(e) => setGuestCountry(e.target.value)}
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="es-guest-gender">{tk("fieldGender")}</Label>
+              <select
+                id="es-guest-gender"
+                className="h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm"
+                value={guestGender}
+                onChange={(e) => setGuestGender(e.target.value)}
+              >
+                <option value="">—</option>
+                <option value="Male">{tk("male")}</option>
+                <option value="Female">{tk("female")}</option>
+                <option value="Other">{tk("genderOther")}</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="es-guest-dob">{tk("fieldDob")}</Label>
+              <Input
+                id="es-guest-dob"
+                type="date"
+                max={new Date().toISOString().slice(0, 10)}
+                value={guestDob}
+                onChange={(e) => setGuestDob(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="es-guest-idproof">{tb("idProofType")}</Label>
+              <select
+                id="es-guest-idproof"
+                className="h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm"
+                value={guestIdProof}
+                onChange={(e) => setGuestIdProof(e.target.value)}
+              >
+                <option value="">—</option>
+                {[
+                  "Aadhar Card",
+                  "PAN Card",
+                  "Passport",
+                  "Driving License",
+                  "Voter ID",
+                  "Other",
+                ].map((it) => (
+                  <option key={it} value={it}>
+                    {it}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="col-span-full space-y-1.5">
               <Label htmlFor="es-guest-address">{t("guestAddress")}</Label>

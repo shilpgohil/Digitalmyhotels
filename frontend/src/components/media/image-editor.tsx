@@ -146,7 +146,7 @@ function ImageEditorDialog({
   const t = useTranslations("imageEditor");
   const tc = useTranslations("common");
 
-  const cropBox = useMemo(() => {
+  const initialBox = useMemo(() => {
     switch (aspect) {
       case "square":
         return { w: 260, h: 260 };
@@ -164,6 +164,11 @@ function ImageEditorDialog({
     }
   }, [aspect]);
 
+  // FREE crop (client 09/2026): the preset only sets the INITIAL frame — the
+  // user can drag any corner handle to resize the frame to ANY ratio.
+  const [cropBox, setCropBox] = useState(initialBox);
+  useEffect(() => setCropBox(initialBox), [initialBox]);
+
   const [src, setSrc] = useState<string | null>(null);
   const [natural, setNatural] = useState({ w: 1, h: 1 });
   const [scale, setScale] = useState(1);
@@ -180,6 +185,16 @@ function ImageEditorDialog({
   const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
   // Pinch-to-zoom state (two active touch points).
   const pinch = useRef<{ dist: number; scale0: number } | null>(null);
+  // Crop-frame corner resize state (free crop — any ratio).
+  const frameResize = useRef<{
+    x: number;
+    y: number;
+    w0: number;
+    h0: number;
+    sx: -1 | 1; // horizontal sign of the dragged corner
+    sy: -1 | 1; // vertical sign of the dragged corner
+  } | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const url = URL.createObjectURL(file);
@@ -187,16 +202,26 @@ function ImageEditorDialog({
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  function computeMinScale(w: number, h: number, steps: number, fine: number): number {
+  function computeMinScaleFor(
+    box: { w: number; h: number },
+    w: number,
+    h: number,
+    steps: number,
+    fine: number,
+  ): number {
     const totalRad = (steps * 90 + fine) * (Math.PI / 180);
     const sinA = Math.abs(Math.sin(totalRad));
     const cosA = Math.abs(Math.cos(totalRad));
     const rw = steps % 2 === 0 ? w : h;
     const rh = steps % 2 === 0 ? h : w;
     return Math.max(
-      (cropBox.w * cosA + cropBox.h * sinA) / rw,
-      (cropBox.h * cosA + cropBox.w * sinA) / rh,
+      (box.w * cosA + box.h * sinA) / rw,
+      (box.h * cosA + box.w * sinA) / rh,
     );
+  }
+
+  function computeMinScale(w: number, h: number, steps: number, fine: number): number {
+    return computeMinScaleFor(cropBox, w, h, steps, fine);
   }
 
   const onImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -280,6 +305,58 @@ function ImageEditorDialog({
 
   const onTouchEnd = (e: React.TouchEvent) => {
     if (e.touches.length < 2) pinch.current = null;
+  };
+
+  // ── Crop-frame corner resize (free crop, any ratio) ────────────────────────
+  const MIN_FRAME = 90;
+
+  const onHandleDown = (sx: -1 | 1, sy: -1 | 1) => (e: React.PointerEvent) => {
+    e.stopPropagation(); // don't start a pan
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    frameResize.current = {
+      x: e.clientX,
+      y: e.clientY,
+      w0: cropBox.w,
+      h0: cropBox.h,
+      sx,
+      sy,
+    };
+  };
+
+  const onHandleMove = (e: React.PointerEvent) => {
+    const fr = frameResize.current;
+    if (!fr) return;
+    e.stopPropagation();
+    // The frame stays centred in the stage, so dragging a corner outward by
+    // d grows the box by 2d on that axis.
+    const stage = stageRef.current?.getBoundingClientRect();
+    const maxW = stage ? stage.width - 24 : 600;
+    const maxH = stage ? stage.height - 24 : 600;
+    const nw = Math.min(maxW, Math.max(MIN_FRAME, fr.w0 + 2 * fr.sx * (e.clientX - fr.x)));
+    const nh = Math.min(maxH, Math.max(MIN_FRAME, fr.h0 + 2 * fr.sy * (e.clientY - fr.y)));
+    const box = { w: Math.round(nw), h: Math.round(nh) };
+    setCropBox(box);
+    // Keep the image covering the (possibly larger) frame.
+    const newMin = computeMinScaleFor(box, natural.w, natural.h, coarseSteps, fineAngle);
+    setMinScale(newMin);
+    setScale((s) => {
+      const ns = Math.max(s, newMin);
+      setOffset((o) => {
+        const rw = coarseSteps % 2 === 0 ? natural.w : natural.h;
+        const rh = coarseSteps % 2 === 0 ? natural.h : natural.w;
+        const maxX = Math.max(0, (rw * ns - box.w) / 2);
+        const maxY = Math.max(0, (rh * ns - box.h) / 2);
+        return {
+          x: Math.min(maxX, Math.max(-maxX, o.x)),
+          y: Math.min(maxY, Math.max(-maxY, o.y)),
+        };
+      });
+      return ns;
+    });
+  };
+
+  const onHandleUp = () => {
+    frameResize.current = null;
   };
 
   // ── Wheel zoom (desktop) ────────────────────────────────────────────────────
@@ -402,6 +479,7 @@ function ImageEditorDialog({
 
       {/* Crop stage — handles both mouse and touch */}
       <div
+        ref={stageRef}
         className="relative min-h-0 flex-1 flex items-center justify-center overflow-hidden touch-none"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -413,11 +491,38 @@ function ImageEditorDialog({
         onTouchEnd={onTouchEnd}
         onTouchCancel={onTouchEnd}
       >
-        {/* Crop overlay */}
+        {/* Crop overlay + free-resize corner handles (any ratio) */}
         <div
           className="absolute rounded-[4px] border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.6)] pointer-events-none z-10"
           style={{ width: cropBox.w, height: cropBox.h }}
-        />
+        >
+          {(
+            [
+              { sx: -1, sy: -1, pos: "left-0 top-0", cursor: "nwse-resize", corner: "border-l-[3px] border-t-[3px] rounded-tl" },
+              { sx: 1, sy: -1, pos: "right-0 top-0", cursor: "nesw-resize", corner: "border-r-[3px] border-t-[3px] rounded-tr" },
+              { sx: -1, sy: 1, pos: "left-0 bottom-0", cursor: "nesw-resize", corner: "border-l-[3px] border-b-[3px] rounded-bl" },
+              { sx: 1, sy: 1, pos: "right-0 bottom-0", cursor: "nwse-resize", corner: "border-r-[3px] border-b-[3px] rounded-br" },
+            ] as const
+          ).map((h) => (
+            <div
+              key={h.pos}
+              className={cn(
+                "pointer-events-auto absolute z-20 flex size-9 items-center justify-center touch-none",
+                h.pos,
+                // Pull the hit target outward so the visible corner sits ON the frame edge.
+                h.sx === -1 ? "-translate-x-1/3" : "translate-x-1/3",
+                h.sy === -1 ? "-translate-y-1/3" : "translate-y-1/3",
+              )}
+              style={{ cursor: h.cursor }}
+              onPointerDown={onHandleDown(h.sx, h.sy)}
+              onPointerMove={onHandleMove}
+              onPointerUp={onHandleUp}
+              onPointerCancel={onHandleUp}
+            >
+              <span className={cn("block size-[18px] border-white", h.corner)} />
+            </div>
+          ))}
+        </div>
 
         {/* Image */}
         {src && (

@@ -158,6 +158,11 @@ class BookingAddRoomRequest(BaseModel):
 class BookingUpdate(BaseModel):
     check_in_date: date | None = None
     check_out_date: date | None = None
+    # Business/personal classification — editable even in-house (Edit Stay).
+    guest_type: str | None = Field(
+        default=None,
+        pattern="^(business|personal|family|group|other)$",
+    )
     check_in_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
     check_out_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
     adults: int | None = Field(default=None, ge=1, le=40)

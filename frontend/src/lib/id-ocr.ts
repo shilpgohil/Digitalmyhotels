@@ -290,6 +290,68 @@ function decomposeAddress(raw: string, pincode: string | undefined): {
 /** 6-digit Indian PIN code, not part of a longer digit run. */
 const PIN_RE = /\b([1-9]\d{5})\b/;
 
+// Short tokens that legitimately appear in Indian addresses and must survive
+// the junk filter (road/street/house abbreviations, directions, connectors).
+const ADDR_SHORT_ALLOW = new Set([
+  "no", "st", "rd", "dr", "ln", "po", "ps", "sy", "op",
+  "of", "at", "nr", "opp", "via", "new", "old", "gf", "ff", "sf",
+  "a", "b", "c", "d", "e", // block/wing letters ("B Block", "Wing A")
+]);
+
+/**
+ * Token-level junk scrubber for OCR'd address text (client 09/2026: the
+ * address still carried garbage like "fe TT", "xzkq", stray VID digits).
+ *
+ * Removes:
+ *  - VID / long digit runs (Aadhaar fragments, phone numbers)
+ *  - URLs and e-mail fragments
+ *  - 1–2 letter tokens that aren't real address abbreviations
+ *  - 3+ letter all-consonant runs (classic Tesseract garbage — no vowels)
+ *  - tokens that are mostly symbols
+ */
+function cleanAddressText(raw: string): string {
+  const prepared = raw
+    .replace(/\bVID\s*[:.-]?\s*\d[\d\s]*/gi, " ")
+    .replace(/\b\d{7,}\b/g, " ") // long digit runs — never house numbers
+    .replace(/\bwww\.\S+/gi, " ")
+    .replace(/\S+@\S+/g, " ");
+
+  // Road-type words: a 2-letter initialism BEFORE one of these is real
+  // ("MG Road", "SG Highway", "CG Marg") — not OCR noise.
+  const ROAD_WORDS = /^(road|rd|marg|street|st|nagar|chowk|highway|circle|cross|bridge|layout)\b/i;
+
+  const tokens = prepared.split(/\s+/);
+  const kept = tokens.filter((tok, i) => {
+    // Trailing punctuation (commas) is fine — judge the core token.
+    const core = tok.replace(/[^A-Za-z0-9/'-]/g, "");
+    if (!core) return false;
+    // Relation markers are legitimate on Aadhaar backs (C/O, S/O, W/O, D/O).
+    if (/^[CSWDH]\/O$/i.test(core)) return true;
+    // Pure numbers (house/plot) and alphanumerics like "12A", "H-4" are fine.
+    if (/\d/.test(core)) return core.length <= 6;
+    // 1–2 letter alpha tokens: keep known abbreviations, or uppercase
+    // initialisms directly before a road word ("MG Road").
+    if (core.length <= 2) {
+      if (ADDR_SHORT_ALLOW.has(core.toLowerCase())) return true;
+      const next = tokens[i + 1] ?? "";
+      return /^[A-Z]{2}$/.test(core) && ROAD_WORDS.test(next);
+    }
+    // 3+ letters without a single vowel → OCR garbage ("xzkq", "trn") —
+    // except ALL-CAPS acronyms (HDFC, SBI) which are real landmarks.
+    if (!/[aeiouy]/i.test(core) && !/^[A-Z]{3,5}$/.test(core)) return false;
+    // Mostly symbols → garbage.
+    return core.length / tok.length > 0.5;
+  });
+
+  return kept
+    .join(" ")
+    .replace(/\s+,/g, ",")
+    .replace(/,\s*,+/g, ",")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[,\s-]+|[,\s-]+$/g, "")
+    .trim();
+}
+
 /**
  * Dedicated Aadhaar BACK-face parser (address + pincode).
  *
@@ -341,14 +403,16 @@ function parseAadharBack(text: string): Partial<ParsedIdFields> & { score: numbe
 
   if (collected.length === 0) return { ...fields, score };
 
-  const joined = collected
-    .join(", ")
-    // Strip characters that never appear in an Indian address (OCR noise
-    // like §, ¥, ©, stray brackets) while keeping legitimate punctuation.
-    .replace(/[^\w\s,./():#'-]/g, "")
-    .replace(/\s{2,}/g, " ")
-    .replace(/,\s*,+/g, ",")
-    .replace(/^[,\s]+|[,\s]+$/g, "");
+  const joined = cleanAddressText(
+    collected
+      .join(", ")
+      // Strip characters that never appear in an Indian address (OCR noise
+      // like §, ¥, ©, stray brackets) while keeping legitimate punctuation.
+      .replace(/[^\w\s,./():#'-]/g, "")
+      .replace(/\s{2,}/g, " ")
+      .replace(/,\s*,+/g, ",")
+      .replace(/^[,\s]+|[,\s]+$/g, ""),
+  );
 
   // Quality gate: valid pincode AND ≥ 60% word characters, else reject.
   const wordChars = joined.replace(/[^A-Za-z0-9,./\- ]/g, "").length;
@@ -482,8 +546,11 @@ function parseVoterID(text: string): Partial<ParsedIdFields> & { score: number }
       // Also include text on the Address: line itself (after the label)
       const labelLine = lines[addrLineIdx].replace(/^(Address|Residential|पता)[:\s]*/i, "").trim();
       const allAddr = [labelLine, ...addrLines].filter(Boolean);
-      fields.address = allAddr.join(", ");
-      score += 0.10;
+      const cleaned = cleanAddressText(allAddr.join(", "));
+      if (cleaned.length >= 5) {
+        fields.address = cleaned;
+        score += 0.10;
+      }
     }
   }
 

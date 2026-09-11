@@ -411,6 +411,7 @@ async def update_booking(
         "check_out_time",
         "adults",
         "children",
+        "guest_type",
         "special_requests",
         "emergency_contact_name",
         "emergency_contact_relation",
