@@ -21,7 +21,6 @@ import { SectionPanel } from "@/components/ui/section-panel";
 import { DataTable } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
-  TableBody,
   TableCell,
   TableRow,
 } from "@/components/ui/table";
@@ -326,9 +325,9 @@ function ReportsContent() {
               t("colRevenue"),
             ]}
           >
-            {roomUtil.data && (
-              <TableBody>
-                {paginate(roomUtil.data.items, roomUtilPage, TABLE_PAGE_SIZE).map((row) => (
+            {/* No <TableBody> wrapper — DataTable provides it */}
+            {roomUtil.data &&
+                paginate(roomUtil.data.items, roomUtilPage, TABLE_PAGE_SIZE).map((row) => (
                   <TableRow key={row.room_number}>
                     <TableCell className="font-medium whitespace-nowrap">{row.room_number}</TableCell>
                     <TableCell>{row.room_type_name}</TableCell>
@@ -348,8 +347,6 @@ function ReportsContent() {
                     <TableCell className="tabular-nums font-medium">{fmtINR(row.revenue)}</TableCell>
                   </TableRow>
                 ))}
-              </TableBody>
-            )}
           </DataTable>
           {roomUtil.data && roomUtil.data.items.length > TABLE_PAGE_SIZE && (
             <div className="border-t px-4 py-2">
@@ -407,9 +404,9 @@ function ReportsContent() {
                 t("colFinal"),
               ]}
             >
-              {gstRows.data && (
-                <TableBody>
-                  {paginate(gstRows.data.items, gstPage, TABLE_PAGE_SIZE).map((row) => (
+              {/* No <TableBody> wrapper — DataTable provides it */}
+              {gstRows.data &&
+                  paginate(gstRows.data.items, gstPage, TABLE_PAGE_SIZE).map((row) => (
                     <TableRow key={row.invoice_number}>
                       <TableCell className="font-medium whitespace-nowrap">{row.booking_number}</TableCell>
                       <TableCell>{row.guest_name}</TableCell>
@@ -423,8 +420,6 @@ function ReportsContent() {
                       <TableCell className="tabular-nums font-semibold">{fmtINR(row.total)}</TableCell>
                     </TableRow>
                   ))}
-                </TableBody>
-              )}
             </DataTable>
             {gstRows.data && gstRows.data.items.length > TABLE_PAGE_SIZE && (
               <div className="border-t px-4 py-2">

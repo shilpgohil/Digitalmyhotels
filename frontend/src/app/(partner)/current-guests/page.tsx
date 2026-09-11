@@ -36,7 +36,6 @@ import {
 import { DataTable } from "@/components/ui/data-table";
 import { FilterBar } from "@/components/ui/filter-bar";
 import {
-  TableBody,
   TableCell,
   TableRow,
 } from "@/components/ui/table";
@@ -165,9 +164,11 @@ function CurrentGuestsContent() {
           ]}
           rightAlignCols={[9]}
         >
-          {guests.data && guests.data.items.length > 0 && (
-            <TableBody>
-                {pageItems.map((entry) => (
+          {/* NOTE: no <TableBody> here — DataTable already wraps children in
+              one. Nesting <tbody> inside <tbody> is invalid HTML and breaks
+              the table column layout (rows detach from header columns). */}
+          {guests.data && guests.data.items.length > 0 &&
+                pageItems.map((entry) => (
                   <TableRow key={entry.booking_id}>
                     <TableCell className="font-medium whitespace-nowrap">{entry.booking_number}</TableCell>
                     <TableCell className="max-w-[150px]">
@@ -288,8 +289,6 @@ function CurrentGuestsContent() {
                     </TableCell>
                   </TableRow>
                 ))}
-            </TableBody>
-          )}
         </DataTable>
         {guests.data && allItems.length > 0 && (
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-3">

@@ -18,7 +18,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  TableBody,
   TableCell,
   TableRow,
 } from "@/components/ui/table";
@@ -280,9 +279,9 @@ function AdvanceBookingsContent() {
           ]}
           rightAlignCols={[7]}
         >
-          {!isLoading && !isError && (
-            <TableBody>
-              {paginate(items, page, 10).map((booking) => (
+          {/* No <TableBody> wrapper — DataTable provides it (nested tbody breaks layout) */}
+          {!isLoading && !isError &&
+              paginate(items, page, 10).map((booking) => (
                   <TableRow key={booking.id}>
                     <TableCell className="font-medium">{booking.booking_number}</TableCell>
                     <TableCell>{booking.primary_guest_name ?? "—"}</TableCell>
@@ -357,8 +356,6 @@ function AdvanceBookingsContent() {
                     </TableCell>
                   </TableRow>
                 ))}
-            </TableBody>
-          )}
         </DataTable>
         {!isLoading && !isError && items.length > 0 && (
           <PaginationFooter

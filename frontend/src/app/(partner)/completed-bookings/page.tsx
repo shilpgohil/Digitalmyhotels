@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
 import { FilterBar } from "@/components/ui/filter-bar";
 import {
-  TableBody,
   TableCell,
   TableRow,
 } from "@/components/ui/table";
@@ -762,9 +761,9 @@ function CompletedBookingsContent() {
             <span key="act" className="sr-only">{t("actions")}</span>,
           ]}
         >
-          {bookings.data && (
-            <TableBody>
-              {bookings.data.items.map((booking) => (
+          {/* No <TableBody> wrapper — DataTable provides it (nested tbody breaks layout) */}
+          {bookings.data &&
+              bookings.data.items.map((booking) => (
                   <TableRow key={booking.id}>
                     <TableCell className="font-medium">{booking.booking_number}</TableCell>
                     <TableCell>{booking.primary_guest_name ?? "—"}</TableCell>
@@ -813,8 +812,6 @@ function CompletedBookingsContent() {
                     </TableCell>
                   </TableRow>
                 ))}
-            </TableBody>
-          )}
         </DataTable>
 
         {bookings.data && bookings.data.total > PAGE_SIZE && (
