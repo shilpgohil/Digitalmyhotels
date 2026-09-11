@@ -55,3 +55,6 @@ srs_extracted.txt
 *.swp
 .DS_Store
 Thumbs.db
+
+# Reference zips
+frontend/*.zip
