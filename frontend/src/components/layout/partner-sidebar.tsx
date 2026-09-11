@@ -264,7 +264,7 @@ export function PartnerNav({
                       onClick={onNavigate}
                       title={alwaysExpanded ? undefined : t(item.labelKey)}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground transition-all duration-200",
+                        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition-all duration-200",
                         active
                           ? "border-l-[2px] border-gold-500 bg-gold-100/70 pl-[9px] font-semibold text-gold-800"
                           : "hover:bg-black/[0.04] hover:text-foreground",
@@ -345,7 +345,7 @@ export function PartnerBrand() {
   const hotelName = hotel.data?.name?.trim() || "DigitalMyHotels";
 
   return (
-    <div className="flex items-center gap-2.5 px-3 py-4 border-b border-black/[0.06] flex-shrink-0">
+    <div className="flex items-center gap-2.5 px-3 py-4 flex-shrink-0">
       {/* Logo — always visible at 32px */}
       <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gold-500 font-display text-[10px] font-black text-navy-900 shadow-[0_2px_8px_rgba(192,154,46,0.35)]">
         {logo.data ? (
@@ -420,10 +420,10 @@ export function PartnerSidebar() {
       )}
 
       {/* User footer */}
-      <div className="border-t border-black/[0.07] px-2 py-3">
+      <div className="px-2 py-3">
         <div className="flex items-center gap-2.5 px-0.5">
           {/* Avatar — always visible */}
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-navy-900/10 border border-black/[0.08]">
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-navy-900/10">
             <UserRound className="size-3.5 text-muted-foreground" aria-hidden />
           </div>
           {/* Details — animate in on hover */}

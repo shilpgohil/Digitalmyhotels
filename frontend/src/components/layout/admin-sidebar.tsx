@@ -73,25 +73,28 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
     <aside className={cn(
       "group flex h-full flex-col overflow-hidden",
       // Hover-expand: 56px collapsed → 220px expanded
-      "w-[56px] hover:w-[220px]",
+      "w-[56px] hover:w-[212px]",
       "transition-[width] duration-300 ease-[cubic-bezier(0.175,0.885,0.32,1.1)]",
       // Warm cream glass — same as partner sidebar
       "glass-sidebar-warm",
     )}>
       {/* Brand — logo always visible, "Platform Admin" text animates in */}
-      <div className="flex items-center gap-2.5 px-3 py-4 border-b border-black/[0.06] flex-shrink-0">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/dmh-icon.png"
-          alt="DigitalMyHotels"
-          width={28}
-          height={28}
-          className="size-7 shrink-0 select-none object-contain"
-          draggable={false}
-        />
-        <div className="min-w-0 overflow-hidden max-w-0 opacity-0 group-hover:max-w-[160px] group-hover:opacity-100 transition-all duration-300 delay-50">
-          <p className="truncate text-[10px] font-bold text-foreground whitespace-nowrap uppercase tracking-widest">DigitalMyHotels</p>
-          <p className="truncate text-micro text-muted-foreground whitespace-nowrap">Platform Admin</p>
+      {/* Brand — same structure as partner sidebar: icon + name + subtitle on hover */}
+      <div className="flex items-center gap-2.5 px-3 py-4 flex-shrink-0">
+        {/* Logo badge — matches partner's gold badge style */}
+        <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gold-500 shadow-[0_2px_8px_rgba(192,154,46,0.35)]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/dmh-icon.png"
+            alt="DigitalMyHotels"
+            className="size-full object-contain"
+            draggable={false}
+          />
+        </div>
+        {/* Name + subtitle — animate in on hover */}
+        <div className="min-w-0 overflow-hidden max-w-0 opacity-0 group-hover:max-w-[150px] group-hover:opacity-100 transition-all duration-300 delay-50">
+          <p className="truncate text-[11px] font-bold text-foreground whitespace-nowrap">DigitalMyHotels</p>
+          <p className="truncate text-micro tracking-widest uppercase text-muted-foreground whitespace-nowrap">Platform Admin</p>
         </div>
       </div>
 
@@ -132,7 +135,7 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
           Hidden on mobile where the Sheet is h-auto (content-height). */}
       <div className="hidden lg:flex lg:flex-1" aria-hidden />
 
-      <div className="border-t border-black/[0.07] px-2 py-3 space-y-0.5 flex-shrink-0">
+      <div className="px-2 py-3 space-y-0.5 flex-shrink-0">
         {customersEnabled && (
           <Link href="/admin/customers" onClick={onNavigate} title={t("allCustomersSection")}
             className={cn("flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-200",
@@ -165,7 +168,7 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
 
 export function AdminSidebar({ onNavigate }: { readonly onNavigate?: () => void }) {
   return (
-    <Suspense fallback={<aside className="h-full w-[56px] glass-sidebar-warm" />}>
+    <Suspense fallback={<aside className="h-full w-[56px] glass-sidebar-warm flex-shrink-0" />}>
       <AdminSidebarInner onNavigate={onNavigate} />
     </Suspense>
   );
