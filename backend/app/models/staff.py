@@ -124,3 +124,38 @@ class AttendanceRecord(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     staff_profile: Mapped[StaffProfile] = relationship(back_populates="attendance_records")
+
+
+class StaffLeave(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Leave request — applied by staff, decided by owner/manager.
+
+    On approval, every day in the range (that has no check-in yet) gets an
+    attendance_records row with status='leave' so calendars/reports agree.
+    """
+
+    __tablename__ = "staff_leaves"
+    __table_args__ = (
+        CheckConstraint("to_date >= from_date", name="ck_leave_range"),
+    )
+
+    hotel_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("hotels.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    staff_profile_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("staff_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    from_date: Mapped[date] = mapped_column(Date, nullable=False)
+    to_date: Mapped[date] = mapped_column(Date, nullable=False)
+    # annual | sick | unpaid | other
+    leave_type: Mapped[str] = mapped_column(String(16), nullable=False, default="annual")
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # pending | approved | rejected
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", index=True)
+    decided_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    decision_note: Mapped[str | None] = mapped_column(Text, nullable=True)

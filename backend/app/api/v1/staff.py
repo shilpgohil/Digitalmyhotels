@@ -22,6 +22,10 @@ from app.schemas.staff import (
     CheckInIn,
     FrontDeskRecordIn,
     HistoryOut,
+    LeaveCreate,
+    LeaveDecisionIn,
+    LeaveListOut,
+    LeaveOut,
     SelfTodayOut,
     StaffCreate,
     StaffListOut,
@@ -239,6 +243,55 @@ async def correct_attendance(
         db, tenant, record_id, body, correlation_id=_correlation(request)
     )
     return AttendanceRecordOut.model_validate(record)
+
+
+# ── Leave management (phase 2) ───────────────────────────────────────────────
+
+
+@router.post("/leaves", response_model=LeaveOut, status_code=201)
+async def apply_leave(
+    body: LeaveCreate,
+    request: Request,
+    tenant: TenantContext = Depends(require_permissions(Permission.STAFF_ATTENDANCE_SELF)),
+    db: AsyncSession = Depends(get_db),
+) -> LeaveOut:
+    leave = await attendance_service.apply_leave(
+        db, tenant, body, correlation_id=_correlation(request)
+    )
+    return LeaveOut.model_validate(leave)
+
+
+@router.get("/leaves", response_model=LeaveListOut)
+async def list_leaves(
+    mine: bool = Query(default=False),
+    status: str | None = Query(default=None, pattern="^(pending|approved|rejected)$"),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    tenant: TenantContext = Depends(require_permissions(Permission.STAFF_ATTENDANCE_SELF)),
+    db: AsyncSession = Depends(get_db),
+) -> LeaveListOut:
+    # Listing OTHER people's leaves needs the attendance-view permission;
+    # everyone may list their own (mine=true).
+    if not mine:
+        tenant.require_permission(Permission.STAFF_ATTENDANCE_VIEW)
+    items, total = await attendance_service.list_leaves(
+        db, tenant, mine=mine, status_filter=status, limit=limit, offset=offset
+    )
+    return LeaveListOut(items=items, total=total)
+
+
+@router.post("/leaves/{leave_id}/decide", response_model=LeaveOut)
+async def decide_leave(
+    leave_id: UUID,
+    body: LeaveDecisionIn,
+    request: Request,
+    tenant: TenantContext = Depends(require_permissions(Permission.STAFF_ATTENDANCE_CORRECT)),
+    db: AsyncSession = Depends(get_db),
+) -> LeaveOut:
+    leave = await attendance_service.decide_leave(
+        db, tenant, leave_id, body, correlation_id=_correlation(request)
+    )
+    return LeaveOut.model_validate(leave)
 
 
 # ── Staff directory ──────────────────────────────────────────────────────────

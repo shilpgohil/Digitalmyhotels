@@ -133,6 +133,12 @@ const SECTIONS: NavSection[] = [
         permission: PERMISSIONS.staffAttendanceRecord,
       },
       {
+        href: "/staff/leaves",
+        labelKey: "leaveRequests",
+        icon: CalendarPlus,
+        permission: PERMISSIONS.staffAttendanceView,
+      },
+      {
         href: "/staff/attendance/history",
         labelKey: "attendanceHistory",
         icon: ScrollText,

@@ -214,6 +214,48 @@ class AnomaliesOut(BaseModel):
     items: list[AnomalyRowOut]
 
 
+class LeaveCreate(BaseModel):
+    from_date: date
+    to_date: date
+    leave_type: str = Field(default="annual", pattern="^(annual|sick|unpaid|other)$")
+    reason: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def _range(self) -> LeaveCreate:
+        if self.to_date < self.from_date:
+            raise ValueError("End date must be on or after start date")
+        if (self.to_date - self.from_date).days > 60:
+            raise ValueError("Leave range cannot exceed 60 days")
+        return self
+
+
+class LeaveDecisionIn(BaseModel):
+    action: str = Field(pattern="^(approve|reject)$")
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class LeaveOut(ORMModel):
+    id: UUID
+    staff_profile_id: UUID
+    from_date: date
+    to_date: date
+    leave_type: str
+    reason: str | None
+    status: str
+    decided_at: datetime | None
+    decision_note: str | None
+    created_at: datetime
+    # Enriched (not ORM columns):
+    staff_code: str | None = None
+    full_name: str | None = None
+    department: str | None = None
+
+
+class LeaveListOut(BaseModel):
+    items: list[LeaveOut]
+    total: int
+
+
 class SelfTodayOut(BaseModel):
     """Self-service state for /my-attendance and the profile check-in card."""
 

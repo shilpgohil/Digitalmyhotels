@@ -22,7 +22,7 @@ from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.tenant import TenantContext
 from app.domain.geo import haversine_m
 from app.models.hotel import Hotel
-from app.models.staff import AttendanceRecord, StaffProfile
+from app.models.staff import AttendanceRecord, StaffLeave, StaffProfile
 from app.models.user import User
 from app.schemas.staff import (
     AnomaliesOut,
@@ -32,6 +32,9 @@ from app.schemas.staff import (
     CalendarDayOut,
     CalendarOut,
     CheckInIn,
+    LeaveCreate,
+    LeaveDecisionIn,
+    LeaveOut,
     SelfTodayOut,
     TodayAttendanceOut,
     TodayStatsOut,
@@ -847,6 +850,176 @@ async def sweep_attendance(db: AsyncSession) -> int:
     if touched:
         await db.commit()
     return touched
+
+
+# ── Leave management (phase 2) ───────────────────────────────────────────────
+
+
+async def apply_leave(
+    db: AsyncSession,
+    tenant: TenantContext,
+    body: LeaveCreate,
+    *,
+    correlation_id: str | None = None,
+) -> StaffLeave:
+
+    hotel_id = tenant.require_hotel()
+    profile = await get_or_create_own_profile(db, tenant)
+
+    # No overlapping pending/approved request for the same staff member.
+    overlap = (
+        await db.execute(
+            select(StaffLeave.id).where(
+                StaffLeave.staff_profile_id == profile.id,
+                StaffLeave.status.in_(("pending", "approved")),
+                StaffLeave.from_date <= body.to_date,
+                StaffLeave.to_date >= body.from_date,
+            )
+        )
+    ).scalar_one_or_none()
+    if overlap is not None:
+        raise ConflictError(
+            "A leave request already covers part of this range", code="leave_overlap"
+        )
+
+    leave = StaffLeave(
+        hotel_id=hotel_id,
+        staff_profile_id=profile.id,
+        from_date=body.from_date,
+        to_date=body.to_date,
+        leave_type=body.leave_type,
+        reason=body.reason,
+        status="pending",
+    )
+    db.add(leave)
+    await db.flush()
+    await write_audit(
+        db,
+        action="staff.leave_applied",
+        entity_type="staff_leave",
+        entity_id=leave.id,
+        actor_id=tenant.user_id,
+        hotel_id=hotel_id,
+        after={
+            "from": str(body.from_date),
+            "to": str(body.to_date),
+            "type": body.leave_type,
+        },
+        correlation_id=correlation_id,
+    )
+    return leave
+
+
+async def list_leaves(
+    db: AsyncSession,
+    tenant: TenantContext,
+    *,
+    mine: bool,
+    status_filter: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[LeaveOut], int]:
+
+    hotel_id = tenant.require_hotel()
+    base = (
+        select(StaffLeave, StaffProfile, User)
+        .join(StaffProfile, StaffProfile.id == StaffLeave.staff_profile_id)
+        .join(User, User.id == StaffProfile.user_id)
+        .where(StaffLeave.hotel_id == hotel_id)
+    )
+    if mine:
+        base = base.where(StaffProfile.user_id == tenant.user_id)
+    if status_filter:
+        base = base.where(StaffLeave.status == status_filter)
+
+    total = (
+        await db.execute(select(func.count()).select_from(base.subquery()))
+    ).scalar_one()
+    rows = (
+        await db.execute(
+            base.order_by(StaffLeave.created_at.desc()).limit(limit).offset(offset)
+        )
+    ).all()
+    items = []
+    for leave, profile, user in rows:
+        out = LeaveOut.model_validate(leave)
+        out.staff_code = profile.staff_code
+        out.full_name = user.full_name
+        out.department = profile.department
+        items.append(out)
+    return items, int(total)
+
+
+async def decide_leave(
+    db: AsyncSession,
+    tenant: TenantContext,
+    leave_id: UUID,
+    body: LeaveDecisionIn,
+    *,
+    correlation_id: str | None = None,
+) -> StaffLeave:
+
+    hotel_id = tenant.require_hotel()
+    leave = (
+        await db.execute(
+            select(StaffLeave).where(
+                StaffLeave.id == leave_id, StaffLeave.hotel_id == hotel_id
+            )
+        )
+    ).scalar_one_or_none()
+    if leave is None:
+        raise NotFoundError("Leave request not found")
+    if leave.status != "pending":
+        raise ConflictError("Leave request already decided", code="leave_decided")
+
+    leave.status = "approved" if body.action == "approve" else "rejected"
+    leave.decided_by_id = tenant.user_id
+    leave.decided_at = datetime.now(UTC)
+    leave.decision_note = body.note
+
+    # Approval materializes into attendance so calendars/reports agree:
+    # every day in the range WITHOUT an existing check-in becomes 'leave'.
+    if leave.status == "approved":
+        existing = (
+            await db.execute(
+                select(AttendanceRecord).where(
+                    AttendanceRecord.staff_profile_id == leave.staff_profile_id,
+                    AttendanceRecord.work_date >= leave.from_date,
+                    AttendanceRecord.work_date <= leave.to_date,
+                )
+            )
+        ).scalars()
+        by_day = {r.work_date: r for r in existing}
+        d = leave.from_date
+        while d <= leave.to_date:
+            rec = by_day.get(d)
+            if rec is None:
+                db.add(
+                    AttendanceRecord(
+                        hotel_id=hotel_id,
+                        staff_profile_id=leave.staff_profile_id,
+                        work_date=d,
+                        status="leave",
+                        note=f"leave: {leave.leave_type}",
+                    )
+                )
+            elif rec.check_in_at is None:
+                rec.status = "leave"
+                rec.note = f"leave: {leave.leave_type}"
+            d += timedelta(days=1)
+
+    await db.flush()
+    await write_audit(
+        db,
+        action="staff.leave_decided",
+        entity_type="staff_leave",
+        entity_id=leave.id,
+        actor_id=tenant.user_id,
+        hotel_id=hotel_id,
+        after={"status": leave.status, "note": body.note or ""},
+        correlation_id=correlation_id,
+    )
+    return leave
 
 
 # ── Selfie upload (Face Check-In evidence) ───────────────────────────────────

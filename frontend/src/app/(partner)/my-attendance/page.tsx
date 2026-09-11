@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckInCard } from "@/components/staff/check-in-card";
+import { LeaveSection } from "@/components/staff/leave-section";
 import { MonthCalendar } from "@/components/staff/month-calendar";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { useApi } from "@/lib/api/use-api";
@@ -65,6 +66,9 @@ function MyAttendanceContent() {
           </div>
 
           <CheckInCard big />
+
+          {/* Leave requests (apply + status) */}
+          <LeaveSection />
 
           {/* This-month mini calendar */}
           {calendar.isLoading && <Skeleton className="h-64" />}

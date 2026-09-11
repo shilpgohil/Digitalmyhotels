@@ -264,6 +264,116 @@ async def test_history_and_anomalies_endpoints(client: AsyncClient, hotel_a: Hot
     assert r.status_code == 200
 
 
+async def test_leave_apply_approve_flow(client: AsyncClient, hotel_a: HotelFixture):
+    from datetime import timedelta
+
+    manager = await _h(client, hotel_a, "manager")
+    admin = await _h(client, hotel_a, "admin")
+
+    start = date.today() + timedelta(days=7)
+    end = start + timedelta(days=2)
+
+    # Admin applies for leave.
+    r = await client.post(
+        "/api/v1/staff/leaves",
+        headers=admin,
+        json={
+            "from_date": start.isoformat(),
+            "to_date": end.isoformat(),
+            "leave_type": "annual",
+            "reason": "family function",
+        },
+    )
+    assert r.status_code == 201, r.text
+    leave = r.json()
+    assert leave["status"] == "pending"
+
+    # Overlapping second request rejected.
+    r = await client.post(
+        "/api/v1/staff/leaves",
+        headers=admin,
+        json={"from_date": start.isoformat(), "to_date": end.isoformat()},
+    )
+    assert r.status_code == 409
+
+    # Own list shows it; manager sees pending queue.
+    r = await client.get("/api/v1/staff/leaves?mine=true", headers=admin)
+    assert r.status_code == 200
+    assert any(item["id"] == leave["id"] for item in r.json()["items"])
+    r = await client.get("/api/v1/staff/leaves?status=pending", headers=manager)
+    assert any(item["id"] == leave["id"] for item in r.json()["items"])
+
+    # Admin cannot decide (needs attendance_correct); manager approves.
+    r = await client.post(
+        f"/api/v1/staff/leaves/{leave['id']}/decide",
+        headers=admin,
+        json={"action": "approve"},
+    )
+    assert r.status_code == 403
+    r = await client.post(
+        f"/api/v1/staff/leaves/{leave['id']}/decide",
+        headers=manager,
+        json={"action": "approve", "note": "enjoy"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "approved"
+
+    # Double-decide blocked.
+    r = await client.post(
+        f"/api/v1/staff/leaves/{leave['id']}/decide",
+        headers=manager,
+        json={"action": "reject"},
+    )
+    assert r.status_code == 409
+
+    # Approved days materialize as 'leave' in the admin's calendar.
+    month = start.strftime("%Y-%m")
+    r = await client.get(
+        f"/api/v1/staff/me/attendance/calendar?month={month}", headers=admin
+    )
+    assert r.status_code == 200
+    days = {d["day"]: d["status"] for d in r.json()["days"]}
+    assert days[start.isoformat()] == "leave"
+    assert days[end.isoformat()] == "leave"
+
+
+async def test_leave_rejection_does_not_touch_attendance(
+    client: AsyncClient, hotel_a: HotelFixture
+):
+    from datetime import timedelta
+
+    manager = await _h(client, hotel_a, "manager")
+    hk = await _h(client, hotel_a, "housekeeping")
+    start = date.today() + timedelta(days=30)
+
+    r = await client.post(
+        "/api/v1/staff/leaves",
+        headers=hk,
+        json={"from_date": start.isoformat(), "to_date": start.isoformat()},
+    )
+    assert r.status_code == 201, r.text
+    leave_id = r.json()["id"]
+
+    # Housekeeping cannot list everyone's leaves.
+    r = await client.get("/api/v1/staff/leaves", headers=hk)
+    assert r.status_code == 403
+
+    r = await client.post(
+        f"/api/v1/staff/leaves/{leave_id}/decide",
+        headers=manager,
+        json={"action": "reject", "note": "short-staffed"},
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "rejected"
+
+    month = start.strftime("%Y-%m")
+    r = await client.get(
+        f"/api/v1/staff/me/attendance/calendar?month={month}", headers=hk
+    )
+    days = {d["day"]: d["status"] for d in r.json()["days"]}
+    assert days[start.isoformat()] != "leave"
+
+
 async def test_tenant_isolation_staff(
     client: AsyncClient, hotel_a: HotelFixture, hotel_b: HotelFixture
 ):

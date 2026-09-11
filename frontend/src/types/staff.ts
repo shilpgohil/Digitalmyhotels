@@ -141,6 +141,30 @@ export interface AnomaliesOut {
   items: AnomalyRowOut[];
 }
 
+export const LEAVE_TYPES = ["annual", "sick", "unpaid", "other"] as const;
+export type LeaveType = (typeof LEAVE_TYPES)[number];
+
+export interface LeaveOut {
+  id: string;
+  staff_profile_id: string;
+  from_date: string;
+  to_date: string;
+  leave_type: LeaveType;
+  reason: string | null;
+  status: "pending" | "approved" | "rejected";
+  decided_at: string | null;
+  decision_note: string | null;
+  created_at: string;
+  staff_code: string | null;
+  full_name: string | null;
+  department: string | null;
+}
+
+export interface LeaveListOut {
+  items: LeaveOut[];
+  total: number;
+}
+
 export interface SelfTodayOut {
   staff_profile_id: string | null;
   staff_code: string | null;

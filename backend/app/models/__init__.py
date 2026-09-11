@@ -19,7 +19,7 @@ from app.models.platform import (
     SubscriptionRenewalRequest,
 )
 from app.models.room import Room, RoomAmenity, RoomType
-from app.models.staff import AttendanceRecord, StaffProfile
+from app.models.staff import AttendanceRecord, StaffLeave, StaffProfile
 from app.models.user import HotelMembership, RefreshToken, Role, User
 
 __all__ = [
@@ -67,4 +67,5 @@ __all__ = [
     "AuditLog",
     "StaffProfile",
     "AttendanceRecord",
+    "StaffLeave",
 ]
