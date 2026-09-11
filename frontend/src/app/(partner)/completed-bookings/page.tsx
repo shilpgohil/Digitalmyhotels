@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
 import { FilterBar } from "@/components/ui/filter-bar";
+import { SegmentedChips } from "@/components/ui/segmented-chips";
 import {
   TableCell,
   TableRow,
@@ -31,7 +32,6 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
-import { cn } from "@/lib/utils";
 import { Eye, RotateCcw } from "lucide-react";
 import type { ListOut } from "@/types/hotel";
 import type { BookingGuestDocOut, BookingGuestOut, BookingOut, ForeignGuestIn } from "@/types/stay";
@@ -705,47 +705,23 @@ function CompletedBookingsContent() {
           onClear={() => { setSearch(""); setFromDate(""); setToDate(""); setQuickRange("all"); }}
         />
 
-        {/* Quick date-range chips */}
-        <div className="mb-3 flex flex-wrap gap-2">
-          {quickChips.map((chip) => (
-            <button
-              key={chip.value}
-              type="button"
-              onClick={() => {
-                setQuickRange(chip.value);
-                const { from, to } = rangeFor(chip.value);
-                setFromDate(from);
-                setToDate(to);
-              }}
-              className={cn(
-                "inline-flex items-center rounded-full border px-3 py-1 text-xs transition-colors",
-                quickRange === chip.value
-                  ? "border-gold-500 bg-gold-500 font-medium text-navy-900"
-                  : "border-border text-muted-foreground hover:border-gold-500 hover:text-gold-600",
-              )}
-            >
-              {chip.label}
-            </button>
-          ))}
+        {/* Quick date-range chips — platform segmented pattern (client 09/2026) */}
+        <div className="mb-3">
+          <SegmentedChips
+            options={quickChips}
+            value={quickRange}
+            onChange={(v) => {
+              setQuickRange(v);
+              const { from, to } = rangeFor(v);
+              setFromDate(from);
+              setToDate(to);
+            }}
+          />
         </div>
 
         {/* Status toggle chips */}
-        <div className="mb-4 flex flex-wrap gap-2">
-          {statusChips.map((chip) => (
-            <button
-              key={chip.value}
-              type="button"
-              onClick={() => setStatus(chip.value)}
-              className={cn(
-                "inline-flex items-center rounded-full border px-3 py-1 text-xs transition-colors",
-                status === chip.value
-                  ? "border-navy-900 bg-navy-900 font-medium text-white"
-                  : "border-border text-muted-foreground hover:border-navy-900 hover:text-navy-900",
-              )}
-            >
-              {chip.label}
-            </button>
-          ))}
+        <div className="mb-4">
+          <SegmentedChips options={statusChips} value={status} onChange={setStatus} />
         </div>
 
         <DataTable

@@ -348,9 +348,7 @@ function InvoicesContent() {
                   {guestPhone && (
                     <p className="text-sm text-muted-foreground">{guestPhone}</p>
                   )}
-                  {invoice.guest_address && (
-                    <p className="text-sm text-muted-foreground">{invoice.guest_address}</p>
-                  )}
+                  {/* Guest address intentionally omitted (client 09/2026) */}
                 </div>
                 <div>
                   <p className="text-micro font-semibold uppercase tracking-widest text-muted-foreground">

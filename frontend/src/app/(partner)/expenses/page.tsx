@@ -6,7 +6,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CalendarDays, CalendarRange, ListChecks, Paperclip, Plus, Wallet } from "lucide-react";
 import { fmtApiDate, fmtINR, localToday } from "@/lib/formatting";
-import { cn } from "@/lib/utils";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +14,12 @@ import { Label } from "@/components/ui/label";
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
 import { DataTable } from "@/components/ui/data-table";
 import { FilterBar } from "@/components/ui/filter-bar";
+import {
+  PERIODS,
+  periodRange,
+  SegmentedChips,
+  type Period,
+} from "@/components/ui/segmented-chips";
 // TableBody and TableRow used inside DataTable children
 import {
   Dialog,
@@ -52,37 +57,7 @@ interface VendorOut {
   is_active: boolean;
 }
 
-/** Time-period chips above the stat cards (per Figma). */
-const PERIODS = ["all", "today", "last5", "month", "year"] as const;
-type Period = (typeof PERIODS)[number];
-
-function ymd(d: Date): string {
-  return [
-    d.getFullYear(),
-    String(d.getMonth() + 1).padStart(2, "0"),
-    String(d.getDate()).padStart(2, "0"),
-  ].join("-");
-}
-
-/** From/to filter dates for a period chip, in the user's local timezone. */
-function periodRange(period: Period): { from: string; to: string } {
-  const today = localToday();
-  switch (period) {
-    case "today":
-      return { from: today, to: today };
-    case "last5": {
-      const d = new Date();
-      d.setDate(d.getDate() - 4);
-      return { from: ymd(d), to: today };
-    }
-    case "month":
-      return { from: `${today.slice(0, 8)}01`, to: today };
-    case "year":
-      return { from: `${today.slice(0, 4)}-01-01`, to: today };
-    default:
-      return { from: "", to: "" };
-  }
-}
+// Time-period chips above the stat cards — shared platform pattern.
 
 const TONE: Record<string, "neutral" | "info" | "success" | "danger" | "warning"> = {
   draft: "neutral",
@@ -227,24 +202,12 @@ function ExpensesContent() {
         </div>
 
         {/* Time-period chips (per Figma) — set the from/to filter dates */}
-        <div className="mb-4 inline-flex flex-wrap gap-1 rounded-lg border bg-card p-1">
-          {PERIODS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              aria-pressed={period === p}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                period === p
-                  ? "bg-navy-900 text-white"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-              onClick={() => selectPeriod(p)}
-            >
-              {t(`period_${p}`)}
-            </button>
-          ))}
-        </div>
+        <SegmentedChips
+          className="mb-4"
+          options={PERIODS.map((p) => ({ value: p, label: t(`period_${p}`) }))}
+          value={period}
+          onChange={selectPeriod}
+        />
 
         {/* Stat cards — 6 per Figma: Total / Pending / Month / Cash / UPI / Entries */}
         <StatCardGrid className="mb-4" cols={6}>

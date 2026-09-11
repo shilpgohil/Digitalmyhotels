@@ -12,6 +12,11 @@ import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import { DataTable } from "@/components/ui/data-table";
 import { FilterBar } from "@/components/ui/filter-bar";
 import {
+  periodRange,
+  SegmentedChips,
+  type Period,
+} from "@/components/ui/segmented-chips";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -28,7 +33,6 @@ import {
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
-import { cn } from "@/lib/utils";
 import type { ListOut } from "@/types/hotel";
 import type { BookingOut } from "@/types/stay";
 import { RequirePermission } from "@/components/auth/require-permission";
@@ -68,6 +72,10 @@ function AdvanceBookingsContent() {
   const [fromDate, setFromDate] = useState(() => searchParams.get("from") ?? "");
   const [toDate, setToDate] = useState(() => searchParams.get("to") ?? "");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  // Quick time-period chip (platform pattern) — null = manual dates entered.
+  const [period, setPeriod] = useState<Period | null>(
+    searchParams.get("from") || searchParams.get("to") ? null : "all",
+  );
   const [page, setPage] = useState(1);
   const [cancelTarget, setCancelTarget] = useState<BookingOut | null>(null);
   const cancelConfirm = useConfirmDialog();
@@ -180,13 +188,13 @@ function AdvanceBookingsContent() {
             onSearchChange={setSearch}
             searchPlaceholder={t("searchPlaceholder")}
             fromDate={fromDate}
-            onFromDateChange={setFromDate}
+            onFromDateChange={(v) => { setPeriod(null); setFromDate(v); }}
             fromLabel={t("checkinDate")}
             toDate={toDate}
-            onToDateChange={setToDate}
+            onToDateChange={(v) => { setPeriod(null); setToDate(v); }}
             toLabel={t("checkoutDate")}
             hasActiveFilters={!!(search || fromDate || toDate)}
-            onClear={() => { setSearch(""); setFromDate(""); setToDate(""); }}
+            onClear={() => { setSearch(""); setFromDate(""); setToDate(""); setPeriod("all"); }}
           />
           <button
             type="button"
@@ -246,23 +254,33 @@ function AdvanceBookingsContent() {
           />
         </div>
 
+        {/* Quick time-period chips — platform segmented pattern (client 09/2026) */}
+        <div className="mb-3">
+          <SegmentedChips
+            options={[
+              { value: "all", label: t("allTime") },
+              { value: "today", label: t("today") },
+              { value: "last5", label: t("last5Days") },
+              { value: "month", label: t("thisMonth") },
+              { value: "year", label: t("thisYear") },
+            ]}
+            value={period}
+            onChange={(v) => {
+              setPeriod(v);
+              const { from, to } = periodRange(v);
+              setFromDate(from);
+              setToDate(to);
+            }}
+          />
+        </div>
+
         {/* Status filter chips */}
-        <div className="mb-4 flex flex-wrap gap-2">
-          {statusChips.map((chip) => (
-            <button
-              key={chip.value}
-              type="button"
-              onClick={() => setStatusFilter(chip.value)}
-              className={cn(
-                "inline-flex items-center rounded-full border px-3 py-1 text-xs transition-colors",
-                statusFilter === chip.value
-                  ? "border-navy-900 bg-navy-900 font-medium text-white"
-                  : "border-border text-muted-foreground hover:border-navy-900 hover:text-navy-900",
-              )}
-            >
-              {chip.label}
-            </button>
-          ))}
+        <div className="mb-4">
+          <SegmentedChips
+            options={statusChips}
+            value={statusFilter}
+            onChange={setStatusFilter}
+          />
         </div>
 
         <DataTable

@@ -8,6 +8,7 @@ import { Receipt, Wallet } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
+import { SegmentedChips } from "@/components/ui/segmented-chips";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -214,35 +215,24 @@ function PaymentsContent() {
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {/* ── Filter bar: quick chips + dates + payment mode + apply/clear ── */}
         <div className="mb-4 rounded-lg border bg-card p-4">
-          <div className="mb-3 flex flex-wrap gap-2">
-            {(
-              [
-                ["all", tb("allTime")],
-                ["today", tb("today")],
-                ["last5", tb("last5Days")],
-                ["month", tb("thisMonth")],
-                ["year", tb("thisYear")],
-              ] as [QuickRange, string][]
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => {
-                  setQuickRange(value);
-                  const { from, to } = rangeFor(value);
-                  setDraftFrom(from);
-                  setDraftTo(to);
-                }}
-                className={cn(
-                  "inline-flex items-center rounded-full border px-3 py-1 text-xs transition-colors",
-                  quickRange === value
-                    ? "border-gold-500 bg-gold-500 font-medium text-navy-900"
-                    : "border-border text-muted-foreground hover:border-gold-500 hover:text-gold-600",
-                )}
-              >
-                {label}
-              </button>
-            ))}
+          {/* Platform segmented chip pattern (client 09/2026) */}
+          <div className="mb-3">
+            <SegmentedChips
+              options={[
+                { value: "all", label: tb("allTime") },
+                { value: "today", label: tb("today") },
+                { value: "last5", label: tb("last5Days") },
+                { value: "month", label: tb("thisMonth") },
+                { value: "year", label: tb("thisYear") },
+              ]}
+              value={quickRange}
+              onChange={(v: QuickRange) => {
+                setQuickRange(v);
+                const { from, to } = rangeFor(v);
+                setDraftFrom(from);
+                setDraftTo(to);
+              }}
+            />
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <div>

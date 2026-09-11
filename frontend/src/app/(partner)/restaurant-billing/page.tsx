@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Search, UtensilsCrossed } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
+import { SegmentedChips } from "@/components/ui/segmented-chips";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +26,6 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { fmtINR, localToday } from "@/lib/formatting";
 import { PERMISSIONS } from "@/lib/permissions";
-import { cn } from "@/lib/utils";
 
 interface RestaurantBillingItem {
   booking_number: string;
@@ -142,23 +142,16 @@ function RestaurantBillingContent() {
     <>
       <PartnerHeader title={t("title")} subtitle={tn("money")} />
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-        {/* Quick filter chips */}
-        <div className="mb-4 flex flex-wrap gap-2">
-          {QUICK_FILTERS.map((filter) => (
-            <button
-              key={filter}
-              type="button"
-              onClick={() => selectChip(filter)}
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                activeChip === filter
-                  ? "border-navy-900 bg-navy-900 text-white"
-                  : "bg-card hover:bg-muted",
-              )}
-            >
-              {t(`chip_${filter}`)}
-            </button>
-          ))}
+        {/* Quick filter chips — platform segmented pattern (client 09/2026) */}
+        <div className="mb-4">
+          <SegmentedChips
+            options={QUICK_FILTERS.map((filter) => ({
+              value: filter,
+              label: t(`chip_${filter}`),
+            }))}
+            value={activeChip}
+            onChange={selectChip}
+          />
         </div>
 
         {/* Date range filters */}

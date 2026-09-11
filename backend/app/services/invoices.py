@@ -423,9 +423,7 @@ async def render_invoice_pdf(
         stay_dates = f"{cin}{cin_t} -> {cout}{cout_t}"
     pdf.cell(90, 5, latin1(guest_phone))
     pdf.cell(90, 5, latin1(stay_dates), new_x="LMARGIN", new_y="NEXT")
-    if invoice.guest_address:
-        pdf.set_x(14)
-        pdf.cell(90, 5, latin1(invoice.guest_address[:60]), new_x="LMARGIN", new_y="NEXT")
+    # Guest address intentionally omitted from the invoice (client 09/2026).
     if booking:
         pdf.set_x(14)
         pdf.cell(90, 5, "")

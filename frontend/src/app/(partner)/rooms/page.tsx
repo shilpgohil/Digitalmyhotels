@@ -19,6 +19,7 @@ import {
   SquarePen,
 } from "lucide-react";
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
+import { SegmentedChips } from "@/components/ui/segmented-chips";
 import type { StatCardTone } from "@/components/ui/stat-card";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -229,23 +230,15 @@ function RoomsContent() {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               {/* Filter chips — shown in BOTH grid AND table views (client 9-10 row 7:
                   previously only visible in grid mode, causing inconsistency). */}
-              <div className="flex flex-wrap gap-1.5">
-                {GRID_FILTERS.map((filter) => (
-                    <button
-                      key={filter}
-                      type="button"
-                      onClick={() => setGridFilter(filter)}
-                      className={cn(
-                        "rounded-full border px-3 py-1 text-xs transition-colors",
-                        gridFilter === filter
-                          ? "border-navy-900 bg-navy-900 font-medium text-white"
-                          : "text-muted-foreground hover:bg-muted",
-                      )}
-                    >
-                      {filter === "all" ? t("filterAll") : t(`status_${filter}`)}
-                    </button>
-                  ))}
-              </div>
+              {/* Platform segmented chip pattern (client 09/2026) */}
+              <SegmentedChips
+                options={GRID_FILTERS.map((filter) => ({
+                  value: filter,
+                  label: filter === "all" ? t("filterAll") : t(`status_${filter}`),
+                }))}
+                value={gridFilter}
+                onChange={setGridFilter}
+              />
               <div className="flex rounded-lg border">
                 <button
                   type="button"
