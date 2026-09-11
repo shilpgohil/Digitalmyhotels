@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { MoreVertical, Plus, Users } from "lucide-react";
+import { Download, MoreVertical, Plus, Users } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { DataTable } from "@/components/ui/data-table";
 import { FilterBar } from "@/components/ui/filter-bar";
@@ -43,12 +43,14 @@ function StaffListContent() {
 
   const [q, setQ] = useState("");
   const [department, setDepartment] = useState("");
+  const [role, setRole] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [page, setPage] = useState(1);
 
   const qs = [
     q && `q=${encodeURIComponent(q)}`,
     department && `department=${department}`,
+    role && `role=${role}`,
     status !== "all" && `status=${status}`,
   ]
     .filter(Boolean)
@@ -59,6 +61,33 @@ function StaffListContent() {
     queryFn: () => api<StaffListOut>(`/api/v1/staff?limit=200${qs ? `&${qs}` : ""}`),
     enabled: !!activeHotelId,
   });
+
+  /** Client-side CSV of the currently filtered directory (mockup Export). */
+  const exportCsv = () => {
+    const rows = staff.data?.items ?? [];
+    const esc = (v: string | null | undefined) =>
+      `"${String(v ?? "").replaceAll('"', '""')}"`;
+    const csv = [
+      ["Staff ID", "Name", "Role", "Department", "Mobile", "Status", "Joining Date"].join(","),
+      ...rows.map((s) =>
+        [
+          esc(s.staff_code),
+          esc(s.full_name),
+          esc(s.role_code),
+          esc(s.department),
+          esc(s.phone),
+          esc(s.status),
+          esc(s.joining_date),
+        ].join(","),
+      ),
+    ].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "staff-list.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <>
@@ -83,24 +112,49 @@ function StaffListContent() {
             }))}
             selectPlaceholder={t("allDepartments")}
             selectLabel={t("department")}
-            hasActiveFilters={!!(q || department || status !== "all")}
+            select2Value={role}
+            onSelect2Change={(v) => {
+              setRole(v);
+              setPage(1);
+            }}
+            select2Options={[
+              "manager",
+              "admin",
+              "receptionist",
+              "general_staff",
+              "housekeeping",
+            ].map((r) => ({ value: r, label: t(`role_${r}`) }))}
+            select2Placeholder={t("allRoles")}
+            select2Label={t("roleCol")}
+            hasActiveFilters={!!(q || department || role || status !== "all")}
             onClear={() => {
               setQ("");
               setDepartment("");
+              setRole("");
               setStatus("all");
               setPage(1);
             }}
           />
-          {can(PERMISSIONS.staffManage) && (
+          <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => router.push("/staff/new")}
-              className="inline-flex h-[42px] items-center gap-1.5 rounded-md bg-gold-500 px-3.5 text-sm font-medium text-navy-900 hover:bg-gold-400"
+              onClick={exportCsv}
+              className="inline-flex h-[42px] items-center gap-1.5 rounded-md border border-input bg-white px-3.5 text-sm font-medium transition-colors hover:bg-muted"
             >
-              <Plus className="size-4" aria-hidden />
-              {t("addStaff")}
+              <Download className="size-4" aria-hidden />
+              {t("export")}
             </button>
-          )}
+            {can(PERMISSIONS.staffManage) && (
+              <button
+                type="button"
+                onClick={() => router.push("/staff/new")}
+                className="inline-flex h-[42px] items-center gap-1.5 rounded-md bg-gold-500 px-3.5 text-sm font-medium text-navy-900 hover:bg-gold-400"
+              >
+                <Plus className="size-4" aria-hidden />
+                {t("addStaff")}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="mb-4">

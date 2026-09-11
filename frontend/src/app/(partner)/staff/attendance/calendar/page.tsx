@@ -3,6 +3,7 @@
 /** /staff/attendance/calendar — per-staff month view (client mockup). */
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -31,7 +32,9 @@ function CalendarContent() {
   const api = useApi();
   const { activeHotelId } = useAuth();
 
-  const [staffId, setStaffId] = useState("");
+  // ?staff_id= deep link — Staff Profile's "Attendance" button lands here.
+  const searchParams = useSearchParams();
+  const [staffId, setStaffId] = useState(searchParams.get("staff_id") ?? "");
   const [month, setMonth] = useState(localToday().slice(0, 7));
 
   const staff = useQuery({

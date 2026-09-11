@@ -157,16 +157,29 @@ function StaffProfileContent({ staffId }: { readonly staffId: string }) {
                   </p>
                 </div>
               </div>
-              {can(PERMISSIONS.staffManage) && (
-                <Button
-                  variant="outline"
-                  className="h-[42px]"
-                  onClick={() => setEditing(true)}
-                >
-                  <Pencil className="mr-2 size-4" aria-hidden />
-                  {t("editStaff")}
-                </Button>
-              )}
+              <div className="flex gap-2">
+                {can(PERMISSIONS.staffManage) && (
+                  <Button
+                    variant="outline"
+                    className="h-[42px]"
+                    onClick={() => setEditing(true)}
+                  >
+                    <Pencil className="mr-2 size-4" aria-hidden />
+                    {t("editStaff")}
+                  </Button>
+                )}
+                {can(PERMISSIONS.staffAttendanceView) && (
+                  <Button
+                    className="h-[42px] bg-navy-900 text-white hover:bg-navy-800"
+                    onClick={() =>
+                      router.push(`/staff/attendance/calendar?staff_id=${s.id}`)
+                    }
+                  >
+                    <CalendarCheck className="mr-2 size-4" aria-hidden />
+                    {t("attendanceBtn")}
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="grid gap-4 lg:grid-cols-3">
@@ -252,7 +265,11 @@ function StaffProfileContent({ staffId }: { readonly staffId: string }) {
                 action={
                   <button
                     type="button"
-                    onClick={() => router.push("/staff/attendance/history")}
+                    onClick={() =>
+                      router.push(
+                        `/staff/attendance/history?q=${encodeURIComponent(s.staff_code)}`,
+                      )
+                    }
                     className="text-xs font-medium text-gold-600 hover:underline"
                   >
                     {t("viewFullHistory")} →

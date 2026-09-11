@@ -145,6 +145,12 @@ const SECTIONS: NavSection[] = [
         permission: PERMISSIONS.staffAttendanceView,
       },
       {
+        href: "/staff/attendance/calendar",
+        labelKey: "attendanceCalendar",
+        icon: CalendarCheck,
+        permission: PERMISSIONS.staffAttendanceView,
+      },
+      {
         href: "/staff/attendance/reports",
         labelKey: "lateEarly",
         icon: CalendarClock,

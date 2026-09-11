@@ -132,6 +132,7 @@
     "staffCheckin": "Staff Check-in/out",
     "leaveRequests": "Leave Requests",
     "attendanceHistory": "Attendance History",
+    "attendanceCalendar": "Attendance Calendar",
     "lateEarly": "Late & Early Reports"
   },
   "editHotel": {
@@ -626,7 +627,12 @@
     "rejectLeaveTitle": "Reject Leave Request",
     "rejectReasonLabel": "Reason for rejection",
     "leaveApprovedToast": "Leave approved — days marked on the calendar",
-    "leaveRejectedToast": "Leave request rejected"
+    "leaveRejectedToast": "Leave request rejected",
+    "attendanceBtn": "Attendance",
+    "allRoles": "All Roles",
+    "exportReport": "Export Report",
+    "recordCheckIn": "Record Check-in",
+    "recordCheckOut": "Record Check-out"
   },
   "guestPicker": {
     "searchByPhone": "Phone number (full or partial)",

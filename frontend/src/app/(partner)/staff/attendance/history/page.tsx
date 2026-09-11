@@ -3,6 +3,7 @@
 /** /staff/attendance/history — Attendance History (client mockup). */
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
@@ -47,7 +48,10 @@ function HistoryContent() {
   const [fromDate, setFromDate] = useState(monthAgo());
   const [toDate, setToDate] = useState(localToday());
   const [department, setDepartment] = useState("");
-  const [q, setQ] = useState("");
+  // ?q= deep link — Staff Profile's "View Full History" pre-filters to that
+  // staff member (by staff code).
+  const searchParams = useSearchParams();
+  const [q, setQ] = useState(searchParams.get("q") ?? "");
   const [page, setPage] = useState(1);
 
   const qs = [

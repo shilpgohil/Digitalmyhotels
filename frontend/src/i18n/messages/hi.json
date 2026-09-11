@@ -132,6 +132,7 @@
     "staffCheckin": "स्टाफ़ चेक-इन/आउट",
     "leaveRequests": "अवकाश अनुरोध",
     "attendanceHistory": "उपस्थिति इतिहास",
+    "attendanceCalendar": "उपस्थिति कैलेंडर",
     "lateEarly": "देरी और जल्दी रिपोर्ट"
   },
   "editHotel": {
@@ -626,7 +627,12 @@
     "rejectLeaveTitle": "अवकाश अनुरोध अस्वीकृत करें",
     "rejectReasonLabel": "अस्वीकृति का कारण",
     "leaveApprovedToast": "अवकाश स्वीकृत — कैलेंडर पर दिन चिह्नित हुए",
-    "leaveRejectedToast": "अवकाश अनुरोध अस्वीकृत किया गया"
+    "leaveRejectedToast": "अवकाश अनुरोध अस्वीकृत किया गया",
+    "attendanceBtn": "उपस्थिति",
+    "allRoles": "सभी भूमिकाएँ",
+    "exportReport": "रिपोर्ट निर्यात करें",
+    "recordCheckIn": "चेक-इन दर्ज करें",
+    "recordCheckOut": "चेक-आउट दर्ज करें"
   },
   "guestPicker": {
     "searchByPhone": "फ़ोन नंबर (पूरा या आंशिक)",

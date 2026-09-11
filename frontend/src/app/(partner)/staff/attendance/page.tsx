@@ -13,12 +13,22 @@ import {
   ChevronRight,
   Clock,
   Download,
+  LogIn,
   LogOut,
+  MoreVertical,
   UserCheck,
   Users,
   UserX,
 } from "lucide-react";
+import { toast } from "sonner";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PartnerHeader } from "@/components/layout/partner-header";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
@@ -59,9 +69,12 @@ function shiftDate(iso: string, days: number): string {
 function TodaysAttendanceContent() {
   const t = useTranslations("staff");
   const tn = useTranslations("nav");
+  const tc = useTranslations("common");
   const api = useApi();
   const router = useRouter();
-  const { activeHotelId } = useAuth();
+  const queryClient = useQueryClient();
+  const { activeHotelId, can } = useAuth();
+  const canRecord = can(PERMISSIONS.staffAttendanceRecord);
 
   const [onDate, setOnDate] = useState(localToday());
   const [department, setDepartment] = useState("");
@@ -80,6 +93,21 @@ function TodaysAttendanceContent() {
     queryFn: () => api<TodayAttendanceOut>(`/api/v1/staff/attendance/today?${qs}`),
     enabled: !!activeHotelId,
     refetchInterval: 60_000,
+  });
+
+  // Front-desk record straight from the table (mockup row action).
+  const recordMutation = useMutation({
+    mutationFn: ({ staffId, action }: { staffId: string; action: "in" | "out" }) =>
+      api(`/api/v1/staff/attendance/${staffId}/record`, {
+        method: "POST",
+        body: { action },
+      }),
+    onSuccess: (_, vars) => {
+      toast.success(vars.action === "in" ? t("checkedInToast") : t("checkedOutToast"));
+      queryClient.invalidateQueries({ queryKey: ["staff-attendance", activeHotelId] });
+      queryClient.invalidateQueries({ queryKey: ["staff", activeHotelId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : tc("error")),
   });
 
   const exportCsv = async () => {
@@ -198,6 +226,7 @@ function TodaysAttendanceContent() {
             t("workingHours"),
             t("lateBy"),
             t("statusCol"),
+            tc("actions"),
           ]}
         >
           {(data.data?.items ?? []).map((row) => (
@@ -238,6 +267,50 @@ function TodaysAttendanceContent() {
               </TableCell>
               <TableCell>
                 <AttendanceStatusBadge status={row.status} />
+              </TableCell>
+              <TableCell onClick={(e) => e.stopPropagation()}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-muted"
+                    aria-label={tc("actions")}
+                  >
+                    <MoreVertical className="size-4" aria-hidden />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-48 whitespace-nowrap">
+                    <DropdownMenuItem
+                      onClick={() => router.push(`/staff/${row.staff_profile_id}`)}
+                    >
+                      <Users className="size-4" aria-hidden />
+                      {t("viewProfile")}
+                    </DropdownMenuItem>
+                    {canRecord && !row.check_in_at && (
+                      <DropdownMenuItem
+                        onClick={() =>
+                          recordMutation.mutate({
+                            staffId: row.staff_profile_id,
+                            action: "in",
+                          })
+                        }
+                      >
+                        <LogIn className="size-4" aria-hidden />
+                        {t("recordCheckIn")}
+                      </DropdownMenuItem>
+                    )}
+                    {canRecord && row.check_in_at && !row.check_out_at && (
+                      <DropdownMenuItem
+                        onClick={() =>
+                          recordMutation.mutate({
+                            staffId: row.staff_profile_id,
+                            action: "out",
+                          })
+                        }
+                      >
+                        <LogOut className="size-4" aria-hidden />
+                        {t("recordCheckOut")}
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </TableCell>
             </TableRow>
           ))}

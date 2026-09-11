@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { AlarmClock, Clock, Hourglass, LogOut } from "lucide-react";
+import { AlarmClock, Clock, Download, Hourglass, LogOut } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { SegmentedChips } from "@/components/ui/segmented-chips";
@@ -70,10 +70,49 @@ function ReportsContent() {
     return true;
   });
 
+  /** Export Report (mockup) — CSV of the currently filtered anomalies. */
+  const exportCsv = () => {
+    const esc = (v: string | number | null | undefined) =>
+      `"${String(v ?? "").replaceAll('"', '""')}"`;
+    const csv = [
+      ["Date", "Staff ID", "Name", "Department", "Check-in", "Late (min)",
+       "Check-out", "Early (min)", "Missing check-out"].join(","),
+      ...items.map((r) =>
+        [
+          esc(r.work_date),
+          esc(r.staff_code),
+          esc(r.full_name),
+          esc(r.department),
+          esc(r.check_in_at),
+          esc(r.late_minutes),
+          esc(r.check_out_at),
+          esc(r.early_out_minutes),
+          esc(r.missing_out ? "yes" : "no"),
+        ].join(","),
+      ),
+    ].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `late-early-${fromDate}-to-${toDate}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <>
       <PartnerHeader title={t("lateEarlyTitle")} subtitle={tn("staffGroup")} />
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="mb-4 flex justify-end">
+          <button
+            type="button"
+            onClick={exportCsv}
+            className="inline-flex h-[42px] items-center gap-1.5 rounded-md border border-input bg-white px-3.5 text-sm font-medium transition-colors hover:bg-muted"
+          >
+            <Download className="size-4" aria-hidden />
+            {t("exportReport")}
+          </button>
+        </div>
         <StatCardGrid className="mb-4" cols={4}>
           <StatCard
             label={t("lateArrivals")}
