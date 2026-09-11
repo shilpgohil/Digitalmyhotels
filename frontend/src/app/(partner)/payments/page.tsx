@@ -234,7 +234,7 @@ function PaymentsContent() {
                   setDraftTo(to);
                 }}
                 className={cn(
-                  "inline-flex items-center rounded-full border px-3 py-1.5 text-sm transition-colors",
+                  "inline-flex items-center rounded-full border px-3 py-1 text-xs transition-colors",
                   quickRange === value
                     ? "border-gold-500 bg-gold-500 font-medium text-navy-900"
                     : "border-border text-muted-foreground hover:border-gold-500 hover:text-gold-600",

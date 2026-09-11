@@ -349,7 +349,7 @@ function AutofillBanner({
         <button
           type="button"
           onClick={onDismiss}
-          className="text-warning hover:text-warning text-base leading-none"
+          className="text-warning hover:text-warning text-sm leading-none"
           aria-label={t("dismiss")}
         >
           ×
@@ -388,7 +388,7 @@ function AutofillBanner({
         <button
           type="button"
           onClick={onDismiss}
-          className="text-success hover:text-success text-base leading-none"
+          className="text-success hover:text-success text-sm leading-none"
           aria-label={t("dismiss")}
         >
           ×

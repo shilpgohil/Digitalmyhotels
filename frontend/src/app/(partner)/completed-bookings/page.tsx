@@ -718,7 +718,7 @@ function CompletedBookingsContent() {
                 setToDate(to);
               }}
               className={cn(
-                "inline-flex items-center rounded-full border px-3 py-1.5 text-sm transition-colors",
+                "inline-flex items-center rounded-full border px-3 py-1 text-xs transition-colors",
                 quickRange === chip.value
                   ? "border-gold-500 bg-gold-500 font-medium text-navy-900"
                   : "border-border text-muted-foreground hover:border-gold-500 hover:text-gold-600",
@@ -737,7 +737,7 @@ function CompletedBookingsContent() {
               type="button"
               onClick={() => setStatus(chip.value)}
               className={cn(
-                "inline-flex items-center rounded-full border px-3 py-1.5 text-sm transition-colors",
+                "inline-flex items-center rounded-full border px-3 py-1 text-xs transition-colors",
                 status === chip.value
                   ? "border-navy-900 bg-navy-900 font-medium text-white"
                   : "border-border text-muted-foreground hover:border-navy-900 hover:text-navy-900",

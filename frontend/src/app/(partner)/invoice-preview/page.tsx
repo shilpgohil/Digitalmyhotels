@@ -229,7 +229,7 @@ function InvoicePreviewContent() {
                   <p className="text-micro font-semibold uppercase tracking-widest opacity-70">
                     {ti("invoiceNumber")}
                   </p>
-                  <p className="text-lg font-semibold">{invoice.invoice_number}</p>
+                  <p className="text-sm font-semibold">{invoice.invoice_number}</p>
                   <p className="mt-1 text-xs opacity-80">
                     {fmtApiDate(invoice.invoice_date)}
                   </p>
@@ -329,7 +329,7 @@ function InvoicePreviewContent() {
                   <span className="text-xs font-semibold uppercase tracking-widest">
                     {t("totalDue")}
                   </span>
-                  <span className="text-2xl font-semibold tabular-nums">
+                  <span className="text-xl font-semibold tabular-nums">
                     {fmtINR(invoice.due_amount)}
                   </span>
                 </div>

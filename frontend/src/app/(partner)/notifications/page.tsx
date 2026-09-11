@@ -215,7 +215,7 @@ function NotificationsContent() {
                     )}
                     <p
                       className={cn(
-                        "text-sm leading-snug",
+                        "text-xs leading-snug",
                         !n.is_read && "font-semibold",
                       )}
                     >

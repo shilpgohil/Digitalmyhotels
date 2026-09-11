@@ -102,7 +102,7 @@ export function RoomReplaceControl({ booking, onReplaced }: RoomReplaceControlPr
           <div
             key={r.room_id}
             className={cn(
-              "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm",
+              "flex items-center gap-2 rounded-lg border px-3 py-1 text-xs",
               openFor === r.room_id ? "border-gold-400 bg-gold-50" : "bg-muted/30",
             )}
           >

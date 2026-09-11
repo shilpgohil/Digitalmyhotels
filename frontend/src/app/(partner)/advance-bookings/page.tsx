@@ -254,7 +254,7 @@ function AdvanceBookingsContent() {
               type="button"
               onClick={() => setStatusFilter(chip.value)}
               className={cn(
-                "inline-flex items-center rounded-full border px-3 py-1.5 text-sm transition-colors",
+                "inline-flex items-center rounded-full border px-3 py-1 text-xs transition-colors",
                 statusFilter === chip.value
                   ? "border-navy-900 bg-navy-900 font-medium text-white"
                   : "border-border text-muted-foreground hover:border-navy-900 hover:text-navy-900",

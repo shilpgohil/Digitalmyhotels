@@ -37,7 +37,7 @@ export function ServiceChips({
               type="button"
               onClick={() => onToggle(svc.id)}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
                 active
                   ? "border-navy-900 bg-navy-900 text-white font-medium"
                   : "border-border text-muted-foreground hover:border-navy-900 hover:text-navy-900",

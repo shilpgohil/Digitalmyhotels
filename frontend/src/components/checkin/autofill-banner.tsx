@@ -29,7 +29,7 @@ export function AutofillBanner({ result, onAccept, onDismiss }: AutofillBannerPr
         <button
           type="button"
           onClick={onDismiss}
-          className="text-warning hover:text-warning/70 text-base leading-none"
+          className="text-warning hover:text-warning/70 text-sm leading-none"
           aria-label={t("dismiss")}
         >
           ×
@@ -65,7 +65,7 @@ export function AutofillBanner({ result, onAccept, onDismiss }: AutofillBannerPr
         <button
           type="button"
           onClick={onDismiss}
-          className="text-success/60 hover:text-success text-base leading-none"
+          className="text-success/60 hover:text-success text-sm leading-none"
           aria-label={t("dismiss")}
         >
           ×

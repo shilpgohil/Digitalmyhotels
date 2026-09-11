@@ -36,8 +36,8 @@ export default function PartnerLayout({ children }: { readonly children: React.R
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <SubscriptionGate />
             <PageTransition id="main-content" className="flex min-w-0 flex-1 flex-col overflow-hidden">
-              {/* Mobile: add bottom padding so content clears the floating tab bar */}
-              <div className="flex-1 overflow-hidden flex flex-col lg:pb-0 pb-[72px]">
+              {/* Tab bar floats over content — no reserved bottom pad (client request) */}
+              <div className="flex-1 overflow-hidden flex flex-col">
                 {children}
               </div>
             </PageTransition>

@@ -102,7 +102,7 @@ export default function AdminPlansPage() {
                   {p.is_active ? t("planActive") : t("planInactive")}
                 </span>
               </div>
-              <p className="mt-3 text-2xl font-semibold tabular-nums">{fmtINR(p.price)}</p>
+              <p className="mt-3 text-xl font-semibold tabular-nums">{fmtINR(p.price)}</p>
               <p className="text-sm text-muted-foreground">
                 {p.duration_days} {t("days")} · {p.trial_days} {t("trialDays")}
               </p>
