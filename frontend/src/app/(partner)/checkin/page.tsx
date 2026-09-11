@@ -1655,6 +1655,9 @@ function AdditionalGuestEntry({
               the Confirm button always renders below it (client UX 09/2026). */}
           <NewGuestForm
             confirmLabel={t("confirmGuestDetails")}
+            /* Seed the mobile field with the number that was just searched —
+               same behaviour as the primary guest flow (client 09/2026). */
+            initialPhone={searchPhone.trim()}
             beforeConfirm={
               <ForeignGuestSection
                 enabled={fgEnabled}
