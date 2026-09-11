@@ -116,7 +116,8 @@ async def update_my_hotel(
             actor_id=tenant.user_id,
             hotel_id=hotel.id,
             before=before,
-            after=changes,
+            # str() everything — Decimal lat/lng are not JSON-serializable.
+            after={k: str(v) for k, v in changes.items()},
             correlation_id=_correlation(request),
         )
     return HotelOut.model_validate(hotel)
