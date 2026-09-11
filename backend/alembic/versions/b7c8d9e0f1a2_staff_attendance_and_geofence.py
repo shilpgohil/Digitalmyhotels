@@ -164,7 +164,7 @@ def upgrade() -> None:
             sa.text(
                 "INSERT INTO roles "
                 "(id, code, name, description, is_system, created_at, updated_at) "
-                "VALUES (:id, :code, :name, :desc, TRUE, NOW(), NOW()) "
+                "VALUES (CAST(:id AS uuid), :code, :name, :desc, TRUE, NOW(), NOW()) "
                 "ON CONFLICT (code) DO NOTHING"
             ).bindparams(id=str(_uuid.uuid4()), code=code, name=name, desc=desc)
         )
