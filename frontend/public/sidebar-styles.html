@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hotel Sidebar Styles — All Options</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, 'Inter', system-ui, sans-serif; background: #0b1220; color: white; }
+
+.top-banner { background: #c09a2e; color: #0b1526; padding: 10px 20px; text-align: center; font-size: 13px; font-weight: 800; position: sticky; top: 0; z-index: 999; letter-spacing: 0.02em; }
+
+/* ── Section headers ── */
+.section-title { padding: 28px 24px 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.4); }
+
+/* ── Demo wrapper ── */
+.demos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; }
+.demo-cell { border-right: 1px solid rgba(255,255,255,0.08); border-bottom: 1px solid rgba(255,255,255,0.08); }
+.demo-cell:nth-child(3n) { border-right: none; }
+
+.demo-frame { height: 380px; overflow: hidden; position: relative; background: #f4f3f1; }
+.demo-label { padding: 12px 16px; background: rgba(255,255,255,0.04); border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: flex-start; justify-content: space-between; }
+.demo-name { font-size: 13px; font-weight: 700; color: white; }
+.demo-ref { font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+.pick-btn { background: #c09a2e; color: #0b1526; border: none; padding: 5px 14px; border-radius: 99px; font-size: 11px; font-weight: 800; cursor: pointer; white-space: nowrap; margin-top: 2px; }
+.pick-btn:hover { background: white; }
+
+/* ── Shared content ── */
+.fake-content { flex: 1; padding: 10px 12px; overflow: hidden; }
+.stat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 5px; margin-bottom: 8px; }
+.s-card { border-radius: 8px; padding: 8px; }
+.s-num { font-size: 16px; font-weight: 800; }
+.s-lbl { font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; opacity: 0.7; margin-top: 1px; }
+.insight { border-radius: 7px; padding: 6px 9px; font-size: 10px; margin-bottom: 4px; border-left: 2px solid; }
+.insight .t { font-weight: 700; margin-bottom: 1px; }
+.ins-a { background: rgba(251,228,225,0.8); border-color: #b3362c; }
+.ins-b { background: rgba(251,240,211,0.8); border-color: #9a6a08; }
+.ins-c { background: rgba(224,239,245,0.8); border-color: #175e77; }
+.kpi-row { display: flex; gap: 8px; }
+.kpi { background: white; border-radius: 7px; padding: 7px 9px; border: 1px solid rgba(0,0,0,0.07); flex: 1; }
+.kpi-v { font-size: 14px; font-weight: 800; color: #0b1526; }
+.kpi-k { font-size: 8px; text-transform: uppercase; letter-spacing: .05em; color: #8a9ab0; margin-top: 1px; }
+
+/* ═══════════════════════════════════
+   STYLE 1 — Linear / Vercel style
+   Ultra-minimal, dark, fine borders
+   ═══════════════════════════════════ */
+.s1-wrap { display: flex; height: 100%; background: #f4f3f1; }
+.s1-sidebar { width: 168px; background: #0f172a; display: flex; flex-direction: column; padding: 14px 8px; flex-shrink: 0; border-right: 1px solid rgba(255,255,255,0.06); }
+.s1-brand { display: flex; align-items: center; gap: 7px; padding: 2px 6px 12px; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 8px; }
+.s1-logo { width: 24px; height: 24px; background: #c09a2e; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; color: #0b1526; flex-shrink: 0; }
+.s1-hotel { font-size: 11px; font-weight: 700; color: white; }
+.s1-hotel small { display: block; font-size: 8px; color: rgba(255,255,255,0.35); font-weight: 400; }
+.s1-section-lbl { font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: rgba(255,255,255,0.25); padding: 8px 6px 4px; }
+.s1-item { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 5px; font-size: 11px; color: rgba(255,255,255,0.45); cursor: pointer; margin-bottom: 1px; }
+.s1-item.active { background: rgba(255,255,255,0.08); color: white; }
+.s1-item:hover:not(.active) { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.7); }
+.s1-item .ico { font-size: 11px; flex-shrink: 0; }
+.s1-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.s1-header { padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.06); background: rgba(244,243,241,0.8); }
+.s1-title { font-size: 15px; font-weight: 700; color: #0b1526; }
+.s1-icons { display: flex; gap: 4px; }
+.s1-icon { width: 24px; height: 24px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); background: white; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #5a6778; }
+
+/* ═══════════════════════════════════
+   STYLE 2 — Supabase style
+   Clean white, subcategories, subtle
+   ═══════════════════════════════════ */
+.s2-wrap { display: flex; height: 100%; background: #f9fafb; }
+.s2-sidebar { width: 176px; background: white; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; padding: 12px 8px; flex-shrink: 0; }
+.s2-brand { display: flex; align-items: center; gap: 7px; padding: 2px 6px 10px; border-bottom: 1px solid #f3f4f6; margin-bottom: 8px; }
+.s2-logo { width: 22px; height: 22px; background: #c09a2e; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 800; color: #0b1526; }
+.s2-hotel { font-size: 11px; font-weight: 700; color: #111827; }
+.s2-section { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #9ca3af; padding: 7px 6px 3px; }
+.s2-item { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 5px; font-size: 11px; color: #6b7280; cursor: pointer; margin-bottom: 1px; }
+.s2-item.active { background: #f5f3ff; color: #c09a2e; font-weight: 600; }
+.s2-item:hover:not(.active) { background: #f9fafb; color: #374151; }
+.s2-item .ico { font-size: 11px; }
+.s2-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.s2-header { padding: 10px 12px; border-bottom: 1px solid #e5e7eb; background: white; display: flex; justify-content: space-between; align-items: center; }
+.s2-title { font-size: 15px; font-weight: 700; color: #111827; }
+
+/* ═══════════════════════════════════
+   STYLE 3 — Sana AI style
+   Icons on RIGHT side, ultra-minimal
+   ═══════════════════════════════════ */
+.s3-wrap { display: flex; height: 100%; background: #f4f3f1; flex-direction: row-reverse; }
+.s3-sidebar { width: 56px; background: white; border-left: 1px solid rgba(0,0,0,0.07); display: flex; flex-direction: column; align-items: center; padding: 12px 0; flex-shrink: 0; }
+.s3-logo { width: 28px; height: 28px; background: #c09a2e; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; color: #0b1526; margin-bottom: 12px; }
+.s3-item { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #9ca3af; cursor: pointer; margin-bottom: 3px; }
+.s3-item.active { background: rgba(192,154,46,0.12); color: #c09a2e; }
+.s3-item:hover:not(.active) { background: #f3f4f6; }
+.s3-avatar { width: 28px; height: 28px; border-radius: 50%; background: #0b1526; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; color: #c09a2e; margin-top: auto; }
+.s3-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding-right: 56px; position: absolute; left: 0; right: 56px; top: 0; bottom: 0; }
+.s3-wrap { position: relative; }
+.s3-main2 { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.s3-header { padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; }
+.s3-title { font-size: 15px; font-weight: 700; color: #0b1526; }
+.s3-title small { display: block; font-size: 9px; color: #c09a2e; font-weight: 700; text-transform: uppercase; }
+
+/* ═══════════════════════════════════
+   STYLE 4 — No sidebar, top bar only
+   ═══════════════════════════════════ */
+.s4-wrap { height: 100%; background: #f4f3f1; display: flex; flex-direction: column; }
+.s4-topbar { background: white; border-bottom: 1px solid rgba(0,0,0,0.07); padding: 0 14px; display: flex; align-items: center; height: 44px; gap: 3px; }
+.s4-logo { width: 24px; height: 24px; background: #c09a2e; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 800; color: #0b1526; margin-right: 6px; flex-shrink: 0; }
+.s4-nav { font-size: 11px; color: #6b7280; padding: 5px 7px; border-radius: 5px; cursor: pointer; white-space: nowrap; }
+.s4-nav.active { color: #9a6a08; background: rgba(192,154,46,0.1); font-weight: 600; }
+.s4-nav:hover:not(.active) { background: #f3f4f6; }
+.s4-space { flex: 1; }
+.s4-icons { display: flex; gap: 4px; }
+.s4-icon { width: 24px; height: 24px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); background: white; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #5a6778; }
+.s4-content { flex: 1; padding: 10px 14px; overflow: hidden; }
+.s4-page-title { font-size: 18px; font-weight: 800; color: #0b1526; margin-bottom: 8px; }
+
+/* ═══════════════════════════════════
+   STYLE 5 — Collapsed icons + hover expand
+   ═══════════════════════════════════ */
+.s5-wrap { display: flex; height: 100%; background: linear-gradient(135deg, #f0ede6, #f4f3f1); }
+.s5-sidebar { width: 52px; display: flex; flex-direction: column; align-items: center; padding: 12px 0; flex-shrink: 0; position: relative; z-index: 2; }
+.s5-sidebar::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.06); }
+.s5-logo { width: 30px; height: 30px; background: #0b1526; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; color: #c09a2e; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+.s5-item { width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #9ca3af; cursor: pointer; margin-bottom: 3px; position: relative; }
+.s5-item.active { background: rgba(192,154,46,0.12); color: #c09a2e; }
+.s5-item:hover { background: rgba(0,0,0,0.05); color: #374151; }
+.s5-tt { position: absolute; left: 44px; background: #0b1526; color: white; font-size: 9px; font-weight: 600; padding: 3px 8px; border-radius: 4px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s; z-index: 10; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+.s5-item:hover .s5-tt { opacity: 1; }
+.s5-avatar { width: 28px; height: 28px; border-radius: 50%; background: #0b1526; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; color: #c09a2e; margin-top: auto; }
+.s5-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.s5-header { padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; }
+.s5-title { font-size: 15px; font-weight: 700; color: #0b1526; }
+.s5-title small { display: block; font-size: 8px; color: #c09a2e; font-weight: 700; text-transform: uppercase; margin-bottom: 1px; }
+.s5-icons { display: flex; gap: 4px; }
+.s5-icon { width: 24px; height: 24px; border-radius: 50%; background: rgba(255,255,255,0.6); backdrop-filter: blur(8px); border: 1px solid rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; font-size: 9px; color: #5a6778; }
+
+/* ═══════════════════════════════════
+   STYLE 6 — Floating sidebar (overlays content)
+   Content goes full-width, sidebar float over
+   ═══════════════════════════════════ */
+.s6-wrap { height: 100%; background: linear-gradient(135deg, #f0ede6, #f4f3f1); position: relative; overflow: hidden; }
+.s6-sidebar {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 150px; z-index: 5;
+  display: flex; flex-direction: column; padding: 12px 8px;
+  background: rgba(255,255,255,0.45);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-right: 1px solid rgba(255,255,255,0.6);
+  box-shadow: 1px 0 20px rgba(0,0,0,0.05);
+}
+.s6-brand { font-size: 10px; font-weight: 800; color: #0b1526; padding: 2px 4px 8px; border-bottom: 1px solid rgba(0,0,0,0.06); margin-bottom: 8px; }
+.s6-brand small { display: block; font-size: 8px; color: #c09a2e; font-weight: 600; text-transform: uppercase; margin-bottom: 1px; }
+.s6-item { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 6px; font-size: 10px; color: #6b7280; cursor: pointer; margin-bottom: 2px; }
+.s6-item.active { color: #9a6a08; font-weight: 600; border-left: 2px solid #c09a2e; padding-left: 4px; background: rgba(192,154,46,0.08); }
+.s6-item:hover:not(.active) { background: rgba(0,0,0,0.04); color: #374151; }
+.s6-main { position: absolute; left: 0; right: 0; top: 0; bottom: 0; padding-left: 160px; display: flex; flex-direction: column; }
+.s6-header { padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; }
+.s6-title { font-size: 15px; font-weight: 700; color: #0b1526; }
+.s6-title small { display: block; font-size: 8px; color: #c09a2e; font-weight: 700; text-transform: uppercase; }
+.s6-icons { display: flex; gap: 4px; }
+.s6-icon { width: 24px; height: 24px; border-radius: 50%; background: rgba(255,255,255,0.6); backdrop-filter: blur(8px); border: 1px solid rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; font-size: 9px; color: #5a6778; }
+</style>
+</head>
+<body>
+
+<div class="top-banner">6 Sidebar Styles — Based on Real Products (Linear, Supabase, Sana AI, etc.) — Pick one letter in chat</div>
+
+<div class="demos">
+
+  <!-- ══ STYLE 1: LINEAR/VERCEL DARK ══ -->
+  <div class="demo-cell">
+    <div class="demo-frame">
+      <div class="s1-wrap">
+        <div class="s1-sidebar">
+          <div class="s1-brand"><div class="s1-logo">DM</div><div class="s1-hotel">Hotel Shilp<small>Front Desk Suite</small></div></div>
+          <div class="s1-section-lbl">Overview</div>
+          <div class="s1-item active"><span class="ico">⊞</span>Dashboard</div>
+          <div class="s1-item"><span class="ico">💰</span>Expenses</div>
+          <div class="s1-section-lbl">Front Desk</div>
+          <div class="s1-item"><span class="ico">🛎</span>Check-in</div>
+          <div class="s1-item"><span class="ico">🚪</span>Check-out</div>
+          <div class="s1-item"><span class="ico">👥</span>Guests</div>
+          <div class="s1-section-lbl">Property</div>
+          <div class="s1-item"><span class="ico">🏠</span>Rooms</div>
+          <div class="s1-item"><span class="ico">🧹</span>Housekeeping</div>
+          <div style="margin-top:auto;padding:6px;font-size:9px;color:rgba(255,255,255,0.3);">Shilp Gohil · Owner</div>
+        </div>
+        <div class="s1-main">
+          <div class="s1-header"><div class="s1-title">Dashboard</div><div class="s1-icons"><div class="s1-icon">🔔</div><div class="s1-icon" style="background:#0b1526;color:#c09a2e;font-weight:800;font-size:8px;">SG</div></div></div>
+          <div class="fake-content">
+            <div class="stat-grid"><div class="s-card" style="background:#0b1526;color:white;"><div class="s-num">13</div><div class="s-lbl">Total</div></div><div class="s-card" style="background:#b3362c;color:white;"><div class="s-num">5</div><div class="s-lbl">Booked</div></div><div class="s-card" style="background:#1a7f4e;color:white;"><div class="s-num">7</div><div class="s-lbl">Free</div></div></div>
+            <div class="insight ins-a"><div class="t" style="color:#b3362c;">⚠️ 3 Overdue</div><span style="color:#666;">Guests past checkout</span></div>
+            <div class="insight ins-b"><div class="t" style="color:#9a6a08;">📊 18% No-shows</div></div>
+            <div class="kpi-row"><div class="kpi"><div class="kpi-v">₹165</div><div class="kpi-k">RevPAR</div></div><div class="kpi"><div class="kpi-v">₹2,275</div><div class="kpi-k">ADR</div></div><div class="kpi"><div class="kpi-v">38%</div><div class="kpi-k">Occupancy</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="demo-label">
+      <div><div class="demo-name">A — Linear / Vercel Dark</div><div class="demo-ref">Dark sidebar, fine white borders, section labels, very subtle hover</div></div>
+      <button class="pick-btn" onclick="alert('Tell me: Option A in chat')">Pick A</button>
+    </div>
+  </div>
+
+  <!-- ══ STYLE 2: SUPABASE WHITE ══ -->
+  <div class="demo-cell">
+    <div class="demo-frame">
+      <div class="s2-wrap">
+        <div class="s2-sidebar">
+          <div class="s2-brand"><div class="s2-logo">DM</div><div class="s2-hotel">Hotel Shilp</div></div>
+          <div class="s2-section">Overview</div>
+          <div class="s2-item active"><span class="ico">⊞</span>Dashboard</div>
+          <div class="s2-item"><span class="ico">💰</span>Expenses</div>
+          <div class="s2-section">Front Desk</div>
+          <div class="s2-item"><span class="ico">🛎</span>Guest Check-in</div>
+          <div class="s2-item"><span class="ico">🚪</span>Guest Check-out</div>
+          <div class="s2-item"><span class="ico">👥</span>Current Guests</div>
+          <div class="s2-item"><span class="ico">📅</span>Advance Bookings</div>
+          <div class="s2-section">Property</div>
+          <div class="s2-item"><span class="ico">🏠</span>Room Status</div>
+          <div style="margin-top:auto;padding:4px 6px;font-size:9px;color:#9ca3af;border-top:1px solid #f3f4f6;">Shilp Gohil · Owner</div>
+        </div>
+        <div class="s2-main">
+          <div class="s2-header"><div class="s2-title" style="color:#111827;">Dashboard</div><div class="s1-icons"><div class="s1-icon">🔔</div><div class="s1-icon" style="background:#0b1526;color:#c09a2e;font-weight:800;font-size:8px;">SG</div></div></div>
+          <div class="fake-content" style="background:#f9fafb;">
+            <div class="stat-grid"><div class="s-card" style="background:#0b1526;color:white;"><div class="s-num">13</div><div class="s-lbl">Total</div></div><div class="s-card" style="background:#b3362c;color:white;"><div class="s-num">5</div><div class="s-lbl">Booked</div></div><div class="s-card" style="background:#1a7f4e;color:white;"><div class="s-num">7</div><div class="s-lbl">Free</div></div></div>
+            <div class="insight ins-a"><div class="t" style="color:#b3362c;">⚠️ 3 Overdue</div><span style="color:#666;">Guests past checkout</span></div>
+            <div class="insight ins-b"><div class="t" style="color:#9a6a08;">📊 18% No-shows</div></div>
+            <div class="kpi-row"><div class="kpi"><div class="kpi-v">₹165</div><div class="kpi-k">RevPAR</div></div><div class="kpi"><div class="kpi-v">₹2,275</div><div class="kpi-k">ADR</div></div><div class="kpi"><div class="kpi-v">38%</div><div class="kpi-k">Occ.</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="demo-label">
+      <div><div class="demo-name">B — Supabase White</div><div class="demo-ref">Clean white sidebar, subcategory labels, minimal borders</div></div>
+      <button class="pick-btn" onclick="alert('Tell me: Option B in chat')">Pick B</button>
+    </div>
+  </div>
+
+  <!-- ══ STYLE 3: SANA AI (ICONS RIGHT) ══ -->
+  <div class="demo-cell">
+    <div class="demo-frame">
+      <div class="s3-wrap">
+        <div class="s3-sidebar">
+          <div class="s3-logo">DM</div>
+          <div class="s3-item active">⊞</div>
+          <div class="s3-item">💰</div>
+          <div class="s3-item">🛎</div>
+          <div class="s3-item">🚪</div>
+          <div class="s3-item">👥</div>
+          <div class="s3-item">📅</div>
+          <div class="s3-item">🏠</div>
+          <div class="s3-avatar">SG</div>
+        </div>
+        <div class="s3-main2">
+          <div class="s3-header"><div class="s3-title"><small>FRONT DESK</small>Dashboard</div><div class="s1-icons"><div class="s1-icon" style="border:1px solid rgba(0,0,0,.1);background:white;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;">🔔</div></div></div>
+          <div class="fake-content">
+            <div class="stat-grid"><div class="s-card" style="background:#0b1526;color:white;"><div class="s-num">13</div><div class="s-lbl">Total</div></div><div class="s-card" style="background:#b3362c;color:white;"><div class="s-num">5</div><div class="s-lbl">Booked</div></div><div class="s-card" style="background:#1a7f4e;color:white;"><div class="s-num">7</div><div class="s-lbl">Free</div></div></div>
+            <div class="insight ins-a"><div class="t" style="color:#b3362c;">⚠️ 3 Overdue</div><span style="color:#666;font-size:9px;">Guests past checkout</span></div>
+            <div class="insight ins-b"><div class="t" style="color:#9a6a08;">📊 18% No-shows</div></div>
+            <div class="kpi-row"><div class="kpi"><div class="kpi-v">₹165</div><div class="kpi-k">RevPAR</div></div><div class="kpi"><div class="kpi-v">₹2,275</div><div class="kpi-k">ADR</div></div><div class="kpi"><div class="kpi-v">38%</div><div class="kpi-k">Occ.</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="demo-label">
+      <div><div class="demo-name">C — Sana AI (Icons on RIGHT side)</div><div class="demo-ref">Content-first: nav icons anchored to right edge, maximum content space</div></div>
+      <button class="pick-btn" onclick="alert('Tell me: Option C in chat')">Pick C</button>
+    </div>
+  </div>
+
+  <!-- ══ STYLE 4: NO SIDEBAR — TOP NAV ══ -->
+  <div class="demo-cell">
+    <div class="demo-frame">
+      <div class="s4-wrap">
+        <div class="s4-topbar">
+          <div class="s4-logo">DM</div>
+          <div class="s4-nav active">Dashboard</div>
+          <div class="s4-nav">Check-in</div>
+          <div class="s4-nav">Guests</div>
+          <div class="s4-nav">Bookings</div>
+          <div class="s4-nav">Money ▾</div>
+          <div class="s4-space"></div>
+          <div class="s4-icons"><div class="s4-icon">🔔</div><div class="s4-icon" style="background:#0b1526;color:#c09a2e;font-weight:800;font-size:8px;">SG</div></div>
+        </div>
+        <div class="s4-content">
+          <div class="s4-page-title">Dashboard</div>
+          <div class="stat-grid" style="grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:7px;"><div class="s-card" style="background:#0b1526;color:white;"><div class="s-num" style="font-size:13px;">13</div><div class="s-lbl">Total</div></div><div class="s-card" style="background:#b3362c;color:white;"><div class="s-num" style="font-size:13px;">5</div><div class="s-lbl">Booked</div></div><div class="s-card" style="background:#1a7f4e;color:white;"><div class="s-num" style="font-size:13px;">7</div><div class="s-lbl">Free</div></div><div class="s-card" style="background:#175e77;color:white;"><div class="s-num" style="font-size:13px;">0</div><div class="s-lbl">Reserved</div></div><div class="s-card" style="background:#9a6a08;color:white;"><div class="s-num" style="font-size:13px;">1</div><div class="s-lbl">Cleaning</div></div><div class="s-card" style="background:#5a6778;color:white;"><div class="s-num" style="font-size:13px;">0</div><div class="s-lbl">Maint.</div></div></div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;"><div class="insight ins-a"><div class="t" style="color:#b3362c;font-size:10px;">⚠️ 3 Overdue</div><div style="font-size:9px;color:#666;">Past checkout</div></div><div class="insight ins-b"><div class="t" style="color:#9a6a08;font-size:10px;">📊 18% No-show</div></div><div class="insight ins-c"><div class="t" style="color:#175e77;font-size:10px;">₹ RevPAR: ₹165</div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="demo-label">
+      <div><div class="demo-name">D — No sidebar, horizontal top nav</div><div class="demo-ref">Zero left panel. All navigation in top bar. Full width content always.</div></div>
+      <button class="pick-btn" onclick="alert('Tell me: Option D in chat')">Pick D</button>
+    </div>
+  </div>
+
+  <!-- ══ STYLE 5: ICON-ONLY + TOOLTIP ══ -->
+  <div class="demo-cell">
+    <div class="demo-frame">
+      <div class="s5-wrap">
+        <div class="s5-sidebar">
+          <div class="s5-logo">DM</div>
+          <div class="s5-item active">⊞<span class="s5-tt">Dashboard</span></div>
+          <div class="s5-item">💰<span class="s5-tt">Expenses</span></div>
+          <div class="s5-item">🛎<span class="s5-tt">Guest Check-in</span></div>
+          <div class="s5-item">🚪<span class="s5-tt">Guest Check-out</span></div>
+          <div class="s5-item">👥<span class="s5-tt">Current Guests</span></div>
+          <div class="s5-item">📅<span class="s5-tt">Advance Bookings</span></div>
+          <div class="s5-item">🏠<span class="s5-tt">Room Status</span></div>
+          <div class="s5-item">🧹<span class="s5-tt">Housekeeping</span></div>
+          <div class="s5-avatar">SG</div>
+        </div>
+        <div class="s5-main">
+          <div class="s5-header"><div class="s5-title"><small>FRONT DESK</small>Dashboard</div><div class="s5-icons"><div class="s5-icon">🔔</div><div class="s5-icon" style="background:#0b1526;color:#c09a2e;font-weight:800;font-size:8px;">SG</div></div></div>
+          <div class="fake-content">
+            <div class="stat-grid"><div class="s-card" style="background:#0b1526;color:white;"><div class="s-num">13</div><div class="s-lbl">Total</div></div><div class="s-card" style="background:#b3362c;color:white;"><div class="s-num">5</div><div class="s-lbl">Booked</div></div><div class="s-card" style="background:#1a7f4e;color:white;"><div class="s-num">7</div><div class="s-lbl">Free</div></div></div>
+            <div class="insight ins-a"><div class="t" style="color:#b3362c;">⚠️ 3 Overdue</div><span style="color:#666;font-size:9px;">Guests past checkout</span></div>
+            <div class="insight ins-b"><div class="t" style="color:#9a6a08;">📊 18% No-shows</div></div>
+            <div class="kpi-row"><div class="kpi"><div class="kpi-v">₹165</div><div class="kpi-k">RevPAR</div></div><div class="kpi"><div class="kpi-v">₹2,275</div><div class="kpi-k">ADR</div></div><div class="kpi"><div class="kpi-v">38%</div><div class="kpi-k">Occ.</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="demo-label">
+      <div><div class="demo-name">E — Icon only, tooltip on hover</div><div class="demo-ref">⬅ Hover any icon to see its label. Transparent bg. Most screen space.</div></div>
+      <button class="pick-btn" onclick="alert('Tell me: Option E in chat')">Pick E</button>
+    </div>
+  </div>
+
+  <!-- ══ STYLE 6: FROSTED GLASS OVERLAY ══ -->
+  <div class="demo-cell">
+    <div class="demo-frame">
+      <div class="s6-wrap">
+        <!-- Sidebar overlays content — content goes full width BEHIND it -->
+        <div class="s6-sidebar">
+          <div class="s6-brand"><small>FRONT DESK</small>Hotel Shilp Gohil</div>
+          <div class="s6-item active">⊞ Dashboard</div>
+          <div class="s6-item">💰 Expenses</div>
+          <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;padding:6px 4px 2px;">Front Desk</div>
+          <div class="s6-item">🛎 Check-in</div>
+          <div class="s6-item">🚪 Check-out</div>
+          <div class="s6-item">👥 Guests</div>
+          <div class="s6-item">📅 Bookings</div>
+          <div style="margin-top:auto;font-size:9px;color:#6b7280;padding:4px;">Shilp Gohil</div>
+        </div>
+        <!-- Content occupies FULL WIDTH behind the glass sidebar -->
+        <div class="s6-main">
+          <div class="s6-header"><div class="s6-title"><small>FRONT DESK</small>Dashboard</div><div class="s6-icons"><div class="s6-icon">🔔</div><div class="s6-icon" style="background:#0b1526;color:#c09a2e;font-weight:800;font-size:8px;">SG</div></div></div>
+          <div class="fake-content">
+            <div class="stat-grid"><div class="s-card" style="background:#0b1526;color:white;"><div class="s-num">13</div><div class="s-lbl">Total</div></div><div class="s-card" style="background:#b3362c;color:white;"><div class="s-num">5</div><div class="s-lbl">Booked</div></div><div class="s-card" style="background:#1a7f4e;color:white;"><div class="s-num">7</div><div class="s-lbl">Free</div></div></div>
+            <div class="insight ins-a"><div class="t" style="color:#b3362c;">⚠️ 3 Overdue</div><span style="color:#666;font-size:9px;">Past checkout</span></div>
+            <div class="insight ins-b"><div class="t" style="color:#9a6a08;">📊 18% No-shows</div></div>
+            <div class="kpi-row"><div class="kpi"><div class="kpi-v">₹165</div><div class="kpi-k">RevPAR</div></div><div class="kpi"><div class="kpi-v">₹2,275</div><div class="kpi-k">ADR</div></div><div class="kpi"><div class="kpi-v">38%</div><div class="kpi-k">Occ.</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="demo-label">
+      <div><div class="demo-name">F — Frosted glass sidebar overlays content</div><div class="demo-ref">Content goes full-width BEHIND sidebar. Glass blur shows content through it.</div></div>
+      <button class="pick-btn" onclick="alert('Tell me: Option F in chat')">Pick F</button>
+    </div>
+  </div>
+
+</div>
+
+<div style="background:#0b1220;border-top:1px solid rgba(255,255,255,0.08);padding:16px 24px;display:flex;justify-content:space-between;align-items:center;">
+  <div style="font-size:12px;color:rgba(255,255,255,0.4);">All 6 options have full nav labels visible. Hover icons in option E to see labels.</div>
+  <div style="font-size:14px;font-weight:800;color:#c09a2e;">Tell me: A, B, C, D, E, or F</div>
+</div>
+
+</body>
+</html>

@@ -14,12 +14,17 @@ export default function SuperAdminLayout({ children }: { readonly children: Reac
       >
         Skip to main content
       </a>
-      <div className="flex h-screen overflow-hidden bg-gradient-to-br from-[#efebe3]/60 via-background to-background">
-        {/* w-60 here so AdminSidebar (now w-full) fills exactly 240px on desktop */}
-        <div className="hidden lg:block w-60 shrink-0">
+      {/* Page edge vignette — premium depth effect */}
+      <div className="edge-vignette-top" aria-hidden />
+      <div className="edge-vignette-bottom" aria-hidden />
+
+      <div className="relative flex h-screen overflow-hidden bg-gradient-to-br from-[#efebe3]/60 via-background to-background">
+        {/* Hover-expand admin sidebar — absolute overlay, no reserved space */}
+        <div className="hidden lg:block absolute left-0 top-0 bottom-0 z-30">
           <AdminSidebar />
         </div>
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Content full width with 56px left padding for the collapsed icon strip */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden lg:pl-[56px]">
           <AdminHeader />
           <PageTransition id="main-content" className="flex-1 overflow-y-auto">
             {children}

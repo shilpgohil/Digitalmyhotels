@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Layout Options — Sidebar Visibility</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, 'Inter', system-ui, sans-serif; background: #1a1a2e; color: white; }
+
+.top { background: #c09a2e; color: #0b1526; padding: 12px 20px; text-align: center; font-size: 13px; font-weight: 700; position: sticky; top: 0; z-index: 999; }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; }
+
+/* Each demo is a full mini-app */
+.demo { position: relative; min-height: 480px; border: 3px solid transparent; }
+.demo:nth-child(1), .demo:nth-child(2) { border-bottom: 3px solid #c09a2e; }
+.demo:nth-child(1), .demo:nth-child(3) { border-right: 3px solid #c09a2e; }
+
+.badge { position: absolute; top: 10px; left: 10px; z-index: 50; background: #c09a2e; color: #0b1526; font-size: 11px; font-weight: 800; padding: 3px 12px; border-radius: 99px; letter-spacing: 0.04em; }
+.badge.current { background: rgba(255,255,255,0.2); color: white; }
+
+/* SHARED — fake content */
+.content-block { background: white; border-radius: 10px; padding: 12px; margin-bottom: 8px; }
+.stat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; margin-bottom: 8px; }
+.stat { border-radius: 8px; padding: 8px 10px; }
+.stat .n { font-size: 16px; font-weight: 800; }
+.stat .l { font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin-top: 1px; color: rgba(255,255,255,0.7); }
+.insight { border-radius: 8px; padding: 8px 10px; font-size: 11px; margin-bottom: 5px; border-left: 3px solid; }
+.label-bar { padding: 12px 16px; background: rgba(255,255,255,0.08); border-top: 2px solid #c09a2e; display: flex; justify-content: space-between; align-items: center; }
+.lname { font-size: 13px; font-weight: 700; }
+.lnote { font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+.want-btn { background: #c09a2e; color: #0b1526; border: none; padding: 7px 16px; border-radius: 99px; font-size: 12px; font-weight: 800; cursor: pointer; }
+
+/* ═══════════════════════════════════════════
+   OPTION A — Current (sidebar visible panel)
+   ═══════════════════════════════════════════ */
+.a-wrap { display: flex; height: 440px; background: #f4f3f1; }
+.a-sidebar { width: 140px; background: white; border-right: 1px solid rgba(0,0,0,0.08); display: flex; flex-direction: column; padding: 12px 8px; flex-shrink: 0; box-shadow: 1px 0 12px rgba(0,0,0,0.04); }
+.a-brand { font-size: 11px; font-weight: 800; color: #0b1526; padding: 4px 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.06); margin-bottom: 8px; }
+.a-brand small { display: block; font-size: 8px; color: #c09a2e; font-weight: 700; text-transform: uppercase; margin-bottom: 2px; }
+.a-nav { font-size: 11px; color: #5a6778; display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 6px; margin-bottom: 2px; }
+.a-nav.active { background: rgba(192,154,46,0.1); color: #9a6a08; border-left: 2px solid #c09a2e; padding-left: 6px; font-weight: 600; }
+.a-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.a-header { background: rgba(244,243,241,0.8); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.06); }
+.a-title { font-size: 16px; font-weight: 700; color: #0b1526; }
+.a-content { flex: 1; padding: 12px; overflow: auto; }
+
+/* ═══════════════════════════════════════════
+   OPTION B — Sidebar OVERLAYS content
+   (content goes full width, sidebar floats)
+   ═══════════════════════════════════════════ */
+.b-wrap { position: relative; height: 440px; background: linear-gradient(135deg, #f0ede6 0%, #f4f3f1 60%); overflow: hidden; }
+.b-sidebar {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 52px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  gap: 4px;
+  /* NO background — fully transparent */
+}
+.b-brand { width: 32px; height: 32px; background: #c09a2e; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #0b1526; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(192,154,46,0.3); }
+.b-nav { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #8a9ab0; cursor: pointer; }
+.b-nav.active { background: rgba(192,154,46,0.15); color: #c09a2e; }
+/* Content starts at left: 0, goes full width BEHIND sidebar */
+.b-main {
+  position: absolute;
+  left: 0; right: 0; top: 0; bottom: 0;
+  padding-left: 60px; /* just enough to not overlap sidebar icons */
+  display: flex;
+  flex-direction: column;
+}
+.b-header { padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+.b-title { font-size: 16px; font-weight: 700; color: #0b1526; }
+.b-title small { display: block; font-size: 9px; color: #c09a2e; font-weight: 700; text-transform: uppercase; margin-bottom: 1px; }
+.b-icons { display: flex; gap: 5px; }
+.b-icon { width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.6); backdrop-filter: blur(8px); border: 1px solid rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; font-size: 10px; color: #5a6778; }
+.b-content { flex: 1; padding: 2px 14px 12px; overflow: auto; }
+
+/* ═══════════════════════════════════════════
+   OPTION C — No sidebar at all, top nav only
+   ═══════════════════════════════════════════ */
+.c-wrap { height: 440px; background: linear-gradient(135deg, #f0ede6 0%, #f4f3f1 60%); display: flex; flex-direction: column; }
+.c-header {
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* NO background */
+}
+.c-brand { font-size: 14px; font-weight: 800; color: #0b1526; margin-right: 6px; }
+.c-brand small { display: block; font-size: 8px; color: #c09a2e; font-weight: 700; text-transform: uppercase; }
+.c-navitem { font-size: 11px; color: #8a9ab0; padding: 4px 8px; border-radius: 6px; white-space: nowrap; }
+.c-navitem.active { color: #9a6a08; background: rgba(192,154,46,0.1); font-weight: 600; }
+.c-spacer { flex: 1; }
+.c-icons { display: flex; gap: 5px; }
+.c-icon { width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.5); border: 1px solid rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; font-size: 10px; color: #5a6778; }
+.c-content { flex: 1; padding: 8px 16px 12px; overflow: auto; }
+.c-divider { height: 1px; background: rgba(0,0,0,0.06); margin: 0 16px 10px; }
+
+/* ═══════════════════════════════════════════
+   OPTION D — Sidebar icons only, hover expands
+   No background at all on sidebar
+   ═══════════════════════════════════════════ */
+.d-wrap { position: relative; height: 440px; background: linear-gradient(135deg, #f0ede6 0%, #f4f3f1 60%); overflow: hidden; }
+.d-sidebar {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 52px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  gap: 6px;
+  background: transparent; /* totally transparent */
+  transition: width 0.25s cubic-bezier(0.175,0.885,0.32,1.1);
+}
+.d-brand-icon { width: 32px; height: 32px; background: #0b1526; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #c09a2e; margin-bottom: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.15); }
+.d-nav { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 15px; color: #8a9ab0; cursor: pointer; position: relative; }
+.d-nav.active { color: #c09a2e; background: rgba(192,154,46,0.12); box-shadow: 0 0 0 1px rgba(192,154,46,0.2); }
+.d-nav:hover { color: #5a6778; background: rgba(0,0,0,0.05); }
+.d-tooltip { position: absolute; left: 46px; background: #0b1526; color: white; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 5px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+.d-nav:hover .d-tooltip { opacity: 1; }
+.d-main { position: absolute; left: 0; right: 0; top: 0; bottom: 0; padding-left: 62px; display: flex; flex-direction: column; }
+.d-header { padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+.d-title { font-size: 16px; font-weight: 700; color: #0b1526; }
+.d-title small { display: block; font-size: 9px; color: #c09a2e; font-weight: 700; text-transform: uppercase; margin-bottom: 1px; }
+.d-icons { display: flex; gap: 5px; }
+.d-icon { width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.5); border: 1px solid rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; font-size: 10px; color: #5a6778; }
+.d-content { flex: 1; padding: 2px 14px 12px; overflow: auto; }
+
+/* Shared fake data */
+.ls-content { background: #f4f3f1; height: 100%; }
+.s-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 5px; margin-bottom: 7px; }
+.s-tile { border-radius: 8px; padding: 8px; }
+.s-tile .n { font-size: 15px; font-weight: 800; }
+.s-tile .l { font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; opacity: .7; margin-top: 1px; }
+.s-ins { border-radius: 8px; padding: 7px 10px; font-size: 10px; margin-bottom: 4px; border-left: 2px solid; }
+.s-ins .t { font-weight: 700; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+
+<div class="top">👉 WHICH LAYOUT DO YOU WANT? — Tell me the letter (A, B, C, or D) in chat</div>
+
+<div class="grid">
+
+  <!-- ═══ A: CURRENT (separate sidebar panel) ═══ -->
+  <div class="demo">
+    <div class="badge current">A — CURRENT (what's live now)</div>
+    <div class="a-wrap">
+      <div class="a-sidebar">
+        <div class="a-brand"><small>FRONT DESK</small>Hotel Shilp Gohil</div>
+        <div class="a-nav active">⊞ Dashboard</div>
+        <div class="a-nav">💰 Expenses</div>
+        <div class="a-nav">🛎 Check-in</div>
+        <div class="a-nav">👥 Guests</div>
+        <div class="a-nav">📅 Bookings</div>
+        <div class="a-nav">🏠 Rooms</div>
+        <div style="margin-top:auto;font-size:10px;color:#8a9ab0;padding:8px;">Shilp Gohil<br>Hotel Owner</div>
+      </div>
+      <div class="a-main">
+        <div class="a-header">
+          <div class="a-title">Dashboard</div>
+          <div style="display:flex;gap:5px;"><div style="width:24px;height:24px;border-radius:50%;border:1px solid rgba(0,0,0,.1);background:white;display:flex;align-items:center;justify-content:center;font-size:9px;">🔔</div><div style="width:24px;height:24px;border-radius:50%;background:#0b1526;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#c09a2e;">SG</div></div>
+        </div>
+        <div class="a-content">
+          <div class="s-row"><div class="s-tile" style="background:#0b1526;color:white;"><div class="n">13</div><div class="l">Total</div></div><div class="s-tile" style="background:#b3362c;color:white;"><div class="n">5</div><div class="l">Booked</div></div><div class="s-tile" style="background:#1a7f4e;color:white;"><div class="n">7</div><div class="l">Available</div></div></div>
+          <div class="s-ins" style="background:#fbe4e1;border-color:#b3362c;"><div class="t" style="color:#b3362c;">⚠️ Overdue</div><div style="color:#666;font-size:10px;">3 guests past checkout</div></div>
+          <div class="s-ins" style="background:#fbf0d3;border-color:#9a6a08;"><div class="t" style="color:#9a6a08;">📊 No-Show Rate: 18%</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="label-bar">
+      <div><div class="lname">Sidebar = separate visible white panel</div><div class="lnote">Still a box next to content — this is what you dislike</div></div>
+    </div>
+  </div>
+
+  <!-- ═══ B: FLOATING ICONS OVER FULL-WIDTH CONTENT ═══ -->
+  <div class="demo">
+    <div class="badge">B — Icons float over content (no sidebar panel)</div>
+    <div class="b-wrap">
+      <!-- Sidebar has NO background — totally invisible, just icons -->
+      <div class="b-sidebar">
+        <div class="b-brand">DM</div>
+        <div class="b-nav active" title="Dashboard">⊞</div>
+        <div class="b-nav" title="Expenses">💰</div>
+        <div class="b-nav" title="Check-in">🛎</div>
+        <div class="b-nav" title="Guests">👥</div>
+        <div class="b-nav" title="Bookings">📅</div>
+        <div class="b-nav" title="Rooms">🏠</div>
+      </div>
+      <!-- Content goes FULL WIDTH behind the icons -->
+      <div class="b-main">
+        <div class="b-header">
+          <div class="b-title"><small>FRONT DESK</small>Dashboard</div>
+          <div class="b-icons"><div class="b-icon">🔔</div><div class="b-icon" style="background:#0b1526;color:#c09a2e;font-weight:800;font-size:9px;">SG</div></div>
+        </div>
+        <div class="b-content">
+          <div class="s-row"><div class="s-tile" style="background:rgba(11,21,38,0.9);color:white;"><div class="n">13</div><div class="l">Total</div></div><div class="s-tile" style="background:rgba(179,54,44,0.9);color:white;"><div class="n">5</div><div class="l">Booked</div></div><div class="s-tile" style="background:rgba(26,127,78,0.9);color:white;"><div class="n">7</div><div class="l">Available</div></div></div>
+          <div class="s-ins" style="background:rgba(251,228,225,0.7);border-color:#b3362c;"><div class="t" style="color:#b3362c;">⚠️ Overdue</div><div style="color:#666;font-size:10px;">3 guests past checkout</div></div>
+          <div class="s-ins" style="background:rgba(251,240,211,0.7);border-color:#9a6a08;"><div class="t" style="color:#9a6a08;">📊 No-Show Rate: 18%</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="label-bar">
+      <div><div class="lname">NO sidebar panel — icons float invisibly over content</div><div class="lnote">Content fills full width. Sidebar background = zero</div></div>
+      <button class="want-btn" onclick="alert('Type: I want Option B')">I want this</button>
+    </div>
+  </div>
+
+  <!-- ═══ C: NO SIDEBAR AT ALL — TOP NAV ONLY ═══ -->
+  <div class="demo">
+    <div class="badge">C — No sidebar, top horizontal navigation</div>
+    <div class="c-wrap">
+      <div class="c-header">
+        <div class="c-brand"><small>FRONT DESK</small>Hotel</div>
+        <div class="c-navitem active">Dashboard</div>
+        <div class="c-navitem">Check-in</div>
+        <div class="c-navitem">Guests</div>
+        <div class="c-navitem">Bookings</div>
+        <div class="c-navitem">Money</div>
+        <div class="c-spacer"></div>
+        <div class="c-icons"><div class="c-icon">🔔</div><div class="c-icon" style="background:#0b1526;color:#c09a2e;font-weight:800;font-size:9px;">SG</div></div>
+      </div>
+      <div class="c-divider"></div>
+      <div class="c-content">
+        <div style="font-size:18px;font-weight:800;color:#0b1526;margin-bottom:10px;">Dashboard</div>
+        <div class="s-row"><div class="s-tile" style="background:#0b1526;color:white;"><div class="n">13</div><div class="l">Total</div></div><div class="s-tile" style="background:#b3362c;color:white;"><div class="n">5</div><div class="l">Booked</div></div><div class="s-tile" style="background:#1a7f4e;color:white;"><div class="n">7</div><div class="l">Available</div></div></div>
+        <div class="s-ins" style="background:#fbe4e1;border-color:#b3362c;"><div class="t" style="color:#b3362c;">⚠️ Overdue</div><div style="color:#666;font-size:10px;">3 guests past checkout</div></div>
+        <div class="s-ins" style="background:#fbf0d3;border-color:#9a6a08;"><div class="t" style="color:#9a6a08;">📊 No-Show Rate: 18%</div></div>
+      </div>
+    </div>
+    <div class="label-bar">
+      <div><div class="lname">Zero sidebar — navigation moves to top bar</div><div class="lnote">Full-width content, no left panel at all</div></div>
+      <button class="want-btn" onclick="alert('Type: I want Option C')">I want this</button>
+    </div>
+  </div>
+
+  <!-- ═══ D: ICON-ONLY, TOOLTIP ON HOVER, TOTALLY INVISIBLE ═══ -->
+  <div class="demo">
+    <div class="badge">D — Invisible sidebar, icons only, tooltip on hover</div>
+    <div class="d-wrap">
+      <div class="d-sidebar">
+        <div class="d-brand-icon">DM</div>
+        <div class="d-nav active">⊞<span class="d-tooltip">Dashboard</span></div>
+        <div class="d-nav">💰<span class="d-tooltip">Expenses</span></div>
+        <div class="d-nav">🛎<span class="d-tooltip">Check-in</span></div>
+        <div class="d-nav">👥<span class="d-tooltip">Guests</span></div>
+        <div class="d-nav">📅<span class="d-tooltip">Bookings</span></div>
+        <div class="d-nav">🏠<span class="d-tooltip">Rooms</span></div>
+        <div style="margin-top:auto;width:32px;height:32px;border-radius:50%;background:#0b1526;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#c09a2e;">SG</div>
+      </div>
+      <div class="d-main">
+        <div class="d-header">
+          <div class="d-title"><small>FRONT DESK</small>Dashboard</div>
+          <div class="d-icons"><div class="d-icon">🔔</div></div>
+        </div>
+        <div class="d-content">
+          <div class="s-row"><div class="s-tile" style="background:rgba(11,21,38,0.9);color:white;"><div class="n">13</div><div class="l">Total</div></div><div class="s-tile" style="background:rgba(179,54,44,0.9);color:white;"><div class="n">5</div><div class="l">Booked</div></div><div class="s-tile" style="background:rgba(26,127,78,0.9);color:white;"><div class="n">7</div><div class="l">Available</div></div></div>
+          <div class="s-ins" style="background:rgba(251,228,225,0.7);border-color:#b3362c;"><div class="t" style="color:#b3362c;">⚠️ Overdue</div><div style="color:#666;font-size:10px;">3 guests past checkout</div></div>
+          <div class="s-ins" style="background:rgba(251,240,211,0.7);border-color:#9a6a08;"><div class="t" style="color:#9a6a08;">📊 No-Show Rate: 18%</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="label-bar">
+      <div><div class="lname">Icons only, no background, label appears on hover</div><div class="lnote">Hover any icon to see the label. Content goes almost full width</div></div>
+      <button class="want-btn" onclick="alert('Type: I want Option D')">I want this</button>
+    </div>
+  </div>
+
+</div>
+
+<div style="background:#0b1526;padding:16px 20px;text-align:center;position:sticky;bottom:0;">
+  <div style="font-size:14px;font-weight:800;color:#c09a2e;">Which one? Tell me in chat: "B", "C", or "D"</div>
+  <div style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:4px;">Option A = current (sidebar still visible as panel). Hover Option D icons to see tooltip labels.</div>
+</div>
+
+</body>
+</html>

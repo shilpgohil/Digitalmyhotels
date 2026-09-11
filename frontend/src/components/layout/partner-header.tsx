@@ -132,7 +132,7 @@ function MobileNavDrawer() {
           <div className="px-3 pb-1">
             <HotelSwitcher className="w-full border-border/40" />
           </div>
-          <PartnerNav onNavigate={() => setOpen(false)} />
+          <PartnerNav onNavigate={() => setOpen(false)} alwaysExpanded />
         </SheetContent>
       </Sheet>
     </>

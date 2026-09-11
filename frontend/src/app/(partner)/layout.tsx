@@ -1,5 +1,6 @@
 import { RequireAuth } from "@/components/auth/require-auth";
 import { PartnerSidebar } from "@/components/layout/partner-sidebar";
+import { PartnerMobileTabBar } from "@/components/layout/partner-mobile-tab-bar";
 import { HotelSuspendedOverlay, SubscriptionGate } from "@/components/subscription/subscription-gate";
 import { ImageEditorProvider } from "@/components/media/image-editor";
 import { PageTransition } from "@/components/ui/page-transition";
@@ -24,18 +25,34 @@ export default function PartnerLayout({ children }: { readonly children: React.R
             Renders on top of everything so staff can't accidentally use the app
             while the hotel is deactivated by the platform. */}
         <HotelSuspendedOverlay />
-        <div className="flex h-screen overflow-hidden bg-gradient-to-br from-[#efebe3]/60 via-background to-background">
-          {/* w-64 here so PartnerSidebar (now w-full) fills exactly 256px on desktop */}
-          <div className="hidden lg:block w-64 shrink-0">
+
+        {/* Page edge vignette — premium depth effect */}
+        <div className="edge-vignette-top" aria-hidden />
+        <div className="edge-vignette-bottom" aria-hidden />
+
+        <div className="relative flex h-screen overflow-hidden bg-gradient-to-br from-[#efebe3]/60 via-background to-background">
+          {/* Hover-expand sidebar — ABSOLUTE OVERLAY, no reserved space.
+              Collapsed: 56px wide (icon strip). Expanded on hover: 212px.
+              Content flows behind it; leftmost 56px is gently overlapped. */}
+          <div className="hidden lg:block absolute left-0 top-0 bottom-0 z-30">
             <PartnerSidebar />
           </div>
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+
+          {/* Main content — full width. 56px left padding on desktop reserves
+              space for the collapsed sidebar icon strip. */}
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden lg:pl-[56px]">
             <SubscriptionGate />
             <PageTransition id="main-content" className="flex min-w-0 flex-1 flex-col overflow-hidden">
-              {children}
+              {/* Mobile: add bottom padding so content clears the floating tab bar */}
+              <div className="flex-1 overflow-hidden flex flex-col lg:pb-0 pb-[72px]">
+                {children}
+              </div>
             </PageTransition>
           </div>
         </div>
+
+        {/* Mobile bottom tab bar — Apple-style floating glass pill */}
+        <PartnerMobileTabBar />
       </ImageEditorProvider>
     </RequireAuth>
   );

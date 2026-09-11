@@ -216,24 +216,41 @@ const SECTIONS: NavSection[] = [
  * mobile drawer so active-route highlighting and permission gating stay in
  * sync. `onNavigate` lets the mobile drawer close itself on item click.
  */
-export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void }) {
+/**
+ * Partner navigation — works in two modes:
+ *  1. Desktop hover-expand sidebar (controlled by CSS group on <aside>)
+ *  2. Mobile drawer (full width, labels always visible via `alwaysExpanded`)
+ */
+export function PartnerNav({
+  onNavigate,
+  alwaysExpanded = false,
+}: {
+  readonly onNavigate?: () => void;
+  readonly alwaysExpanded?: boolean;
+}) {
   const t = useTranslations("nav");
   const pathname = usePathname();
   const { can } = useAuth();
 
   return (
-    <nav className="scroll-fade-y overflow-y-auto px-3 pb-4" aria-label="Main">
+    <nav className="scroll-fade-y overflow-y-auto pb-4 flex-1" aria-label="Main">
       {SECTIONS.map((section) => {
         const visible = section.items.filter(
           (item) => !item.permission || can(item.permission),
         );
         if (visible.length === 0) return null;
         return (
-          <div key={section.labelKey} className="mt-4 first:mt-0">
-            <p className="px-2 pb-1 text-micro font-semibold tracking-widest uppercase text-muted-foreground/60">
+          <div key={section.labelKey} className="mt-3 first:mt-0">
+            {/* Section label — hidden when sidebar collapsed, visible on hover/expanded */}
+            <p className={cn(
+              "px-3 pb-1 text-micro font-semibold tracking-widest uppercase text-muted-foreground/55 whitespace-nowrap transition-all duration-200",
+              alwaysExpanded
+                ? "opacity-100"
+                : "opacity-0 group-hover:opacity-100 delay-75",
+            )}>
               {t(section.labelKey)}
             </p>
-            <ul className="space-y-0.5">
+            <ul className="space-y-0.5 px-2">
               {visible.map((item) => {
                 const active =
                   pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -245,15 +262,24 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
                       data-tour={`nav-${item.href.replace("/", "")}`}
                       aria-current={active ? "page" : undefined}
                       onClick={onNavigate}
+                      title={alwaysExpanded ? undefined : t(item.labelKey)}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-all duration-200",
+                        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground transition-all duration-200",
                         active
-                          ? "border-l-[2px] border-gold-500 bg-gold-50/70 pl-[9px] font-semibold text-gold-800 shadow-[inset_0_0_0_1px_rgba(192,154,46,0.12)]"
-                          : "hover:bg-foreground/[0.05] hover:text-foreground",
+                          ? "border-l-[2px] border-gold-500 bg-gold-100/70 pl-[9px] font-semibold text-gold-800"
+                          : "hover:bg-black/[0.04] hover:text-foreground",
                       )}
                     >
                       <Icon className="size-4 shrink-0" aria-hidden />
-                      <span className="truncate">{t(item.labelKey)}</span>
+                      {/* Label: animates in on hover for desktop, always shown for mobile drawer */}
+                      <span className={cn(
+                        "whitespace-nowrap overflow-hidden transition-all duration-250",
+                        alwaysExpanded
+                          ? "max-w-[160px] opacity-100"
+                          : "max-w-0 opacity-0 group-hover:max-w-[160px] group-hover:opacity-100 delay-75",
+                      )}>
+                        {t(item.labelKey)}
+                      </span>
                     </Link>
                   </li>
                 );
@@ -319,8 +345,9 @@ export function PartnerBrand() {
   const hotelName = hotel.data?.name?.trim() || "DigitalMyHotels";
 
   return (
-    <div className="flex items-center gap-3 px-5 py-5">
-      <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gold-500 font-display text-sm font-bold text-navy-900">
+    <div className="flex items-center gap-2.5 px-3 py-4 border-b border-black/[0.06] flex-shrink-0">
+      {/* Logo — always visible at 32px */}
+      <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gold-500 font-display text-[10px] font-black text-navy-900 shadow-[0_2px_8px_rgba(192,154,46,0.35)]">
         {logo.data ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -332,9 +359,10 @@ export function PartnerBrand() {
           hotelInitials(hotelName)
         )}
       </div>
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-foreground">{hotelName}</p>
-        <p className="truncate text-micro tracking-widest uppercase text-muted-foreground">
+      {/* Hotel name — animates in on hover */}
+      <div className="min-w-0 overflow-hidden max-w-0 opacity-0 group-hover:max-w-[150px] group-hover:opacity-100 transition-all duration-300 delay-50">
+        <p className="truncate text-[11px] font-bold text-foreground whitespace-nowrap">{hotelName}</p>
+        <p className="truncate text-micro tracking-widest uppercase text-muted-foreground whitespace-nowrap">
           Front Desk Suite
         </p>
       </div>
@@ -352,59 +380,76 @@ export function PartnerSidebar() {
 
   return (
     <aside
-      className="flex h-full w-full flex-col bg-transparent text-foreground shadow-[1px_0_20px_rgba(0,0,0,0.05)] border-r border-black/[0.06]"
+      className={cn(
+        // Base: collapsed icon strip
+        "group flex h-full flex-col overflow-hidden",
+        // Width: springs from 56px to 212px on hover
+        "w-[56px] hover:w-[212px]",
+        "transition-[width] duration-300 ease-[cubic-bezier(0.175,0.885,0.32,1.1)]",
+        // Warm cream frosted glass
+        "glass-sidebar-warm",
+        // Text default
+        "text-foreground",
+      )}
       data-tour="sidebar"
     >
       {/* Brand */}
       <PartnerBrand />
 
-      {/* Navigation */}
+      {/* Navigation — labels animate in via group-hover */}
       <PartnerNav />
 
-      {/* Desktop spacer: pushes Upgrade CTA and footer to the bottom.
-          Not shown on mobile (sidebar is h-auto there). */}
+      {/* Desktop spacer */}
       <div className="flex-1" aria-hidden />
 
-      {/* Upgrade plan CTA */}
+      {/* Upgrade CTA — label animates in */}
       {can(PERMISSIONS.hotelManageSettings) && (
-        <div className="px-4 pb-2">
+        <div className="px-2 pb-2">
           <Link
             href="/plan"
             data-tour="upgrade-plan"
-            className="flex items-center justify-center rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 shadow-surface transition-all duration-180 hover:bg-gold-400 hover:shadow-card"
+            className="flex items-center gap-2 rounded-lg bg-gold-500 px-2.5 py-2 text-sm font-semibold text-navy-900 shadow-surface transition-all duration-180 hover:bg-gold-400 hover:shadow-card overflow-hidden"
+            title={t("upgradePlan")}
           >
-            {t("upgradePlan")}
+            <span className="text-base shrink-0">⬆</span>
+            <span className="whitespace-nowrap overflow-hidden max-w-0 opacity-0 group-hover:max-w-[130px] group-hover:opacity-100 transition-all duration-250 delay-75">
+              {t("upgradePlan")}
+            </span>
           </Link>
         </div>
       )}
 
       {/* User footer */}
-      <div className="border-t border-border/30 px-5 py-4">
-        <div className="flex items-center gap-2.5">
-          <UserRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          <div className="min-w-0">
-            <p className="text-micro uppercase tracking-wider text-muted-foreground/70">
+      <div className="border-t border-black/[0.07] px-2 py-3">
+        <div className="flex items-center gap-2.5 px-0.5">
+          {/* Avatar — always visible */}
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-navy-900/10 border border-black/[0.08]">
+            <UserRound className="size-3.5 text-muted-foreground" aria-hidden />
+          </div>
+          {/* Details — animate in on hover */}
+          <div className="min-w-0 overflow-hidden max-w-0 opacity-0 group-hover:max-w-[140px] group-hover:opacity-100 transition-all duration-300 delay-75">
+            <p className="text-micro uppercase tracking-wider text-muted-foreground/65 whitespace-nowrap">
               {t("loggedInAs")}
             </p>
-            <p className="truncate text-sm font-semibold text-foreground">{user?.full_name}</p>
+            <p className="truncate text-xs font-semibold text-foreground whitespace-nowrap">{user?.full_name}</p>
             {roleName && (
-              <p className="truncate text-xs text-muted-foreground">{roleName}</p>
+              <p className="truncate text-micro text-muted-foreground whitespace-nowrap">{roleName}</p>
             )}
           </div>
         </div>
-        {/* Powered by DMH badge */}
-        <div className="mt-3 flex items-center gap-1.5 opacity-30">
+        {/* Powered by — only visible when expanded */}
+        <div className="mt-2.5 flex items-center gap-1.5 overflow-hidden max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-30 transition-all duration-300 delay-100 px-0.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/dmh-icon.png"
             alt=""
-            width={14}
-            height={14}
-            className="size-3.5 select-none object-contain"
+            width={12}
+            height={12}
+            className="size-3 select-none object-contain flex-shrink-0"
             style={{ filter: "brightness(0)" }}
             draggable={false}
           />
-          <p className="text-micro tracking-widest uppercase font-medium text-foreground">
+          <p className="text-micro tracking-widest uppercase font-medium text-foreground whitespace-nowrap">
             Powered by DigitalMyHotels
           </p>
         </div>

@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DigitalMyHotels — Pick Your Navigation Style</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
+    background: #050810;
+    color: white;
+    min-height: 100vh;
+  }
+
+  /* ── TOP ── */
+  header {
+    text-align: center;
+    padding: 48px 24px 36px;
+    background: radial-gradient(ellipse at 50% 0%, rgba(192,154,46,0.12) 0%, transparent 70%);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  header .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(192,154,46,0.12);
+    border: 1px solid rgba(192,154,46,0.3);
+    border-radius: 99px;
+    padding: 4px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #d4af4a;
+    letter-spacing: 0.04em;
+    margin-bottom: 16px;
+  }
+  header h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
+  header h1 span { color: #c09a2e; }
+  header p { font-size: 14px; color: rgba(255,255,255,0.45); }
+
+  /* ── GRID ── */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    padding: 28px 24px 80px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  /* ── CARD ── */
+  .card {
+    border-radius: 20px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.08);
+    transition: border-color 0.2s, transform 0.2s;
+    cursor: pointer;
+  }
+  .card:hover { border-color: rgba(192,154,46,0.4); transform: translateY(-2px); }
+
+  .card-preview {
+    height: 380px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card-footer {
+    padding: 16px 20px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: rgba(0,0,0,0.2);
+  }
+  .card-title { font-size: 14px; font-weight: 700; color: white; }
+  .card-desc { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 3px; line-height: 1.4; }
+
+  .pick-btn {
+    background: linear-gradient(135deg, #c09a2e, #d4af4a);
+    color: #0b1526;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 99px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+    transition: all 0.15s;
+    box-shadow: 0 2px 12px rgba(192,154,46,0.4);
+  }
+  .pick-btn:hover { transform: scale(1.05); box-shadow: 0 4px 20px rgba(192,154,46,0.6); }
+
+  .style-badge {
+    display: inline-block;
+    background: rgba(192,154,46,0.15);
+    border: 1px solid rgba(192,154,46,0.3);
+    border-radius: 99px;
+    padding: 2px 10px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #d4af4a;
+    margin-bottom: 4px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ══════════════════════════════════════
+     SHARED FAKE PAGE CONTENT (BACKGROUND)
+     ══════════════════════════════════════ */
+  .fake-bg {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #f0ede8 0%, #f4f3f1 100%);
+  }
+
+  /* small stat tiles */
+  .f-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; margin-bottom: 8px; }
+  .f-stat { border-radius: 10px; padding: 10px; color: white; }
+  .f-stat .n { font-size: 20px; font-weight: 800; line-height: 1; }
+  .f-stat .l { font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; opacity: .7; margin-top: 2px; }
+
+  .f-insight { border-radius: 9px; padding: 8px 10px; font-size: 10px; margin-bottom: 5px; border-left: 2px solid; }
+  .f-insight .t { font-weight: 700; margin-bottom: 1px; font-size: 10px; }
+
+  .f-kpis { display: grid; grid-template-columns: repeat(3,1fr); gap: 5px; }
+  .f-kpi { background: white; border-radius: 9px; padding: 8px 10px; border: 1px solid rgba(0,0,0,0.06); }
+  .f-kpi .v { font-size: 15px; font-weight: 800; color: #0b1526; }
+  .f-kpi .k { font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #8a9ab0; margin-top: 1px; }
+
+  /* ══════════════════════════════════════
+     GLASS MIXIN
+     ══════════════════════════════════════ */
+  .glass-dark {
+    background: rgba(8, 12, 22, 0.65);
+    -webkit-backdrop-filter: blur(30px) saturate(180%) brightness(0.85);
+    backdrop-filter: blur(30px) saturate(180%) brightness(0.85);
+    border: 1px solid rgba(255,255,255,0.13);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.15),
+      inset 0 0 0 0.5px rgba(255,255,255,0.06),
+      0 8px 40px rgba(0,0,0,0.35),
+      0 2px 8px rgba(0,0,0,0.2);
+  }
+
+  .glass-light {
+    background: rgba(255, 255, 255, 0.52);
+    -webkit-backdrop-filter: blur(30px) saturate(200%) brightness(1.05);
+    backdrop-filter: blur(30px) saturate(200%) brightness(1.05);
+    border: 1px solid rgba(255,255,255,0.85);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.9),
+      0 4px 24px rgba(0,0,0,0.10),
+      0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  /* ══════════════════════════════════════
+     STYLE 1 — Dark glass sidebar overlay
+     ══════════════════════════════════════ */
+  .s1 .fake-bg { padding-left: 190px; padding-top: 10px; padding-right: 10px; padding-bottom: 10px; }
+  .s1-title { font-size: 16px; font-weight: 800; color: #0b1526; margin-bottom: 9px; display:flex; justify-content:space-between; align-items:center; }
+
+  .s1-sidebar {
+    position: absolute;
+    left: 8px; top: 8px; bottom: 8px;
+    width: 174px;
+    border-radius: 16px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    padding: 14px 10px;
+    color: white;
+  }
+  .s1-brand { display:flex; align-items:center; gap:7px; padding-bottom: 11px; border-bottom: 1px solid rgba(255,255,255,0.09); margin-bottom: 10px; }
+  .s1-logo { width:26px; height:26px; background:#c09a2e; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:800; color:#0b1526; flex-shrink:0; box-shadow:0 2px 8px rgba(192,154,46,0.35); }
+  .s1-hotel { font-size:11px; font-weight:700; color:rgba(255,255,255,0.9); }
+  .s1-hotel small { display:block; font-size:8px; color:rgba(255,255,255,0.35); font-weight:400; }
+  .s1-sec { font-size:8px; font-weight:600; text-transform:uppercase; letter-spacing:.1em; color:rgba(255,255,255,0.25); padding: 7px 6px 3px; }
+  .s1-item { display:flex; align-items:center; gap:7px; padding:6px 8px; border-radius:9px; font-size:11px; color:rgba(255,255,255,0.45); margin-bottom:1px; cursor:pointer; }
+  .s1-item.on { background:rgba(192,154,46,0.18); color:#f0c040; border:1px solid rgba(192,154,46,0.22); }
+  .s1-item:hover:not(.on) { background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.75); }
+  .s1-ico { font-size:11px; flex-shrink:0; }
+  .s1-foot { margin-top:auto; padding-top:9px; border-top:1px solid rgba(255,255,255,0.07); display:flex; align-items:center; gap:7px; }
+  .s1-av { width:22px; height:22px; border-radius:50%; background:rgba(255,255,255,0.12); display:flex; align-items:center; justify-content:center; font-size:7px; font-weight:800; color:white; flex-shrink:0; }
+
+  .hdr-row { display:flex; justify-content:space-between; align-items:center; }
+  .hdr-icons { display:flex; gap:4px; }
+  .hdr-icon { width:24px; height:24px; border-radius:50%; border:1px solid rgba(0,0,0,0.1); background:rgba(255,255,255,0.7); display:flex; align-items:center; justify-content:center; font-size:9px; color:#5a6778; }
+
+  /* ══════════════════════════════════════
+     STYLE 2 — Mobile bottom glass tab bar
+     ══════════════════════════════════════ */
+  .s2 .card-preview { background: linear-gradient(160deg, #1a0e2e 0%, #0e1a30 50%, #0b1526 100%); }
+  .s2-content { position:absolute; inset:0; padding:14px 12px 72px; }
+  .s2-hdr { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .s2-title { font-size:20px; font-weight:800; color:white; }
+  .s2-title small { display:block; font-size:9px; color:rgba(192,154,46,0.85); font-weight:600; text-transform:uppercase; letter-spacing:.08em; margin-bottom:2px; }
+  .s2-ico { width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12); display:flex; align-items:center; justify-content:center; font-size:11px; }
+  .s2-stat { border-radius:12px; padding:11px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); }
+  .s2-stat .n { font-size:22px; font-weight:800; color:white; }
+  .s2-stat .l { font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:rgba(255,255,255,0.35); margin-top:2px; }
+  .s2-ins { border-radius:10px; padding:9px 11px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.07); color:rgba(255,255,255,0.65); margin-bottom:5px; }
+  .s2-ins .t { font-weight:700; margin-bottom:1px; color:rgba(255,255,255,0.88); }
+
+  .s2-tabbar {
+    position:absolute;
+    bottom:12px; left:50%; transform:translateX(-50%);
+    width: calc(100% - 28px);
+    height:52px;
+    border-radius:999px;
+    z-index:10;
+    display:flex;
+    align-items:center;
+    justify-content:space-around;
+    padding:0 5px;
+  }
+  .s2-tab { display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 10px; border-radius:999px; flex:1; cursor:pointer; }
+  .s2-tab.on { background:rgba(192,154,46,0.18); }
+  .s2-tab .ico { font-size:16px; }
+  .s2-tab .lbl { font-size:8px; font-weight:600; color:rgba(255,255,255,0.35); }
+  .s2-tab.on .lbl { color:#f0c040; }
+
+  /* ══════════════════════════════════════
+     STYLE 3 — Icons only, tooltip sidebar
+     ══════════════════════════════════════ */
+  .s3 .fake-bg { padding-left: 62px; padding: 10px 10px 10px 66px; }
+  .s3-side {
+    position:absolute;
+    left:8px; top:8px; bottom:8px;
+    width:48px;
+    border-radius:14px;
+    z-index:10;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:11px 0;
+    gap:4px;
+  }
+  .s3-logo { width:28px; height:28px; background:#c09a2e; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:800; color:#0b1526; margin-bottom:10px; box-shadow:0 2px 10px rgba(192,154,46,0.4); }
+  .s3-item { width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:14px; color:rgba(255,255,255,0.3); cursor:pointer; position:relative; }
+  .s3-item.on { background:rgba(192,154,46,0.18); color:#f0c040; box-shadow:0 0 0 1px rgba(192,154,46,0.22); }
+  .s3-item:hover { background:rgba(255,255,255,0.07); color:rgba(255,255,255,0.75); }
+  .s3-tt { position:absolute; left:42px; top:50%; transform:translateY(-50%); background:rgba(10,14,22,0.92); backdrop-filter:blur(12px); color:white; font-size:10px; font-weight:600; padding:4px 10px; border-radius:7px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .18s; box-shadow:0 2px 10px rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.1); z-index:20; }
+  .s3-item:hover .s3-tt { opacity:1; }
+  .s3-av { width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:800; color:rgba(255,255,255,0.6); margin-top:auto; }
+
+  /* ══════════════════════════════════════
+     STYLE 4 — Floating pill top bar
+     ══════════════════════════════════════ */
+  .s4 .fake-bg { padding-top:60px; padding:60px 10px 10px 10px; background:linear-gradient(135deg,#f0ede8,#f4f3f1); }
+  .s4-bar {
+    position:absolute;
+    top:9px; left:9px; right:9px;
+    height:42px;
+    border-radius:999px;
+    z-index:10;
+    display:flex;
+    align-items:center;
+    padding:0 7px;
+    gap:5px;
+  }
+  .s4-menu { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; background:rgba(0,0,0,0.05); color:#374151; cursor:pointer; flex-shrink:0; }
+  .s4-logo { width:22px; height:22px; background:#c09a2e; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:7px; font-weight:800; color:#0b1526; flex-shrink:0; }
+  .s4-search { flex:1; font-size:11px; color:#9ca3af; }
+  .s4-irow { display:flex; gap:3px; flex-shrink:0; }
+  .s4-ic { width:28px; height:28px; border-radius:50%; background:rgba(0,0,0,0.05); display:flex; align-items:center; justify-content:center; font-size:10px; color:#374151; flex-shrink:0; }
+  .s4-av { width:28px; height:28px; border-radius:50%; background:#0b1526; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:800; color:#c09a2e; flex-shrink:0; }
+  .s4-pg { font-size:18px; font-weight:800; color:#0b1526; margin-bottom:8px; }
+
+  /* ══════════════════════════════════════
+     STYLE 5 — Hover-expand glass sidebar
+     ══════════════════════════════════════ */
+  .s5 .fake-bg { padding-left:64px; padding:10px 10px 10px 68px; }
+  .s5-side {
+    position:absolute;
+    left:8px; top:8px; bottom:8px;
+    width:50px;
+    border-radius:14px;
+    z-index:10;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:12px 0;
+    gap:3px;
+    overflow:hidden;
+    transition:width 0.3s cubic-bezier(0.175,0.885,0.32,1.1);
+  }
+  .s5-side:hover { width:170px; align-items:flex-start; padding-left:10px; padding-right:10px; }
+  .s5-logo { width:28px; height:28px; background:#0b1526; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:800; color:#c09a2e; margin-bottom:10px; flex-shrink:0; box-shadow:0 2px 10px rgba(0,0,0,0.25); }
+  .s5-item { display:flex; align-items:center; gap:8px; width:100%; padding:6px 8px; border-radius:8px; font-size:11px; color:rgba(255,255,255,0.4); cursor:pointer; white-space:nowrap; }
+  .s5-item.on { background:rgba(192,154,46,0.18); color:#f0c040; }
+  .s5-item:hover:not(.on) { background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.75); }
+  .s5-ico { font-size:14px; flex-shrink:0; min-width:22px; text-align:center; }
+  .s5-av { width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:800; color:rgba(255,255,255,0.6); margin-top:auto; flex-shrink:0; }
+
+  /* ══════════════════════════════════════
+     STYLE 6 — Right-side icon panel (Sana)
+     ══════════════════════════════════════ */
+  .s6 .fake-bg { padding-right:62px; padding:10px 66px 10px 10px; }
+  .s6-side {
+    position:absolute;
+    right:8px; top:8px; bottom:8px;
+    width:48px;
+    border-radius:14px;
+    z-index:10;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:11px 0;
+    gap:4px;
+  }
+  .s6-logo { width:28px; height:28px; background:#c09a2e; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:800; color:#0b1526; margin-bottom:10px; box-shadow:0 2px 10px rgba(192,154,46,0.4); }
+  .s6-item { width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:14px; color:rgba(255,255,255,0.3); cursor:pointer; position:relative; }
+  .s6-item.on { background:rgba(192,154,46,0.18); color:#f0c040; }
+  .s6-item:hover { background:rgba(255,255,255,0.07); color:rgba(255,255,255,0.75); }
+  .s6-tt { position:absolute; right:42px; top:50%; transform:translateY(-50%); background:rgba(10,14,22,0.92); backdrop-filter:blur(12px); color:white; font-size:10px; font-weight:600; padding:4px 10px; border-radius:7px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .18s; border:1px solid rgba(255,255,255,0.1); z-index:20; }
+  .s6-item:hover .s6-tt { opacity:1; }
+  .s6-av { width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:800; color:rgba(255,255,255,0.6); margin-top:auto; }
+
+  /* ── FOOTER ── */
+  footer {
+    position: sticky;
+    bottom: 0;
+    background: rgba(5,8,16,0.95);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(255,255,255,0.07);
+    padding: 14px 24px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: #c09a2e;
+    letter-spacing: 0.01em;
+  }
+  footer span { color: rgba(255,255,255,0.35); font-weight: 400; font-size: 12px; margin-left: 10px; }
+
+  @media (max-width: 700px) {
+    .grid { grid-template-columns: 1fr; gap: 14px; padding: 16px; }
+    header h1 { font-size: 22px; }
+    .card-preview { height: 300px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="pill">🎨 6 Styles — Pick One</div>
+  <h1>DigitalMyHotels<br><span>Navigation Styles</span></h1>
+  <p>Hover over icons to see tooltips · Style 5 hover-expands · Click "Pick" to choose</p>
+</header>
+
+<div class="grid">
+
+  <!-- ══════ STYLE 1 — DARK GLASS SIDEBAR ══════ -->
+  <div class="card s1">
+    <div class="card-preview">
+      <div class="fake-bg">
+        <div class="hdr-row" style="margin-bottom:9px;">
+          <div style="font-size:16px;font-weight:800;color:#0b1526;">Dashboard</div>
+          <div class="hdr-icons">
+            <div class="hdr-icon">🔔</div>
+            <div class="hdr-icon" style="background:#0b1526;color:#c09a2e;font-weight:800;font-size:8px;">SG</div>
+          </div>
+        </div>
+        <div class="f-stats">
+          <div class="f-stat" style="background:#0b1526;"><div class="n">13</div><div class="l">Total</div></div>
+          <div class="f-stat" style="background:#b3362c;"><div class="n">5</div><div class="l">Booked</div></div>
+          <div class="f-stat" style="background:#1a7f4e;"><div class="n">7</div><div class="l">Available</div></div>
+        </div>
+        <div class="f-insight" style="background:#fbe4e1;border-color:#b3362c;"><div class="t" style="color:#b3362c;">⚠️ 3 Overdue Checkouts</div><div style="color:#666;font-size:9px;">Guests are past their checkout time</div></div>
+        <div class="f-insight" style="background:#fbf0d3;border-color:#9a6a08;"><div class="t" style="color:#9a6a08;">📊 18% No-Show Rate in 30 days</div></div>
+        <div class="f-kpis">
+          <div class="f-kpi"><div class="v">₹165</div><div class="k">RevPAR</div></div>
+          <div class="f-kpi"><div class="v">₹2,275</div><div class="k">ADR</div></div>
+          <div class="f-kpi"><div class="v">38%</div><div class="k">Occupancy</div></div>
+        </div>
+      </div>
+      <!-- DARK GLASS SIDEBAR FLOATS OVER CONTENT -->
+      <div class="s1-sidebar glass-dark">
+        <div class="s1-brand">
+          <div class="s1-logo">DM</div>
+          <div class="s1-hotel">Hotel Shilp<small>Front Desk Suite</small></div>
+        </div>
+        <div class="s1-sec">Overview</div>
+        <div class="s1-item on"><span class="s1-ico">⊞</span>Dashboard</div>
+        <div class="s1-item"><span class="s1-ico">💰</span>Expenses</div>
+        <div class="s1-sec">Front Desk</div>
+        <div class="s1-item"><span class="s1-ico">🛎</span>Check-in</div>
+        <div class="s1-item"><span class="s1-ico">🚪</span>Check-out</div>
+        <div class="s1-item"><span class="s1-ico">👥</span>Guests</div>
+        <div class="s1-item"><span class="s1-ico">📅</span>Bookings</div>
+        <div class="s1-sec">Property</div>
+        <div class="s1-item"><span class="s1-ico">🏠</span>Rooms</div>
+        <div class="s1-item"><span class="s1-ico">🧹</span>Housekeeping</div>
+        <div class="s1-foot">
+          <div class="s1-av">SG</div>
+          <div style="font-size:9px;color:rgba(255,255,255,0.4);">Shilp Gohil<br>Hotel Owner</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div>
+        <div class="style-badge">Style 1</div>
+        <div class="card-title">Dark Glass Sidebar Overlay</div>
+        <div class="card-desc">Like your iOS screenshot — dark frosted panel floats over full-width content. Content blurs through it.</div>
+      </div>
+      <button class="pick-btn" onclick="alert('✅ You chose Style 1.\n\nTell me in chat: \"Style 1\" and I implement it immediately.')">Pick 1</button>
+    </div>
+  </div>
+
+  <!-- ══════ STYLE 2 — MOBILE BOTTOM TAB ══════ -->
+  <div class="card s2">
+    <div class="card-preview">
+      <div class="s2-content">
+        <div class="s2-hdr">
+          <div class="s2-title"><small>Front Desk</small>Dashboard</div>
+          <div style="display:flex;gap:4px;"><div class="s2-ico">🔔</div><div class="s2-ico" style="background:rgba(192,154,46,0.15);font-weight:800;font-size:8px;color:#f0c040;">SG</div></div>
+        </div>
+        <div class="f-stats">
+          <div class="s2-stat"><div class="n">13</div><div class="l">Total</div></div>
+          <div class="s2-stat"><div class="n">5</div><div class="l">Booked</div></div>
+          <div class="s2-stat"><div class="n">7</div><div class="l">Available</div></div>
+        </div>
+        <div class="s2-ins" style="margin-top:8px;"><div class="t">⚠️ 3 Overdue Checkouts</div>Guests are past their checkout time</div>
+        <div class="s2-ins"><div class="t">📊 18% No-Show Rate</div>Consider requesting advance payments</div>
+        <div class="s2-ins"><div class="t">₹ RevPAR — ₹165</div>Revenue per room, 30-day average</div>
+      </div>
+      <!-- APPLE GLASS TAB BAR -->
+      <div class="s2-tabbar glass-dark">
+        <div class="s2-tab on"><div class="ico">⊞</div><div class="lbl">Dash</div></div>
+        <div class="s2-tab"><div class="ico">🛎</div><div class="lbl">Check-in</div></div>
+        <div class="s2-tab"><div class="ico">👥</div><div class="lbl">Guests</div></div>
+        <div class="s2-tab"><div class="ico">📅</div><div class="lbl">Bookings</div></div>
+        <div class="s2-tab"><div class="ico">💰</div><div class="lbl">Money</div></div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div>
+        <div class="style-badge">Style 2</div>
+        <div class="card-title">Apple iOS Bottom Tab Bar</div>
+        <div class="card-desc">Dark glass floating pill at the bottom. Exactly like iPhone apps. Best for mobile — no sidebar at all.</div>
+      </div>
+      <button class="pick-btn" onclick="alert('✅ You chose Style 2.\n\nTell me in chat: \"Style 2\" and I implement it immediately.')">Pick 2</button>
+    </div>
+  </div>
+
+  <!-- ══════ STYLE 3 — ICON ONLY + TOOLTIP ══════ -->
+  <div class="card s3">
+    <div class="card-preview">
+      <div class="fake-bg">
+        <div class="hdr-row" style="margin-bottom:9px;">
+          <div style="font-size:16px;font-weight:800;color:#0b1526;">Dashboard</div>
+          <div class="hdr-icons"><div class="hdr-icon">🔔</div><div class="hdr-icon" style="background:#0b1526;color:#c09a2e;font-weight:800;font-size:8px;">SG</div></div>
+        </div>
+        <div class="f-stats">
+          <div class="f-stat" style="background:#0b1526;"><div class="n">13</div><div class="l">Total</div></div>
+          <div class="f-stat" style="background:#b3362c;"><div class="n">5</div><div class="l">Booked</div></div>
+          <div class="f-stat" style="background:#1a7f4e;"><div class="n">7</div><div class="l">Available</div></div>
+        </div>
+        <div class="f-insight" style="background:#fbe4e1;border-color:#b3362c;"><div class="t" style="color:#b3362c;">⚠️ 3 Overdue</div><div style="color:#666;font-size:9px;">Guests past checkout</div></div>
+        <div class="f-insight" style="background:#fbf0d3;border-color:#9a6a08;"><div class="t" style="color:#9a6a08;">📊 No-Show: 18%</div></div>
+        <div class="f-kpis"><div class="f-kpi"><div class="v">₹165</div><div class="k">RevPAR</div></div><div class="f-kpi"><div class="v">₹2,275</div><div class="k">ADR</div></div><div class="f-kpi"><div class="v">38%</div><div class="k">Occ.</div></div></div>
+      </div>
+      <!-- ICON-ONLY GLASS SIDE -->
+      <div class="s3-side glass-dark">
+        <div class="s3-logo">DM</div>
+        <div class="s3-item on">⊞<span class="s3-tt">Dashboard</span></div>
+        <div class="s3-item">💰<span class="s3-tt">Hotel Expenses</span></div>
+        <div class="s3-item">🛎<span class="s3-tt">Guest Check-in</span></div>
+        <div class="s3-item">🚪<span class="s3-tt">Guest Check-out</span></div>
+        <div class="s3-item">👥<span class="s3-tt">Current Guests</span></div>
+        <div class="s3-item">📅<span class="s3-tt">Advance Bookings</span></div>
+        <div class="s3-item">🏠<span class="s3-tt">Room Status</span></div>
+        <div class="s3-item">🧹<span class="s3-tt">Housekeeping</span></div>
+        <div class="s3-av">SG</div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div>
+        <div class="style-badge">Style 3</div>
+        <div class="card-title">Icon-Only Glass + Hover Tooltip</div>
+        <div class="card-desc">Hover any icon → label pops up. Maximum content space. Most invisible sidebar.</div>
+      </div>
+      <button class="pick-btn" onclick="alert('✅ You chose Style 3.\n\nTell me in chat: \"Style 3\" and I implement it immediately.')">Pick 3</button>
+    </div>
+  </div>
+
+  <!-- ══════ STYLE 4 — FLOATING PILL TOP BAR ══════ -->
+  <div class="card s4">
+    <div class="card-preview">
+      <div class="fake-bg" style="background:linear-gradient(135deg,#f0ede8,#f4f3f1);">
+        <div style="padding-top:50px;">
+          <div class="s4-pg">Dashboard</div>
+          <div class="f-stats">
+            <div class="f-stat" style="background:#0b1526;"><div class="n">13</div><div class="l">Total</div></div>
+            <div class="f-stat" style="background:#b3362c;"><div class="n">5</div><div class="l">Booked</div></div>
+            <div class="f-stat" style="background:#1a7f4e;"><div class="n">7</div><div class="l">Available</div></div>
+          </div>
+          <div class="f-insight" style="background:#fbe4e1;border-color:#b3362c;margin-top:7px;"><div class="t" style="color:#b3362c;">⚠️ 3 Overdue Checkouts</div></div>
+          <div class="f-insight" style="background:#fbf0d3;border-color:#9a6a08;"><div class="t" style="color:#9a6a08;">📊 18% No-Show Rate</div></div>
+          <div class="f-kpis"><div class="f-kpi"><div class="v">₹165</div><div class="k">RevPAR</div></div><div class="f-kpi"><div class="v">₹2,275</div><div class="k">ADR</div></div><div class="f-kpi"><div class="v">38%</div><div class="k">Occ.</div></div></div>
+        </div>
+      </div>
+      <!-- LIGHT GLASS TOP PILL -->
+      <div class="s4-bar glass-light">
+        <div class="s4-menu">☰</div>
+        <div class="s4-logo">DM</div>
+        <div class="s4-search">Search bookings or guests…</div>
+        <div class="s4-irow">
+          <div class="s4-ic">🔔</div>
+          <div class="s4-ic">हि</div>
+          <div class="s4-av">SG</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div>
+        <div class="style-badge">Style 4</div>
+        <div class="card-title">Floating Light Glass Top Bar</div>
+        <div class="card-desc">No sidebar. Light frosted glass pill floats at the top. ☰ opens nav. Maximum clean space.</div>
+      </div>
+      <button class="pick-btn" onclick="alert('✅ You chose Style 4.\n\nTell me in chat: \"Style 4\" and I implement it immediately.')">Pick 4</button>
+    </div>
+  </div>
+
+  <!-- ══════ STYLE 5 — HOVER EXPAND ══════ -->
+  <div class="card s5">
+    <div class="card-preview">
+      <div class="fake-bg">
+        <div class="hdr-row" style="margin-bottom:9px;">
+          <div style="font-size:16px;font-weight:800;color:#0b1526;">Dashboard</div>
+          <div class="hdr-icons"><div class="hdr-icon">🔔</div><div class="hdr-icon" style="background:#0b1526;color:#c09a2e;font-weight:800;font-size:8px;">SG</div></div>
+        </div>
+        <div class="f-stats">
+          <div class="f-stat" style="background:#0b1526;"><div class="n">13</div><div class="l">Total</div></div>
+          <div class="f-stat" style="background:#b3362c;"><div class="n">5</div><div class="l">Booked</div></div>
+          <div class="f-stat" style="background:#1a7f4e;"><div class="n">7</div><div class="l">Available</div></div>
+        </div>
+        <div class="f-insight" style="background:#fbe4e1;border-color:#b3362c;"><div class="t" style="color:#b3362c;">⚠️ 3 Overdue</div></div>
+        <div class="f-insight" style="background:#fbf0d3;border-color:#9a6a08;"><div class="t" style="color:#9a6a08;">📊 18% No-Show</div></div>
+        <div class="f-kpis"><div class="f-kpi"><div class="v">₹165</div><div class="k">RevPAR</div></div><div class="f-kpi"><div class="v">₹2,275</div><div class="k">ADR</div></div><div class="f-kpi"><div class="v">38%</div><div class="k">Occ.</div></div></div>
+      </div>
+      <!-- HOVER-EXPAND SIDEBAR -->
+      <div class="s5-side glass-dark" title="Hover me to expand!">
+        <div class="s5-logo">DM</div>
+        <div class="s5-item on"><span class="s5-ico">⊞</span><span>Dashboard</span></div>
+        <div class="s5-item"><span class="s5-ico">💰</span><span>Expenses</span></div>
+        <div class="s5-item"><span class="s5-ico">🛎</span><span>Check-in</span></div>
+        <div class="s5-item"><span class="s5-ico">🚪</span><span>Check-out</span></div>
+        <div class="s5-item"><span class="s5-ico">👥</span><span>Guests</span></div>
+        <div class="s5-item"><span class="s5-ico">📅</span><span>Bookings</span></div>
+        <div class="s5-item"><span class="s5-ico">🏠</span><span>Rooms</span></div>
+        <div class="s5-av">SG</div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div>
+        <div class="style-badge">Style 5</div>
+        <div class="card-title">Hover-Expand Glass Sidebar ← Hover it!</div>
+        <div class="card-desc">Collapsed = icons only. Hover over it → smoothly expands to show labels. Spring animation.</div>
+      </div>
+      <button class="pick-btn" onclick="alert('✅ You chose Style 5.\n\nTell me in chat: \"Style 5\" and I implement it immediately.')">Pick 5</button>
+    </div>
+  </div>
+
+  <!-- ══════ STYLE 6 — ICONS ON RIGHT ══════ -->
+  <div class="card s6">
+    <div class="card-preview">
+      <div class="fake-bg" style="padding-right:66px!important;">
+        <div class="hdr-row" style="margin-bottom:9px;">
+          <div style="font-size:16px;font-weight:800;color:#0b1526;">Dashboard</div>
+          <div class="hdr-icons"><div class="hdr-icon">🔔</div></div>
+        </div>
+        <div class="f-stats">
+          <div class="f-stat" style="background:#0b1526;"><div class="n">13</div><div class="l">Total</div></div>
+          <div class="f-stat" style="background:#b3362c;"><div class="n">5</div><div class="l">Booked</div></div>
+          <div class="f-stat" style="background:#1a7f4e;"><div class="n">7</div><div class="l">Available</div></div>
+        </div>
+        <div class="f-insight" style="background:#fbe4e1;border-color:#b3362c;"><div class="t" style="color:#b3362c;">⚠️ 3 Overdue</div></div>
+        <div class="f-insight" style="background:#fbf0d3;border-color:#9a6a08;"><div class="t" style="color:#9a6a08;">📊 18% No-Show</div></div>
+        <div class="f-kpis"><div class="f-kpi"><div class="v">₹165</div><div class="k">RevPAR</div></div><div class="f-kpi"><div class="v">₹2,275</div><div class="k">ADR</div></div><div class="f-kpi"><div class="v">38%</div><div class="k">Occ.</div></div></div>
+      </div>
+      <!-- RIGHT-SIDE SIDEBAR (Sana AI style) -->
+      <div class="s6-side glass-dark">
+        <div class="s6-logo">DM</div>
+        <div class="s6-item on">⊞<span class="s6-tt">Dashboard</span></div>
+        <div class="s6-item">💰<span class="s6-tt">Expenses</span></div>
+        <div class="s6-item">🛎<span class="s6-tt">Check-in</span></div>
+        <div class="s6-item">🚪<span class="s6-tt">Check-out</span></div>
+        <div class="s6-item">👥<span class="s6-tt">Guests</span></div>
+        <div class="s6-item">📅<span class="s6-tt">Bookings</span></div>
+        <div class="s6-item">🏠<span class="s6-tt">Rooms</span></div>
+        <div class="s6-item">🧹<span class="s6-tt">Housekeeping</span></div>
+        <div class="s6-av">SG</div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div>
+        <div class="style-badge">Style 6</div>
+        <div class="card-title">Icons on Right Side (Sana AI style)</div>
+        <div class="card-desc">Navigation anchored to the right edge. Inspired by Sana AI. Unconventional and content-first.</div>
+      </div>
+      <button class="pick-btn" onclick="alert('✅ You chose Style 6.\n\nTell me in chat: \"Style 6\" and I implement it immediately.')">Pick 6</button>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Pick a number 1–6 and tell me in chat → I implement it immediately across the entire platform
+  <span>Style 5: hover the sidebar to expand it • Styles 3 & 6: hover icons for tooltips</span>
+</footer>
+
+</body>
+</html>
