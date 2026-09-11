@@ -27,7 +27,9 @@ class TeamMemberCreate(BaseModel):
     # email/phone must be provided (client Figma has no email field).
     email: EmailStr | None = None
     phone: str | None = Field(default=None, max_length=32)
-    role_code: str = Field(pattern="^(manager|admin|housekeeping)$")
+    role_code: str = Field(
+        pattern="^(manager|admin|housekeeping|receptionist|general_staff)$"
+    )
     password: str = Field(min_length=8, max_length=128)
 
     @model_validator(mode="after")
@@ -40,7 +42,10 @@ class TeamMemberCreate(BaseModel):
 class TeamMemberUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=2, max_length=200)
     phone: str | None = Field(default=None, max_length=32)
-    role_code: str | None = Field(default=None, pattern="^(manager|admin|housekeeping)$")
+    role_code: str | None = Field(
+        default=None,
+        pattern="^(manager|admin|housekeeping|receptionist|general_staff)$",
+    )
 
 
 class TeamMemberStatusUpdate(BaseModel):
