@@ -1,5 +1,31 @@
 # Active Context — DigitalMyHotels
 
+## STAFF ATTENDANCE MODULE SHIPPED 12/09/2026
+Commits: fdbc952 (db) · a468176 (api) · 43bee57 (ui) · dc831eb (chore).
+Spec: memory-bank/staffAttendanceImplementation.md (follow it for changes).
+- DB: staff_profiles + attendance_records + hotels.geofence_enabled/
+  latitude/longitude/geofence_radius_m (migration b7c8d9e0f1a2, also seeds
+  receptionist + general_staff roles idempotently).
+- Geofence: server-side Haversine in services/attendance.enforce_geofence —
+  admin TOGGLE (default OFF) + radius 50–2000m; accuracy grace capped 100m;
+  front-desk records skip fence; corrections need note + permission. Unit
+  tests in tests/unit/test_geofence.py (must stay green).
+- Roles: receptionist (front-desk set) + general_staff (own attendance only)
+  — creatable from Team page too. New staff.* permissions in
+  core/permissions.py + frontend lib/permissions.ts.
+- API: /api/v1/staff (19 routes) — directory CRUD/photo, self check-in/out
+  (+selfie upload), front-desk record, corrections, today/history(+csv)/
+  calendar/anomalies, /staff/me/attendance/*. Lazy staff_profile creation
+  lets owner/manager/admin self check-in (their card shows on OWN profile).
+- Nightly sweep_attendance in reminders_loop (absent + auto-close).
+- UI: sidebar STAFF group; pages /staff, /staff/new, /staff/[id],
+  /staff/attendance(+history/calendar/reports), /staff/checkin,
+  /my-attendance (mobile-first Face Check-In w/ GPS+selfie). Shared
+  components in components/staff/. Edit Hotel has the geofence section.
+- i18n: `staff` namespace + nav.staff* + editHotel geofence keys (en+hi).
+- Integration tests in tests/integration/test_staff_attendance.py (need
+  Postgres; run in CI/Render).
+
 ## Client round 5 09/2026 (commits 9f5d449, 32b3462)
 - Checkout page: Load Guest/Check Out/invoice-action buttons + selects all
   42px; discount row divider removed.
