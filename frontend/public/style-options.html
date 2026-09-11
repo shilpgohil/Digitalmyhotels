@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DigitalMyHotels — Style Options</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Inter', system-ui, sans-serif; background: #f4f3f1; color: #16202e; }
+
+  .top-bar {
+    background: #0b1526;
+    color: white;
+    padding: 12px 24px;
+    font-size: 13px;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    letter-spacing: 0.02em;
+  }
+  .top-bar span { color: #c09a2e; font-weight: 600; }
+
+  .page { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
+  
+  h1 { font-size: 26px; font-weight: 700; margin-bottom: 6px; color: #0b1526; }
+  .subtitle { font-size: 14px; color: #5a6778; margin-bottom: 40px; }
+
+  /* ── OPTION SECTIONS ── */
+  .option-block {
+    margin-bottom: 64px;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05);
+  }
+  .option-header {
+    padding: 20px 28px;
+    background: white;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .option-tag {
+    background: #0b1526;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+    margin-top: 3px;
+    letter-spacing: 0.06em;
+  }
+  .option-tag.recommended { background: #c09a2e; color: #0b1526; }
+  .option-name { font-size: 18px; font-weight: 700; color: #0b1526; }
+  .option-desc { font-size: 13px; color: #5a6778; margin-top: 3px; line-height: 1.5; }
+
+  .demo-area {
+    padding: 28px;
+    background: #f4f3f1;
+  }
+  .demo-inner {
+    background: #f4f3f1;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  /* Fake header */
+  .fake-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: rgba(244,243,241,0.8);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    margin-bottom: 20px;
+    border-radius: 10px;
+  }
+  .fake-header .page-title { font-size: 20px; font-weight: 700; color: #0b1526; }
+  .fake-header .label { font-size: 10px; color: #c09a2e; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1px; }
+  .fake-icons { display: flex; gap: 8px; }
+  .fake-icon { width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.12); display: flex; align-items: center; justify-content: center; font-size: 12px; background: white; }
+
+  /* ──────────────────────────────────────────── */
+  /* OPTION A: CURRENT (what you have now)        */
+  /* ──────────────────────────────────────────── */
+  .current-tiles {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .current-tile {
+    border-radius: 10px;
+    padding: 14px 12px;
+    color: white;
+  }
+  .current-tile .num { font-size: 24px; font-weight: 700; }
+  .current-tile .lbl { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.8; margin-top: 2px; }
+
+  /* ──────────────────────────────────────────── */
+  /* OPTION B: GHOST / OUTLINED                   */
+  /* ──────────────────────────────────────────── */
+  .ghost-tiles {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .ghost-tile {
+    border-radius: 12px;
+    padding: 16px 14px;
+    background: rgba(255,255,255,0.6);
+    border: 1px solid rgba(0,0,0,0.07);
+    backdrop-filter: blur(8px);
+  }
+  .ghost-tile .num { font-size: 24px; font-weight: 700; }
+  .ghost-tile .lbl { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #5a6778; margin-top: 2px; }
+
+  /* ──────────────────────────────────────────── */
+  /* OPTION C: BORDERLESS FLOATING (Apple style)  */
+  /* ──────────────────────────────────────────── */
+  .floating-tiles {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0;
+    margin-bottom: 16px;
+    padding: 0;
+  }
+  .floating-tile {
+    padding: 16px 14px;
+  }
+  .floating-tile .icon-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .floating-tile .icon { font-size: 14px; }
+  .floating-tile .num { font-size: 26px; font-weight: 800; line-height: 1; }
+  .floating-tile .lbl { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #8a9ab0; margin-top: 3px; }
+  .floating-divider { width: 1px; background: rgba(0,0,0,0.06); }
+
+  /* ──────────────────────────────────────────── */
+  /* OPTION D: COMPACT PILL ROW                   */
+  /* ──────────────────────────────────────────── */
+  .pill-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    background: rgba(255,255,255,0.5);
+    border-radius: 12px;
+    padding: 10px 14px;
+    border: 1px solid rgba(0,0,0,0.06);
+    backdrop-filter: blur(8px);
+  }
+  .pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: white;
+    border: 1px solid rgba(0,0,0,0.08);
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .pill .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .pill .count { font-weight: 800; }
+
+  /* Insight cards demo - shared */
+  .insights-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  
+  /* CURRENT insight */
+  .insight-card-current {
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 12px;
+    line-height: 1.5;
+    border: 1px solid;
+  }
+  .insight-card-current .title { font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .insight-card-current .metric { font-weight: 800; margin-top: 4px; }
+
+  /* GHOST insight */
+  .insight-ghost {
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 12px;
+    line-height: 1.5;
+    background: rgba(255,255,255,0.4);
+    border: 1px solid rgba(0,0,0,0.07);
+    backdrop-filter: blur(8px);
+  }
+  .insight-ghost .title { font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .insight-ghost .metric { font-weight: 800; margin-top: 4px; }
+
+  /* FLOATING insight */
+  .insight-floating {
+    border-radius: 0;
+    padding: 14px 16px;
+    font-size: 12px;
+    line-height: 1.5;
+    border-left: 2px solid;
+  }
+  .insight-floating .title { font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .insight-floating .metric { font-weight: 800; margin-top: 4px; }
+
+  /* PILL insight */
+  .insight-pill-section {
+    background: transparent;
+    padding: 6px 0;
+    font-size: 12px;
+    line-height: 1.6;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .insight-item { display: flex; align-items: flex-start; gap: 8px; }
+  .insight-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+
+  /* KPI row shared */
+  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  
+  .kpi-card-current {
+    background: white;
+    border-radius: 12px;
+    padding: 14px;
+    border: 1px solid rgba(0,0,0,0.08);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .kpi-card-current .val { font-size: 20px; font-weight: 700; color: #0b1526; }
+  .kpi-card-current .key { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #5a6778; margin-top: 2px; }
+  .kpi-card-current .sub { font-size: 10px; color: #8a9ab0; margin-top: 1px; }
+
+  .kpi-floating {
+    padding: 10px 0;
+  }
+  .kpi-floating .val { font-size: 22px; font-weight: 800; color: #0b1526; }
+  .kpi-floating .key { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #5a6778; margin-top: 2px; }
+  .kpi-floating .sub { font-size: 10px; color: #8a9ab0; margin-top: 1px; }
+
+  /* Colors */
+  .c-navy { color: #0b1526; }
+  .c-danger { color: #b3362c; }
+  .c-success { color: #1a7f4e; }
+  .c-info { color: #175e77; }
+  .c-warning { color: #9a6a08; }
+  .c-muted { color: #5a6778; }
+
+  .bg-navy { background: #0b1526; }
+  .bg-danger { background: #b3362c; }
+  .bg-success { background: #1a7f4e; }
+  .bg-info { background: #175e77; }
+  .bg-warning { background: #9a6a08; }
+  .bg-muted { background: #6b7d93; }
+
+  .border-warning { border-color: #fbf0d3; background: #fbf0d3; color: #9a6a08; }
+  .border-info { border-color: #e0eff5; background: #e0eff5; color: #175e77; }
+  .border-danger { border-color: #fbe4e1; background: #fbe4e1; color: #b3362c; }
+
+  .current-badge { display: inline-block; background: #fbe4e1; color: #b3362c; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; margin-top: 6px; }
+  .new-badge { display: inline-block; background: #e3f3ea; color: #1a7f4e; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; margin-top: 6px; }
+
+  @media (max-width: 700px) {
+    .current-tiles, .ghost-tiles, .floating-tiles, .kpi-row { grid-template-columns: repeat(3, 1fr); }
+    .insights-row { grid-template-columns: 1fr; }
+  }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8a9ab0;
+    margin-bottom: 10px;
+  }
+
+  .choose-btn {
+    display: inline-block;
+    background: #0b1526;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 16px;
+  }
+  .choose-btn:hover { background: #c09a2e; color: #0b1526; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  DigitalMyHotels — <span>4 Style Options</span> — Pick one and share the option letter
+</div>
+
+<div class="page">
+  <h1>Dashboard Style Options</h1>
+  <p class="subtitle">All 4 options use the same data. Only the visual presentation changes. Pick the letter (A, B, C, or D) that feels right.</p>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- OPTION A: CURRENT (what you have now)                  -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="option-block">
+    <div class="option-header">
+      <div class="option-tag">A</div>
+      <div>
+        <div class="option-name">Current (what you have now)</div>
+        <div class="option-desc">Solid colored blocks for each stat. Heavy borders and backgrounds on every section.</div>
+        <span class="current-badge">This is live right now</span>
+      </div>
+    </div>
+    <div class="demo-area">
+      <div class="fake-header">
+        <div><div class="label">FRONT DESK</div><div class="page-title">Dashboard</div></div>
+        <div class="fake-icons">
+          <div class="fake-icon">🔔</div>
+          <div class="fake-icon">हि</div>
+          <div class="fake-icon" style="background:#0b1526;color:white;font-weight:700;">SG</div>
+        </div>
+      </div>
+      <div class="current-tiles">
+        <div class="current-tile bg-navy"><div class="num">13</div><div class="lbl">Total</div></div>
+        <div class="current-tile bg-danger"><div class="num">5</div><div class="lbl">Booked</div></div>
+        <div class="current-tile bg-success"><div class="num">7</div><div class="lbl">Available</div></div>
+        <div class="current-tile bg-info"><div class="num">0</div><div class="lbl">Reserved</div></div>
+        <div class="current-tile bg-warning"><div class="num">1</div><div class="lbl">Cleaning</div></div>
+        <div class="current-tile bg-muted"><div class="num">0</div><div class="lbl">Maintenance</div></div>
+      </div>
+      <div class="section-label">SMART INSIGHTS</div>
+      <div class="insights-row">
+        <div class="insight-card-current border-danger"><div class="title">⚠️ Overdue Checkouts</div><div style="color:#666;font-size:11px;">3 guests past checkout. Confirm late departure.</div></div>
+        <div class="insight-card-current border-warning"><div class="title">📊 High No-Show Rate</div><div style="color:#666;font-size:11px;">18% of bookings in 30 days were no-shows.</div><div class="metric c-warning">18%</div></div>
+        <div class="insight-card-current border-info"><div class="title">₹ RevPAR</div><div style="color:#666;font-size:11px;">Revenue per room over 30 days.</div><div class="metric c-info">₹165</div></div>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi-card-current"><div class="val">₹165</div><div class="key">RevPAR</div><div class="sub">30-day avg</div></div>
+        <div class="kpi-card-current"><div class="val">₹2,275</div><div class="key">ADR</div><div class="sub">per room-night</div></div>
+        <div class="kpi-card-current"><div class="val">1.0 nights</div><div class="key">ALOS</div><div class="sub">avg stay</div></div>
+        <div class="kpi-card-current"><div class="val">7 days</div><div class="key">Lead Time</div><div class="sub">booking lead</div></div>
+        <div class="kpi-card-current"><div class="val">38%</div><div class="key">Occupancy</div><div class="sub">4 in-house · 7 free</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- OPTION B: GHOST / TRANSPARENT CARDS                    -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="option-block">
+    <div class="option-header">
+      <div class="option-tag recommended">B</div>
+      <div>
+        <div class="option-name">B — Glass Cards (no solid fill)</div>
+        <div class="option-desc">Tiles keep their shape but all solid colored backgrounds are gone. Semi-transparent white card, colored icon and number only. Cards feel light and airy. Works great with the frosted glass theme.</div>
+        <span class="new-badge">Recommended</span>
+      </div>
+    </div>
+    <div class="demo-area">
+      <div class="fake-header">
+        <div><div class="label">FRONT DESK</div><div class="page-title">Dashboard</div></div>
+        <div class="fake-icons">
+          <div class="fake-icon">🔔</div>
+          <div class="fake-icon">हि</div>
+          <div class="fake-icon" style="background:#0b1526;color:white;font-weight:700;">SG</div>
+        </div>
+      </div>
+      <div class="ghost-tiles">
+        <div class="ghost-tile"><div class="num c-navy">13</div><div class="lbl">Total</div></div>
+        <div class="ghost-tile"><div class="num c-danger">5</div><div class="lbl">Booked</div></div>
+        <div class="ghost-tile"><div class="num c-success">7</div><div class="lbl">Available</div></div>
+        <div class="ghost-tile"><div class="num c-info">0</div><div class="lbl">Reserved</div></div>
+        <div class="ghost-tile"><div class="num c-warning">1</div><div class="lbl">Cleaning</div></div>
+        <div class="ghost-tile"><div class="num c-muted">0</div><div class="lbl">Maintenance</div></div>
+      </div>
+      <div class="section-label">SMART INSIGHTS</div>
+      <div class="insights-row">
+        <div class="insight-ghost" style="border-left:3px solid #b3362c;"><div class="title c-danger">⚠️ Overdue Checkouts</div><div style="color:#666;font-size:11px;">3 guests past checkout. Confirm late departure.</div></div>
+        <div class="insight-ghost" style="border-left:3px solid #9a6a08;"><div class="title c-warning">📊 High No-Show Rate</div><div style="color:#666;font-size:11px;">18% of bookings in 30 days were no-shows.</div><div class="metric c-warning">18%</div></div>
+        <div class="insight-ghost" style="border-left:3px solid #175e77;"><div class="title c-info">₹ RevPAR</div><div style="color:#666;font-size:11px;">Revenue per room over 30 days.</div><div class="metric c-info">₹165</div></div>
+      </div>
+      <div class="kpi-row">
+        <div class="ghost-tile"><div class="val" style="font-size:20px;font-weight:700;color:#0b1526;">₹165</div><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5a6778;margin-top:2px;">RevPAR</div><div style="font-size:10px;color:#8a9ab0;">30-day avg</div></div>
+        <div class="ghost-tile"><div class="val" style="font-size:20px;font-weight:700;color:#0b1526;">₹2,275</div><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5a6778;margin-top:2px;">ADR</div><div style="font-size:10px;color:#8a9ab0;">per room-night</div></div>
+        <div class="ghost-tile"><div class="val" style="font-size:20px;font-weight:700;color:#0b1526;">1.0n</div><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5a6778;margin-top:2px;">ALOS</div><div style="font-size:10px;color:#8a9ab0;">avg stay</div></div>
+        <div class="ghost-tile"><div class="val" style="font-size:20px;font-weight:700;color:#0b1526;">7 days</div><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5a6778;margin-top:2px;">Lead Time</div></div>
+        <div class="ghost-tile"><div class="val" style="font-size:20px;font-weight:700;color:#0b1526;">38%</div><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5a6778;margin-top:2px;">Occupancy</div><div style="font-size:10px;color:#8a9ab0;">4 in-house · 7 free</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- OPTION C: FULLY BORDERLESS / APPLE STYLE               -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="option-block">
+    <div class="option-header">
+      <div class="option-tag">C</div>
+      <div>
+        <div class="option-name">C — Fully Borderless (Apple / Linear style)</div>
+        <div class="option-desc">Zero boxes, zero borders, zero backgrounds on stats. Just the numbers and labels floating directly on the page background. Color only on the number itself. Sections separated by spacing only.</div>
+      </div>
+    </div>
+    <div class="demo-area">
+      <div class="fake-header">
+        <div><div class="label">FRONT DESK</div><div class="page-title">Dashboard</div></div>
+        <div class="fake-icons">
+          <div class="fake-icon">🔔</div>
+          <div class="fake-icon">हि</div>
+          <div class="fake-icon" style="background:#0b1526;color:white;font-weight:700;">SG</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:0;border-bottom:1px solid rgba(0,0,0,0.07);margin-bottom:24px;overflow-x:auto;">
+        <div class="floating-tile" style="border-right:1px solid rgba(0,0,0,0.07);">
+          <div class="icon-row" style="color:#0b1526;font-size:11px;font-weight:600;opacity:0.5;">▣ Total</div>
+          <div class="num c-navy">13</div>
+        </div>
+        <div class="floating-tile" style="border-right:1px solid rgba(0,0,0,0.07);">
+          <div class="icon-row" style="color:#b3362c;font-size:11px;font-weight:600;opacity:0.7;">▣ Booked</div>
+          <div class="num c-danger">5</div>
+        </div>
+        <div class="floating-tile" style="border-right:1px solid rgba(0,0,0,0.07);">
+          <div class="icon-row" style="color:#1a7f4e;font-size:11px;font-weight:600;opacity:0.7;">▣ Available</div>
+          <div class="num c-success">7</div>
+        </div>
+        <div class="floating-tile" style="border-right:1px solid rgba(0,0,0,0.07);">
+          <div class="icon-row" style="color:#175e77;font-size:11px;font-weight:600;opacity:0.7;">▣ Reserved</div>
+          <div class="num c-info">0</div>
+        </div>
+        <div class="floating-tile" style="border-right:1px solid rgba(0,0,0,0.07);">
+          <div class="icon-row" style="color:#9a6a08;font-size:11px;font-weight:600;opacity:0.7;">▣ Cleaning</div>
+          <div class="num c-warning">1</div>
+        </div>
+        <div class="floating-tile">
+          <div class="icon-row" style="color:#5a6778;font-size:11px;font-weight:600;opacity:0.7;">▣ Maintenance</div>
+          <div class="num c-muted">0</div>
+        </div>
+      </div>
+      <div class="section-label">SMART INSIGHTS</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;">
+        <div class="insight-floating" style="border-color:#b3362c;"><div class="title c-danger">⚠️ Overdue Checkouts</div><div style="color:#666;font-size:11px;">3 guests past checkout. Confirm late departure.</div></div>
+        <div class="insight-floating" style="border-color:#9a6a08;"><div class="title c-warning">📊 High No-Show Rate</div><div style="color:#666;font-size:11px;">18% of bookings in 30 days were no-shows.</div><div class="metric c-warning">18%</div></div>
+        <div class="insight-floating" style="border-color:#175e77;"><div class="title c-info">₹ RevPAR</div><div style="color:#666;font-size:11px;">Revenue per room over 30 days is ₹165.</div><div class="metric c-info">₹165</div></div>
+      </div>
+      <div class="section-label">KEY METRICS</div>
+      <div style="display:flex;gap:0;border-top:1px solid rgba(0,0,0,0.07);">
+        <div class="kpi-floating" style="flex:1;border-right:1px solid rgba(0,0,0,0.07);padding:12px 16px;"><div class="val">₹165</div><div class="key">RevPAR</div><div class="sub">30-day avg</div></div>
+        <div class="kpi-floating" style="flex:1;border-right:1px solid rgba(0,0,0,0.07);padding:12px 16px;"><div class="val">₹2,275</div><div class="key">ADR</div></div>
+        <div class="kpi-floating" style="flex:1;border-right:1px solid rgba(0,0,0,0.07);padding:12px 16px;"><div class="val">1.0 n</div><div class="key">ALOS</div></div>
+        <div class="kpi-floating" style="flex:1;border-right:1px solid rgba(0,0,0,0.07);padding:12px 16px;"><div class="val">7 d</div><div class="key">Lead</div></div>
+        <div class="kpi-floating" style="flex:1;padding:12px 16px;"><div class="val">38%</div><div class="key">Occupancy</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- OPTION D: COMPACT PILL ROW                             -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="option-block">
+    <div class="option-header">
+      <div class="option-tag">D</div>
+      <div>
+        <div class="option-name">D — Compact Pill Row</div>
+        <div class="option-desc">All 6 room stats collapse into one slim transparent bar. Tiny colored dots + numbers + labels in a single horizontal strip. Takes very little space, leaves maximum room for content below.</div>
+      </div>
+    </div>
+    <div class="demo-area">
+      <div class="fake-header">
+        <div><div class="label">FRONT DESK</div><div class="page-title">Dashboard</div></div>
+        <div class="fake-icons">
+          <div class="fake-icon">🔔</div>
+          <div class="fake-icon">हि</div>
+          <div class="fake-icon" style="background:#0b1526;color:white;font-weight:700;">SG</div>
+        </div>
+      </div>
+      <div class="pill-row">
+        <div class="pill"><div class="dot bg-navy"></div><span class="count">13</span><span style="color:#5a6778;font-weight:500;">Total</span></div>
+        <div class="pill"><div class="dot bg-danger"></div><span class="count c-danger">5</span><span style="color:#5a6778;font-weight:500;">Booked</span></div>
+        <div class="pill"><div class="dot bg-success"></div><span class="count c-success">7</span><span style="color:#5a6778;font-weight:500;">Available</span></div>
+        <div class="pill"><div class="dot bg-info"></div><span class="count c-info">0</span><span style="color:#5a6778;font-weight:500;">Reserved</span></div>
+        <div class="pill"><div class="dot bg-warning"></div><span class="count c-warning">1</span><span style="color:#5a6778;font-weight:500;">Cleaning</span></div>
+        <div class="pill"><div class="dot bg-muted"></div><span class="count c-muted">0</span><span style="color:#5a6778;font-weight:500;">Maintenance</span></div>
+      </div>
+      <div class="section-label">SMART INSIGHTS</div>
+      <div style="margin-bottom:20px;background:rgba(255,255,255,0.4);border-radius:12px;padding:14px;border:1px solid rgba(0,0,0,0.06);backdrop-filter:blur(8px);">
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div class="insight-item"><div class="insight-dot bg-danger"></div><div style="font-size:12px;"><strong class="c-danger">Overdue Checkouts —</strong> 3 guests past checkout time. Confirm late departure or start checkout.</div></div>
+          <div class="insight-item"><div class="insight-dot bg-warning"></div><div style="font-size:12px;"><strong class="c-warning">High No-Show Rate —</strong> 18% of bookings in 30 days were no-shows. <strong class="c-warning">18%</strong></div></div>
+          <div class="insight-item"><div class="insight-dot bg-info"></div><div style="font-size:12px;"><strong class="c-info">RevPAR —</strong> Revenue per available room over 30 days is ₹165. <strong class="c-info">₹165</strong></div></div>
+        </div>
+      </div>
+      <div class="kpi-row">
+        <div class="ghost-tile"><div class="val" style="font-size:20px;font-weight:700;color:#0b1526;">₹165</div><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5a6778;margin-top:2px;">RevPAR</div></div>
+        <div class="ghost-tile"><div class="val" style="font-size:20px;font-weight:700;color:#0b1526;">₹2,275</div><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5a6778;margin-top:2px;">ADR</div></div>
+        <div class="ghost-tile"><div class="val" style="font-size:20px;font-weight:700;color:#0b1526;">1.0n</div><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5a6778;margin-top:2px;">ALOS</div></div>
+        <div class="ghost-tile"><div class="val" style="font-size:20px;font-weight:700;color:#0b1526;">7d</div><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5a6778;margin-top:2px;">Lead Time</div></div>
+        <div class="ghost-tile"><div class="val" style="font-size:20px;font-weight:700;color:#0b1526;">38%</div><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5a6778;margin-top:2px;">Occupancy</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:white;border-radius:16px;padding:24px 28px;border:1px solid rgba(0,0,0,0.08);">
+    <div style="font-size:16px;font-weight:700;color:#0b1526;margin-bottom:8px;">Which one? Just tell me: A, B, C, or D</div>
+    <div style="font-size:13px;color:#5a6778;line-height:1.6;">
+      Type the letter in the chat. I'll apply it across the entire platform — dashboard, expenses, bookings, customers, admin — everywhere. Or mix: e.g. "B for stat tiles, C for insight cards".
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -24,7 +24,7 @@ export default function PartnerLayout({ children }: { readonly children: React.R
             Renders on top of everything so staff can't accidentally use the app
             while the hotel is deactivated by the platform. */}
         <HotelSuspendedOverlay />
-        <div className="flex h-screen overflow-hidden">
+        <div className="flex h-screen overflow-hidden bg-gradient-to-br from-[#efebe3]/60 via-background to-background">
           {/* w-64 here so PartnerSidebar (now w-full) fills exactly 256px on desktop */}
           <div className="hidden lg:block w-64 shrink-0">
             <PartnerSidebar />

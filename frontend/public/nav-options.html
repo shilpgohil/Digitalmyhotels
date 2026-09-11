@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sidebar + Header Style Options</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Inter', system-ui, sans-serif; background: #1a1a2e; color: white; }
+
+  .top-label {
+    background: #c09a2e;
+    color: #0b1526;
+    padding: 10px 24px;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    letter-spacing: 0.02em;
+  }
+
+  .options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    min-height: 100vh;
+  }
+
+  /* Each option is a full mini-app layout */
+  .option {
+    position: relative;
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+  }
+  .option:nth-child(odd) { border-right: 3px solid #c09a2e; }
+  .option:nth-child(3), .option:nth-child(4) { border-top: 3px solid #c09a2e; }
+
+  .option-badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 10;
+    background: #c09a2e;
+    color: #0b1526;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 4px 12px;
+    border-radius: 99px;
+    letter-spacing: 0.04em;
+  }
+  .option-badge.current { background: rgba(255,255,255,0.15); color: white; }
+
+  /* ── SHARED: content below header ── */
+  .page-content {
+    padding: 16px;
+    flex: 1;
+  }
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .stat-tile {
+    border-radius: 8px;
+    padding: 10px;
+    color: white;
+    font-size: 11px;
+  }
+  .stat-tile .n { font-size: 18px; font-weight: 800; }
+  .bg-navy { background: #0b1526; }
+  .bg-red   { background: #b3362c; }
+  .bg-green { background: #1a7f4e; }
+  .insight {
+    background: rgba(255,255,255,0.07);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 11px;
+    margin-bottom: 6px;
+    border-left: 3px solid rgba(255,255,255,0.2);
+    line-height: 1.4;
+  }
+  .insight.warn { border-left-color: #9a6a08; }
+  .insight.info { border-left-color: #175e77; }
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: 12px;
+  }
+  .kpi {
+    background: rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 10px;
+  }
+  .kpi .v { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
+
+  /* ════════════════════════════════════
+     LAYOUT VARIANTS
+     ════════════════════════════════════ */
+
+  /* ── OPTION 1: Current (solid dark sidebar + solid header) ── */
+  .opt1 { background: #f4f3f1; }
+  .opt1-layout { display: flex; height: 100%; }
+  .opt1-sidebar {
+    width: 80px;
+    background: linear-gradient(180deg, #0c1628, #091220);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 0;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .opt1-brand { width: 36px; height: 36px; background: #c09a2e; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #0b1526; margin-bottom: 10px; }
+  .opt1-navitem { width: 48px; height: 40px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 8px; color: rgba(255,255,255,0.5); cursor: pointer; }
+  .opt1-navitem.active { background: rgba(255,255,255,0.1); border-left: 2px solid #c09a2e; color: white; }
+  .opt1-navitem .icon { font-size: 14px; }
+  .opt1-main { flex: 1; display: flex; flex-direction: column; }
+  .opt1-header {
+    background: rgba(244,243,241,0.9);
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .opt1-title { font-size: 16px; font-weight: 700; color: #0b1526; }
+  .opt1-title small { display: block; font-size: 9px; color: #c09a2e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+  .opt1-icons { display: flex; gap: 6px; }
+  .opt1-icon { width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.12); background: white; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #5a6778; }
+  .opt1-content { flex: 1; padding: 12px; background: #f4f3f1; }
+
+  /* ── OPTION 2: Transparent sidebar + floating header ── */
+  .opt2 { background: #f4f3f1; }
+  .opt2-layout { display: flex; height: 100%; position: relative; }
+  .opt2-sidebar {
+    width: 80px;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 0;
+    gap: 4px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .opt2-sidebar::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(0,0,0,0.08);
+  }
+  .opt2-brand { width: 36px; height: 36px; background: #c09a2e; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #0b1526; margin-bottom: 10px; }
+  .opt2-navitem { width: 48px; height: 40px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 8px; color: #8a9ab0; cursor: pointer; }
+  .opt2-navitem.active { color: #c09a2e; }
+  .opt2-navitem.active .icon { background: rgba(192,154,46,0.12); border-radius: 6px; padding: 2px; }
+  .opt2-navitem .icon { font-size: 14px; }
+  .opt2-main { flex: 1; display: flex; flex-direction: column; }
+  .opt2-header {
+    background: transparent;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .opt2-title { font-size: 16px; font-weight: 700; color: #0b1526; }
+  .opt2-title small { display: block; font-size: 9px; color: #c09a2e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+  .opt2-icons { display: flex; gap: 6px; }
+  .opt2-icon { width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); background: rgba(255,255,255,0.7); display: flex; align-items: center; justify-content: center; font-size: 10px; color: #5a6778; }
+  .opt2-content { flex: 1; padding: 12px; background: #f4f3f1; }
+
+  /* ── OPTION 3: Icon-only sidebar (no text, no bg) + thin header ── */
+  .opt3 { background: #f4f3f1; }
+  .opt3-layout { display: flex; height: 100%; }
+  .opt3-sidebar {
+    width: 56px;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 0;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .opt3-brand { width: 32px; height: 32px; background: #c09a2e; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #0b1526; margin-bottom: 12px; }
+  .opt3-navitem { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #8a9ab0; cursor: pointer; }
+  .opt3-navitem.active { color: #c09a2e; background: rgba(192,154,46,0.1); }
+  .opt3-main { flex: 1; display: flex; flex-direction: column; border-left: 1px solid rgba(0,0,0,0.07); }
+  .opt3-header {
+    background: transparent;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+  .opt3-title { font-size: 15px; font-weight: 700; color: #0b1526; }
+  .opt3-title small { display: block; font-size: 9px; color: #c09a2e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+  .opt3-icons { display: flex; gap: 5px; }
+  .opt3-icon { width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); background: white; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #5a6778; }
+  .opt3-content { flex: 1; padding: 12px; }
+
+  /* ── OPTION 4: Floating labels sidebar + fully transparent header ── */
+  .opt4 { background: linear-gradient(135deg, #f4f3f1 0%, #ede8e0 100%); }
+  .opt4-layout { display: flex; height: 100%; }
+  .opt4-sidebar {
+    width: 80px;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 0;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .opt4-brand { width: 36px; height: 36px; background: #0b1526; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #c09a2e; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+  .opt4-navitem { width: 60px; height: 42px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 7.5px; color: #8a9ab0; cursor: pointer; transition: all 0.15s; }
+  .opt4-navitem:hover { color: #5a6778; background: rgba(0,0,0,0.04); }
+  .opt4-navitem.active { background: rgba(192,154,46,0.12); color: #9a6a08; }
+  .opt4-navitem .icon { font-size: 15px; }
+  .opt4-main { flex: 1; display: flex; flex-direction: column; }
+  .opt4-header {
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: transparent;
+  }
+  .opt4-title { font-size: 18px; font-weight: 800; color: #0b1526; }
+  .opt4-title small { display: block; font-size: 9px; color: #c09a2e; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 1px; }
+  .opt4-icons { display: flex; gap: 6px; }
+  .opt4-icon { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.7); backdrop-filter: blur(8px); border: 1px solid rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; font-size: 10px; color: #5a6778; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .opt4-content { flex: 1; padding: 10px 14px; }
+
+  /* Shared content for all options - light version */
+  .light-content { color: #16202e; }
+  .light-stat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 5px; margin-bottom: 8px; }
+  .light-stat { background: white; border-radius: 8px; padding: 8px 10px; border: 1px solid rgba(0,0,0,0.07); }
+  .light-stat .n { font-size: 16px; font-weight: 800; }
+  .light-stat .l { font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #8a9ab0; margin-top: 1px; }
+  .light-insight { border-radius: 8px; padding: 8px 10px; font-size: 10px; margin-bottom: 5px; border-left: 2px solid; }
+  .light-insight .t { font-size: 10px; font-weight: 700; margin-bottom: 2px; }
+  .light-insight.li-warn { background: #fbf0d3; border-color: #9a6a08; }
+  .light-insight.li-info { background: #e0eff5; border-color: #175e77; }
+  .light-insight.li-danger { background: #fbe4e1; border-color: #b3362c; }
+
+  /* Bottom labels */
+  .option-label-bar {
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid rgba(0,0,0,0.08);
+    background: rgba(255,255,255,0.6);
+    backdrop-filter: blur(8px);
+  }
+  .option-name { font-size: 13px; font-weight: 700; color: #0b1526; }
+  .option-note { font-size: 11px; color: #5a6778; margin-top: 2px; }
+  .choose-chip {
+    background: #0b1526;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 14px;
+    border-radius: 99px;
+    cursor: pointer;
+    border: none;
+    letter-spacing: 0.04em;
+  }
+  .choose-chip:hover { background: #c09a2e; color: #0b1526; }
+
+  .nav-labels { display: flex; flex-direction: column; width: 100%; align-items: center; gap: 2px; }
+
+  @media (max-width: 700px) {
+    .options-grid { grid-template-columns: 1fr; }
+    .option:nth-child(odd) { border-right: none; border-bottom: 3px solid #c09a2e; }
+    .option:nth-child(3), .option:nth-child(4) { border-top: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top-label">Sidebar + Header Style Options — Tell me which letter you want (1, 2, 3, or 4)</div>
+
+<div class="options-grid">
+
+  <!-- ═══════════ OPTION 1: CURRENT ═══════════ -->
+  <div class="option" style="background:#f4f3f1;">
+    <div class="option-badge current">1 — Current (live now)</div>
+    <div class="opt1-layout" style="flex:1;">
+      <div class="opt1-sidebar">
+        <div class="opt1-brand">DM</div>
+        <div class="nav-labels">
+          <div class="opt1-navitem active"><div class="icon">⊞</div><div>Dash</div></div>
+          <div class="opt1-navitem"><div class="icon">🛎</div><div>Check-in</div></div>
+          <div class="opt1-navitem"><div class="icon">👥</div><div>Guests</div></div>
+          <div class="opt1-navitem"><div class="icon">📅</div><div>Booking</div></div>
+          <div class="opt1-navitem"><div class="icon">💰</div><div>Money</div></div>
+        </div>
+      </div>
+      <div class="opt1-main">
+        <div class="opt1-header">
+          <div class="opt1-title"><small>FRONT DESK</small>Dashboard</div>
+          <div class="opt1-icons">
+            <div class="opt1-icon">🔔</div>
+            <div class="opt1-icon">हि</div>
+            <div class="opt1-icon" style="background:#0b1526;color:#c09a2e;font-weight:800;font-size:9px;">SG</div>
+          </div>
+        </div>
+        <div class="opt1-content light-content">
+          <div class="light-stat-row">
+            <div class="light-stat"><div class="n" style="color:#0b1526;">13</div><div class="l">Total</div></div>
+            <div class="light-stat"><div class="n" style="color:#b3362c;">5</div><div class="l">Booked</div></div>
+            <div class="light-stat"><div class="n" style="color:#1a7f4e;">7</div><div class="l">Available</div></div>
+          </div>
+          <div class="light-insight li-danger"><div class="t" style="color:#b3362c;">⚠️ Overdue Checkouts</div>3 guests past checkout time.</div>
+          <div class="light-insight li-warn"><div class="t" style="color:#9a6a08;">📊 High No-Show Rate</div>18% no-shows in 30 days.</div>
+        </div>
+      </div>
+    </div>
+    <div class="option-label-bar">
+      <div>
+        <div class="option-name">Solid dark sidebar + white header</div>
+        <div class="option-note">Heavy opaque backgrounds everywhere</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ OPTION 2: TRANSPARENT SIDEBAR + CLEAN HEADER ═══════════ -->
+  <div class="option" style="background:#f4f3f1;">
+    <div class="option-badge">2</div>
+    <div class="opt2-layout" style="flex:1;">
+      <div class="opt2-sidebar">
+        <div class="opt2-brand">DM</div>
+        <div class="nav-labels">
+          <div class="opt2-navitem active"><div class="icon">⊞</div><div style="font-size:8px;color:#c09a2e;font-weight:600;">Dash</div></div>
+          <div class="opt2-navitem"><div class="icon">🛎</div><div>Check-in</div></div>
+          <div class="opt2-navitem"><div class="icon">👥</div><div>Guests</div></div>
+          <div class="opt2-navitem"><div class="icon">📅</div><div>Booking</div></div>
+          <div class="opt2-navitem"><div class="icon">💰</div><div>Money</div></div>
+        </div>
+      </div>
+      <div class="opt2-main">
+        <div class="opt2-header">
+          <div class="opt2-title"><small>FRONT DESK</small>Dashboard</div>
+          <div class="opt2-icons">
+            <div class="opt2-icon">🔔</div>
+            <div class="opt2-icon">हि</div>
+            <div class="opt2-icon" style="background:#0b1526;color:#c09a2e;font-weight:800;font-size:9px;">SG</div>
+          </div>
+        </div>
+        <div class="opt2-content light-content">
+          <div class="light-stat-row">
+            <div class="light-stat"><div class="n" style="color:#0b1526;">13</div><div class="l">Total</div></div>
+            <div class="light-stat"><div class="n" style="color:#b3362c;">5</div><div class="l">Booked</div></div>
+            <div class="light-stat"><div class="n" style="color:#1a7f4e;">7</div><div class="l">Available</div></div>
+          </div>
+          <div class="light-insight li-danger"><div class="t" style="color:#b3362c;">⚠️ Overdue Checkouts</div>3 guests past checkout time.</div>
+          <div class="light-insight li-warn"><div class="t" style="color:#9a6a08;">📊 High No-Show Rate</div>18% no-shows in 30 days.</div>
+        </div>
+      </div>
+    </div>
+    <div class="option-label-bar">
+      <div>
+        <div class="option-name">Transparent sidebar + no header bg</div>
+        <div class="option-note">Just icons & labels on page background — no dark sidebar</div>
+      </div>
+      <button class="choose-chip" onclick="alert('Tell me: Option 2 in chat!')">I want this</button>
+    </div>
+  </div>
+
+  <!-- ═══════════ OPTION 3: ICON-ONLY SIDEBAR + MINIMAL HEADER ═══════════ -->
+  <div class="option" style="background:#f4f3f1;">
+    <div class="option-badge">3</div>
+    <div class="opt3-layout" style="flex:1;">
+      <div class="opt3-sidebar">
+        <div class="opt3-brand">DM</div>
+        <div class="nav-labels" style="gap:4px;">
+          <div class="opt3-navitem active" title="Dashboard">⊞</div>
+          <div class="opt3-navitem" title="Check-in">🛎</div>
+          <div class="opt3-navitem" title="Guests">👥</div>
+          <div class="opt3-navitem" title="Bookings">📅</div>
+          <div class="opt3-navitem" title="Money">💰</div>
+        </div>
+      </div>
+      <div class="opt3-main">
+        <div class="opt3-header">
+          <div class="opt3-title"><small>FRONT DESK</small>Dashboard</div>
+          <div class="opt3-icons">
+            <div class="opt3-icon">🔔</div>
+            <div class="opt3-icon">हि</div>
+            <div class="opt3-icon" style="background:#0b1526;color:#c09a2e;font-weight:800;font-size:9px;">SG</div>
+          </div>
+        </div>
+        <div class="opt3-content light-content">
+          <div class="light-stat-row">
+            <div class="light-stat"><div class="n" style="color:#0b1526;">13</div><div class="l">Total</div></div>
+            <div class="light-stat"><div class="n" style="color:#b3362c;">5</div><div class="l">Booked</div></div>
+            <div class="light-stat"><div class="n" style="color:#1a7f4e;">7</div><div class="l">Available</div></div>
+          </div>
+          <div class="light-insight li-danger"><div class="t" style="color:#b3362c;">⚠️ Overdue Checkouts</div>3 guests past checkout time.</div>
+          <div class="light-insight li-warn"><div class="t" style="color:#9a6a08;">📊 High No-Show Rate</div>18% no-shows in 30 days.</div>
+        </div>
+      </div>
+    </div>
+    <div class="option-label-bar">
+      <div>
+        <div class="option-name">Icons-only sidebar (no labels) + hairline header</div>
+        <div class="option-note">Narrowest possible — maximum content space</div>
+      </div>
+      <button class="choose-chip" onclick="alert('Tell me: Option 3 in chat!')">I want this</button>
+    </div>
+  </div>
+
+  <!-- ═══════════ OPTION 4: FULLY FLOATING (Apple / Notion style) ═══════════ -->
+  <div class="option" style="background:linear-gradient(135deg,#f4f3f1,#ede8e0);">
+    <div class="option-badge">4 — Most modern</div>
+    <div class="opt4-layout" style="flex:1;">
+      <div class="opt4-sidebar">
+        <div class="opt4-brand">DM</div>
+        <div class="nav-labels" style="gap:2px;">
+          <div class="opt4-navitem active"><div class="icon">⊞</div><div>Dashboard</div></div>
+          <div class="opt4-navitem"><div class="icon">🛎</div><div>Check-in</div></div>
+          <div class="opt4-navitem"><div class="icon">👥</div><div>Guests</div></div>
+          <div class="opt4-navitem"><div class="icon">📅</div><div>Bookings</div></div>
+          <div class="opt4-navitem"><div class="icon">💰</div><div>Money</div></div>
+        </div>
+      </div>
+      <div class="opt4-main">
+        <div class="opt4-header">
+          <div class="opt4-title"><small>FRONT DESK</small>Dashboard</div>
+          <div class="opt4-icons">
+            <div class="opt4-icon">🔔</div>
+            <div class="opt4-icon">हि</div>
+            <div class="opt4-icon" style="background:#0b1526;color:#c09a2e;font-weight:800;font-size:9px;">SG</div>
+          </div>
+        </div>
+        <div class="opt4-content light-content">
+          <div class="light-stat-row">
+            <div class="light-stat" style="background:rgba(255,255,255,0.7);backdrop-filter:blur(8px);"><div class="n" style="color:#0b1526;">13</div><div class="l">Total</div></div>
+            <div class="light-stat" style="background:rgba(255,255,255,0.7);backdrop-filter:blur(8px);"><div class="n" style="color:#b3362c;">5</div><div class="l">Booked</div></div>
+            <div class="light-stat" style="background:rgba(255,255,255,0.7);backdrop-filter:blur(8px);"><div class="n" style="color:#1a7f4e;">7</div><div class="l">Available</div></div>
+          </div>
+          <div class="light-insight li-danger" style="background:rgba(251,228,225,0.7);backdrop-filter:blur(8px);"><div class="t" style="color:#b3362c;">⚠️ Overdue Checkouts</div>3 guests past checkout time.</div>
+          <div class="light-insight li-warn" style="background:rgba(251,240,211,0.7);backdrop-filter:blur(8px);"><div class="t" style="color:#9a6a08;">📊 High No-Show Rate</div>18% no-shows in 30 days.</div>
+        </div>
+      </div>
+    </div>
+    <div class="option-label-bar" style="background:rgba(255,255,255,0.5);">
+      <div>
+        <div class="option-name">Fully floating — no sidebar/header background</div>
+        <div class="option-note">Everything transparent — only icons, text & icons visible</div>
+      </div>
+      <button class="choose-chip" onclick="alert('Tell me: Option 4 in chat!')">I want this</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Bottom instruction -->
+<div style="background:#0b1526;padding:20px 24px;text-align:center;position:sticky;bottom:0;">
+  <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-bottom:6px;">See all 4 options above. The dashboard content (stats, charts) stays the same in all options.</div>
+  <div style="font-size:15px;font-weight:700;color:#c09a2e;">Just tell me in chat: "I want Option 1 / 2 / 3 / 4"</div>
+</div>
+
+</body>
+</html>

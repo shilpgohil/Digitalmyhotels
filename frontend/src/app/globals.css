@@ -168,7 +168,8 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply text-foreground antialiased;
+    background: radial-gradient(ellipse at 25% 0%, #efebe3 0%, var(--background) 55%);
     font-feature-settings: 'cv01', 'cv02', 'cv11', 'ss01';
     text-rendering: optimizeLegibility;
   }
@@ -240,6 +241,36 @@
 }
 
 @layer utilities {
+  /* ── Scroll-edge ghost fade ─────────────────────────────────────────── */
+  /* Applied to scrollable nav containers. Items fade to transparent at the
+     top and bottom edges, giving the "content disappears into chrome" feel
+     used by Linear, Notion, and Apple's sidebars. */
+  .scroll-fade-y {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      rgba(0,0,0,0.6) 5%,
+      black 12%,
+      black 88%,
+      rgba(0,0,0,0.6) 95%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      rgba(0,0,0,0.6) 5%,
+      black 12%,
+      black 88%,
+      rgba(0,0,0,0.6) 95%,
+      transparent 100%
+    );
+  }
+
+  /* ── Ghost border utility ────────────────────────────────────────────── */
+  /* Ultra-subtle border for floating chrome elements (sidebar edges, etc.) */
+  .ghost-border { border: 1px solid rgba(0,0,0,0.055); }
+  .ghost-border-r { border-right: 1px solid rgba(0,0,0,0.055); }
+
   /* ── Named shadow levels ───────────────────────────────────────────── */
   /* Replaces Tailwind's generic shadow-sm with precise multi-layer shadows
      that look like real physical depth (Apple / Linear style).

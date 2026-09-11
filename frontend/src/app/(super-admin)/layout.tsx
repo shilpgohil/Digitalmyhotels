@@ -14,7 +14,7 @@ export default function SuperAdminLayout({ children }: { readonly children: Reac
       >
         Skip to main content
       </a>
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex h-screen overflow-hidden bg-gradient-to-br from-[#efebe3]/60 via-background to-background">
         {/* w-60 here so AdminSidebar (now w-full) fills exactly 240px on desktop */}
         <div className="hidden lg:block w-60 shrink-0">
           <AdminSidebar />

@@ -222,7 +222,7 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
   const { can } = useAuth();
 
   return (
-    <nav className="overflow-y-auto px-3 pb-4" aria-label="Main">
+    <nav className="scroll-fade-y overflow-y-auto px-3 pb-4" aria-label="Main">
       {SECTIONS.map((section) => {
         const visible = section.items.filter(
           (item) => !item.permission || can(item.permission),
@@ -230,7 +230,7 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
         if (visible.length === 0) return null;
         return (
           <div key={section.labelKey} className="mt-4 first:mt-0">
-            <p className="px-2 pb-1 text-micro font-semibold tracking-widest uppercase opacity-60">
+            <p className="px-2 pb-1 text-micro font-semibold tracking-widest uppercase text-muted-foreground/60">
               {t(section.labelKey)}
             </p>
             <ul className="space-y-0.5">
@@ -246,10 +246,10 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
                       aria-current={active ? "page" : undefined}
                       onClick={onNavigate}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-all duration-180",
+                        "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-all duration-200",
                         active
-                          ? "border-l-2 border-gold-400 bg-white/[0.07] pl-[9px] font-medium text-white"
-                          : "hover:bg-white/[0.05] hover:text-white",
+                          ? "border-l-[2px] border-gold-500 bg-gold-50/70 pl-[9px] font-semibold text-gold-800 shadow-[inset_0_0_0_1px_rgba(192,154,46,0.12)]"
+                          : "hover:bg-foreground/[0.05] hover:text-foreground",
                       )}
                     >
                       <Icon className="size-4 shrink-0" aria-hidden />
@@ -333,8 +333,8 @@ export function PartnerBrand() {
         )}
       </div>
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-white">{hotelName}</p>
-        <p className="truncate text-micro tracking-widest uppercase">
+        <p className="truncate text-sm font-semibold text-foreground">{hotelName}</p>
+        <p className="truncate text-micro tracking-widest uppercase text-muted-foreground">
           Front Desk Suite
         </p>
       </div>
@@ -352,7 +352,7 @@ export function PartnerSidebar() {
 
   return (
     <aside
-      className="flex h-full w-full flex-col bg-gradient-to-b from-[#0c1628] to-[#091220] text-sidebar-foreground"
+      className="flex h-full w-full flex-col bg-transparent text-foreground shadow-[1px_0_20px_rgba(0,0,0,0.05)] border-r border-black/[0.06]"
       data-tour="sidebar"
     >
       {/* Brand */}
@@ -379,21 +379,21 @@ export function PartnerSidebar() {
       )}
 
       {/* User footer */}
-      <div className="border-t border-sidebar-border px-5 py-4">
+      <div className="border-t border-border/30 px-5 py-4">
         <div className="flex items-center gap-2.5">
-          <UserRound className="size-4 shrink-0 opacity-70" aria-hidden />
+          <UserRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           <div className="min-w-0">
-            <p className="text-micro uppercase tracking-wider opacity-60">
+            <p className="text-micro uppercase tracking-wider text-muted-foreground/70">
               {t("loggedInAs")}
             </p>
-            <p className="truncate text-sm font-medium text-white">{user?.full_name}</p>
+            <p className="truncate text-sm font-semibold text-foreground">{user?.full_name}</p>
             {roleName && (
-              <p className="truncate text-xs opacity-70">{roleName}</p>
+              <p className="truncate text-xs text-muted-foreground">{roleName}</p>
             )}
           </div>
         </div>
         {/* Powered by DMH badge */}
-        <div className="mt-3 flex items-center gap-1.5 opacity-40">
+        <div className="mt-3 flex items-center gap-1.5 opacity-30">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/dmh-icon.png"
@@ -401,10 +401,10 @@ export function PartnerSidebar() {
             width={14}
             height={14}
             className="size-3.5 select-none object-contain"
-            style={{ filter: "brightness(0) invert(1)" }}
+            style={{ filter: "brightness(0)" }}
             draggable={false}
           />
-          <p className="text-micro tracking-widest uppercase font-medium text-sidebar-foreground">
+          <p className="text-micro tracking-widest uppercase font-medium text-foreground">
             Powered by DigitalMyHotels
           </p>
         </div>

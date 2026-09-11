@@ -70,7 +70,7 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
   }, []);
 
   return (
-    <aside className="flex h-full w-full flex-col border-r border-border/60 bg-background glass-nav">
+    <aside className="flex h-full w-full flex-col border-r border-black/[0.06] bg-background/80 glass-nav shadow-[1px_0_16px_rgba(0,0,0,0.04)]">
       {/* DMH horizontal logo — replaces generic "HotelAdmin" brand mark */}
       <div className="flex items-center justify-start px-5 py-4 border-b border-border/50">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -85,7 +85,7 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
 
       {/* overflow-y-auto only; NO flex-1 — prevents white-space gap on mobile.
           On desktop (lg:h-full on aside) the spacer div pushes footer down. */}
-      <nav className="overflow-y-auto px-3 py-4">
+      <nav className="scroll-fade-y overflow-y-auto px-3 py-4">
         <ul className="space-y-0.5">
           {NAV_ITEMS.map((item) => {
             const active = hrefIsActive(pathname, filter, item.href);
@@ -172,7 +172,7 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
 
 export function AdminSidebar({ onNavigate }: { readonly onNavigate?: () => void }) {
   return (
-    <Suspense fallback={<aside className="h-full w-full border-r border-border/60 bg-background glass-nav" />}>
+    <Suspense fallback={<aside className="h-full w-full border-r border-black/[0.06] bg-background/80 glass-nav" />}>
       <AdminSidebarInner onNavigate={onNavigate} />
     </Suspense>
   );
