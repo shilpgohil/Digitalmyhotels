@@ -141,6 +141,10 @@ class ExpenseSummaryOut(BaseModel):
     month_amount: Decimal
     entries: int
     pending_amount: Decimal = Decimal("0.00")
+    # Per-mode breakdown for the CASH / UPI stat cards (Figma 09/2026).
+    # Committed (approved+paid) only; respects the optional date window.
+    cash_amount: Decimal = Decimal("0.00")
+    upi_amount: Decimal = Decimal("0.00")
 
 
 class RecurringExpenseOut(ORMModel):

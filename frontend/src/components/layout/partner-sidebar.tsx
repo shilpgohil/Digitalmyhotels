@@ -26,7 +26,6 @@ import {
   ArrowLeftRight,
   ScrollText,
   UtensilsCrossed,
-  ReceiptText,
   Landmark,
   Building2,
 } from "lucide-react";
@@ -147,12 +146,6 @@ const SECTIONS: NavSection[] = [
         labelKey: "gstTax",
         icon: Landmark,
         permission: PERMISSIONS.financialReports,
-      },
-      {
-        href: "/invoice-preview",
-        labelKey: "invoicePreview",
-        icon: ReceiptText,
-        permission: PERMISSIONS.invoicesManage,
       },
       {
         href: "/invoices",

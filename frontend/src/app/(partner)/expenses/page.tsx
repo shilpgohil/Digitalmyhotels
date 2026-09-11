@@ -241,8 +241,8 @@ function ExpensesContent() {
           ))}
         </div>
 
-        {/* Stat cards */}
-        <StatCardGrid className="mb-4">
+        {/* Stat cards — 6 per Figma: Total / Pending / Month / Cash / UPI / Entries */}
+        <StatCardGrid className="mb-4" cols={6}>
           <StatCard
             label={t("statTotal")}
             value={fmtINR(summary.data?.total_amount ?? 0)}
@@ -265,6 +265,23 @@ function ExpensesContent() {
             subtitle="This Month"
             icon={CalendarRange}
             tone="gold"
+            isLoading={summary.isLoading}
+          />
+          {/* CASH / UPI breakdown — client Figma 09/2026 */}
+          <StatCard
+            label={t("mode_cash")}
+            value={fmtINR(summary.data?.cash_amount ?? 0)}
+            subtitle="Paid by Cash"
+            icon={Wallet}
+            tone="gold"
+            isLoading={summary.isLoading}
+          />
+          <StatCard
+            label={t("mode_upi")}
+            value={fmtINR(summary.data?.upi_amount ?? 0)}
+            subtitle="Paid by UPI"
+            icon={Wallet}
+            tone="info"
             isLoading={summary.isLoading}
           />
           <StatCard

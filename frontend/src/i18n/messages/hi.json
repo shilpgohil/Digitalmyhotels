@@ -401,7 +401,13 @@
     "fgVisa": "वीज़ा",
     "fgArrival": "भारत आगमन तिथि",
     "fgFrom": "किससे आ रहे हैं",
-    "fgNext": "अगला गंतव्य"
+    "fgNext": "अगला गंतव्य",
+    "reverseCheckout": "चेकआउट उलटें",
+    "reverseCheckoutHint": "यह बुकिंग को 'चेक इन' स्थिति में वापस लाएगा और कमरा फिर से अधिग्रहित हो जाएगा। केवल वास्तविक डेटा सुधार के लिए उपयोग करें। यह कार्रवाई ऑडिट होती है।",
+    "reverseReason": "कारण (आवश्यक)",
+    "reverseReasonPlaceholder": "जैसे: अतिथि वापस आया, गलत कमरे का चेकआउट…",
+    "confirmReversal": "उलटने की पुष्टि करें",
+    "checkoutReversed": "चेकआउट उलट दिया गया — कमरा अब फिर से अधिग्रहित है"
   },
   "guestPicker": {
     "searchByPhone": "फ़ोन नंबर (पूरा या आंशिक)",
@@ -510,7 +516,10 @@
     "registeredGuestsLabel": "पंजीकृत अतिथि और आईडी दस्तावेज़",
     "primaryGuestLabel": "प्राथमिक",
     "idProofLabel": "आईडी प्रमाण",
-    "addressLabel": "पता"
+    "addressLabel": "पता",
+    "paymentHistory": "भुगतान इतिहास",
+    "totalPaid": "कुल भुगतान",
+    "noPaymentsYet": "अभी तक कोई भुगतान दर्ज नहीं"
   },
   "settings": {
     "title": "सेटिंग्स",

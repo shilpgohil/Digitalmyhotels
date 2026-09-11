@@ -380,9 +380,15 @@ function StayDetailDialog({
   const payments = useQuery({
     queryKey: ["payments", entry?.booking_id, "stay-dialog"],
     queryFn: () =>
-      api<{ items: { method: string; status: string }[] }>(
-        `/api/v1/payments?booking_id=${entry?.booking_id}&limit=10`,
-      ),
+      api<{
+        items: {
+          method: string;
+          status: string;
+          amount: string;
+          purpose: string;
+          created_at: string;
+        }[];
+      }>(`/api/v1/payments?booking_id=${entry?.booking_id}&limit=50`),
     enabled: !!entry,
   });
   const latestMethod =
@@ -410,6 +416,48 @@ function StayDetailDialog({
       .filter((r) => r.is_current)
       .map((r) => `${r.room_number} (${r.room_type_name})`)
       .join(", ");
+
+    // Payment history block — every completed payment with date/purpose/
+    // method/amount, plus a Total Paid row (client 09/2026: the card needed
+    // "more details about each payment").
+    const payList = (payments.data?.items ?? []).filter(
+      (p) => p.status === "completed",
+    );
+    const totalPaid = payList.reduce(
+      (sum, p) => sum + (Number.parseFloat(p.amount) || 0),
+      0,
+    );
+    // Purpose enum → readable label (money.purpose_* i18n keys).
+    const purposeLabel = (purpose: string): string => {
+      const known = ["advance", "stay", "deposit", "charge", "other"];
+      return known.includes(purpose) ? tm(`purpose_${purpose}`) : purpose;
+    };
+    const paymentRows = payList
+      .map(
+        (p) => `<tr>
+          <td>${new Date(p.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" })}</td>
+          <td>${purposeLabel(p.purpose)}</td>
+          <td>${methodLabel(p.method)}</td>
+          <td style="text-align:right">${fmtINR(p.amount)}</td>
+        </tr>`,
+      )
+      .join("");
+    const paymentsBlock = payList.length
+      ? `<h2 style="font-size:15px;margin-top:24px">${t("paymentHistory")}</h2>
+        <table>
+          <tr>
+            <td style="color:#666">${tb("dates")}</td>
+            <td style="color:#666">${tm("purpose")}</td>
+            <td style="color:#666">${tm("method")}</td>
+            <td style="color:#666;text-align:right">${tm("amount")}</td>
+          </tr>
+          ${paymentRows}
+          <tr>
+            <td colspan="3" style="font-weight:bold">${t("totalPaid")}</td>
+            <td style="font-weight:bold;text-align:right">${fmtINR(totalPaid)}</td>
+          </tr>
+        </table>`
+      : `<p style="font-size:12px;color:#666;margin-top:16px">${t("noPaymentsYet")}</p>`;
     win.document.write(`<!doctype html><html><head><title>${b.booking_number}</title>
       <style>
         body{font-family:Georgia,serif;margin:40px;color:#111}
@@ -423,6 +471,7 @@ function StayDetailDialog({
       <h1>${t("registrationCard")} — ${b.booking_number}</h1>
       <table>
         <tr><td>${tb("guest")}</td><td>${b.primary_guest_name ?? ""}</td></tr>
+        ${b.primary_guest_phone ? `<tr><td>${t("contactNumber")}</td><td>${b.primary_guest_phone}</td></tr>` : ""}
         <tr><td>${tb("roomsCol")}</td><td>${rooms}</td></tr>
         ${
           isDayUseWithTimes(b)
@@ -437,10 +486,12 @@ function StayDetailDialog({
         ${b.vehicle_number ? `<tr><td>${t("vehicleDetails")}</td><td>${b.vehicle_number} · ${b.vehicle_type ?? ""} · ${b.parking_slot ?? ""}</td></tr>` : ""}
         ${b.special_requests ? `<tr><td>${tb("specialRequests")}</td><td>${b.special_requests}</td></tr>` : ""}
       </table>
+      ${paymentsBlock}
       <div class="sign"><div>${t("guestSignature")}</div><div>${t("frontDeskSignature")}</div></div>
       <script>window.print()</script></body></html>`);
     win.document.close();
-  }, [booking.data, entry, t, tb]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booking.data, entry, payments.data, t, tb, tm]);
 
   // Row "Print" action: fire the registration print as soon as the booking
   // detail is available — once per opened entry.
@@ -451,10 +502,13 @@ function StayDetailDialog({
       return;
     }
     if (!autoPrint || !booking.data) return;
+    // Wait for the payment history too — otherwise the auto-print fires with
+    // an empty Payments section (client 09/2026: card printed without them).
+    if (!payments.isSuccess && !payments.isError) return;
     if (printedForRef.current === entry.booking_id) return;
     printedForRef.current = entry.booking_id;
     printRegistration();
-  }, [autoPrint, booking.data, entry, printRegistration]);
+  }, [autoPrint, booking.data, entry, payments.isSuccess, payments.isError, printRegistration]);
 
   const b = booking.data;
 
@@ -739,14 +793,14 @@ function EditStayDialog({
 
   return (
     <Dialog open={entry !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             {t("editStayTitle")} — {entry?.booking_number}
           </DialogTitle>
         </DialogHeader>
         {(booking.isLoading || (!!booking.data && !guestSettled)) && (
-          <Skeleton className="h-64" />
+          <Skeleton className="h-96" />
         )}
         {booking.data && entry && guestSettled && (
           <EditStayForm
@@ -790,6 +844,18 @@ function EditStayForm({
   const [specialRequests, setSpecialRequests] = useState(
     booking.special_requests ?? "",
   );
+
+  // ── Emergency contact + vehicle (PATCH /api/v1/bookings/{id}) ──
+  // These are the remaining booking fields the backend allows editing on an
+  // in-house stay (client 09/2026: Edit Stay must be the detailed version).
+  const [emName, setEmName] = useState(booking.emergency_contact_name ?? "");
+  const [emRelation, setEmRelation] = useState(
+    booking.emergency_contact_relation ?? "",
+  );
+  const [emPhone, setEmPhone] = useState(booking.emergency_contact_phone ?? "");
+  const [vehNumber, setVehNumber] = useState(booking.vehicle_number ?? "");
+  const [vehType, setVehType] = useState(booking.vehicle_type ?? "");
+  const [parkingSlot, setParkingSlot] = useState(booking.parking_slot ?? "");
 
   // ── Primary guest details (PATCH /api/v1/guests/{id}) ──
   const [guestName, setGuestName] = useState(guest?.full_name ?? "");
@@ -855,6 +921,22 @@ function EditStayForm({
     if (requests !== (booking.special_requests ?? "")) {
       patch.special_requests = requests || null;
     }
+
+    // Emergency contact + vehicle — diff-based, null clears a field.
+    const diffField = (key: string, next: string, prev: string | null) => {
+      const trimmed = next.trim();
+      if (trimmed !== (prev ?? "")) patch[key] = trimmed || null;
+    };
+    diffField("emergency_contact_name", emName, booking.emergency_contact_name);
+    diffField(
+      "emergency_contact_relation",
+      emRelation,
+      booking.emergency_contact_relation,
+    );
+    diffField("emergency_contact_phone", emPhone, booking.emergency_contact_phone);
+    diffField("vehicle_number", vehNumber, booking.vehicle_number);
+    diffField("vehicle_type", vehType, booking.vehicle_type);
+    diffField("parking_slot", parkingSlot, booking.parking_slot);
 
     // Only changed guest fields are sent (GuestUpdate uses exclude_unset).
     const guestPatch: Record<string, unknown> = {};
@@ -937,6 +1019,75 @@ function EditStayForm({
             value={specialRequests}
             onChange={(e) => setSpecialRequests(e.target.value)}
           />
+        </div>
+      </div>
+
+      {/* ── Emergency contact ── */}
+      <div className="space-y-3 border-t pt-3">
+        <p className="text-sm font-semibold">{t("emergencyContact")}</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="es-em-name">{t("contactName")}</Label>
+            <Input
+              id="es-em-name"
+              maxLength={200}
+              value={emName}
+              onChange={(e) => setEmName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="es-em-relation">{t("contactRelation")}</Label>
+            <Input
+              id="es-em-relation"
+              maxLength={100}
+              value={emRelation}
+              onChange={(e) => setEmRelation(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="es-em-phone">{t("contactPhone")}</Label>
+            <Input
+              id="es-em-phone"
+              type="tel"
+              maxLength={32}
+              value={emPhone}
+              onChange={(e) => setEmPhone(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Vehicle & parking ── */}
+      <div className="space-y-3 border-t pt-3">
+        <p className="text-sm font-semibold">{t("vehicleDetails")}</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="es-veh-number">{t("vehicleNumber")}</Label>
+            <Input
+              id="es-veh-number"
+              maxLength={32}
+              value={vehNumber}
+              onChange={(e) => setVehNumber(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="es-veh-type">{t("vehicleType")}</Label>
+            <Input
+              id="es-veh-type"
+              maxLength={40}
+              value={vehType}
+              onChange={(e) => setVehType(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="es-parking">{t("parkingSlot")}</Label>
+            <Input
+              id="es-parking"
+              maxLength={40}
+              value={parkingSlot}
+              onChange={(e) => setParkingSlot(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 

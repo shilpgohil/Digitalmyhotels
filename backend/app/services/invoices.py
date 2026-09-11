@@ -307,10 +307,40 @@ async def cancel_invoice(
 async def render_invoice_pdf(
     db: AsyncSession, tenant: TenantContext, invoice_id: UUID
 ) -> bytes:
+    """Render the ONE proper invoice design (matches the /invoices preview card):
+    navy header band, Billed To / Stay Details columns, Description|Amount
+    items, and Subtotal / GST / Advance Paid / TOTAL DUE summary.
+    """
     invoice = await get_invoice(db, tenant, invoice_id)
     hotel = await db.get(Hotel, tenant.require_hotel())
     gst = await get_or_create_gst_settings(db, tenant.require_hotel())
     booking = await db.get(Booking, invoice.booking_id)
+
+    # Current rooms (number + type) and guest phone for the Stay/Billed blocks.
+    from app.models.booking import BookingRoom
+
+    rooms_label = ""
+    guest_phone = ""
+    if booking:
+        room_rows = (
+            (
+                await db.execute(
+                    select(Room.room_number)
+                    .join(BookingRoom, BookingRoom.room_id == Room.id)
+                    .where(
+                        BookingRoom.booking_id == booking.id,
+                        BookingRoom.is_current.is_(True),
+                    )
+                    .order_by(Room.room_number)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        rooms_label = ", ".join(room_rows)
+        if booking.primary_guest_id:
+            guest = await db.get(Guest, booking.primary_guest_id)
+            guest_phone = guest.normalized_phone if guest else ""
 
     from fpdf import FPDF
 
@@ -318,76 +348,151 @@ async def render_invoice_pdf(
         # Core PDF fonts are Latin-1 only; degrade unsupported characters.
         return text.encode("latin-1", errors="replace").decode("latin-1")
 
+    def inr(value: object) -> str:
+        return f"Rs. {value}"
+
+    NAVY = (14, 26, 51)
+    MUTED = (110, 120, 138)
+    INK = (17, 24, 39)
+    GOLD = (161, 128, 47)
+    RULE = (226, 230, 236)
+
     pdf = FPDF(format="A4")
     pdf.set_auto_page_break(auto=True, margin=18)
     pdf.add_page()
 
-    # Header
+    # ── Navy header band ──
+    pdf.set_fill_color(*NAVY)
+    pdf.rect(0, 0, 210, 40, style="F")
+    pdf.set_xy(14, 10)
     pdf.set_font("helvetica", "B", 16)
-    pdf.set_text_color(11, 21, 38)
-    pdf.cell(0, 9, latin1(hotel.name if hotel else "Hotel"), new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("helvetica", "", 9)
-    pdf.set_text_color(90, 103, 120)
-    address_bits = [b for b in [hotel.address_line1, hotel.city, hotel.state] if b] if hotel else []
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(120, 8, latin1(hotel.name if hotel else "Hotel"), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "", 8)
+    pdf.set_text_color(196, 204, 218)
+    address_bits = (
+        [b for b in [hotel.address_line1, hotel.city, hotel.state] if b] if hotel else []
+    )
     if address_bits:
-        pdf.cell(0, 5, latin1(", ".join(address_bits)), new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(120, 4.5, latin1(", ".join(address_bits)), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_x(14)
     if gst.is_gst_registered and gst.gstin:
-        pdf.cell(0, 5, f"GSTIN: {gst.gstin}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(4)
+        pdf.cell(120, 4.5, f"GSTIN: {gst.gstin}", new_x="LMARGIN", new_y="NEXT")
 
-    pdf.set_font("helvetica", "B", 13)
-    pdf.set_text_color(11, 21, 38)
-    title = "TAX INVOICE" if gst.is_gst_registered else "INVOICE"
+    # Right side: invoice number + date
+    pdf.set_xy(120, 10)
+    pdf.set_font("helvetica", "B", 7)
+    pdf.set_text_color(170, 180, 200)
+    label = "INVOICE NO."
     if invoice.status == "cancelled":
-        title += " (CANCELLED)"
-    pdf.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
+        label = "INVOICE NO. (CANCELLED)"
+    pdf.cell(76, 4, label, align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_xy(120, 15)
+    pdf.set_font("helvetica", "B", 11)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(76, 6, invoice.invoice_number, align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_xy(120, 22)
+    pdf.set_font("helvetica", "", 9)
+    pdf.set_text_color(196, 204, 218)
+    pdf.cell(76, 5, invoice.invoice_date.strftime("%d/%m/%Y"), align="R")
+
+    # ── Billed To / Stay Details ──
+    pdf.set_xy(14, 50)
+    pdf.set_font("helvetica", "B", 7)
+    pdf.set_text_color(*MUTED)
+    pdf.cell(90, 4, "BILLED TO")
+    pdf.cell(90, 4, "STAY DETAILS", new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "B", 10)
+    pdf.set_text_color(*INK)
+    pdf.cell(90, 5.5, latin1(invoice.guest_name))
+    pdf.set_font("helvetica", "", 9)
+    pdf.cell(90, 5.5, latin1(rooms_label or "-"), new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "", 9)
+    pdf.set_text_color(*MUTED)
+    stay_dates = ""
+    if booking:
+        cin = booking.check_in_date.strftime("%d/%m/%Y")
+        cout = booking.check_out_date.strftime("%d/%m/%Y")
+        cin_t = f", {booking.check_in_time}" if booking.check_in_time else ""
+        cout_t = f", {booking.check_out_time}" if booking.check_out_time else ""
+        stay_dates = f"{cin}{cin_t} -> {cout}{cout_t}"
+    pdf.cell(90, 5, latin1(guest_phone))
+    pdf.cell(90, 5, latin1(stay_dates), new_x="LMARGIN", new_y="NEXT")
+    if invoice.guest_address:
+        pdf.set_x(14)
+        pdf.cell(90, 5, latin1(invoice.guest_address[:60]), new_x="LMARGIN", new_y="NEXT")
+    if booking:
+        pdf.set_x(14)
+        pdf.cell(90, 5, "")
+        pdf.cell(90, 5, f"Booking: {booking.booking_number}", new_x="LMARGIN", new_y="NEXT")
+
+    pdf.ln(6)
+
+    # ── Line items: DESCRIPTION | AMOUNT ──
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "B", 7)
+    pdf.set_text_color(*MUTED)
+    pdf.cell(140, 6, "DESCRIPTION")
+    pdf.cell(42, 6, "AMOUNT", align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_draw_color(*RULE)
+    pdf.line(14, pdf.get_y(), 196, pdf.get_y())
 
     pdf.set_font("helvetica", "", 10)
-    pdf.cell(0, 6, f"Invoice No: {invoice.invoice_number}", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 6, f"Date: {invoice.invoice_date.isoformat()}", new_x="LMARGIN", new_y="NEXT")
-    if booking:
-        pdf.cell(0, 6, f"Booking: {booking.booking_number}", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 6, latin1(f"Guest: {invoice.guest_name}"), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(*INK)
+    for item in invoice.items:
+        desc = item.description
+        if item.quantity > 1:
+            desc = f"{desc} x {item.quantity}"
+        pdf.set_x(14)
+        pdf.cell(140, 8, latin1(desc[:80]))
+        pdf.cell(42, 8, latin1(inr(item.total_amount)), align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.line(14, pdf.get_y(), 196, pdf.get_y())
+
     pdf.ln(4)
 
-    # Items table
-    col_widths = (86, 16, 24, 24, 20, 24)
-    headers = ("Description", "Qty", "Rate", "Taxable", "Tax", "Total")
-    pdf.set_font("helvetica", "B", 9)
-    pdf.set_fill_color(11, 21, 38)
-    pdf.set_text_color(255, 255, 255)
-    for width, header in zip(col_widths, headers, strict=False):
-        pdf.cell(width, 7, header, border=1, fill=True, align="C")
-    pdf.ln()
-    pdf.set_font("helvetica", "", 9)
-    pdf.set_text_color(20, 20, 20)
-    for item in invoice.items:
-        pdf.cell(col_widths[0], 7, latin1(item.description[:52]), border=1)
-        pdf.cell(col_widths[1], 7, str(item.quantity), border=1, align="C")
-        pdf.cell(col_widths[2], 7, f"{item.rate}", border=1, align="R")
-        pdf.cell(col_widths[3], 7, f"{item.taxable_amount}", border=1, align="R")
-        pdf.cell(col_widths[4], 7, f"{item.tax_amount}", border=1, align="R")
-        pdf.cell(col_widths[5], 7, f"{item.total_amount}", border=1, align="R")
-        pdf.ln()
-
-    pdf.ln(3)
-
-    def summary_row(label: str, value: str, *, bold: bool = False) -> None:
+    # ── Summary (right-aligned block) ──
+    def summary_row(
+        label: str,
+        value: str,
+        *,
+        bold: bool = False,
+        color: tuple[int, int, int] | None = None,
+    ) -> None:
+        pdf.set_x(110)
         pdf.set_font("helvetica", "B" if bold else "", 10)
-        pdf.cell(140, 6, label, align="R")
-        pdf.cell(50, 6, value, align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(*(color or MUTED))
+        pdf.cell(50, 6.5, label)
+        pdf.set_text_color(*(color or INK))
+        pdf.cell(36, 6.5, latin1(value), align="R", new_x="LMARGIN", new_y="NEXT")
 
-    summary_row("Subtotal", f"{invoice.subtotal}")
+    gst_total = invoice.cgst_amount + invoice.sgst_amount + invoice.igst_amount
+    summary_row("Subtotal", inr(invoice.subtotal))
+    summary_row("GST", inr(gst_total))
     if invoice.discount_amount > 0:
-        summary_row("Discount", f"-{invoice.discount_amount}")
-    if invoice.cgst_amount > 0:
-        summary_row("CGST", f"{invoice.cgst_amount}")
-        summary_row("SGST", f"{invoice.sgst_amount}")
-    if invoice.igst_amount > 0:
-        summary_row("IGST", f"{invoice.igst_amount}")
-    summary_row("Total", f"INR {invoice.total_amount}", bold=True)
-    summary_row("Paid", f"{invoice.paid_amount}")
-    summary_row("Due", f"{invoice.due_amount}", bold=True)
+        summary_row("Discount", f"-{inr(invoice.discount_amount)}")
+    if invoice.paid_amount > 0:
+        summary_row("Advance Paid", f"-{inr(invoice.paid_amount)}", color=GOLD)
+    pdf.set_draw_color(*RULE)
+    pdf.line(110, pdf.get_y() + 1, 196, pdf.get_y() + 1)
+    pdf.ln(2)
+    pdf.set_x(110)
+    pdf.set_font("helvetica", "B", 9)
+    pdf.set_text_color(*INK)
+    pdf.cell(50, 9, "TOTAL DUE")
+    pdf.set_font("helvetica", "B", 14)
+    pdf.cell(36, 9, latin1(inr(invoice.due_amount)), align="R", new_x="LMARGIN", new_y="NEXT")
+
+    if invoice.status == "cancelled":
+        pdf.ln(4)
+        pdf.set_x(14)
+        pdf.set_font("helvetica", "B", 10)
+        pdf.set_text_color(190, 40, 40)
+        pdf.cell(0, 6, "THIS INVOICE HAS BEEN CANCELLED", new_x="LMARGIN", new_y="NEXT")
 
     return bytes(pdf.output())
 

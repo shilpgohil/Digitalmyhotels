@@ -198,6 +198,14 @@ async def expense_summary(
 
     total_amount = await db.scalar(ranged_committed)
 
+    # Per-mode breakdown (CASH / UPI stat cards — Figma 09/2026).
+    cash_amount = await db.scalar(
+        ranged_committed.where(Expense.payment_method == "cash")
+    )
+    upi_amount = await db.scalar(
+        ranged_committed.where(Expense.payment_method == "upi")
+    )
+
     today_amount = await db.scalar(
         base_committed.where(Expense.expense_date == today)
     )
@@ -233,6 +241,8 @@ async def expense_summary(
         "month_amount": month_amount or 0,
         "entries": entries or 0,
         "pending_amount": pending_amount or 0,
+        "cash_amount": cash_amount or 0,
+        "upi_amount": upi_amount or 0,
     }
 
 

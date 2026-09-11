@@ -122,6 +122,8 @@ export interface ExpenseSummaryOut {
   month_amount: string;    // APPROVED + PAID for this month
   entries: number;
   pending_amount: string;  // SUBMITTED (awaiting approval) — shown separately
+  cash_amount: string;     // committed, paid by cash (Figma CASH card)
+  upi_amount: string;      // committed, paid by UPI (Figma UPI card)
 }
 
 export interface RecurringExpenseOut {

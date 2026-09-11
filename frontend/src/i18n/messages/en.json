@@ -401,7 +401,13 @@
     "fgVisa": "Visa",
     "fgArrival": "Arrived India On",
     "fgFrom": "Coming From",
-    "fgNext": "Next Destination"
+    "fgNext": "Next Destination",
+    "reverseCheckout": "Reverse checkout",
+    "reverseCheckoutHint": "This re-opens the booking to 'checked in' and makes the room occupied again. Use only for genuine data corrections. This action is audited.",
+    "reverseReason": "Reason (required)",
+    "reverseReasonPlaceholder": "e.g. Guest returned, wrong room checked out…",
+    "confirmReversal": "Confirm reversal",
+    "checkoutReversed": "Checkout reversed — room is now occupied again"
   },
   "guestPicker": {
     "searchByPhone": "Phone number (full or partial)",
@@ -510,7 +516,10 @@
     "registeredGuestsLabel": "Registered Guests & ID Documents",
     "primaryGuestLabel": "Primary",
     "idProofLabel": "ID Proof",
-    "addressLabel": "Address"
+    "addressLabel": "Address",
+    "paymentHistory": "Payment History",
+    "totalPaid": "Total Paid",
+    "noPaymentsYet": "No payments recorded yet"
   },
   "money": {
     "paymentsTitle": "Payment Details",

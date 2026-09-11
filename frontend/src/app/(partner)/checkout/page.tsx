@@ -366,11 +366,18 @@ function CheckoutContent() {
 
   // Deep link: auto-select the booking once the in-house guest list loads,
   // then strip the param so back-navigation doesn't re-trigger it.
+  // Reads the URL again at EFFECT time (not just the render-time initializer)
+  // — client-side navigations can commit the URL after the first render,
+  // which made the deep link intermittently miss (client 09/2026).
   useEffect(() => {
-    if (!deepLinkId || entry || !guests.data) return;
-    const found = guests.data.items.find((g) => g.booking_id === deepLinkId);
+    if (entry || !guests.data) return;
+    const urlId =
+      deepLinkId ??
+      new URLSearchParams(window.location.search).get("booking");
+    if (!urlId) return;
+    const found = guests.data.items.find((g) => g.booking_id === urlId);
     if (found) {
-      setSelectedId(deepLinkId);
+      setSelectedId(urlId);
       setEntry(found);
     }
     setDeepLinkId(null);
@@ -380,7 +387,7 @@ function CheckoutContent() {
       window.history.replaceState(null, "", url.toString());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deepLinkId, guests.data]);
+  }, [deepLinkId, guests.data, entry]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
