@@ -901,7 +901,9 @@
     "colFloor": "Floor",
     "colOccupiedNights": "Occupied Nights",
     "colOccupancyPct": "Occupancy %",
-    "colRevenue": "Revenue"
+    "colRevenue": "Revenue",
+    "noRoomUtilization": "No room utilization data",
+    "noGstRows": "No GST entries for this period"
   },
   "plan": {
     "title": "Plan & Subscription",

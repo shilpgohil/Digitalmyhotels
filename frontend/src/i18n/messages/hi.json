@@ -901,7 +901,9 @@
     "colFloor": "मंजिल",
     "colOccupiedNights": "भरी रातें",
     "colOccupancyPct": "अधिभोग %",
-    "colRevenue": "राजस्व"
+    "colRevenue": "राजस्व",
+    "noRoomUtilization": "इस अवधि के लिए कोई कमरा उपयोग डेटा नहीं",
+    "noGstRows": "इस अवधि के लिए कोई GST प्रविष्टि नहीं"
   },
   "plan": {
     "title": "योजना और सदस्यता",
