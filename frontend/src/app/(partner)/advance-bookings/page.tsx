@@ -303,7 +303,7 @@ function AdvanceBookingsContent() {
                         <BookingStatusBadge status={booking.status} />
                         {/* Missed arrival: confirmed booking past check-in by ≥ 2h (item 23) */}
                         {isMissedArrival(booking) && (
-                          <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-micro font-semibold text-orange-700">
+                          <span className="inline-flex items-center rounded-full bg-warning-bg px-2 py-0.5 text-micro font-semibold text-warning">
                             Missed arrival
                           </span>
                         )}

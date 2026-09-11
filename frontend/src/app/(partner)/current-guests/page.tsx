@@ -138,7 +138,7 @@ function CurrentGuestsContent() {
         />
         <DataTable
           darkHeader
-          tableClassName="min-w-[960px]"
+          tableClassName="min-w-[800px]"
           isLoading={guests.isLoading}
           isError={guests.isError}
           errorMessage={guests.error instanceof ApiError ? guests.error.message : tc("error")}
@@ -180,31 +180,36 @@ function CurrentGuestsContent() {
                         </span>
                       ))}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="max-w-[120px]">
                       {(() => {
                         const statuses = Array.from(
                           new Set((entry.room_statuses ?? []).filter(Boolean)),
                         );
                         if (statuses.length === 0) return "—";
-                        return statuses.map((status) => (
-                          <StatusBadge
-                            key={status}
-                            tone={ROOM_STATUS_TONE[status] ?? "neutral"}
-                            className="mr-1"
-                          >
-                            {tr(`status_${status}`)}
-                          </StatusBadge>
-                        ));
+                        return (
+                          <div className="flex flex-wrap gap-1">
+                            {statuses.map((status) => (
+                              <StatusBadge
+                                key={status}
+                                tone={ROOM_STATUS_TONE[status] ?? "neutral"}
+                              >
+                                {tr(`status_${status}`)}
+                              </StatusBadge>
+                            ))}
+                          </div>
+                        );
                       })()}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground text-xs">
                       {fmtDateTime(entry.checked_in_at)}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground text-xs">
-                      {fmtDate(entry.check_out_date)}
-                      {entry.check_out_time ? `, ${entry.check_out_time}` : ""}
+                    <TableCell className="text-muted-foreground text-xs">
+                      <span className="whitespace-nowrap">
+                        {fmtDate(entry.check_out_date)}
+                        {entry.check_out_time ? `, ${entry.check_out_time}` : ""}
+                      </span>
                       {isCheckoutOverdue(entry.check_out_date, entry.check_out_time) && (
-                        <StatusBadge tone="danger" className="ml-2">
+                        <StatusBadge tone="danger" className="mt-0.5 block w-fit">
                           {t("overdue")}
                         </StatusBadge>
                       )}
