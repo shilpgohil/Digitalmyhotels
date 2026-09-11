@@ -22,7 +22,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ResponsiveContainer,
@@ -280,6 +280,16 @@ export default function DashboardPage() {
   const { activeHotelId, can, activeRoleCode } = useAuth();
   const showFinanceMetrics = canSeeFinanceMetrics(activeRoleCode);
   const today = localToday();
+
+  // General staff (client 09/2026 staff attendance): no rooms/bookings access
+  // means the dashboard is empty for them — their home is My Attendance.
+  const isAttendanceOnly =
+    !can(PERMISSIONS.roomsView) &&
+    !can(PERMISSIONS.bookingsView) &&
+    can(PERMISSIONS.staffAttendanceSelf);
+  useEffect(() => {
+    if (isAttendanceOnly) router.replace("/my-attendance");
+  }, [isAttendanceOnly, router]);
 
   // ── Queries ─────────────────────────────────────────────────────────────────
   const dash = useQuery({

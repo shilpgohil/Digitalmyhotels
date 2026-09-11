@@ -16,43 +16,74 @@ import {
   BookOpen,
   LayoutDashboard,
   LogIn,
+  UserCheck,
   Users,
   Wallet,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth/auth-context";
+import { PERMISSIONS, type PermissionCode } from "@/lib/permissions";
 
-const TAB_ITEMS = [
+const TAB_ITEMS: readonly {
+  href: string;
+  labelKey: string;
+  icon: typeof LayoutDashboard;
+  permission: PermissionCode | null;
+}[] = [
   {
     href: "/dashboard",
     labelKey: "dashboard",
     icon: LayoutDashboard,
+    permission: null,
   },
   {
     href: "/checkin",
     labelKey: "guestCheckin",  // nav.guestCheckin = "Guest Check-in"
     icon: LogIn,
+    permission: PERMISSIONS.checkin,
   },
   {
     href: "/current-guests",
     labelKey: "currentGuests", // nav.currentGuests = "Current Guests"
     icon: Users,
+    permission: PERMISSIONS.guestsView,
   },
   {
     href: "/advance-bookings",
     labelKey: "advanceBookings", // nav.advanceBookings = "Advance Bookings"
     icon: BookOpen,
+    permission: PERMISSIONS.bookingsView,
   },
   {
     href: "/payments",
     labelKey: "payments",  // nav.payments = "Payment Details"
     icon: Wallet,
+    permission: PERMISSIONS.paymentsView,
   },
 ] as const;
 
 export function PartnerMobileTabBar() {
   const t = useTranslations("nav");
   const pathname = usePathname();
+  const { can } = useAuth();
+
+  // Attendance-only staff (general_staff): their home is My Attendance.
+  const attendanceOnly =
+    !can(PERMISSIONS.roomsView) &&
+    !can(PERMISSIONS.bookingsView) &&
+    can(PERMISSIONS.staffAttendanceSelf);
+
+  const items = attendanceOnly
+    ? [
+        {
+          href: "/my-attendance",
+          labelKey: "myAttendance",
+          icon: UserCheck,
+          permission: null,
+        },
+      ]
+    : TAB_ITEMS.filter((item) => item.permission === null || can(item.permission));
 
   return (
     /* Wrapper — centered pill, mobile only */
@@ -61,7 +92,7 @@ export function PartnerMobileTabBar() {
         className="glass-tabbar-warm rounded-[999px] h-[56px] flex items-center justify-around px-2"
         aria-label="Mobile navigation"
       >
-        {TAB_ITEMS.map(({ href, labelKey, icon: Icon }) => {
+        {items.map(({ href, labelKey, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link
