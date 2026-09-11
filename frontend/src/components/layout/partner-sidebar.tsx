@@ -246,10 +246,10 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
                       aria-current={active ? "page" : undefined}
                       onClick={onNavigate}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
+                        "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-all duration-180",
                         active
-                          ? "bg-sidebar-primary font-medium text-sidebar-primary-foreground"
-                          : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                          ? "border-l-2 border-gold-400 bg-white/[0.07] pl-[9px] font-medium text-white"
+                          : "hover:bg-white/[0.05] hover:text-white",
                       )}
                     >
                       <Icon className="size-4 shrink-0" aria-hidden />
@@ -352,7 +352,7 @@ export function PartnerSidebar() {
 
   return (
     <aside
-      className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground"
+      className="flex h-full w-full flex-col bg-gradient-to-b from-[#0c1628] to-[#091220] text-sidebar-foreground"
       data-tour="sidebar"
     >
       {/* Brand */}
@@ -371,7 +371,7 @@ export function PartnerSidebar() {
           <Link
             href="/plan"
             data-tour="upgrade-plan"
-            className="flex items-center justify-center rounded-md bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 hover:bg-gold-400"
+            className="flex items-center justify-center rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 shadow-surface transition-all duration-180 hover:bg-gold-400 hover:shadow-card"
           >
             {t("upgradePlan")}
           </Link>

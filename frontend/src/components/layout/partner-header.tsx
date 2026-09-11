@@ -163,7 +163,7 @@ export function PartnerHeader({
   };
 
   return (
-    <header className="flex items-center justify-between gap-4 border-b bg-card px-4 py-3 lg:px-6">
+    <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-border/50 glass-nav bg-background/80 px-4 py-3 shadow-surface lg:px-6">
       <MobileNavDrawer />
       <div className="min-w-0">
         {subtitle && (

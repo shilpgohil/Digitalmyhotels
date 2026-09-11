@@ -31,10 +31,10 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        // Removed backdrop-blur-xs — same fix as SheetOverlay:
-        // heavy blur creates a jarring blurry background on all modals.
-        // Clean bg-black/50 overlay is professional and smooth.
-        "fixed inset-0 isolate z-50 bg-black/50 duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        // Light backdrop: softer black (30%) + very subtle blur (3px).
+        // The content behind dialogs softly blurs rather than hard blackout —
+        // Apple HIG 2026 standard. Blur kept minimal (3px) for performance.
+        "fixed inset-0 isolate z-50 bg-black/[0.3] [backdrop-filter:blur(3px)] duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -56,7 +56,9 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Frosted glass dialog: bg-white/92 + backdrop-blur.
+          // rounded-2xl uses the new --radius-2xl (28px) token for premium feel.
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl bg-white/92 [backdrop-filter:blur(20px)_saturate(160%)] p-4 text-sm text-popover-foreground ring-1 ring-foreground/8 shadow-elevated duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}

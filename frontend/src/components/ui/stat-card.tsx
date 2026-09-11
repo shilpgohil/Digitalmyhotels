@@ -33,7 +33,7 @@ const TONE_CLASSES: Record<string, string> = {
   warning: "bg-warning text-white",
   info:    "bg-info text-white",
   // Neutral white surface (for KpiChip-style secondary metrics)
-  white:   "bg-white border border-border text-foreground shadow-sm",
+  white:   "bg-white border border-border/80 text-foreground shadow-card",
   // "Muted" — lighter surface for less prominent metrics
   muted:   "bg-muted text-foreground border border-border",
 };
@@ -96,9 +96,9 @@ export function StatCard({
   onClick,
 }: StatCardProps) {
   const baseClasses = cn(
-    "relative overflow-hidden rounded-lg p-4 transition-all select-none",
+    "relative overflow-hidden rounded-xl p-4 transition-all duration-200 select-none",
     TONE_CLASSES[tone] ?? TONE_CLASSES.navy,
-    (href || onClick) && "cursor-pointer hover:brightness-110 active:scale-[0.98]",
+    (href || onClick) && "cursor-pointer hover:brightness-110 hover:-translate-y-0.5 hover:shadow-elevated active:scale-[0.98] active:translate-y-0",
     active && (ACTIVE_RING[tone] ?? ACTIVE_RING.navy),
     className,
   );

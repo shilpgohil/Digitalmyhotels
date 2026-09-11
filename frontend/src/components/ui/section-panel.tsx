@@ -42,7 +42,7 @@ export function SectionPanel({
   noPadding = false,
 }: SectionPanelProps) {
   return (
-    <div className={cn("rounded-xl border bg-white shadow-sm overflow-hidden", className)}>
+    <div className={cn("rounded-xl border bg-card shadow-card overflow-hidden transition-shadow duration-200", className)}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-5 py-4">
         <div className="flex items-center gap-3 min-w-0">

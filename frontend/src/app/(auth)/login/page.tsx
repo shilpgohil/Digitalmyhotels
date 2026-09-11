@@ -79,7 +79,7 @@ export default function LoginPage() {
   const submitting = form.formState.isSubmitting;
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-[#f0f2f5] px-4">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-stone-100 via-white to-amber-50/40 px-4">
       {/* Locale switcher — top-right */}
       <div className="absolute right-4 top-4">
         <LocaleSwitcher />
@@ -97,7 +97,7 @@ export default function LoginPage() {
       />
 
       {/* Login card */}
-      <div className="w-full max-w-[400px] rounded-2xl bg-white px-8 py-10 shadow-md">
+      <div className="w-full max-w-[400px] rounded-2xl bg-white/90 px-8 py-10 shadow-elevated [backdrop-filter:blur(20px)_saturate(160%)] ring-1 ring-foreground/5">
         {/* Heading */}
         <div className="mb-7 text-center">
           <h1 className="font-display text-2xl font-bold text-foreground">

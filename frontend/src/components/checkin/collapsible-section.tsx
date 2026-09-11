@@ -31,7 +31,7 @@ export function CollapsibleSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+    <div className="rounded-xl border bg-card shadow-card overflow-hidden transition-shadow duration-200">
       <button
         type="button"
         className="flex w-full items-center justify-between px-5 py-4"

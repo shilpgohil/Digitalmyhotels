@@ -82,7 +82,7 @@ export function AdminHeader() {
   };
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-white px-3 lg:px-6 sm:gap-4">
+    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/50 glass-nav bg-white/80 px-3 shadow-surface lg:px-6 sm:gap-4">
       <AdminMobileNav />
       <form onSubmit={handleSearch} className="flex-1 flex justify-center">
         <div className="relative w-full max-w-md">

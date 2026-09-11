@@ -70,9 +70,9 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
   }, []);
 
   return (
-    <aside className="flex h-full w-full flex-col bg-white border-r border-border">
+    <aside className="flex h-full w-full flex-col border-r border-border/60 bg-background glass-nav">
       {/* DMH horizontal logo — replaces generic "HotelAdmin" brand mark */}
-      <div className="flex items-center justify-start px-5 py-4 border-b border-border">
+      <div className="flex items-center justify-start px-5 py-4 border-b border-border/50">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/dmh-logo-horizontal.png"
@@ -98,8 +98,8 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                     active
-                      ? "bg-gold-500 text-navy-900"
-                      : "text-foreground hover:bg-gold-50 hover:text-gold-700",
+                      ? "border-l-2 border-gold-500 bg-gold-50/80 pl-[10px] text-gold-800 font-semibold"
+                      : "text-foreground hover:bg-gold-50/60 hover:text-gold-700",
                   )}
                 >
                   <Icon className="size-4 shrink-0" aria-hidden />
@@ -123,8 +123,8 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
               customersActive
-                ? "bg-gold-500 text-navy-900"
-                : "text-foreground hover:bg-gold-50 hover:text-gold-700",
+                ? "border-l-2 border-gold-500 bg-gold-50/80 pl-[10px] text-gold-800 font-semibold"
+                : "text-foreground hover:bg-gold-50/60 hover:text-gold-700",
             )}
           >
             <Users className="size-4 shrink-0" aria-hidden />
@@ -137,8 +137,8 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
           className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
             plansActive
-              ? "bg-gold-500 text-navy-900"
-              : "text-foreground hover:bg-gold-50 hover:text-gold-700",
+              ? "border-l-2 border-gold-500 bg-gold-50/80 pl-[10px] text-gold-800 font-semibold"
+              : "text-foreground hover:bg-gold-50/60 hover:text-gold-700",
           )}
         >
           <CreditCard className="size-4 shrink-0" aria-hidden />
@@ -150,8 +150,8 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
           className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
             settingsActive
-              ? "bg-gold-500 text-navy-900"
-              : "text-foreground hover:bg-gold-50 hover:text-gold-700",
+              ? "border-l-2 border-gold-500 bg-gold-50/80 pl-[10px] text-gold-800 font-semibold"
+              : "text-foreground hover:bg-gold-50/60 hover:text-gold-700",
           )}
         >
           <Settings className="size-4 shrink-0" aria-hidden />
@@ -172,7 +172,7 @@ function AdminSidebarInner({ onNavigate }: { readonly onNavigate?: () => void })
 
 export function AdminSidebar({ onNavigate }: { readonly onNavigate?: () => void }) {
   return (
-    <Suspense fallback={<aside className="h-full w-full border-r border-border bg-white" />}>
+    <Suspense fallback={<aside className="h-full w-full border-r border-border/60 bg-background glass-nav" />}>
       <AdminSidebarInner onNavigate={onNavigate} />
     </Suspense>
   );
