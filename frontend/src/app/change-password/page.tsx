@@ -38,7 +38,7 @@ function ChangePasswordForm() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-6">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-stone-100 via-white to-amber-50/40 px-6">
       <div className="w-full max-w-sm">
         <h1 className="font-display text-2xl text-foreground">{t("changePasswordTitle")}</h1>
         {user?.must_reset_password && (

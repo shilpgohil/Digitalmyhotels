@@ -46,7 +46,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-6">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-stone-100 via-white to-amber-50/40 px-6">
       <div className="w-full max-w-md">
         <h1 className="font-display text-2xl text-foreground">{t("resetTitle")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("hierarchicalResetIntro")}</p>
