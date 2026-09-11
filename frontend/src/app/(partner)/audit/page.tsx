@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
+import { ScrollText } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import {
   Table,
@@ -91,7 +93,7 @@ function AuditContent() {
             </p>
           )}
           {logs.data?.items.length === 0 && (
-            <p className="p-6 text-sm text-muted-foreground">{t("empty")}</p>
+            <EmptyState icon={ScrollText} title={t("empty")} subtitle="All system actions will appear here." />
           )}
           {logs.data && logs.data.items.length > 0 && (
             <Table>

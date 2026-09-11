@@ -4,9 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ExternalLink } from "lucide-react";
+import { Bell, Check, ExternalLink } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import { useApi } from "@/lib/api/use-api";
@@ -179,7 +180,7 @@ function NotificationsContent() {
             </p>
           )}
           {!notifications.isLoading && !notifications.isError && items.length === 0 && (
-            <p className="p-8 text-center text-sm text-muted-foreground">{t("empty")}</p>
+            <EmptyState icon={Bell} title={t("empty")} subtitle="You're all caught up — nothing new to show." />
           )}
           {paginate(items, page, 15).map((n) => {
             const borderColor = ROW_BG[n.category] ?? "border-l-muted";

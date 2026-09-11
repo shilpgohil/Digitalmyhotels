@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { Search } from "lucide-react";
+import { Landmark, Search } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -248,7 +249,7 @@ function GstTaxContent() {
             </p>
           )}
           {report.data && filteredItems.length === 0 && (
-            <p className="p-6 text-sm text-muted-foreground">{t("noItems")}</p>
+            <EmptyState icon={Landmark} title={t("noItems")} subtitle="GST summaries appear here once bookings are completed." />
           )}
           {report.data && filteredItems.length > 0 && (
             <div className="overflow-x-auto">

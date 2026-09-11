@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { FileText } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Label } from "@/components/ui/label";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -105,7 +107,7 @@ function InvoicesContent() {
             </p>
           )}
           {invoices.data?.items.length === 0 && (
-            <p className="p-6 text-sm text-muted-foreground">{t("noInvoices")}</p>
+            <EmptyState icon={FileText} title={t("noInvoices")} subtitle="Invoices are generated automatically at checkout." />
           )}
           {invoices.data && invoices.data.items.length > 0 && (
             <Table>

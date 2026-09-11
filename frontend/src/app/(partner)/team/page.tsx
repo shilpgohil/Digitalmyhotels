@@ -4,13 +4,14 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, MoreVertical, KeyRound, Ban, CheckCircle2, Eye, EyeOff, Pencil } from "lucide-react";
+import { Plus, MoreVertical, KeyRound, Ban, CheckCircle2, Eye, EyeOff, Pencil, Users } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import {
   Dialog,
@@ -164,7 +165,7 @@ function TeamContent() {
             </div>
           )}
           {team.data && team.data.items.length === 0 && (
-            <p className="p-10 text-center text-sm text-muted-foreground">{t("noMembers")}</p>
+            <EmptyState icon={Users} title={t("noMembers")} subtitle="Add team members to manage access and roles." />
           )}
           {team.data && team.data.items.length > 0 && (
             <Table>

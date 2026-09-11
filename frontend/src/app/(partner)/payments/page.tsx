@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Receipt, Wallet } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
+import { EmptyState } from "@/components/ui/empty-state";
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -312,7 +314,7 @@ function PaymentsContent() {
             </p>
           )}
           {billing.data && billing.data.items.length === 0 && (
-            <p className="p-6 text-sm text-muted-foreground">{t("noBillingRows")}</p>
+            <EmptyState icon={Receipt} title={t("noBillingRows")} subtitle="Completed bookings with payments will appear here." />
           )}
           {billing.data && billing.data.items.length > 0 && (
             <>
@@ -448,7 +450,7 @@ function PaymentsContent() {
             </p>
           )}
           {payments.data && payments.data.items.length === 0 && (
-            <p className="p-6 text-sm text-muted-foreground">{t("noPayments")}</p>
+            <EmptyState icon={Wallet} title={t("noPayments")} subtitle="Individual payments collected from guests appear here." />
           )}
           {payments.data && payments.data.items.length > 0 && (
             <Table>

@@ -21,7 +21,8 @@
  *   </DataTable>
  */
 import { type ReactNode } from "react";
-import { AlertCircle, Inbox } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -119,13 +120,8 @@ export function DataTable({
   // ── Empty ────────────────────────────────────────────────────────────────
   if (isEmpty) {
     return (
-      <div className={cn("rounded-lg border bg-card px-4 py-12 text-center", className)}>
-        <Inbox className="mx-auto mb-3 size-8 text-muted-foreground/40" aria-hidden />
-        <p className="text-sm font-medium text-foreground">{emptyTitle}</p>
-        {emptySubtitle && (
-          <p className="mt-1 text-xs text-muted-foreground">{emptySubtitle}</p>
-        )}
-        {emptyAction && <div className="mt-4">{emptyAction}</div>}
+      <div className={cn("rounded-lg border bg-card", className)}>
+        <EmptyState title={emptyTitle} subtitle={emptySubtitle} action={emptyAction} />
       </div>
     );
   }

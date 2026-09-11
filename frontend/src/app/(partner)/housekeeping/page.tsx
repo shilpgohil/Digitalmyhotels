@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Sparkles, Wrench } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -103,7 +105,7 @@ function HousekeepingContent() {
             </p>
           )}
           {tasks.data?.length === 0 && (
-            <p className="text-sm text-muted-foreground">{t("noTasks")}</p>
+            <EmptyState icon={Sparkles} title={t("noTasks")} subtitle="Cleaned rooms and pending tasks appear here." className="py-8" />
           )}
           <ul className="space-y-2">
             {paginate(tasks.data ?? [], tasksPage, 10).map((task) => (
@@ -150,7 +152,7 @@ function HousekeepingContent() {
           <section className="mt-6 rounded-lg border bg-card p-4">
             <h2 className="mb-3 text-sm font-semibold">{t("maintenance")}</h2>
             {maintenance.data.length === 0 && (
-              <p className="text-sm text-muted-foreground">{t("noMaintenance")}</p>
+              <EmptyState icon={Wrench} title={t("noMaintenance")} subtitle="No rooms are in maintenance or out of service." className="py-8" />
             )}
             <ul className="space-y-2">
               {paginate(maintenance.data, maintenancePage, 10).map((m) => (
