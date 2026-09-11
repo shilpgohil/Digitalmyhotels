@@ -43,7 +43,6 @@ import {
   Camera,
   Car,
   Clock,
-  Eye,
   Globe,
   CreditCard,
   FileText,
@@ -78,7 +77,6 @@ import { docAspectFor, useImageEditor } from "@/components/media/image-editor";
 import { compressDocument } from "@/lib/compress-image";
 import { fmtApiDate, fmtApiDateTime, fmtINR, localToday, localTomorrow } from "@/lib/formatting"; // eslint-disable-line @typescript-eslint/no-unused-vars
 import { cn } from "@/lib/utils";
-import { InlineSpinner } from "@/components/ui/inline-spinner";
 import type { ListOut, RoomAvailableItem } from "@/types/hotel";
 import type {
   BookAndCheckInRequest,
@@ -103,18 +101,15 @@ import { InlineCameraCapture } from "@/components/checkin/inline-camera-capture"
 import { UpiQrBlock } from "@/components/checkin/upi-qr-block";
 import { CollapsibleSection } from "@/components/checkin/collapsible-section";
 import { RoomReplaceControl } from "@/components/checkin/room-replace-control";
+import { RevealIdButton } from "@/components/checkin/reveal-id-button";
+import { SelectedServicesList } from "@/components/checkin/selected-services-list";
+import { ServiceChips } from "@/components/checkin/service-chips";
+import { AutofillBanner } from "@/components/checkin/autofill-banner";
+import { serviceChargeAmount } from "@/components/checkin/service-utils";
+import type { ServiceItem, DocSide } from "@/components/checkin/types";
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
-
-/** Which face of an ID document (or selfie) a tile handles. */
-type DocSide = "front" | "back" | "selfie";
-
-interface ServiceItem {
-  id: string;
-  name: string;
-  price: string;
-  is_active: boolean;
-}
+// DocSide + ServiceItem → src/components/checkin/types.ts (imported above)
 
 /** A resolved additional guest ready to be passed to POST /checkins. */
 interface ResolvedCoGuest {
@@ -297,10 +292,7 @@ function nowRoundedUpTo5(): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-/** API decimal string ("150.00") → whole-rupee string ("150") for inputs. */
-function wholeRupees(price: string): string {
-  return String(Math.round(Number(price) || 0));
-}
+// wholeRupees → src/components/checkin/service-utils.ts (imported above)
 
 /** "HH:MM" → minutes since midnight; NaN when malformed. */
 function timeToMinutes(t: string): number {
@@ -318,81 +310,13 @@ function effectiveVehicleType(vehType: string, otherName: string): string {
   return otherName.trim().slice(0, 40) || "Other";
 }
 
-/**
- * Amount charged for a selected service chip — the staff-edited amount when
- * present and a valid non-negative number, else the service's fixed price.
- */
-function serviceChargeAmount(
-  svc: ServiceItem,
-  amounts: Record<string, string>,
-): string {
-  const edited = amounts[svc.id]?.trim();
-  if (edited) {
-    const parsed = Number.parseFloat(edited);
-    if (Number.isFinite(parsed) && parsed >= 0) return edited;
-  }
-  return svc.price;
-}
+// serviceChargeAmount → src/components/checkin/service-utils.ts (imported above)
 
 // maskIdValue + MaskedIdInput → src/components/checkin/masked-id-input.tsx
 
 // RoomReplaceControl → src/components/checkin/room-replace-control.tsx
 
-/**
- * "Show saved ID" — audited reveal of the full decrypted ID number for a
- * returning guest (client 9-08 item 8). Only rendered for roles holding
- * guests.view_full_id; every click is written to the audit log server-side.
- */
-function RevealIdButton({
-  guestId,
-  onRevealed,
-}: {
-  readonly guestId: string | null | undefined;
-  readonly onRevealed: (idNumber: string) => void;
-}) {
-  const t = useTranslations("checkin");
-  const tc = useTranslations("common");
-  const api = useApi();
-  const { can } = useAuth();
-  const [busy, setBusy] = useState(false);
-
-  if (!guestId || !can(PERMISSIONS.guestsViewFullId)) return null;
-
-  const reveal = async () => {
-    setBusy(true);
-    try {
-      const res = await api<{ id_number: string | null }>(
-        `/api/v1/guests/${guestId}/reveal-id`,
-        { method: "POST" },
-      );
-      if (res.id_number) {
-        onRevealed(res.id_number);
-        toast.success(t("savedIdLoaded"));
-      } else {
-        toast.info(t("noSavedId"));
-      }
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : tc("error"));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Button
-      type="button"
-      size="sm"
-      variant="outline"
-      className="shrink-0"
-      disabled={busy}
-      onClick={() => void reveal()}
-      title={t("revealSavedIdHint")}
-    >
-      {busy ? <InlineSpinner size={14} /> : <Eye className="size-3.5" aria-hidden />}
-      {t("revealSavedId")}
-                      </Button>
-  );
-}
+// RevealIdButton → src/components/checkin/reveal-id-button.tsx
 
 /**
  * Inline camera view for desktop selfie capture — opens the front camera via
@@ -402,95 +326,14 @@ function RevealIdButton({
 
 /** "Selected special requirements" summary — shows name + ₹amount per chip
  *  (staff-edited amount when present, else the service's fixed price). */
-function SelectedServicesList({
-  services,
-  selectedIds,
-  amounts,
-}: {
-  readonly services: ServiceItem[];
-  readonly selectedIds: string[];
-  /** Staff-edited amounts keyed by service id. */
-  readonly amounts?: Record<string, string>;
-}) {
-  const t = useTranslations("checkin");
-  const chosen = services.filter((s) => selectedIds.includes(s.id));
-  if (chosen.length === 0) return null;
-  return (
-    <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
-      <p className="mb-1.5 text-label font-semibold uppercase tracking-wide text-muted-foreground">
-        {t("selectedRequirements")}
-      </p>
-      <ul className="space-y-1">
-        {chosen.map((s) => (
-          <li key={s.id} className="flex items-center justify-between text-sm">
-            <span>{s.name}</span>
-            <span className="tabular-nums font-medium">
-              {fmtINR(serviceChargeAmount(s, amounts ?? {}))}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+// SelectedServicesList → src/components/checkin/selected-services-list.tsx
 
 /**
  * Service chips row with per-chip editable amount — when a chip is selected a
  * small numeric input appears next to it, prefilled with the service price;
  * edits flow into the atomic `charges` array at submit time.
  */
-function ServiceChips({
-  services,
-  selectedIds,
-  onToggle,
-  amounts,
-  onAmountChange,
-}: {
-  readonly services: ServiceItem[];
-  readonly selectedIds: string[];
-  readonly onToggle: (id: string) => void;
-  readonly amounts: Record<string, string>;
-  readonly onAmountChange: (id: string, amount: string) => void;
-}) {
-  const t = useTranslations("checkin");
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {services.map((svc) => {
-        const active = selectedIds.includes(svc.id);
-        return (
-          <div key={svc.id} className="inline-flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => onToggle(svc.id)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
-                active
-                  ? "border-navy-900 bg-navy-900 text-white font-medium"
-                  : "border-border text-muted-foreground hover:border-navy-900 hover:text-navy-900",
-              )}
-            >
-              {svc.name}
-              {!active && (
-                <span className="text-xs opacity-60">{fmtINR(svc.price)}</span>
-              )}
-            </button>
-            {active && (
-              <Input
-                type="number"
-                min={0}
-                step="1"
-                value={amounts[svc.id] ?? wholeRupees(svc.price)}
-                onChange={(e) => onAmountChange(svc.id, e.target.value)}
-                aria-label={t("serviceAmountLabel", { name: svc.name })}
-                className="h-8 w-24 text-right text-sm tabular-nums"
-              />
-          )}
-        </div>
-        );
-      })}
-    </div>
-  );
-}
+// ServiceChips → src/components/checkin/service-chips.tsx
 
 /**
  * Foreign Guest (Form C) — checkbox that reveals passport/visa/journey fields
@@ -955,101 +798,7 @@ function DocUpload({
  *  - High confidence → shows extracted fields + "Auto-fill" button.
  *  - Low confidence  → shows warning message only.
  */
-function AutofillBanner({
-  result,
-  onAccept,
-  onDismiss,
-}: {
-  readonly result: import("@/lib/id-ocr").IdOcrResult;
-  readonly onAccept: (fields: import("@/lib/id-ocr").ParsedIdFields) => void;
-  readonly onDismiss: () => void;
-}) {
-  const t = useTranslations("checkin");
-  if (!result.can_autofill) {
-    return (
-      <div className="flex items-start gap-3 rounded-xl border border-warning/20 bg-warning-bg px-4 py-3 text-sm">
-        <AlertTriangle className="size-4 shrink-0 text-warning mt-0.5" aria-hidden />
-        <div className="flex-1">
-          <p className="font-semibold text-warning">{t("unableAutofill")}</p>
-          <p className="mt-0.5 text-warning text-xs">{result.message}</p>
-        </div>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="text-warning hover:text-warning text-base leading-none"
-          aria-label={t("dismiss")}
-        >
-          ×
-        </button>
-      </div>
-    );
-  }
-
-  const { fields } = result;
-  const detectedItems = [
-    fields.name && { label: t("fieldName"), value: fields.name },
-    fields.id_number && { label: t("fieldIdNumber"), value: fields.id_number },
-    fields.date_of_birth && { label: t("fieldDob"), value: fields.date_of_birth },
-    fields.gender && { label: t("fieldGender"), value: fields.gender },
-    fields.address && { label: t("fieldAddress"), value: fields.address.slice(0, 60) + (fields.address.length > 60 ? "…" : "") },
-    fields.pincode && { label: t("pincode"), value: fields.pincode },
-    fields.city && { label: t("fieldCity"), value: fields.city },
-    fields.state && { label: t("fieldState"), value: fields.state },
-  ].filter(Boolean) as { label: string; value: string }[];
-
-  const pct = Math.round(result.confidence * 100);
-
-  return (
-    <div className="rounded-xl border border-success/20 bg-success-bg overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-success/20">
-        <div className="flex items-center gap-2">
-          <BadgeCheck className="size-4 text-success" aria-hidden />
-          <span className="text-sm font-semibold text-success">
-            {t("idDetected")}
-          </span>
-          <span className="rounded-full bg-success-bg px-2 py-0.5 text-micro font-bold text-success">
-            {t("confidencePct", { pct })}
-          </span>
-        </div>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="text-green-400 hover:text-success text-base leading-none"
-          aria-label={t("dismiss")}
-        >
-          ×
-        </button>
-      </div>
-
-      <div className="px-4 py-3 space-y-1.5">
-        {detectedItems.map((item) => (
-          <div key={item.label} className="flex gap-2 text-xs">
-            <span className="w-24 shrink-0 font-semibold text-success">{item.label}</span>
-            <span className="text-success truncate">{item.value}</span>
-          </div>
-              ))}
-            </div>
-
-      <div className="flex items-center gap-2 px-4 py-3 border-t border-success/20 bg-success-bg/50">
-        <button
-          type="button"
-          onClick={() => onAccept(fields)}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-success px-3 text-xs font-semibold text-white hover:bg-success transition-colors"
-        >
-          <BadgeCheck className="size-3.5" aria-hidden />
-          {t("autofillForm")}
-        </button>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="inline-flex h-8 items-center px-3 text-xs font-medium text-success hover:underline"
-        >
-          {t("skipManual")}
-              </button>
-            </div>
-    </div>
-  );
-}
+// AutofillBanner → src/components/checkin/autofill-banner.tsx
 
 /** Queued doc upload tile — shows preview thumbnail; queues file for upload after guest creation. */
 function QueuedDocUpload({
