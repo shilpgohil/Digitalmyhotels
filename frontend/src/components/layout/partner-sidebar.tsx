@@ -25,6 +25,7 @@ import {
   ClipboardCheck,
   ArrowLeftRight,
   ScrollText,
+  UserCheck,
   UtensilsCrossed,
   Landmark,
   Building2,
@@ -100,6 +101,48 @@ const SECTIONS: NavSection[] = [
         labelKey: "completedBookings",
         icon: CalendarCheck,
         permission: PERMISSIONS.bookingsView,
+      },
+    ],
+  },
+  {
+    // Staff attendance module (client 09/2026 staff check-in flow)
+    labelKey: "staffGroup",
+    items: [
+      {
+        href: "/my-attendance",
+        labelKey: "myAttendance",
+        icon: UserCheck,
+        permission: PERMISSIONS.staffAttendanceSelf,
+      },
+      {
+        href: "/staff",
+        labelKey: "staffList",
+        icon: Users,
+        permission: PERMISSIONS.staffView,
+      },
+      {
+        href: "/staff/attendance",
+        labelKey: "todaysAttendance",
+        icon: CalendarCheck,
+        permission: PERMISSIONS.staffAttendanceView,
+      },
+      {
+        href: "/staff/checkin",
+        labelKey: "staffCheckin",
+        icon: LogIn,
+        permission: PERMISSIONS.staffAttendanceRecord,
+      },
+      {
+        href: "/staff/attendance/history",
+        labelKey: "attendanceHistory",
+        icon: ScrollText,
+        permission: PERMISSIONS.staffAttendanceView,
+      },
+      {
+        href: "/staff/attendance/reports",
+        labelKey: "lateEarly",
+        icon: CalendarClock,
+        permission: PERMISSIONS.staffAttendanceView,
       },
     ],
   },

@@ -386,7 +386,6 @@ function CheckoutContent() {
       url.searchParams.delete("booking");
       window.history.replaceState(null, "", url.toString());
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLinkId, guests.data, entry]);
 
   const invalidate = () => {

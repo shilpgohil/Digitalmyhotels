@@ -1658,7 +1658,7 @@ function AdditionalGuestEntry({
             >
               <Search className="size-4" aria-hidden />
               {searching ? "…" : tc("search")}
-            </Button>
+                      </Button>
           </div>
           {searchResults.length > 0 && (
             <ul className="rounded-lg border divide-y">
@@ -3947,8 +3947,8 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   {t("discard")}
                 </button>
               </div>
-            </div>
-          ))}
+              </div>
+            ))}
         </div>
       )}
 

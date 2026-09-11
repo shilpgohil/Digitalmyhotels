@@ -15,6 +15,13 @@ export interface HotelOut {
   description: string | null;
   timezone: string;
   status: string;
+  total_rooms?: number | null;
+  map_id?: string | null;
+  /** Staff-attendance geofence (client 09/2026) */
+  geofence_enabled?: boolean;
+  latitude?: string | null;
+  longitude?: string | null;
+  geofence_radius_m?: number;
 }
 
 export interface HotelSettingsOut {

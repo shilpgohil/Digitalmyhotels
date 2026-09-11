@@ -18,7 +18,8 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ImagePlus, Plus, Trash2, UploadCloud, X } from "lucide-react";
+import { ImagePlus, MapPin, Plus, Trash2, UploadCloud, X } from "lucide-react";
+import { InlineSpinner } from "@/components/ui/inline-spinner";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -283,6 +284,29 @@ function EditHotelContent() {
   const [identityInit, setIdentityInit] = useState(false);
   const [gstInit, setGstInit] = useState(false);
 
+  // ── Staff-attendance geofence (client 09/2026) ──
+  const [geofenceEnabled, setGeofenceEnabled] = useState(false);
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
+  const [radius, setRadius] = useState("200");
+  const [locating, setLocating] = useState(false);
+  const geofenceInvalid = geofenceEnabled && (!latitude.trim() || !longitude.trim());
+
+  const captureMyLocation = async () => {
+    setLocating(true);
+    try {
+      const { getPosition } = await import("@/lib/geo");
+      const pos = await getPosition();
+      setLatitude(pos.lat.toFixed(6));
+      setLongitude(pos.lng.toFixed(6));
+      toast.success(t("locationCaptured", { accuracy: pos.accuracy_m }));
+    } catch {
+      toast.error(t("locationFailed"));
+    } finally {
+      setLocating(false);
+    }
+  };
+
   useEffect(() => {
     if (hotel.data && !identityInit) {
       setName(hotel.data.name);
@@ -290,6 +314,10 @@ function EditHotelContent() {
       setAddress(hotel.data.address_line1 ?? "");
       setEmail(hotel.data.email ?? "");
       setMapId((hotel.data as { map_id?: string | null }).map_id ?? "");
+      setGeofenceEnabled(hotel.data.geofence_enabled ?? false);
+      setLatitude(hotel.data.latitude != null ? String(hotel.data.latitude) : "");
+      setLongitude(hotel.data.longitude != null ? String(hotel.data.longitude) : "");
+      setRadius(String(hotel.data.geofence_radius_m ?? 200));
       setIdentityInit(true);
     }
   }, [hotel.data, identityInit]);
@@ -504,6 +532,14 @@ function EditHotelContent() {
             address_line1: address.trim() || null,
             email: email.trim() || null,
             map_id: mapId.trim() || null,
+            // Staff-attendance geofence — toggle + coordinates + radius.
+            geofence_enabled: geofenceEnabled,
+            latitude: latitude.trim() || null,
+            longitude: longitude.trim() || null,
+            geofence_radius_m: Math.min(
+              2000,
+              Math.max(50, Number.parseInt(radius, 10) || 200),
+            ),
           },
         }),
       );
@@ -782,6 +818,82 @@ function EditHotelContent() {
                       onChange={(e) => setMapId(e.target.value)}
                       placeholder="Google Maps place/embed ID"
                     />
+                  </div>
+
+                  {/* ── Staff-attendance geofence (client 09/2026) ── */}
+                  <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+                    <label className="flex cursor-pointer items-start gap-2.5">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={geofenceEnabled}
+                        onChange={(e) => setGeofenceEnabled(e.target.checked)}
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold">
+                          {t("geofenceToggle")}
+                        </span>
+                        <span className="block text-label text-muted-foreground">
+                          {t("geofenceToggleHint")}
+                        </span>
+                      </span>
+                    </label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="eh-lat">{t("latitude")}</Label>
+                        <Input
+                          id="eh-lat"
+                          inputMode="decimal"
+                          value={latitude}
+                          onChange={(e) => setLatitude(e.target.value)}
+                          placeholder="23.046000"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="eh-lng">{t("longitude")}</Label>
+                        <Input
+                          id="eh-lng"
+                          inputMode="decimal"
+                          value={longitude}
+                          onChange={(e) => setLongitude(e.target.value)}
+                          placeholder="72.531000"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="eh-radius">{t("geofenceRadius")}</Label>
+                        <Input
+                          id="eh-radius"
+                          type="number"
+                          min={50}
+                          max={2000}
+                          step={10}
+                          className="tabular-nums"
+                          value={radius}
+                          onChange={(e) => setRadius(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-[42px] w-full"
+                          disabled={locating}
+                          onClick={() => void captureMyLocation()}
+                        >
+                          {locating ? (
+                            <InlineSpinner size={16} className="mr-2" />
+                          ) : (
+                            <MapPin className="mr-2 size-4" aria-hidden />
+                          )}
+                          {t("useMyLocation")}
+                        </Button>
+                      </div>
+                    </div>
+                    {geofenceInvalid && (
+                      <p className="text-sm text-danger" role="alert">
+                        {t("geofenceNeedsLocation")}
+                      </p>
+                    )}
                   </div>
                 </div>
 

@@ -45,6 +45,15 @@ export const PERMISSIONS = {
   reportsView: "reports.view",
   auditView: "audit.view",
   notificationsView: "notifications.view",
+
+  // Staff attendance (client 09/2026 staff check-in flow)
+  staffView: "staff.view",
+  staffManage: "staff.manage",
+  staffSalaryView: "staff.salary_view",
+  staffAttendanceSelf: "staff.attendance_self",
+  staffAttendanceView: "staff.attendance_view",
+  staffAttendanceRecord: "staff.attendance_record",
+  staffAttendanceCorrect: "staff.attendance_correct",
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -71,6 +80,8 @@ const ROLE_NOTIFICATION_CATEGORIES: Record<string, readonly NotificationCategory
   manager: NOTIFICATION_CATEGORIES_ALL,
   admin: ["front_desk", "housekeeping", "operations"],
   housekeeping: ["housekeeping"],
+  receptionist: ["front_desk", "operations"],
+  general_staff: ["operations"],
 };
 
 /** Returns the notification categories visible for a given role_code.
