@@ -4,6 +4,11 @@ Source: `main documents/client documentations/staff checkin flow/` (10 mockups,
 "Grand Horizon Executive Portal" style). Planned 12/09/2026. STATUS: PLAN ONLY —
 not yet implemented.
 
+> BUILD-READY SPEC: see `staffAttendanceImplementation.md` (supersedes this
+> file for implementation details). Client deltas since this plan: geofence
+> ON/OFF toggle + radius are hotel-admin configurable; managers/admins also
+> self check-in from their own profile.
+
 ## 1. What the client's mockups show
 
 | Mockup | Content |
