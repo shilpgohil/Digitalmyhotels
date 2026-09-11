@@ -702,7 +702,7 @@ function CheckoutContent() {
                         id="co-booking"
                         value={selectedId}
                         onChange={(e) => setSelectedId(e.target.value)}
-                        className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                        className="h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm"
                         disabled={isPending}
                       >
                         <option value="">{tp("selectBookingOption")}</option>
@@ -713,8 +713,9 @@ function CheckoutContent() {
                         ))}
                       </select>
                     </div>
+                    {/* Client spec 09/2026: 42px to match the booking select */}
                     <Button
-                      className="bg-navy-900 text-white hover:bg-navy-900/90"
+                      className="h-[42px] bg-navy-900 px-4 text-white hover:bg-navy-900/90"
                       onClick={loadGuest}
                       disabled={!selectedId || isPending}
                     >
@@ -932,8 +933,9 @@ function CheckoutContent() {
                       </div>
 
                       {/* Authorized discount — Owner/Manager only (client 9-08 #13) */}
+                      {/* Client 09/2026: no divider line above the discount row */}
                       {canReverse && (
-                        <div className="grid gap-4 sm:grid-cols-2 border-t pt-4">
+                        <div className="grid gap-4 sm:grid-cols-2 pt-4">
                           <div className="space-y-1.5">
                             <Label htmlFor="co-discount">{tp("discountLabel")}</Label>
                             <Input
@@ -1088,7 +1090,7 @@ function CheckoutContent() {
                             id="co-pay-status"
                             value={payStatus}
                             onChange={(e) => setPayStatus(e.target.value as PayStatus)}
-                            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                            className="h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm"
                             disabled={isPending}
                           >
                             <option value="pending">{tp("statusPending")}</option>
@@ -1101,7 +1103,7 @@ function CheckoutContent() {
                             id="co-pay-method"
                             value={payMethod}
                             onChange={(e) => setPayMethod(e.target.value as PayMethod)}
-                            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                            className="h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm"
                             disabled={isPending}
                           >
                             {PAY_METHODS.map((m) => (
@@ -1172,7 +1174,7 @@ function CheckoutContent() {
                     <div className="space-y-2">
                       {!done && (
                         <Button
-                          className="w-full bg-navy-900 text-white hover:bg-navy-900/90"
+                          className="h-[42px] w-full bg-navy-900 text-white hover:bg-navy-900/90"
                           onClick={handleCheckout}
                           disabled={isPending || !quote || (needsDueAuth && !dueReason.trim())}
                         >
@@ -1186,7 +1188,7 @@ function CheckoutContent() {
                       )}
                       <Button
                         variant="outline"
-                        className="w-full"
+                        className="h-[42px] w-full"
                         onClick={() => void printInvoice()}
                         disabled={!done || invoiceBusy}
                       >
@@ -1195,7 +1197,7 @@ function CheckoutContent() {
                       </Button>
                       <Button
                         variant="outline"
-                        className="w-full"
+                        className="h-[42px] w-full"
                         onClick={() => void downloadPdf()}
                         disabled={!done || invoiceBusy}
                       >
@@ -1204,7 +1206,7 @@ function CheckoutContent() {
                       </Button>
                       <Button
                         variant="outline"
-                        className="w-full"
+                        className="h-[42px] w-full"
                         onClick={() => void emailInvoice()}
                         disabled={!done || invoiceBusy}
                       >
@@ -1213,7 +1215,7 @@ function CheckoutContent() {
                       </Button>
                       <Button
                         variant="outline"
-                        className="w-full text-success hover:text-success"
+                        className="h-[42px] w-full text-success hover:text-success"
                         onClick={() => void openWhatsApp()}
                         disabled={!done || !booking?.primary_guest_phone || invoiceBusy}
                       >
