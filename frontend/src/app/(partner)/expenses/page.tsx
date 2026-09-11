@@ -212,9 +212,14 @@ function ExpensesContent() {
         <div className="mb-4 flex flex-wrap justify-end gap-2">
           {can(PERMISSIONS.expensesApprove) && (
             <>
+              {/* Client 09/2026: 42px styled header actions (were bare 32px) */}
               <AddVendorDialog onDone={invalidate} />
               <AddRecurringDialog onDone={invalidate} />
-              <Button variant="outline" onClick={() => runRecurring.mutate()}>
+              <Button
+                variant="outline"
+                className="h-[42px] rounded-md border-input bg-white px-3.5 font-medium"
+                onClick={() => runRecurring.mutate()}
+              >
                 {t("runRecurring")}
               </Button>
             </>
@@ -452,7 +457,7 @@ function AddVendorDialog({ onDone }: { onDone: () => void }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm">
+      <DialogTrigger className="inline-flex h-[42px] items-center rounded-md border border-input bg-white px-3.5 text-sm font-medium transition-colors hover:bg-muted">
         {t("addVendor")}
       </DialogTrigger>
       <DialogContent>
@@ -474,7 +479,7 @@ function AddVendorDialog({ onDone }: { onDone: () => void }) {
           </div>
         </div>
         <DialogFooter>
-          <DialogClose className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm">
+          <DialogClose className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm transition-colors hover:bg-muted">
             {tc("cancel")}
           </DialogClose>
           <Button disabled={name.length < 2 || mutation.isPending} onClick={() => mutation.mutate()}>
@@ -532,7 +537,7 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm">
+      <DialogTrigger className="inline-flex h-[42px] items-center rounded-md border border-input bg-white px-3.5 text-sm font-medium transition-colors hover:bg-muted">
         {t("addRecurring")}
       </DialogTrigger>
       <DialogContent>
@@ -553,7 +558,7 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
               <Label htmlFor="rec-frequency">{t("frequency")}</Label>
               <select
                 id="rec-frequency"
-                className="mt-1 h-8 w-full rounded-lg border px-2.5 text-sm"
+                className="mt-1 h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm"
                 value={frequency}
                 onChange={(e) => setFrequency(e.target.value)}
               >
@@ -594,7 +599,7 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
               <Label htmlFor="rec-category">{t("category")}</Label>
               <select
                 id="rec-category"
-                className="mt-1 h-8 w-full rounded-lg border px-2.5 text-sm"
+                className="mt-1 h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm"
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
               >
@@ -609,7 +614,7 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
           </div>
         </div>
         <DialogFooter>
-          <DialogClose className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm">
+          <DialogClose className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm transition-colors hover:bg-muted">
             {tc("cancel")}
           </DialogClose>
           <Button

@@ -391,6 +391,29 @@
 
   /* ── Smooth micro-interactions ─────────────────────────────────────── */
 
+  /* Baseline smoothness for EVERY interactive element (client 09/2026:
+     "transitions are not smooth across the platform"). Plain <select>s,
+     inline buttons and links previously snapped between states because
+     they carried no transition utilities. Color/border/shadow/opacity
+     only — layout properties are never animated here. Tailwind's own
+     transition utilities still win (class > element specificity). */
+  a,
+  button,
+  select,
+  input,
+  textarea,
+  [role="button"] {
+    transition-property: background-color, border-color, color, box-shadow,
+      opacity, fill, stroke;
+    transition-duration: 180ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Smooth in-page scrolling (validation scroll-to-section, anchors) */
+  html {
+    scroll-behavior: smooth;
+  }
+
   /* Interactive rows and list items */
   .table tr,
   [role="row"] {

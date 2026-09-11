@@ -35,7 +35,8 @@ export function PageTransition({
       id={id}
       key={pathname}
       className={className}
-      style={{ animation: "page-in 0.15s ease backwards" }}
+      // 280ms smooth-out fade — 150ms read as an abrupt flash (client 09/2026).
+      style={{ animation: "page-in 0.28s cubic-bezier(0.2, 0, 0, 1) backwards" }}
     >
       {children}
     </div>
