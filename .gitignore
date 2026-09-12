@@ -59,4 +59,4 @@ Thumbs.db
 # Reference zips
 frontend/*.zip
 
-*.png
+/*.png
