@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarCheck,
   ChevronLeft,
@@ -21,7 +21,6 @@ import {
   UserX,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import {
   DropdownMenu,
