@@ -172,6 +172,9 @@ export async function apiUpload<T>(
     if (refreshed) response = await doFetch();
   }
   if (!response.ok) throw await parseError(response);
+  // 204 (e.g. staff photo upload) has no body — response.json() would throw
+  // a SyntaxError AFTER the upload succeeded (client 09/2026 Save Staff bug).
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 

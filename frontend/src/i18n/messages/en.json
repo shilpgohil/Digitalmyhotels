@@ -533,6 +533,7 @@
     "saveStaff": "Save Staff",
     "staffCreatedToast": "Staff member added",
     "staffUpdatedToast": "Staff member updated",
+    "photoUploadFailed": "Staff saved, but the photo upload failed — retry from Edit Staff",
     "staffProfileTitle": "Staff Profile",
     "backToStaffList": "Back to Staff List",
     "editStaff": "Edit Staff",

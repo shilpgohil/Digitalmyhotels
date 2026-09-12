@@ -132,11 +132,17 @@ export function StaffForm({
         staffId = res.id;
       }
       if (photo) {
-        const form = new FormData();
-        form.append("file", photo, photo.name);
-        await apiUpload(`/api/v1/staff/${staffId}/photo`, form, {
-          hotelId: activeHotelId ?? undefined,
-        });
+        // Photo failure must NOT read as a create failure — the staff row
+        // already exists at this point. Warn and continue.
+        try {
+          const form = new FormData();
+          form.append("file", photo, photo.name);
+          await apiUpload(`/api/v1/staff/${staffId}/photo`, form, {
+            hotelId: activeHotelId ?? undefined,
+          });
+        } catch {
+          toast.warning(t("photoUploadFailed"));
+        }
       }
       return staffId;
     },

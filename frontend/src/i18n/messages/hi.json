@@ -533,6 +533,7 @@
     "saveStaff": "स्टाफ़ सहेजें",
     "staffCreatedToast": "स्टाफ़ सदस्य जोड़ा गया",
     "staffUpdatedToast": "स्टाफ़ सदस्य अपडेट हुआ",
+    "photoUploadFailed": "स्टाफ़ सहेजा गया, पर फ़ोटो अपलोड विफल — स्टाफ़ संपादन से पुनः प्रयास करें",
     "staffProfileTitle": "स्टाफ़ प्रोफ़ाइल",
     "backToStaffList": "स्टाफ़ सूची पर वापस",
     "editStaff": "स्टाफ़ संपादित करें",
