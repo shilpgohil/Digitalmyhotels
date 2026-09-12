@@ -1,5 +1,24 @@
 # Active Context — DigitalMyHotels
 
+## ATTENDANCE INSIGHT ROUND 12/09/2026 (commit a085b6b)
+Deep logic audit of check-in/out; DO NOT regress these rules:
+- ABSENT counting: only swept absents + no-shows past shift_start+grace
+  (hotel tz). Before-shift staff are NOT absent.
+- Auto-close: method_out='auto' (visible in Missing Check-outs report),
+  waits 4h past shift end, overnight-shift aware (end<=start → next day).
+- Geofence policy: check-IN strictly fenced; check-OUT never blocked —
+  distance measured, off-site checkout FLAGGED via note.
+- Grace configurable: hotels.attendance_grace_minutes (migration
+  d0e1f2a3b4c5, Edit Hotel input).
+- Evidence endpoints: GET /staff/attendance/records/{id} (+/selfie);
+  RecordDetailDialog on Today's Attendance shows selfie, GPS distances
+  ±accuracy, method chips, recorded-by, notes.
+- Today insight line: on-time rate + avg working hours.
+- Calendar: gold ring on today, dashed Scheduled future cells.
+Known future items (documented, not built): multi-session/split shifts,
+half-day leave, attendance notifications, payroll hooks, face matching,
+shift roster entities (history "Shift" filter).
+
 ## STAFF PHASE 2 SHIPPED 12/09/2026 (commit 01d8138)
 - LEAVE MANAGEMENT: staff_leaves table (migration c8d9e0f1a2b3). Self-apply
   from My Attendance (overlap-blocked, 60-day cap), owner/manager decide on
