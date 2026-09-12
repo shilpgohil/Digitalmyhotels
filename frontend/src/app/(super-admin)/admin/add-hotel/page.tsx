@@ -509,7 +509,9 @@ export default function AddHotelPage() {
   };
 
   return (
-    <main className="p-4 space-y-4 max-w-3xl mx-auto pb-20 sm:p-6">
+    // pb-32: the fixed action bar must never cover the last section
+    // (client 09/2026: "cut bottom part — increase padding").
+    <main className="p-4 space-y-4 max-w-3xl mx-auto !pb-32 sm:p-6">
       {/* Page title */}
       <div>
         <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t("addNewHotel")}</h1>
@@ -1067,7 +1069,7 @@ export default function AddHotelPage() {
         <Button
           type="button"
           variant="outline"
-          className="flex-1 sm:flex-none"
+          className="h-[42px] flex-1 px-4 sm:flex-none"
           onClick={() => {
             // Save draft to localStorage for resume later
             try {
@@ -1089,7 +1091,7 @@ export default function AddHotelPage() {
           type="button"
           disabled={mutation.isPending || !canSubmit}
           onClick={() => mutation.mutate()}
-          className="flex-1 sm:flex-none bg-navy-900 hover:bg-navy-800 text-white"
+          className="h-[42px] flex-1 px-4 sm:flex-none bg-navy-900 hover:bg-navy-800 text-white"
         >
           {mutation.isPending ? tc("saving") : t("addHotelBtn")}
         </Button>

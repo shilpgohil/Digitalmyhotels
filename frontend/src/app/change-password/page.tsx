@@ -70,9 +70,27 @@ function ChangePasswordForm() {
               {error}
             </div>
           )}
-          <Button className="w-full" onClick={submit} disabled={!current || next.length < 8 || busy}>
+          <Button
+            className="h-[42px] w-full"
+            onClick={submit}
+            disabled={!current || next.length < 8 || busy}
+          >
             {t("changePassword")}
           </Button>
+          {/* Go Back → returns to the Settings screen (client 09/2026).
+              Hidden during a FORCED reset — that flow must not be escapable. */}
+          {!user?.must_reset_password && (
+            <Button
+              variant="outline"
+              className="h-[42px] w-full"
+              disabled={busy}
+              onClick={() =>
+                router.push(user?.is_super_admin ? "/admin/settings" : "/settings")
+              }
+            >
+              {t("goBack")}
+            </Button>
+          )}
         </div>
       </div>
     </div>

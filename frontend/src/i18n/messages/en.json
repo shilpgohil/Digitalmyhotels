@@ -41,6 +41,7 @@
     "pinchToZoom": "Pinch to zoom"
   },
   "auth": {
+    "goBack": "Go Back",
     "loginTitle": "Login",
     "loginSubtitle": "Welcome back! Sign in to access your dashboard.",
     "loginBtn": "Login",
@@ -83,10 +84,10 @@
     "resetPassword": "Reset password",
     "resetDone": "Password reset. Please sign in.",
     "backToLogin": "Back to sign in",
-    "changePasswordTitle": "Change password",
+    "changePasswordTitle": "Change Password",
     "mustChangePassword": "You must change your temporary password before continuing.",
     "currentPassword": "Current password",
-    "changePassword": "Change password",
+    "changePassword": "Change Password",
     "passwordChanged": "Password changed"
   },
   "nav": {
@@ -1380,9 +1381,15 @@
     "profileSection": "Profile",
     "profileName": "Name",
     "profileEmail": "Email",
-    "changePasswordSection": "Change password",
+    "profilePhone": "Phone",
+    "editProfileTitle": "Edit Profile",
+    "profileUpdated": "Profile updated",
+    "emailNotEditable": "Email is your login identity and cannot be changed here.",
+    "noPhoneOnFile": "No phone number on file",
+    "exportCsv": "Export CSV",
+    "changePasswordSection": "Change Password",
     "changePasswordHint": "Update your super admin password. All other sessions stay signed in.",
-    "changePasswordAction": "Change password",
+    "changePasswordAction": "Change Password",
     "allCustomersSection": "All Customers",
     "allCustomersHint": "Cross-hotel customer directory. Rows are masked; opening a full profile is recorded in the audit log.",
     "openAllCustomers": "Open All Customers",

@@ -26,10 +26,24 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
+/** Routes owned by the full-page master loader / auth screens — the small
+ *  in-system loader must NOT appear there (client 09/2026: it was doubling
+ *  up with the master loader during login/logout/boot). */
+const EXCLUDED_ROUTES = new Set([
+  "/",
+  "/login",
+  "/forgot-password",
+  "/change-password",
+  "/suspended",
+]);
+
 export function RouteLoader() {
   const pathname = usePathname();
   const [phase, setPhase] = useState<"hidden" | "entering" | "visible" | "leaving">("hidden");
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Track where we came from: entering an in-system page FROM an excluded
+  // page (login → dashboard) is exactly the boot transition — skip it too.
+  const prevPathname = useRef<string | null>(null);
 
   const clear = () => {
     for (const t of timers.current) clearTimeout(t);
@@ -37,6 +51,16 @@ export function RouteLoader() {
   };
 
   useEffect(() => {
+    const cameFromExcluded =
+      prevPathname.current === null || EXCLUDED_ROUTES.has(prevPathname.current);
+    const isExcluded = EXCLUDED_ROUTES.has(pathname);
+    prevPathname.current = pathname;
+    if (isExcluded || cameFromExcluded) {
+      // Auth/boot navigation — the master loader owns the screen.
+      clear();
+      setPhase("hidden");
+      return clear;
+    }
     clear();
     // Enter
     setPhase("entering");

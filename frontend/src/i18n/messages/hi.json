@@ -41,6 +41,7 @@
     "pinchToZoom": "पिंच करें ज़ूम के लिए"
   },
   "auth": {
+    "goBack": "वापस जाएँ",
     "loginTitle": "लॉगिन",
     "loginSubtitle": "वापस स्वागत है! अपने डैशबोर्ड तक पहुँचने के लिए साइन इन करें।",
     "loginBtn": "लॉगिन",
@@ -1380,6 +1381,12 @@
     "profileSection": "प्रोफ़ाइल",
     "profileName": "नाम",
     "profileEmail": "ईमेल",
+    "profilePhone": "फ़ोन",
+    "editProfileTitle": "प्रोफ़ाइल संपादित करें",
+    "profileUpdated": "प्रोफ़ाइल अपडेट हुई",
+    "emailNotEditable": "ईमेल आपकी लॉगिन पहचान है और यहाँ बदला नहीं जा सकता।",
+    "noPhoneOnFile": "फ़ोन नंबर दर्ज नहीं है",
+    "exportCsv": "CSV निर्यात करें",
     "changePasswordSection": "पासवर्ड बदलें",
     "changePasswordHint": "अपना सुपर एडमिन पासवर्ड अपडेट करें। बाकी सेशन साइन इन रहेंगे।",
     "changePasswordAction": "पासवर्ड बदलें",

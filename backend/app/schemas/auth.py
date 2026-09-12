@@ -70,5 +70,16 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=8)
 
 
+class UpdateMeRequest(BaseModel):
+    """Self-profile edit (client 09/2026 — Edit option on admin Settings).
+
+    Email is intentionally NOT editable here: it is the login identity and
+    changing it without a verification flow risks lockouts.
+    """
+
+    full_name: str | None = Field(default=None, min_length=2, max_length=200)
+    phone: str | None = Field(default=None, max_length=32)
+
+
 class MessageOut(BaseModel):
     message: str

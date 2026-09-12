@@ -387,8 +387,9 @@ function InvoicesContent() {
                   <tbody>
                     {invoice.items.map((item) => (
                       <tr key={item.id} className="border-b last:border-b-0">
+                        {/* First letter capital (covers pre-existing items) */}
                         <td className="py-2">
-                          {item.description}
+                          {item.description.charAt(0).toUpperCase() + item.description.slice(1)}
                           {item.quantity > 1 ? ` × ${item.quantity}` : ""}
                         </td>
                         <td className="py-2 text-right tabular-nums">
@@ -414,10 +415,13 @@ function InvoicesContent() {
                     <span className="text-muted-foreground">{tp("subtotal")}</span>
                     <span className="tabular-nums">{fmtINR(invoice.subtotal)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">{tp("gst")}</span>
-                    <span className="tabular-nums">{fmtINR(gstTotal)}</span>
-                  </div>
+                  {/* No-GST hotels never see a GST row (client 09/2026) */}
+                  {(gstTotal > 0 || gst.data?.is_gst_registered) && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">{tp("gst")}</span>
+                      <span className="tabular-nums">{fmtINR(gstTotal)}</span>
+                    </div>
+                  )}
                   {Number(invoice.discount_amount) > 0 && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">{tp("discount")}</span>

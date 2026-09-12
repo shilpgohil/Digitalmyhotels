@@ -1,5 +1,36 @@
 # Active Context — DigitalMyHotels
 
+## 12-BUG CLIENT BATCH 12/09/2026 (super admin + polish round)
+1. RouteLoader: EXCLUDED_ROUTES (/,/login,/forgot-password,/change-password,
+   /suspended) + came-from-excluded suppression — small loader never doubles
+   with the master loader during login/logout/boot.
+2. Plans page: plan code gets Tailwind `capitalize`.
+3. /suspended: max-w-xl body, contact card w/ support@digitalmyhotels.com +
+   +91 99986 22002, sign-out button routes to /login explicitly, 42px.
+4. Forgot-password Request-reset button h-[42px].
+5. Password requests now carry requester PHONE (backend _request_row) —
+   shown gold+tel: link on SA password-requests page + Team banner; synthetic
+   @noemail.example emails nulled out. New password is dictated over phone.
+6. Dashboard final order: room chips → arrivals/quick → mix/week → revenue →
+   insights+KPI+30day chart → In-House (client arrow, photo 5).
+7. Invoice line items first-letter capitalized at generation
+   (category.capitalize()), in card render, and in PDF (covers old data).
+   Guest address already removed earlier (client screenshot was stale).
+8. GST modes: no_gst hotels (is_gst_registered=false) now HIDE: GST & Tax
+   sidebar item (PartnerNav queries /hotels/me/gst, gated on
+   financialReports), checkout GST row (gst>0 only), invoice card GST row,
+   PDF GST row. Math already handled modes via tax_inclusive_pricing.
+9. Add Hotel: main !pb-32 so fixed action bar never covers content; Save
+   Draft/Add Hotel buttons h-[42px].
+10. All Customers: Export CSV (client-side, masked phone, limit 5000).
+11. Admin Settings: EditProfileDialog (name+phone) → NEW PATCH /auth/me
+    (audited, phone uniqueness+normalize, email NOT editable); i18n
+    "Change Password" capitalized (en) everywhere.
+12. Change-password: Go Back button → /admin/settings or /settings; hidden
+    when must_reset_password (forced flow not escapable). 42px buttons.
+New i18n keys en+hi: auth.goBack, admin.profilePhone/editProfileTitle/
+profileUpdated/emailNotEditable/noPhoneOnFile/exportCsv.
+
 ## ATTENDANCE INSIGHT ROUND 12/09/2026 (commit a085b6b)
 Deep logic audit of check-in/out; DO NOT regress these rules:
 - ABSENT counting: only swept absents + no-shows past shift_start+grace

@@ -151,7 +151,8 @@ async def generate_invoice(
             InvoiceItem(
                 hotel_id=hotel_id,
                 invoice_id=invoice.id,
-                description=f"{charge.category}: {charge.description}",
+                # First letter capital (client 09/2026 common change).
+                description=f"{charge.category.capitalize()}: {charge.description}",
                 quantity=charge.quantity,
                 rate=charge.rate,
                 taxable_amount=charge.taxable_amount,
@@ -443,7 +444,8 @@ async def render_invoice_pdf(
     pdf.set_font("helvetica", "", 10)
     pdf.set_text_color(*INK)
     for item in invoice.items:
-        desc = item.description
+        # First letter capital — covers items generated before this change.
+        desc = item.description[:1].upper() + item.description[1:]
         if item.quantity > 1:
             desc = f"{desc} x {item.quantity}"
         pdf.set_x(14)
@@ -470,7 +472,9 @@ async def render_invoice_pdf(
 
     gst_total = invoice.cgst_amount + invoice.sgst_amount + invoice.igst_amount
     summary_row("Subtotal", inr(invoice.subtotal))
-    summary_row("GST", inr(gst_total))
+    # No-GST hotels never see a GST row (client 09/2026).
+    if gst.is_gst_registered or gst_total > 0:
+        summary_row("GST", inr(gst_total))
     if invoice.discount_amount > 0:
         summary_row("Discount", f"-{inr(invoice.discount_amount)}")
     if invoice.paid_amount > 0:

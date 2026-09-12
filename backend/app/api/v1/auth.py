@@ -22,6 +22,7 @@ from app.schemas.auth import (
     PasswordResetConfirm,
     PasswordResetRequest,
     TokenResponse,
+    UpdateMeRequest,
     UserOut,
 )
 from app.services import auth as auth_service
@@ -253,6 +254,55 @@ async def me(
         memberships=_membership_outs(memberships),
         permissions=perms,
     )
+
+
+@router.patch("/me", response_model=UserOut)
+async def update_me(
+    body: UpdateMeRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserOut:
+    """Edit own profile — name/phone only (client 09/2026 admin Settings)."""
+    from app.schemas.guest import normalize_phone
+
+    changes: dict[str, str] = {}
+    if body.full_name is not None and body.full_name.strip() != user.full_name:
+        changes["full_name"] = user.full_name
+        user.full_name = body.full_name.strip()
+    if body.phone is not None and body.phone.strip():
+        normalized = normalize_phone(body.phone)
+        if not normalized:
+            from app.core.errors import ValidationAppError
+
+            raise ValidationAppError("Invalid phone number", code="invalid_phone")
+        if normalized != user.phone:
+            existing = (
+                await db.execute(
+                    select(User).where(User.phone == normalized, User.id != user.id)
+                )
+            ).scalar_one_or_none()
+            if existing is not None:
+                from app.core.errors import ValidationAppError
+
+                raise ValidationAppError(
+                    "Phone number already registered", code="phone_taken"
+                )
+            changes["phone"] = user.phone or ""
+            user.phone = normalized
+    if changes:
+        await write_audit(
+            db,
+            action="auth.profile_updated",
+            entity_type="user",
+            entity_id=user.id,
+            actor_id=user.id,
+            hotel_id=None,
+            before=changes,
+            after={k: str(getattr(user, k)) for k in changes},
+            correlation_id=getattr(request.state, "correlation_id", None),
+        )
+    return UserOut.model_validate(user)
 
 
 @router.get("/me/context", response_model=MeResponse)

@@ -86,7 +86,7 @@ function TeamContent() {
   const passwordRequests = useQuery({
     queryKey: ["team-password-requests", activeHotelId],
     queryFn: () =>
-      api<{ id: string; user_id: string; full_name: string; email: string; requested_at: string }[]>(
+      api<{ id: string; user_id: string; full_name: string; email: string | null; phone: string | null; requested_at: string }[]>(
         "/api/v1/team/password-requests",
       ),
     enabled: !!activeHotelId,
@@ -120,7 +120,13 @@ function TeamContent() {
                 return (
                   <li key={req.id} className="flex flex-wrap items-center gap-3 text-sm">
                     <span className="font-medium">{req.full_name}</span>
-                    <span className="text-muted-foreground">{req.email}</span>
+                    {req.email && <span className="text-muted-foreground">{req.email}</span>}
+                    {/* New password goes to this number (client 09/2026) */}
+                    {req.phone && (
+                      <a href={`tel:${req.phone}`} className="font-semibold text-gold-700 hover:underline">
+                        {req.phone}
+                      </a>
+                    )}
                     <span className="text-xs text-muted-foreground">
                       {fmtDateTime(req.requested_at)}
                     </span>

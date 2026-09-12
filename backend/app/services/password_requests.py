@@ -136,7 +136,11 @@ def _request_row(
         "id": req.id,
         "user_id": req.user_id,
         "full_name": user.full_name,
-        "email": user.email,
+        # Synthetic phone-first addresses are internal — show nothing instead.
+        "email": None if user.email.endswith("@noemail.example") else user.email,
+        # Phone is REQUIRED context for resets: the admin sends the new
+        # password to this number (client 09/2026).
+        "phone": user.phone,
         "hotel_id": req.hotel_id,
         "hotel_name": hotel_name,
         "requested_at": req.created_at,

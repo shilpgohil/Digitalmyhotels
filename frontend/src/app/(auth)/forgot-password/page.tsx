@@ -66,10 +66,11 @@ export default function ForgotPasswordPage() {
                   placeholder={t("requestIdentifierPlaceholder")}
                   disabled={busy}
                 />
+                {/* 42px to match the input height (client 09/2026) */}
                 <Button
                   onClick={() => void submit()}
                   disabled={busy || identifier.trim().length < 3}
-                  className="shrink-0"
+                  className="h-[42px] shrink-0 px-4"
                 >
                   <Send className="mr-1.5 size-4" aria-hidden />
                   {t("requestReset")}

@@ -272,7 +272,20 @@ const SECTIONS: NavSection[] = [
 export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void }) {
   const t = useTranslations("nav");
   const pathname = usePathname();
-  const { can } = useAuth();
+  const { can, activeHotelId } = useAuth();
+  const api = useApi();
+
+  // No-GST hotels hide the whole GST flow (client 09/2026): the GST & Tax
+  // page disappears from the menu when the hotel is not GST-registered.
+  const gstSettings = useQuery({
+    queryKey: ["gst-settings", activeHotelId],
+    queryFn: () =>
+      api<{ is_gst_registered: boolean }>("/api/v1/hotels/me/gst"),
+    enabled: !!activeHotelId && can(PERMISSIONS.financialReports),
+    staleTime: 300_000,
+    retry: false,
+  });
+  const hideGst = gstSettings.data ? !gstSettings.data.is_gst_registered : false;
 
   // Longest-prefix-wins active detection: with nested routes that share a
   // prefix (/staff, /staff/checkin, /staff/attendance, /staff/attendance/
@@ -288,7 +301,9 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
     <nav className="overflow-y-auto px-3 pb-4" aria-label="Main">
       {SECTIONS.map((section) => {
         const visible = section.items.filter(
-          (item) => !item.permission || can(item.permission),
+          (item) =>
+            (!item.permission || can(item.permission)) &&
+            !(hideGst && item.href === "/gst-tax"),
         );
         if (visible.length === 0) return null;
         return (

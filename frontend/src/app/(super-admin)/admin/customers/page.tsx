@@ -11,7 +11,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { Eye } from "lucide-react";
+import { Download, Eye } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTable } from "@/components/ui/data-table";
 import { FilterBar } from "@/components/ui/filter-bar";
@@ -76,6 +76,32 @@ export default function AdminCustomersPage() {
 
   const cols = [t("customerName"), t("contactNumber"), t("hotelName"), t("city"), "ID", tc("actions")];
 
+  /** Export the FULL (unpaginated) filtered list as CSV — masked fields only,
+   *  same privacy level as the on-screen table (client 09/2026). */
+  const exportCsv = async () => {
+    const params = new URLSearchParams();
+    if (search) params.set("q", search);
+    params.set("limit", "5000");
+    params.set("offset", "0");
+    const data = await apiFetch<{ items: CustomerSummary[] }>(
+      `/api/v1/super-admin/customers?${params}`,
+    );
+    const esc = (v: string | null | undefined) =>
+      `"${String(v ?? "").replaceAll('"', '""')}"`;
+    const csv = [
+      ["Customer", "Contact (masked)", "Hotel", "City"].join(","),
+      ...data.items.map((c) =>
+        [esc(c.full_name), esc(c.phone_masked), esc(c.hotel_name), esc(c.city)].join(","),
+      ),
+    ].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "all-customers.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <main className="space-y-6 p-4 sm:p-6">
       <div>
@@ -85,11 +111,21 @@ export default function AdminCustomersPage() {
         <h1 className="text-2xl font-bold text-foreground">{t("allCustomersSection")}</h1>
       </div>
 
-      <FilterBar
-        searchValue={search}
-        onSearchChange={(v) => { setSearch(v); setPage(0); }}
-        searchPlaceholder={t("searchCustomers")}
-      />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <FilterBar
+          searchValue={search}
+          onSearchChange={(v) => { setSearch(v); setPage(0); }}
+          searchPlaceholder={t("searchCustomers")}
+        />
+        <button
+          type="button"
+          onClick={() => void exportCsv()}
+          className="inline-flex h-[42px] items-center gap-1.5 rounded-md border border-input bg-white px-3.5 text-sm font-medium transition-colors hover:bg-muted"
+        >
+          <Download className="size-4" aria-hidden />
+          {t("exportCsv")}
+        </button>
+      </div>
 
       <DataTable
         darkHeader

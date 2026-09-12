@@ -1019,10 +1019,13 @@ function CheckoutContent() {
                             {fmtMoney(totals.roomSubtotal)}
                           </span>
                         </div>
-                        <div className="flex justify-between px-3 py-2">
-                          <span className="text-muted-foreground">{tp("gst")}</span>
-                          <span className="font-medium tabular-nums">{fmtMoney(totals.gst)}</span>
-                        </div>
+                        {/* No-GST hotels never see a GST row (client 09/2026) */}
+                        {totals.gst > 0 && (
+                          <div className="flex justify-between px-3 py-2">
+                            <span className="text-muted-foreground">{tp("gst")}</span>
+                            <span className="font-medium tabular-nums">{fmtMoney(totals.gst)}</span>
+                          </div>
+                        )}
                         {totals.chargesTotal > 0 && (
                           <div className="flex justify-between px-3 py-2">
                             <span className="text-muted-foreground">{tp("additionalCharges")}</span>

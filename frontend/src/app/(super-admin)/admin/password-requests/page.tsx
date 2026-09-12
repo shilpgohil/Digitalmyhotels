@@ -12,7 +12,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { KeyRound } from "lucide-react";
+import { KeyRound, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,7 +24,9 @@ interface ResetRequestRow {
   id: string;
   user_id: string;
   full_name: string;
-  email: string;
+  email: string | null;
+  /** New password is communicated over the phone (client 09/2026). */
+  phone: string | null;
   hotel_id: string | null;
   hotel_name: string | null;
   requested_at: string;
@@ -103,8 +105,20 @@ export default function AdminPasswordRequestsPage() {
                   <div className="min-w-0">
                     <p className="font-medium">{req.full_name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {req.email}{req.hotel_name ? ` · ${req.hotel_name}` : ""}
+                      {[req.email, req.hotel_name].filter(Boolean).join(" · ") || "—"}
                     </p>
+                    {/* Phone shown prominently — the new password is sent to
+                        this number (client 09/2026). */}
+                    {req.phone ? (
+                      <p className="flex items-center gap-1 text-sm font-semibold text-gold-700">
+                        <Phone className="size-3.5" aria-hidden />
+                        <a href={`tel:${req.phone}`} className="hover:underline">
+                          {req.phone}
+                        </a>
+                      </p>
+                    ) : (
+                      <p className="text-sm text-danger">{t("noPhoneOnFile")}</p>
+                    )}
                     <p className="text-xs text-muted-foreground">{fmtDateTime(req.requested_at)}</p>
                   </div>
                   <div className="ml-auto flex items-center gap-2">
