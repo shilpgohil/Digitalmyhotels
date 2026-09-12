@@ -18,6 +18,7 @@ from app.api.v1 import (
     reports,
     rooms,
     staff,
+    storage_health,
     subscriptions,
     super_admin,
     team,
@@ -43,4 +44,5 @@ api_router.include_router(reports.router)
 api_router.include_router(notifications.router)
 api_router.include_router(audit.router)
 api_router.include_router(subscriptions.router)
+api_router.include_router(storage_health.router)
 api_router.include_router(super_admin.router)

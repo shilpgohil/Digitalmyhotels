@@ -1302,6 +1302,9 @@ function EditHotelContent() {
               </div>
             </SectionCard>
 
+            {/* ── Storage health card ──────────────────────────────────── */}
+            <StorageHealthCard />
+
             {/* ── Section-level save failures (client 9-08 item 15) ────── */}
             {saveFailures.length > 0 && (
               <div
@@ -1342,6 +1345,92 @@ function EditHotelContent() {
     </>
   );
 }
+
+// ── Storage health card (shown to owners in Edit Hotel) ──────────────────────
+
+function StorageHealthCard() {
+  const api = useApi();
+  const { activeHotelId, can } = useAuth();
+  const [tested, setTested] = useState(false);
+
+  const health = useQuery({
+    queryKey: ["storage-health", activeHotelId],
+    queryFn: () => api<{
+      backend: string;
+      location: string;
+      write_ok: boolean;
+      read_ok: boolean;
+      files_persist_across_restarts: boolean;
+      error: string | null;
+    }>("/api/v1/storage/health"),
+    enabled: !!activeHotelId && tested && can(PERMISSIONS.hotelManageSettings),
+    retry: false,
+  });
+
+  if (!can(PERMISSIONS.hotelManageSettings)) return null;
+
+  const d = health.data;
+  const persists = d?.files_persist_across_restarts ?? false;
+  const ok = d?.write_ok && d?.read_ok;
+
+  return (
+    <div className="rounded-xl border bg-card p-4 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">Photo &amp; File Storage</p>
+          <p className="text-label text-muted-foreground">
+            Verify that profile photos and check-in selfies will persist after deploys.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-[42px]"
+          disabled={health.isLoading}
+          onClick={() => setTested(true)}
+        >
+          {health.isLoading ? "Testing…" : "Test Storage"}
+        </Button>
+      </div>
+
+      {d && (
+        <div className={`mt-3 rounded-lg border p-3 text-sm ${ok && persists ? "border-success/30 bg-success-bg text-success" : "border-danger/30 bg-danger-bg text-danger"}`}>
+          <p className="font-semibold">
+            {ok && persists
+              ? `✓ Storage OK — ${d.backend.toUpperCase()} (${d.location})`
+              : !ok
+              ? `✗ Storage test failed — files cannot be saved`
+              : `⚠ Storage works but files are not persisted (backend: ${d.backend})`}
+          </p>
+          {!persists && (
+            <p className="mt-1">
+              The backend is using <strong>local disk storage</strong> which is wiped
+              on every server restart or deploy. Profile photos and check-in selfies
+              will disappear. Set these environment variables in your Render dashboard:
+            </p>
+          )}
+          {!persists && (
+            <pre className="mt-2 overflow-x-auto rounded-md bg-black/10 p-2 text-label font-mono">
+{`STORAGE_BACKEND=b2
+B2_ENDPOINT=https://s3.us-west-004.backblazeb2.com
+B2_KEY_ID=your-backblaze-key-id
+B2_APPLICATION_KEY=your-backblaze-app-key
+B2_BUCKET_NAME=your-bucket-name
+B2_PUBLIC_BASE_URL=https://your-bucket.s3.us-west-004.backblazeb2.com
+B2_REGION=us-west-004`}
+            </pre>
+          )}
+          {d.error && (
+            <p className="mt-2 font-mono text-label">{d.error}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Import needed for StorageHealthCard
+// (useQuery already imported; useAuth already imported)
 
 export default function EditHotelPage() {
   return (

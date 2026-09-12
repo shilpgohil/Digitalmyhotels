@@ -34,6 +34,25 @@ async def lifespan(_app: FastAPI):
     # Production safety: refuse to start if crypto secrets are still defaults.
     # A misconfigured deploy with known defaults means forgeable JWTs and
     # decryptable UPI IDs — both are unacceptable in production.
+    # Storage backend check — local storage on a production/staging ephemeral
+    # container (e.g. Render free tier) silently loses files on every restart.
+    import logging as _logging
+    _slog = _logging.getLogger("storage")
+    _slog.info(
+        "Storage backend: %s (bucket/path: %s)",
+        settings.storage_backend,
+        settings.b2_bucket_name if settings.storage_backend == "b2"
+        else settings.r2_bucket_name if settings.storage_backend == "r2"
+        else settings.local_storage_path,
+    )
+    if settings.storage_backend == "local" and settings.app_env != "development":
+        _slog.warning(
+            "⚠️  STORAGE_BACKEND=local in %s — files will be lost on container "
+            "restart. Set STORAGE_BACKEND=b2 and B2_* credentials in Render "
+            "environment variables.",
+            settings.app_env,
+        )
+
     if settings.is_production:
         _UNSAFE_SECRETS = {
             "dev-secret-change-me",
