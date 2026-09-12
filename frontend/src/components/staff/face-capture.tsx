@@ -26,10 +26,16 @@ import { cn } from "@/lib/utils";
 
 export function FaceCapture({
   onCapture,
-  onSkip,
+  onCancel,
+  onError,
 }: {
+  /** A selfie was taken successfully — proceed with check-in. */
   readonly onCapture: (file: File) => void;
-  readonly onSkip: () => void;
+  /** User deliberately tapped X — ABORT check-in entirely. */
+  readonly onCancel: () => void;
+  /** Camera unavailable OR user tapped "Skip" — caller decides whether to
+   *  proceed without a selfie. */
+  readonly onError: () => void;
 }) {
   const t = useTranslations("staff");
   const tc = useTranslations("common");
@@ -68,9 +74,9 @@ export function FaceCapture({
         }
         setReady(true);
       } catch {
-        // No camera / permission denied — the check-in continues without
-        // a selfie (GPS + audit trail still apply).
-        finish(onSkip);
+        // Camera unavailable (no permission, no hardware, not supported) —
+        // let the caller decide whether to proceed without evidence.
+        finish(onError);
       }
     })();
     return () => {
@@ -98,7 +104,7 @@ export function FaceCapture({
       canvas.height = cropH;
       const ctx = canvas.getContext("2d");
       if (!ctx) {
-        finish(onSkip);
+        finish(onError);
         return;
       }
       // Mirror horizontally so the stored photo matches the preview.
@@ -110,7 +116,7 @@ export function FaceCapture({
         canvas.toBlob(resolve, "image/jpeg", 0.92),
       );
       if (!blob) {
-        finish(onSkip);
+        finish(onError);
         return;
       }
       const raw = new File([blob], "selfie.jpg", { type: "image/jpeg" });
@@ -118,7 +124,7 @@ export function FaceCapture({
       const compressed = await compressSelfie(raw);
       finish(() => onCapture(compressed));
     } catch {
-      finish(onSkip);
+      finish(onError);
     } finally {
       setBusy(false);
     }
@@ -132,9 +138,10 @@ export function FaceCapture({
     >
       {/* Header */}
       <header className="flex shrink-0 items-center justify-between px-4 py-3">
+        {/* X = deliberate cancel — ABORTS check-in, does NOT proceed */}
         <button
           type="button"
-          onClick={() => finish(onSkip)}
+          onClick={() => finish(onCancel)}
           className="flex size-10 items-center justify-center rounded-full transition-colors hover:bg-white/10 active:bg-white/20"
           aria-label={tc("cancel")}
         >
@@ -179,9 +186,10 @@ export function FaceCapture({
       >
         <p className="mx-auto max-w-xs text-sm text-white/70">{t("positionFace")}</p>
         <div className="flex items-center justify-center gap-6">
+          {/* Skip = user knows they can't take a selfie now; check-in still goes through */}
           <button
             type="button"
-            onClick={() => finish(onSkip)}
+            onClick={() => finish(onError)}
             className="text-sm font-medium text-white/60 transition-colors hover:text-white"
           >
             {t("skipSelfie")}

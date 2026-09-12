@@ -262,7 +262,30 @@ async def self_check_in(
 
     record = await _record_for(db, profile, work_date)
     if record is not None and record.check_in_at is not None:
-        raise ConflictError("Already checked in today", code="already_checked_in")
+        # Already checked in but ALSO already checked out → allow re-check-in.
+        # Hotel staff can leave and return in the same day (lunch break etc.).
+        # We reset the checkout fields and tag the record as a re-entry —
+        # the earlier checkout time is preserved in the note for audit purposes.
+        if record.check_out_at is not None:
+            prev_out = record.check_out_at.strftime("%H:%M")
+            record.check_out_at = None
+            record.check_out_lat = None
+            record.check_out_lng = None
+            record.check_out_accuracy_m = None
+            record.check_out_distance_m = None
+            record.method_out = None
+            record.early_out_minutes = None
+            record.note = (
+                f"{record.note} | re-check-in (prev out: {prev_out})"
+                if record.note
+                else f"re-check-in (prev out: {prev_out})"
+            )
+        else:
+            # Still checked in (not yet checked out) — genuinely blocked.
+            raise ConflictError(
+                "You are already checked in. Please check out first.",
+                code="already_checked_in",
+            )
     if record is None:
         record = AttendanceRecord(
             hotel_id=hotel.id, staff_profile_id=profile.id, work_date=work_date
@@ -283,6 +306,25 @@ async def self_check_in(
         selfie_key=body.selfie_key,
     )
     await db.flush()
+
+    # Notify managers if the check-in is late.
+    if record.late_minutes:
+        from app.models.user import User as _User
+        from app.services.notification_events import NE
+        from app.services.notification_events import fire as _fire
+        actor = await db.get(_User, profile.user_id)
+        await _fire(
+            db,
+            hotel_id=hotel.id,
+            event=NE.STAFF_LATE,
+            data={
+                "staff_name": actor.full_name if actor else profile.staff_code,
+                "staff_code": profile.staff_code,
+                "late_minutes": record.late_minutes,
+                "checkin_time": now_local.strftime("%H:%M"),
+            },
+        )
+
     return record
 
 
@@ -296,22 +338,28 @@ async def self_check_out(
     hotel = await _hotel(db, tenant)
     profile = await get_or_create_own_profile(db, tenant)
 
-    # Check-OUT policy: never BLOCK on the fence — a staff member who left the
-    # site and forgot would otherwise be stuck until the auto-close sweep,
-    # producing worse data. The distance is measured and OFF-SITE checkouts
-    # are flagged on the record (visible in the day detail + anomalies).
+    # Check-OUT policy: NEVER block on the geofence or missing GPS.
+    # If we blocked, a staff member who left the property or whose GPS was
+    # unavailable could never check out — producing an auto-closed record
+    # with incorrect hours. The distance is measured when possible; off-site
+    # or GPS-unavailable checkouts are flagged on the record for audit.
     distance: float | None = None
     off_site = False
-    if hotel.geofence_enabled and hotel.latitude is not None and hotel.longitude is not None:
-        if body.lat is None or body.lng is None:
-            raise ValidationAppError(
-                "Location is required to check out at this hotel", code="location_required"
-            )
+    if (
+        hotel.geofence_enabled
+        and hotel.latitude is not None
+        and hotel.longitude is not None
+        and body.lat is not None
+        and body.lng is not None
+    ):
         distance = haversine_m(
             float(body.lat), float(body.lng), float(hotel.latitude), float(hotel.longitude)
         )
         grace = min(float(body.accuracy_m or 0.0), MAX_ACCURACY_GRACE_M)
         off_site = distance > float(hotel.geofence_radius_m) + grace
+    elif hotel.geofence_enabled and (body.lat is None or body.lng is None):
+        # Fence is on but GPS unavailable at checkout — flag it, still allow.
+        off_site = True
 
     now_utc = datetime.now(UTC)
     now_local = now_utc.astimezone(hotel_tz(hotel))
@@ -368,9 +416,9 @@ async def self_today(db: AsyncSession, tenant: TenantContext) -> SelfTodayOut:
     working_minutes: int | None = None
     if record is not None and record.check_in_at is not None:
         if record.check_out_at is None:
-            status = "working"
+            status = "late" if record.status == "late" else "working"
             working_minutes = int(
-                (datetime.now(tz=record.check_in_at.tzinfo) - record.check_in_at).total_seconds()
+                (datetime.now(UTC) - record.check_in_at).total_seconds()
                 // 60
             )
         else:
@@ -412,7 +460,26 @@ async def front_desk_record(
 
     if action == "in":
         if record is not None and record.check_in_at is not None:
-            raise ConflictError("Already checked in today", code="already_checked_in")
+            if record.check_out_at is not None:
+                # Re-check-in after checkout — same logic as self_check_in.
+                prev_out = record.check_out_at.strftime("%H:%M")
+                record.check_out_at = None
+                record.check_out_lat = None
+                record.check_out_lng = None
+                record.check_out_accuracy_m = None
+                record.check_out_distance_m = None
+                record.method_out = None
+                record.early_out_minutes = None
+                record.note = (
+                    f"{record.note} | re-check-in via front desk (prev out: {prev_out})"
+                    if record.note
+                    else f"re-check-in via front desk (prev out: {prev_out})"
+                )
+            else:
+                raise ConflictError(
+                    "Staff member is already checked in. Check out first.",
+                    code="already_checked_in",
+                )
         if record is None:
             record = AttendanceRecord(
                 hotel_id=hotel.id, staff_profile_id=profile.id, work_date=work_date
@@ -912,6 +979,20 @@ async def sweep_attendance(db: AsyncSession) -> int:
                     )
                 )
                 touched += 1
+                # Notify managers once per absent event.
+                from app.models.user import User as _User
+                from app.services.notification_events import NE
+                from app.services.notification_events import fire as _fire
+                actor = await db.get(_User, profile.user_id)
+                await _fire(
+                    db,
+                    hotel_id=hotel.id,
+                    event=NE.STAFF_ABSENT,
+                    data={
+                        "staff_name": actor.full_name if actor else profile.staff_code,
+                        "staff_code": profile.staff_code,
+                    },
+                )
             elif rec.check_in_at is not None and rec.check_out_at is None:
                 # Auto-close at shift end (or 23:59 local). method_out="auto"
                 # keeps these visible in the Missing Check-outs report even
@@ -930,6 +1011,20 @@ async def sweep_attendance(db: AsyncSession) -> int:
                 suffix = "auto-closed (missing check-out)"
                 rec.note = f"{rec.note} | {suffix}" if rec.note else suffix
                 touched += 1
+                # Notify managers about the missing checkout.
+                from app.models.user import User as _User
+                from app.services.notification_events import NE
+                from app.services.notification_events import fire as _fire
+                actor = await db.get(_User, profile.user_id)
+                await _fire(
+                    db,
+                    hotel_id=hotel.id,
+                    event=NE.STAFF_MISSING_CHECKOUT,
+                    data={
+                        "staff_name": actor.full_name if actor else profile.staff_code,
+                        "staff_code": profile.staff_code,
+                    },
+                )
     if touched:
         await db.commit()
     return touched
@@ -1053,6 +1148,24 @@ async def apply_leave(
     )
     db.add(leave)
     await db.flush()
+
+    # Notify owner/manager that a leave request arrived.
+    from app.models.user import User as _User
+    from app.services.notification_events import NE
+    from app.services.notification_events import fire as _fire
+    requester = await db.get(_User, profile.user_id)
+    await _fire(
+        db,
+        hotel_id=hotel_id,
+        event=NE.STAFF_LEAVE_REQUESTED,
+        data={
+            "staff_name": requester.full_name if requester else profile.staff_code,
+            "leave_type": body.leave_type.replace("_", " ").title(),
+            "from_date": body.from_date.strftime("%d %b"),
+            "to_date": body.to_date.strftime("%d %b %Y"),
+        },
+    )
+
     await write_audit(
         db,
         action="staff.leave_applied",
@@ -1169,6 +1282,27 @@ async def decide_leave(
             d += timedelta(days=1)
 
     await db.flush()
+
+    # Notify the staff member about the decision.
+    from app.models.user import User as _User
+    from app.services.notification_events import NE
+    from app.services.notification_events import fire as _fire
+    profile = await db.get(StaffProfile, leave.staff_profile_id)
+    if profile is not None:
+        decider = await db.get(_User, tenant.user_id)
+        await _fire(
+            db,
+            hotel_id=hotel_id,
+            event=NE.STAFF_LEAVE_DECIDED,
+            data={
+                "decision": leave.status,
+                "leave_type": leave.leave_type.replace("_", " ").title(),
+                "from_date": leave.from_date.strftime("%d %b"),
+                "to_date": leave.to_date.strftime("%d %b %Y"),
+                "decided_by": decider.full_name if decider else "manager",
+            },
+        )
+
     await write_audit(
         db,
         action="staff.leave_decided",

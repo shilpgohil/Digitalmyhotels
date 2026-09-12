@@ -72,6 +72,13 @@ class NE(StrEnum):
     CHECKOUT_REMINDER = "reminder.checkout_soon"
     LOW_ROOM_AVAILABILITY = "reminder.low_availability"
 
+    # Staff attendance (client 09/2026)
+    STAFF_LATE = "staff.late_checkin"
+    STAFF_ABSENT = "staff.absent"
+    STAFF_MISSING_CHECKOUT = "staff.missing_checkout"
+    STAFF_LEAVE_REQUESTED = "staff.leave_requested"
+    STAFF_LEAVE_DECIDED = "staff.leave_decided"
+
 
 # ---------------------------------------------------------------------------
 # Event → notification template mapping
@@ -302,6 +309,46 @@ _TEMPLATES: dict[NE, dict] = {
             "{occupied} occupied, {reserved} reserved."
         ),
         "deep_link": "/rooms",
+    },
+    # Staff attendance notifications
+    NE.STAFF_LATE: {
+        "category": "operations",
+        "title": "Staff arrived late",
+        "body": "{staff_name} ({staff_code}) checked in {late_minutes} min late at {checkin_time}",
+        "deep_link": "/staff/attendance",
+    },
+    NE.STAFF_ABSENT: {
+        "category": "operations",
+        "title": "Staff member absent",
+        "body": "{staff_name} ({staff_code}) did not check in for their shift today",
+        "deep_link": "/staff/attendance",
+    },
+    NE.STAFF_MISSING_CHECKOUT: {
+        "category": "operations",
+        "title": "Staff check-out missing",
+        "body": (
+            "{staff_name} ({staff_code}) did not check out — "
+            "record auto-closed at shift end"
+        ),
+        "deep_link": "/staff/attendance",
+    },
+    NE.STAFF_LEAVE_REQUESTED: {
+        "category": "operations",
+        "title": "Leave request submitted",
+        "body": (
+            "{staff_name} requested {leave_type} leave "
+            "from {from_date} to {to_date}"
+        ),
+        "deep_link": "/staff/leaves",
+    },
+    NE.STAFF_LEAVE_DECIDED: {
+        "category": "operations",
+        "title": "Leave request {decision}",
+        "body": (
+            "Your {leave_type} leave ({from_date} – {to_date}) "
+            "was {decision} by {decided_by}"
+        ),
+        "deep_link": "/my-attendance",
     },
 }
 

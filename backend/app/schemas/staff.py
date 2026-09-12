@@ -294,4 +294,4 @@ class SelfTodayOut(BaseModel):
     check_in_at: datetime | None
     check_out_at: datetime | None
     working_minutes: int | None
-    status: str  # not_checked_in | working | checked_out
+    status: str  # not_checked_in | working | late | checked_out

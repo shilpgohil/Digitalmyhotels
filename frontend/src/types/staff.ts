@@ -199,5 +199,5 @@ export interface SelfTodayOut {
   check_in_at: string | null;
   check_out_at: string | null;
   working_minutes: number | null;
-  status: "not_checked_in" | "working" | "checked_out";
+  status: "not_checked_in" | "working" | "late" | "checked_out";
 }

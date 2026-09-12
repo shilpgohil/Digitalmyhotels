@@ -119,8 +119,8 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
 
   const completeCheckIn = async (selfie: File | null) => {
     setShowCamera(false);
+    let selfieKey: string | null = null;
     try {
-      let selfieKey: string | null = null;
       if (selfie) {
         const form = new FormData();
         form.append("file", selfie, selfie.name);
@@ -142,6 +142,11 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
       setError(null);
       invalidate();
     } catch (e) {
+      // Orphan cleanup: if the selfie was uploaded but check-in failed (network
+      // error, geofence violation, etc.), the uploaded blob is now unreferenced
+      // in storage. We don't have a delete endpoint for selfies, but the key
+      // won't be linked to any record so it will eventually be swept. The more
+      // important thing is to not confuse the user — show the real error.
       setError(e instanceof ApiError ? e.message : tc("error"));
     } finally {
       setBusy(null);
@@ -165,21 +170,29 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
   const d = today.data;
   if (!d) return null;
 
-  const statusPill = {
+  const statusPill = ({
     not_checked_in: "bg-danger-bg text-danger",
     working: "bg-success-bg text-success",
+    late: "bg-warning-bg text-warning",
     checked_out: "bg-muted text-muted-foreground",
-  }[d.status];
+  } as Record<string, string>)[d.status] ?? "bg-muted text-muted-foreground";
 
   return (
     <div className="rounded-xl border bg-card p-5 shadow-sm">
       {showCamera && (
         <FaceCapture
-          // FaceCapture guarantees exactly ONE callback fires per session.
           onCapture={(file) => void completeCheckIn(file)}
-          onSkip={() => {
-            // Camera unavailable or user skipped — proceed without evidence
-            // photo (GPS + audit trail still apply).
+          onCancel={() => {
+            // User deliberately tapped X — ABORT check-in, reset state.
+            // The GPS fix and busy state are discarded; nothing is posted.
+            setShowCamera(false);
+            setBusy(null);
+            setPendingPos(null);
+            setError(null);
+          }}
+          onError={() => {
+            // Camera unavailable or user skipped — proceed without selfie.
+            // GPS + audit trail still apply; absence of selfie is noted.
             void completeCheckIn(null);
           }}
         />
@@ -204,7 +217,7 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
           {t(`self_${d.status}`)}
         </span>
 
-        {d.status === "not_checked_in" && (
+        {(d.status === "not_checked_in" || d.status === "checked_out") && (
           <button
             type="button"
             disabled={busy !== null}
@@ -222,7 +235,7 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
               <ScanFace className={big ? "size-9" : "size-4"} aria-hidden />
             )}
             <span className={cn("font-semibold", big ? "mt-2 text-base" : "text-sm")}>
-              {t("faceCheckIn")}
+              {d.status === "checked_out" ? t("checkInAgain") : t("faceCheckIn")}
             </span>
           </button>
         )}
