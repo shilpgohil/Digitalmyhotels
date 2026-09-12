@@ -289,6 +289,7 @@ function EditHotelContent() {
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [radius, setRadius] = useState("200");
+  const [graceMinutes, setGraceMinutes] = useState("10");
   const [locating, setLocating] = useState(false);
   const geofenceInvalid = geofenceEnabled && (!latitude.trim() || !longitude.trim());
 
@@ -318,6 +319,7 @@ function EditHotelContent() {
       setLatitude(hotel.data.latitude != null ? String(hotel.data.latitude) : "");
       setLongitude(hotel.data.longitude != null ? String(hotel.data.longitude) : "");
       setRadius(String(hotel.data.geofence_radius_m ?? 200));
+      setGraceMinutes(String(hotel.data.attendance_grace_minutes ?? 10));
       setIdentityInit(true);
     }
   }, [hotel.data, identityInit]);
@@ -539,6 +541,10 @@ function EditHotelContent() {
             geofence_radius_m: Math.min(
               2000,
               Math.max(50, Number.parseInt(radius, 10) || 200),
+            ),
+            attendance_grace_minutes: Math.min(
+              120,
+              Math.max(0, Number.parseInt(graceMinutes, 10) || 10),
             ),
           },
         }),
@@ -870,6 +876,19 @@ function EditHotelContent() {
                           className="tabular-nums"
                           value={radius}
                           onChange={(e) => setRadius(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="eh-grace">{t("attendanceGrace")}</Label>
+                        <Input
+                          id="eh-grace"
+                          type="number"
+                          min={0}
+                          max={120}
+                          step={5}
+                          className="tabular-nums"
+                          value={graceMinutes}
+                          onChange={(e) => setGraceMinutes(e.target.value)}
                         />
                       </div>
                       <div className="flex items-end">

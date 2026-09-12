@@ -36,6 +36,7 @@ class HotelOut(ORMModel):
     latitude: Decimal | None = None
     longitude: Decimal | None = None
     geofence_radius_m: int = 200
+    attendance_grace_minutes: int = 10
 
 
 class ServiceItemOut(ORMModel):
@@ -85,6 +86,7 @@ class HotelUpdate(BaseModel):
     latitude: Decimal | None = Field(default=None, ge=-90, le=90)
     longitude: Decimal | None = Field(default=None, ge=-180, le=180)
     geofence_radius_m: int | None = Field(default=None, ge=50, le=2000)
+    attendance_grace_minutes: int | None = Field(default=None, ge=0, le=120)
 
 
 class HotelSettingsOut(ORMModel):

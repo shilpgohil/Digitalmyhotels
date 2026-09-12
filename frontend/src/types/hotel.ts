@@ -22,6 +22,7 @@ export interface HotelOut {
   latitude?: string | null;
   longitude?: string | null;
   geofence_radius_m?: number;
+  attendance_grace_minutes?: number;
 }
 
 export interface HotelSettingsOut {

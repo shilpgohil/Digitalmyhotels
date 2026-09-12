@@ -141,6 +141,30 @@ export interface AnomaliesOut {
   items: AnomalyRowOut[];
 }
 
+export interface RecordDetailOut {
+  id: string;
+  staff_profile_id: string;
+  staff_code: string;
+  full_name: string;
+  department: StaffDepartment;
+  work_date: string;
+  status: string;
+  check_in_at: string | null;
+  check_out_at: string | null;
+  method_in: string | null;
+  method_out: string | null;
+  check_in_distance_m: string | null;
+  check_in_accuracy_m: string | null;
+  check_out_distance_m: string | null;
+  check_out_accuracy_m: string | null;
+  late_minutes: number | null;
+  early_out_minutes: number | null;
+  working_minutes: number | null;
+  has_selfie: boolean;
+  performed_by_name: string | null;
+  note: string | null;
+}
+
 export const LEAVE_TYPES = ["annual", "sick", "unpaid", "other"] as const;
 export type LeaveType = (typeof LEAVE_TYPES)[number];
 

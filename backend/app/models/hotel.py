@@ -50,6 +50,8 @@ class Hotel(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
     longitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
     geofence_radius_m: Mapped[int] = mapped_column(Integer, default=200, nullable=False)
+    # Minutes after shift start before a check-in counts as LATE (admin-set).
+    attendance_grace_minutes: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
 
     settings: Mapped[HotelSettings | None] = relationship(
         back_populates="hotel", uselist=False, cascade="all, delete-orphan"

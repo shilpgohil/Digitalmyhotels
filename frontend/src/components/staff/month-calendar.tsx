@@ -4,6 +4,7 @@
 
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { localYmd } from "@/lib/formatting";
 import type { CalendarOut } from "@/types/staff";
 
 const CELL_TONES: Record<string, string> = {
@@ -39,13 +40,28 @@ export function MonthCalendar({ data }: { readonly data: CalendarOut }) {
         ))}
         {data.days.map((day) => {
           const n = Number(day.day.slice(-2));
+          const today = localYmd(new Date());
+          const isToday = day.day === today;
+          const isFuture = day.day > today;
           return (
             <div
               key={day.day}
-              title={day.status ? t(`att_${day.status}`) : undefined}
+              title={
+                day.status
+                  ? t(`att_${day.status}`)
+                  : isFuture
+                    ? t("scheduled")
+                    : undefined
+              }
               className={cn(
                 "flex h-9 flex-col items-center justify-center rounded-md border text-caption",
-                day.status ? CELL_TONES[day.status] ?? "bg-muted" : "bg-white",
+                day.status
+                  ? CELL_TONES[day.status] ?? "bg-muted"
+                  : isFuture
+                    ? "border-dashed bg-muted/30 text-muted-foreground"
+                    : "bg-white",
+                // Today gets the gold focus ring (theme accent).
+                isToday && "ring-2 ring-gold-400 ring-offset-1",
               )}
             >
               <span className="font-medium tabular-nums">{n}</span>

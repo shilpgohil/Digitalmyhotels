@@ -35,6 +35,7 @@ from app.schemas.staff import (
     LeaveCreate,
     LeaveDecisionIn,
     LeaveOut,
+    RecordDetailOut,
     SelfTodayOut,
     TodayAttendanceOut,
     TodayStatsOut,
@@ -125,7 +126,18 @@ async def get_or_create_own_profile(
     return profile
 
 
-def _late_minutes(profile: StaffProfile, checkin_local: datetime) -> int | None:
+def _is_overnight(profile: StaffProfile) -> bool:
+    """Shift crosses midnight (e.g. 22:00 → 07:00)."""
+    return (
+        profile.shift_start is not None
+        and profile.shift_end is not None
+        and profile.shift_end <= profile.shift_start
+    )
+
+
+def _late_minutes(
+    profile: StaffProfile, checkin_local: datetime, grace_minutes: int
+) -> int | None:
     if profile.shift_start is None:
         return None
     shift_dt = checkin_local.replace(
@@ -135,7 +147,7 @@ def _late_minutes(profile: StaffProfile, checkin_local: datetime) -> int | None:
         microsecond=0,
     )
     delta = (checkin_local - shift_dt).total_seconds() / 60
-    return int(delta) if delta > LATE_GRACE_MINUTES else None
+    return int(delta) if delta > grace_minutes else None
 
 
 def _early_out_minutes(profile: StaffProfile, checkout_local: datetime) -> int | None:
@@ -147,6 +159,11 @@ def _early_out_minutes(profile: StaffProfile, checkout_local: datetime) -> int |
         second=0,
         microsecond=0,
     )
+    # Overnight shift: the end belongs to the NEXT day relative to check-in;
+    # when the checkout happens after midnight the same-day end is correct,
+    # so only push the end forward while we're still before the shift start.
+    if _is_overnight(profile) and checkout_local.time() >= profile.shift_start:
+        shift_dt += timedelta(days=1)
     delta = (shift_dt - checkout_local).total_seconds() / 60
     return int(delta) if delta > 0 else None
 
@@ -171,6 +188,7 @@ def _apply_check_in(
     now_utc: datetime,
     now_local: datetime,
     method: str,
+    grace_minutes: int = LATE_GRACE_MINUTES,
     lat: float | None = None,
     lng: float | None = None,
     accuracy_m: float | None = None,
@@ -191,7 +209,7 @@ def _apply_check_in(
     )
     if selfie_key:
         record.check_in_selfie_key = selfie_key
-    late = _late_minutes(profile, now_local)
+    late = _late_minutes(profile, now_local, grace_minutes)
     record.late_minutes = late
     record.status = "late" if late else "present"
 
@@ -257,6 +275,7 @@ async def self_check_in(
         now_utc=now_utc,
         now_local=now_local,
         method="self_geo",
+        grace_minutes=hotel.attendance_grace_minutes,
         lat=body.lat,
         lng=body.lng,
         accuracy_m=body.accuracy_m,
@@ -276,7 +295,23 @@ async def self_check_out(
 ) -> AttendanceRecord:
     hotel = await _hotel(db, tenant)
     profile = await get_or_create_own_profile(db, tenant)
-    distance = enforce_geofence(hotel, body.lat, body.lng, body.accuracy_m)
+
+    # Check-OUT policy: never BLOCK on the fence — a staff member who left the
+    # site and forgot would otherwise be stuck until the auto-close sweep,
+    # producing worse data. The distance is measured and OFF-SITE checkouts
+    # are flagged on the record (visible in the day detail + anomalies).
+    distance: float | None = None
+    off_site = False
+    if hotel.geofence_enabled and hotel.latitude is not None and hotel.longitude is not None:
+        if body.lat is None or body.lng is None:
+            raise ValidationAppError(
+                "Location is required to check out at this hotel", code="location_required"
+            )
+        distance = haversine_m(
+            float(body.lat), float(body.lng), float(hotel.latitude), float(hotel.longitude)
+        )
+        grace = min(float(body.accuracy_m or 0.0), MAX_ACCURACY_GRACE_M)
+        off_site = distance > float(hotel.geofence_radius_m) + grace
 
     now_utc = datetime.now(UTC)
     now_local = now_utc.astimezone(hotel_tz(hotel))
@@ -301,6 +336,9 @@ async def self_check_out(
         accuracy_m=body.accuracy_m,
         distance_m=distance,
     )
+    if off_site and distance is not None:
+        suffix = f"off-site check-out (~{int(distance)} m from property)"
+        record.note = f"{record.note} | {suffix}" if record.note else suffix
     await db.flush()
     return record
 
@@ -386,6 +424,7 @@ async def front_desk_record(
             now_utc=now_utc,
             now_local=now_local,
             method="front_desk",
+            grace_minutes=hotel.attendance_grace_minutes,
             performed_by=tenant.user_id,
         )
     else:
@@ -531,6 +570,38 @@ async def today_attendance(
     ).scalars()
     rec_by_staff = {r.staff_profile_id: r for r in recs}
 
+    now_local = datetime.now(hotel_tz(hotel))
+
+    def counts_absent(profile: StaffProfile, rec: AttendanceRecord | None) -> bool:
+        """A no-show only counts as ABSENT once their shift window has passed.
+
+        Counting everyone before their shift made the 9 AM dashboard show the
+        whole hotel as absent (illogical). Rules:
+        - swept/explicit absent record → absent
+        - viewing a PAST day with no check-in → absent
+        - TODAY with a shift: absent once now > shift start + grace
+        - TODAY without a shift configured: never absent mid-day
+        """
+        if rec is not None and rec.status in ("leave", "off", "holiday"):
+            return False
+        if rec is not None and rec.status == "absent":
+            return True
+        if rec is not None and rec.check_in_at is not None:
+            return False
+        if day < now_local.date():
+            return True
+        if day > now_local.date():
+            return False
+        if profile.shift_start is None:
+            return False
+        shift_dt = now_local.replace(
+            hour=profile.shift_start.hour,
+            minute=profile.shift_start.minute,
+            second=0,
+            microsecond=0,
+        )
+        return now_local > shift_dt + timedelta(minutes=hotel.attendance_grace_minutes)
+
     items: list[AttendanceRowOut] = []
     stats = {"total": 0, "present": 0, "working": 0, "checked_out": 0, "absent": 0, "late": 0}
     for profile, user in staff_rows:
@@ -543,8 +614,7 @@ async def today_attendance(
             stats["working"] += 1
         if row_status == "checked_out":
             stats["checked_out"] += 1
-        # Not-checked-in staff count as absent-so-far (mockup "Requires attention").
-        if row_status in ("absent", "not_checked_in"):
+        if counts_absent(profile, rec):
             stats["absent"] += 1
         if rec is not None and rec.late_minutes:
             stats["late"] += 1
@@ -744,7 +814,11 @@ async def anomalies(
     late_count = early_count = missing_count = 0
     late_total = 0
     for rec, profile, user in rows:
-        missing = bool(rec.check_in_at) and rec.check_out_at is None and rec.work_date < to_date
+        # Missing = still open on a past day OR closed by the auto sweep —
+        # the auto method keeps the insight after the record is closed.
+        missing = (
+            bool(rec.check_in_at) and rec.check_out_at is None and rec.work_date < to_date
+        ) or rec.method_out == "auto"
         is_late = bool(rec.late_minutes)
         is_early = bool(rec.early_out_minutes)
         if not (is_late or is_early or missing):
@@ -839,17 +913,103 @@ async def sweep_attendance(db: AsyncSession) -> int:
                 )
                 touched += 1
             elif rec.check_in_at is not None and rec.check_out_at is None:
-                # Auto-close at shift end (or 23:59 local) — flagged via note.
+                # Auto-close at shift end (or 23:59 local). method_out="auto"
+                # keeps these visible in the Missing Check-outs report even
+                # after closing (a "manual" method erased that insight).
                 end_time = profile.shift_end or time(23, 59)
-                end_local = datetime.combine(yesterday, end_time, tzinfo=tz)
+                end_day = yesterday
+                if _is_overnight(profile):
+                    end_day = yesterday + timedelta(days=1)
+                end_local = datetime.combine(end_day, end_time, tzinfo=tz)
+                # Give stragglers time: only close once well past shift end.
+                if datetime.now(tz) < end_local + timedelta(hours=AUTO_CLOSE_AFTER_HOURS):
+                    continue
                 rec.check_out_at = end_local
-                rec.method_out = "manual"
+                rec.method_out = "auto"
+                rec.early_out_minutes = None
                 suffix = "auto-closed (missing check-out)"
                 rec.note = f"{rec.note} | {suffix}" if rec.note else suffix
                 touched += 1
     if touched:
         await db.commit()
     return touched
+
+
+# ── Record detail (evidence view for managers) ───────────────────────────────
+
+
+async def record_detail(
+    db: AsyncSession, tenant: TenantContext, record_id: UUID
+) -> RecordDetailOut:
+    hotel_id = tenant.require_hotel()
+    row = (
+        await db.execute(
+            select(AttendanceRecord, StaffProfile, User)
+            .join(StaffProfile, StaffProfile.id == AttendanceRecord.staff_profile_id)
+            .join(User, User.id == StaffProfile.user_id)
+            .where(
+                AttendanceRecord.id == record_id,
+                AttendanceRecord.hotel_id == hotel_id,
+            )
+        )
+    ).first()
+    if row is None:
+        raise NotFoundError("Attendance record not found")
+    rec, profile, user = row
+    performed_by_name: str | None = None
+    if rec.performed_by_id is not None:
+        actor = await db.get(User, rec.performed_by_id)
+        performed_by_name = actor.full_name if actor else None
+    return RecordDetailOut(
+        id=rec.id,
+        staff_profile_id=profile.id,
+        staff_code=profile.staff_code,
+        full_name=user.full_name,
+        department=profile.department,
+        work_date=rec.work_date,
+        status=_row_status(profile.status, rec),
+        check_in_at=rec.check_in_at,
+        check_out_at=rec.check_out_at,
+        method_in=rec.method_in,
+        method_out=rec.method_out,
+        check_in_distance_m=rec.check_in_distance_m,
+        check_in_accuracy_m=rec.check_in_accuracy_m,
+        check_out_distance_m=rec.check_out_distance_m,
+        check_out_accuracy_m=rec.check_out_accuracy_m,
+        late_minutes=rec.late_minutes,
+        early_out_minutes=rec.early_out_minutes,
+        working_minutes=_working_minutes(rec),
+        has_selfie=rec.check_in_selfie_key is not None,
+        performed_by_name=performed_by_name,
+        note=rec.note,
+    )
+
+
+async def record_selfie_bytes(
+    db: AsyncSession, tenant: TenantContext, record_id: UUID
+) -> tuple[bytes, str]:
+    from app.integrations.storage.base import get_storage
+
+    hotel_id = tenant.require_hotel()
+    rec = (
+        await db.execute(
+            select(AttendanceRecord).where(
+                AttendanceRecord.id == record_id,
+                AttendanceRecord.hotel_id == hotel_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if rec is None or not rec.check_in_selfie_key:
+        raise NotFoundError("No selfie recorded")
+    data = await get_storage().get_bytes(rec.check_in_selfie_key)
+    suffix = rec.check_in_selfie_key.rsplit(".", 1)[-1].lower()
+    media = {
+        "png": "image/png",
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "webp": "image/webp",
+    }.get(suffix, "application/octet-stream")
+    return data, media
 
 
 # ── Leave management (phase 2) ───────────────────────────────────────────────

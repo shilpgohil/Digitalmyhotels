@@ -36,6 +36,7 @@ import { SegmentedChips } from "@/components/ui/segmented-chips";
 import { DataTable } from "@/components/ui/data-table";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { AttendanceStatusBadge } from "@/components/staff/attendance-status-badge";
+import { RecordDetailDialog } from "@/components/staff/record-detail-dialog";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -79,6 +80,8 @@ function TodaysAttendanceContent() {
   const [onDate, setOnDate] = useState(localToday());
   const [department, setDepartment] = useState("");
   const [status, setStatus] = useState("all");
+  // Evidence dialog (methods, GPS distance, selfie) for one record.
+  const [detailRecordId, setDetailRecordId] = useState<string | null>(null);
 
   const qs = [
     `on_date=${onDate}`,
@@ -277,6 +280,12 @@ function TodaysAttendanceContent() {
                     <MoreVertical className="size-4" aria-hidden />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="min-w-48 whitespace-nowrap">
+                    {row.record_id && (
+                      <DropdownMenuItem onClick={() => setDetailRecordId(row.record_id)}>
+                        <CalendarCheck className="size-4" aria-hidden />
+                        {t("viewDetails")}
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                       onClick={() => router.push(`/staff/${row.staff_profile_id}`)}
                     >
@@ -316,9 +325,33 @@ function TodaysAttendanceContent() {
           ))}
         </DataTable>
 
+        {/* Insight line: on-time rate + average working hours for the day */}
         <p className="mt-2 text-label text-muted-foreground">
           {fmtApiDate(onDate)} · {data.data?.items.length ?? 0} / {stats?.total ?? 0}
+          {stats && stats.present > 0 && (
+            <>
+              {" · "}
+              {t("onTimeRate", {
+                pct: Math.round(((stats.present - stats.late) / stats.present) * 100),
+              })}
+              {(() => {
+                const mins = (data.data?.items ?? [])
+                  .map((r) => r.working_minutes ?? 0)
+                  .filter((m) => m > 0);
+                if (mins.length === 0) return null;
+                const avg = Math.round(mins.reduce((a, b) => a + b, 0) / mins.length);
+                return ` · ${t("avgWorkingHours", {
+                  hrs: `${Math.floor(avg / 60)}h ${avg % 60}m`,
+                })}`;
+              })()}
+            </>
+          )}
         </p>
+
+        <RecordDetailDialog
+          recordId={detailRecordId}
+          onClose={() => setDetailRecordId(null)}
+        />
       </main>
     </>
   );

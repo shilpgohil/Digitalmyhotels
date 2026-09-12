@@ -214,6 +214,32 @@ class AnomaliesOut(BaseModel):
     items: list[AnomalyRowOut]
 
 
+class RecordDetailOut(BaseModel):
+    """Full evidence view of one attendance record (manager day-detail)."""
+
+    id: UUID
+    staff_profile_id: UUID
+    staff_code: str
+    full_name: str
+    department: str
+    work_date: date
+    status: str
+    check_in_at: datetime | None
+    check_out_at: datetime | None
+    method_in: str | None
+    method_out: str | None
+    check_in_distance_m: Decimal | None
+    check_in_accuracy_m: Decimal | None
+    check_out_distance_m: Decimal | None
+    check_out_accuracy_m: Decimal | None
+    late_minutes: int | None
+    early_out_minutes: int | None
+    working_minutes: int | None
+    has_selfie: bool
+    performed_by_name: str | None
+    note: str | None
+
+
 class LeaveCreate(BaseModel):
     from_date: date
     to_date: date

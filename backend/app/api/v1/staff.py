@@ -26,6 +26,7 @@ from app.schemas.staff import (
     LeaveDecisionIn,
     LeaveListOut,
     LeaveOut,
+    RecordDetailOut,
     SelfTodayOut,
     StaffCreate,
     StaffListOut,
@@ -229,6 +230,25 @@ async def front_desk_record(
         db, tenant, staff_id, body.action, correlation_id=_correlation(request)
     )
     return AttendanceRecordOut.model_validate(record)
+
+
+@router.get("/attendance/records/{record_id}", response_model=RecordDetailOut)
+async def attendance_record_detail(
+    record_id: UUID,
+    tenant: TenantContext = Depends(require_permissions(Permission.STAFF_ATTENDANCE_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> RecordDetailOut:
+    return await attendance_service.record_detail(db, tenant, record_id)
+
+
+@router.get("/attendance/records/{record_id}/selfie")
+async def attendance_record_selfie(
+    record_id: UUID,
+    tenant: TenantContext = Depends(require_permissions(Permission.STAFF_ATTENDANCE_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    data, media = await attendance_service.record_selfie_bytes(db, tenant, record_id)
+    return Response(content=data, media_type=media)
 
 
 @router.patch("/attendance/records/{record_id}", response_model=AttendanceRecordOut)
