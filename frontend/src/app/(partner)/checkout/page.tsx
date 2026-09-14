@@ -335,6 +335,17 @@ function CheckoutContent() {
   const quote = quoteQuery.data;
   const previewLoading = !!entry && quoteQuery.isLoading && !quote;
 
+  // GST mode (client 09/2026): the GST row is CUSTOMER-FACING — only the
+  // "included_by_customer" mode shows it. "included_by_hotel" keeps tax
+  // inside the price (never displayed); "no_gst" has no tax at all.
+  const gstSettings = useQuery({
+    queryKey: ["gst-settings", activeHotelId],
+    queryFn: () => api<{ gst_mode: string }>("/api/v1/hotels/me/gst"),
+    enabled: !!activeHotelId,
+    staleTime: 300_000,
+  });
+  const showGstRow = gstSettings.data?.gst_mode === "included_by_customer";
+
   const lateHoursNum = quote?.overtime_hours ?? 0;
   const lateFeeNum = money(quote?.late_fee);
 
@@ -1019,8 +1030,9 @@ function CheckoutContent() {
                             {fmtMoney(totals.roomSubtotal)}
                           </span>
                         </div>
-                        {/* No-GST hotels never see a GST row (client 09/2026) */}
-                        {totals.gst > 0 && (
+                        {/* GST row only for "GST Including Customer" hotels
+                            (client 09/2026 modes) */}
+                        {showGstRow && totals.gst > 0 && (
                           <div className="flex justify-between px-3 py-2">
                             <span className="text-muted-foreground">{tp("gst")}</span>
                             <span className="font-medium tabular-nums">{fmtMoney(totals.gst)}</span>

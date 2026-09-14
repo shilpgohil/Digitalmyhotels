@@ -103,6 +103,16 @@ function RestaurantBillingContent() {
     setPage(1);
   }, [applied, search]);
 
+  // No-GST hotels hide the whole GST flow (client 09/2026): GST KPI,
+  // GST table columns and the "configure GST" nag all disappear.
+  const gstSettings = useQuery({
+    queryKey: ["gst-settings", activeHotelId],
+    queryFn: () => api<{ gst_mode: string }>("/api/v1/hotels/me/gst"),
+    enabled: !!activeHotelId,
+    staleTime: 300_000,
+  });
+  const hideGst = gstSettings.data?.gst_mode === "no_gst";
+
   const selectChip = (filter: QuickFilter) => {
     const range = quickFilterRange(filter);
     setActiveChip(filter);
@@ -181,13 +191,15 @@ function RestaurantBillingContent() {
           </div>
         )}
         {report.data && (
-          <div className="mb-6 grid gap-3 sm:grid-cols-3">
+          <div className={`mb-6 grid gap-3 ${hideGst ? "sm:grid-cols-1 sm:max-w-xs" : "sm:grid-cols-3"}`}>
             {(
-              [
-                ["totalAmount", report.data.total_amount, "bg-navy-900 text-white"],
-                ["taxableValue", report.data.total_taxable, "bg-gold-500 text-navy-900"],
-                ["gst", report.data.total_gst, "bg-muted text-foreground"],
-              ] as const
+              hideGst
+                ? ([["totalAmount", report.data.total_amount, "bg-navy-900 text-white"]] as const)
+                : ([
+                    ["totalAmount", report.data.total_amount, "bg-navy-900 text-white"],
+                    ["taxableValue", report.data.total_taxable, "bg-gold-500 text-navy-900"],
+                    ["gst", report.data.total_gst, "bg-muted text-foreground"],
+                  ] as const)
             ).map(([key, value, className]) => (
               <div key={key} className={`rounded-lg p-4 ${className}`}>
                 <p className="text-micro font-semibold uppercase tracking-widest opacity-80">
@@ -199,8 +211,11 @@ function RestaurantBillingContent() {
           </div>
         )}
 
-        {/* GST configuration notice — shown when total GST = ₹0 */}
+        {/* GST configuration notice — only for GST-registered hotels whose
+            charges came out untaxed (misconfiguration). No-GST hotels are
+            correct at ₹0 and must not be nagged (client 09/2026). */}
         {report.data &&
+          !hideGst &&
           Number.parseFloat(report.data.total_gst) === 0 &&
           report.data.items.length > 0 && (
             <div className="mb-4 flex items-start gap-3 rounded-lg border border-warning/20 bg-warning-bg px-4 py-3 text-sm text-warning">
@@ -252,9 +267,14 @@ function RestaurantBillingContent() {
                   <TableRow className="bg-navy-900 hover:bg-navy-900">
                     <TableHead className="text-white">{t("colId")}</TableHead>
                     <TableHead className="text-white">{t("colName")}</TableHead>
-                    <TableHead className="text-white">{t("colTaxable")}</TableHead>
-                    <TableHead className="text-white">{t("colGstRate")}</TableHead>
-                    <TableHead className="text-white">{t("colGstPayable")}</TableHead>
+                    {/* GST columns hidden for No-GST hotels (client 09/2026) */}
+                    {!hideGst && (
+                      <>
+                        <TableHead className="text-white">{t("colTaxable")}</TableHead>
+                        <TableHead className="text-white">{t("colGstRate")}</TableHead>
+                        <TableHead className="text-white">{t("colGstPayable")}</TableHead>
+                      </>
+                    )}
                     <TableHead className="text-white">{t("colFinalPrice")}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -263,9 +283,13 @@ function RestaurantBillingContent() {
                     <TableRow key={`${item.booking_number}-${item.charged_on}-${idx}`}>
                       <TableCell className="font-medium">{item.booking_number}</TableCell>
                       <TableCell>{item.guest_name}</TableCell>
-                      <TableCell className="tabular-nums">{fmtINR(item.taxable_value)}</TableCell>
-                      <TableCell className="tabular-nums">{item.gst_rate}%</TableCell>
-                      <TableCell className="tabular-nums">{fmtINR(item.gst_payable)}</TableCell>
+                      {!hideGst && (
+                        <>
+                          <TableCell className="tabular-nums">{fmtINR(item.taxable_value)}</TableCell>
+                          <TableCell className="tabular-nums">{item.gst_rate}%</TableCell>
+                          <TableCell className="tabular-nums">{fmtINR(item.gst_payable)}</TableCell>
+                        </>
+                      )}
                       <TableCell className="tabular-nums font-semibold">
                         {fmtINR(item.final_price)}
                       </TableCell>

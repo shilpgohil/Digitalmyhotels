@@ -1,5 +1,36 @@
 # Active Context — DigitalMyHotels
 
+## GST THREE-MODE IMPLEMENTATION 14/09/2026 (client re-raised — now COMPLETE)
+Root cause of the complaint: HotelSettings.tax_inclusive_pricing was stored
+at hotel creation but NEVER read by any calculation — "Included by Hotel"
+behaved identically to "Including Customer".
+Mode encoding (NO new column):
+  no_gst               ⇔ GstSettings.is_gst_registered=False
+  included_by_hotel    ⇔ registered + HotelSettings.tax_inclusive_pricing=True
+  included_by_customer ⇔ registered + tax_inclusive_pricing=False
+Backend:
+- calculate_gst(..., inclusive=True): tax EXTRACTED from gross; total_amount
+  == entered price exactly (tax = gross − extracted taxable, no drift).
+- repositories/hotels.get_gst_context(db, hotel_id) → (gst, registered,
+  inclusive) — THE way to read GST config; gst_mode() maps to string.
+- All calc sites pass inclusive: charges.add_charge, stay._gst_inclusive_due,
+  stay checkout calculator (rooms + proposed charges), compute_settlement,
+  invoices room lines.
+- GET/PATCH /hotels/me/gst: GstSettingsOut.gst_mode (computed); PATCH accepts
+  gst_mode and expands onto both flags (audited incl tax_inclusive_pricing).
+- PDF summary: GST row only for included_by_customer; otherwise Subtotal
+  shown GROSS (subtotal+gst) so numbers add up.
+Frontend (customer-facing GST shown ONLY for included_by_customer):
+- checkout settlement GST row; invoice card GST row + gross subtotal;
+- checkin payment breakdown: hotelGstRate=0 unless included_by_customer
+  (killed the 5% fallback bug for no_gst hotels), GST tile hidden at 0;
+- restaurant-billing: no_gst hides GST KPI, 3 GST columns, config nag;
+- sidebar GST & Tax hidden for unregistered (from prev round);
+- Settings→GST tab: 3-mode radio selector (sends gst_mode), replaces the
+  is_gst_registered checkbox. i18n settings.gstMode* keys en+hi.
+Tests: tests/unit/test_gst.py TestInclusiveMode (4 cases); 31 integration
+gst/invoice/checkout/charge tests green.
+
 ## 12-BUG CLIENT BATCH 12/09/2026 (super admin + polish round)
 1. RouteLoader: EXCLUDED_ROUTES (/,/login,/forgot-password,/change-password,
    /suspended) + came-from-excluded suppression — small loader never doubles

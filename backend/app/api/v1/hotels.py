@@ -248,13 +248,23 @@ async def update_service(
     return ServiceItemOut.model_validate(item)
 
 
+def _gst_out(gst, registered: bool, inclusive: bool) -> GstSettingsOut:
+    from app.repositories.hotels import gst_mode
+
+    return GstSettingsOut.model_validate(gst).model_copy(
+        update={"gst_mode": gst_mode(registered, inclusive)}
+    )
+
+
 @router.get("/me/gst", response_model=GstSettingsOut)
 async def get_my_gst(
     tenant: TenantContext = Depends(require_permissions(Permission.HOTEL_VIEW)),
     db: AsyncSession = Depends(get_db),
 ) -> GstSettingsOut:
-    gst = await get_or_create_gst_settings(db, tenant.require_hotel())
-    return GstSettingsOut.model_validate(gst)
+    from app.repositories.hotels import get_gst_context
+
+    gst, registered, inclusive = await get_gst_context(db, tenant.require_hotel())
+    return _gst_out(gst, registered, inclusive)
 
 
 @router.patch("/me/gst", response_model=GstSettingsOut)
@@ -265,10 +275,22 @@ async def update_my_gst(
     db: AsyncSession = Depends(get_db),
 ) -> GstSettingsOut:
     gst = await get_or_create_gst_settings(db, tenant.require_hotel())
+    settings = await get_or_create_settings(db, tenant.require_hotel())
     changes = body.model_dump(exclude_unset=True)
+
+    # gst_mode is the client-facing concept — expand it onto the two
+    # persisted flags (client 09/2026 three GST modes).
+    mode = changes.pop("gst_mode", None)
+    if mode is not None:
+        changes["is_gst_registered"] = mode != "no_gst"
+
     before = {k: str(getattr(gst, k)) for k in changes}
     for key, value in changes.items():
         setattr(gst, key, value)
+    if mode is not None:
+        before["tax_inclusive_pricing"] = str(settings.tax_inclusive_pricing)
+        settings.tax_inclusive_pricing = mode == "included_by_hotel"
+        changes["tax_inclusive_pricing"] = settings.tax_inclusive_pricing
     if changes:
         gst.version += 1
         await write_audit(
@@ -282,7 +304,9 @@ async def update_my_gst(
             after={k: str(v) for k, v in changes.items()},
             correlation_id=_correlation(request),
         )
-    return GstSettingsOut.model_validate(gst)
+    return _gst_out(
+        gst, gst.is_gst_registered, bool(settings.tax_inclusive_pricing)
+    )
 
 
 # --- Hotel logo + property gallery ----------------------------------------------

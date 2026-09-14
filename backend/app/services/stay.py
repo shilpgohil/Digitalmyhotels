@@ -471,9 +471,9 @@ async def list_current_guests(
     from app.domain.gst import GstRates, calculate_gst
     from app.domain.gst import money as _money
     from app.models.payment import HotelCharge
-    from app.repositories.hotels import get_or_create_gst_settings
+    from app.repositories.hotels import get_gst_context
 
-    gst_settings = await get_or_create_gst_settings(db, hotel_id)
+    gst_settings, gst_registered, gst_inclusive = await get_gst_context(db, hotel_id)
     gst_rates = GstRates(
         cgst=gst_settings.default_cgst_rate,
         sgst=gst_settings.default_sgst_rate,
@@ -505,7 +505,10 @@ async def list_current_guests(
             )
         )
         room_breakup = calculate_gst(
-            room_taxable, gst_rates, is_registered=gst_settings.is_gst_registered
+            room_taxable,
+            gst_rates,
+            is_registered=gst_registered,
+            inclusive=gst_inclusive,
         )
         charges_total = charges_by_booking.get(b.id, Decimal("0.00"))
         final_total = _money(
@@ -695,7 +698,7 @@ async def quote_checkout(
     from app.models.hotel import Hotel
     from app.models.payment import HotelCharge
     from app.models.room import RoomType
-    from app.repositories.hotels import get_or_create_gst_settings
+    from app.repositories.hotels import get_gst_context
 
     if booking.status != "checked_in":
         raise ValidationAppError(
@@ -740,14 +743,16 @@ async def quote_checkout(
     room_taxable = _m(
         sum((br.rate * nights for br in booking.rooms if br.is_current), Decimal("0.00"))
     )
-    gst = await get_or_create_gst_settings(db, booking.hotel_id)
+    gst, gst_registered, gst_inclusive = await get_gst_context(db, booking.hotel_id)
     rates = GstRates(
         cgst=gst.default_cgst_rate,
         sgst=gst.default_sgst_rate,
         igst=gst.default_igst_rate,
         version=gst.version,
     )
-    room_breakup = calculate_gst(room_taxable, rates, is_registered=gst.is_gst_registered)
+    room_breakup = calculate_gst(
+        room_taxable, rates, is_registered=gst_registered, inclusive=gst_inclusive
+    )
 
     # ── charges already posted to the stay ────────────────────────────────
     charges_result = await db.execute(
@@ -762,18 +767,27 @@ async def quote_checkout(
     existing_tax = _m(sum((c.tax_amount for c in existing), Decimal("0.00")))
 
     # ── charges the desk is adding right now (not persisted here) ─────────
+    # inclusive mode: the entered amount IS the customer total (tax inside),
+    # so the proposed total equals the entered amounts either way — only the
+    # tax split differs.
     proposed_taxable = Decimal("0.00")
     proposed_tax = Decimal("0.00")
+    proposed_total = Decimal("0.00")
     for c in draft.charges:
-        taxable = _m(c.amount)
-        proposed_taxable += taxable
+        amount = _m(c.amount)
         if c.apply_gst:
-            proposed_tax += calculate_gst(
-                taxable, rates, is_registered=gst.is_gst_registered
-            ).total_tax
+            b = calculate_gst(
+                amount, rates, is_registered=gst_registered, inclusive=gst_inclusive
+            )
+            proposed_taxable += b.taxable_amount
+            proposed_tax += b.total_tax
+            proposed_total += b.total_amount
+        else:
+            proposed_taxable += amount
+            proposed_total += amount
     proposed_taxable = _m(proposed_taxable)
     proposed_tax = _m(proposed_tax)
-    proposed_total = _m(proposed_taxable + proposed_tax)
+    proposed_total = _m(proposed_total)
 
     # ── server-derived hourly overstay ─────────────────────────────────────
     grace_minutes = settings.late_checkout_grace_minutes if settings else 60
@@ -849,7 +863,7 @@ async def compute_settlement(
     from app.domain.gst import GstRates, calculate_gst
     from app.domain.gst import money as _m
     from app.models.payment import HotelCharge
-    from app.repositories.hotels import get_or_create_gst_settings
+    from app.repositories.hotels import get_gst_context
 
     nights = max((booking.check_out_date - booking.check_in_date).days, 1)
 
@@ -860,14 +874,16 @@ async def compute_settlement(
             Decimal("0.00"),
         )
     )
-    gst = await get_or_create_gst_settings(db, booking.hotel_id)
+    gst, gst_registered, gst_inclusive = await get_gst_context(db, booking.hotel_id)
     rates = GstRates(
         cgst=gst.default_cgst_rate,
         sgst=gst.default_sgst_rate,
         igst=gst.default_igst_rate,
         version=gst.version,
     )
-    room_breakup = calculate_gst(room_taxable, rates, is_registered=gst.is_gst_registered)
+    room_breakup = calculate_gst(
+        room_taxable, rates, is_registered=gst_registered, inclusive=gst_inclusive
+    )
 
     charges_result = await db.execute(
         select(HotelCharge).where(

@@ -17,7 +17,7 @@ from app.models.hotel import Hotel, HotelSettings
 from app.models.invoice import Invoice, InvoiceItem
 from app.models.payment import HotelCharge
 from app.models.room import Room
-from app.repositories.hotels import get_or_create_gst_settings
+from app.repositories.hotels import get_gst_context
 from app.services.audit import write_audit
 from app.services.bookings import get_booking
 
@@ -69,7 +69,7 @@ async def generate_invoice(
             "An active invoice already exists for this booking", code="invoice_exists"
         )
 
-    gst = await get_or_create_gst_settings(db, hotel_id)
+    gst, gst_registered, gst_inclusive = await get_gst_context(db, hotel_id)
     rates = GstRates(
         cgst=gst.default_cgst_rate,
         sgst=gst.default_sgst_rate,
@@ -108,8 +108,14 @@ async def generate_invoice(
             continue
         room = rooms_by_id.get(booking_room.room_id)
         taxable = money(booking_room.rate * nights)
+        # inclusive ("GST Included by Hotel"): rate is the gross customer
+        # price; GST is extracted inside it, so the total never changes.
         breakup = calculate_gst(
-            taxable, rates, is_interstate=interstate, is_registered=gst.is_gst_registered
+            taxable,
+            rates,
+            is_interstate=interstate,
+            is_registered=gst_registered,
+            inclusive=gst_inclusive,
         )
         db.add(
             InvoiceItem(
@@ -314,7 +320,9 @@ async def render_invoice_pdf(
     """
     invoice = await get_invoice(db, tenant, invoice_id)
     hotel = await db.get(Hotel, tenant.require_hotel())
-    gst = await get_or_create_gst_settings(db, tenant.require_hotel())
+    gst, gst_registered, gst_inclusive = await get_gst_context(
+        db, tenant.require_hotel()
+    )
     booking = await db.get(Booking, invoice.booking_id)
 
     # Current rooms (number + type) and guest phone for the Stay/Billed blocks.
@@ -471,9 +479,16 @@ async def render_invoice_pdf(
         pdf.cell(36, 6.5, latin1(value), align="R", new_x="LMARGIN", new_y="NEXT")
 
     gst_total = invoice.cgst_amount + invoice.sgst_amount + invoice.igst_amount
-    summary_row("Subtotal", inr(invoice.subtotal))
-    # No-GST hotels never see a GST row (client 09/2026).
-    if gst.is_gst_registered or gst_total > 0:
+    # Client 09/2026 GST modes on the customer-facing document:
+    # - included_by_customer: Subtotal + GST rows (tax added on top, shown)
+    # - included_by_hotel:    GST hidden — subtotal shown GROSS (tax inside)
+    # - no_gst:               GST hidden, tax is zero anyway
+    show_gst_row = gst_registered and not gst_inclusive
+    display_subtotal = (
+        invoice.subtotal if show_gst_row else money(invoice.subtotal + gst_total)
+    )
+    summary_row("Subtotal", inr(display_subtotal))
+    if show_gst_row:
         summary_row("GST", inr(gst_total))
     if invoice.discount_amount > 0:
         summary_row("Discount", f"-{inr(invoice.discount_amount)}")

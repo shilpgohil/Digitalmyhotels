@@ -2081,16 +2081,20 @@ function CheckinForm({
   const gstSettings = useQuery({
     queryKey: ["hotel-gst", activeHotelId],
     queryFn: () =>
-      api<{ default_cgst_rate: string; default_sgst_rate: string }>(
+      api<{ gst_mode: string; default_cgst_rate: string; default_sgst_rate: string }>(
         "/api/v1/hotels/me/gst",
       ),
     enabled: !!activeHotelId,
     staleTime: 5 * 60_000,
   });
-  // Total rate = CGST + SGST. Falls back to 5 if data not yet loaded.
+  // GST is only ADDED ON TOP for "included_by_customer" hotels (client
+  // 09/2026 modes): no_gst charges no tax, included_by_hotel keeps tax
+  // inside the rate — in both cases nothing extra appears in the balance.
   const hotelGstRate =
-    Number.parseFloat(gstSettings.data?.default_cgst_rate ?? "0") +
-    Number.parseFloat(gstSettings.data?.default_sgst_rate ?? "0") || 5;
+    gstSettings.data?.gst_mode === "included_by_customer"
+      ? Number.parseFloat(gstSettings.data.default_cgst_rate) +
+          Number.parseFloat(gstSettings.data.default_sgst_rate) || 5
+      : 0;
 
   // Prefill hotel standard times when the booking has none — keeps the
   // custom picker from opening on an empty native clock.
@@ -2845,10 +2849,13 @@ function CheckinForm({
                 <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Advance Paid</p>
                 <p className="text-sm font-bold tabular-nums">{fmtINR(advPaid)}</p>
               </div>
-              <div className="space-y-1 text-center">
-                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">GST ({hotelGstRate}%)</p>
-                <p className="text-sm font-bold tabular-nums">{fmtINR(gstAmount)}</p>
-              </div>
+              {/* GST tile only when tax is added on top (client 09/2026 modes) */}
+              {hotelGstRate > 0 && (
+                <div className="space-y-1 text-center">
+                  <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">GST ({hotelGstRate}%)</p>
+                  <p className="text-sm font-bold tabular-nums">{fmtINR(gstAmount)}</p>
+                </div>
+              )}
               <div className="space-y-1 text-center">
                 <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
                 <p className={cn("text-sm font-bold tabular-nums", balance > 0 ? "text-gold-600" : "text-success")}>{fmtINR(balance)}</p>
@@ -3186,16 +3193,20 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const gstSettings = useQuery({
     queryKey: ["hotel-gst", activeHotelId],
     queryFn: () =>
-      api<{ default_cgst_rate: string; default_sgst_rate: string }>(
+      api<{ gst_mode: string; default_cgst_rate: string; default_sgst_rate: string }>(
         "/api/v1/hotels/me/gst",
       ),
     enabled: !!activeHotelId,
     staleTime: 5 * 60_000,
   });
-  // Total rate = CGST + SGST. Falls back to 5 if data not yet loaded.
+  // GST is only ADDED ON TOP for "included_by_customer" hotels (client
+  // 09/2026 modes): no_gst charges no tax, included_by_hotel keeps tax
+  // inside the rate — in both cases nothing extra appears in the balance.
   const hotelGstRate =
-    Number.parseFloat(gstSettings.data?.default_cgst_rate ?? "0") +
-    Number.parseFloat(gstSettings.data?.default_sgst_rate ?? "0") || 5;
+    gstSettings.data?.gst_mode === "included_by_customer"
+      ? Number.parseFloat(gstSettings.data.default_cgst_rate) +
+          Number.parseFloat(gstSettings.data.default_sgst_rate) || 5
+      : 0;
 
   // Default the checkout time from hotel settings once loaded (unless edited).
   // Check-in time is NOT defaulted from settings — walk-ins start at "now".
@@ -4423,10 +4434,13 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Advance Paid</p>
               <p className="text-sm font-bold tabular-nums">{fmtINR(collectedAdvanceWI)}</p>
             </div>
-            <div className="space-y-1 text-center">
-              <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">GST ({hotelGstRate}%)</p>
-              <p className="text-sm font-bold tabular-nums">{fmtINR(gstAmountWI)}</p>
-            </div>
+            {/* GST tile only when tax is added on top (client 09/2026 modes) */}
+            {hotelGstRate > 0 && (
+              <div className="space-y-1 text-center">
+                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">GST ({hotelGstRate}%)</p>
+                <p className="text-sm font-bold tabular-nums">{fmtINR(gstAmountWI)}</p>
+              </div>
+            )}
             <div className="space-y-1 text-center">
               <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
               <p className={cn("text-sm font-bold tabular-nums", remainingWI > 0 ? "text-gold-600" : "text-success")}>{fmtINR(remainingWI)}</p>

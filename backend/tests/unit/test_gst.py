@@ -62,3 +62,36 @@ class TestInclusivePricing:
         # Whole-rupee rounding: roundtrip may drift by up to ₹2
         # (taxable rounds once, each tax component rounds once more).
         assert abs(breakup.total_amount - Decimal("999.00")) <= Decimal("2")
+
+
+class TestInclusiveMode:
+    """Client 09/2026 'GST Included by Hotel': the customer total NEVER
+    changes — tax is extracted from within the listed price."""
+
+    def test_total_equals_gross(self) -> None:
+        breakup = calculate_gst(Decimal("1120.00"), RATES, inclusive=True)
+        assert breakup.total_amount == Decimal("1120.00")
+        assert breakup.taxable_amount == Decimal("1000.00")
+        assert breakup.total_tax == Decimal("120.00")
+        assert breakup.cgst_amount == Decimal("60.00")
+        assert breakup.sgst_amount == Decimal("60.00")
+
+    def test_total_exact_even_with_awkward_gross(self) -> None:
+        # Whatever the rounding, taxable + tax must reconstruct the gross
+        # EXACTLY — the customer pays the listed price, no drift allowed.
+        for gross in ("999", "1001", "1234.56", "57"):
+            b = calculate_gst(Decimal(gross), RATES, inclusive=True)
+            assert b.total_amount == money(Decimal(gross))
+            assert b.taxable_amount + b.total_tax == b.total_amount
+
+    def test_interstate_inclusive_uses_igst(self) -> None:
+        b = calculate_gst(Decimal("1120.00"), RATES, inclusive=True, is_interstate=True)
+        assert b.igst_amount == Decimal("120.00")
+        assert b.cgst_amount == Decimal("0.00")
+        assert b.total_amount == Decimal("1120.00")
+
+    def test_unregistered_ignores_inclusive_flag(self) -> None:
+        # no_gst mode: inclusive flag is irrelevant — zero tax either way.
+        b = calculate_gst(Decimal("1000.00"), RATES, inclusive=True, is_registered=False)
+        assert b.total_tax == Decimal("0.00")
+        assert b.total_amount == Decimal("1000.00")

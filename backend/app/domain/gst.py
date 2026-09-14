@@ -46,12 +46,42 @@ def calculate_gst(
     *,
     is_interstate: bool = False,
     is_registered: bool = True,
+    inclusive: bool = False,
 ) -> GstBreakup:
-    """Compute the GST breakup for a taxable amount.
+    """Compute the GST breakup for an amount.
 
     Intra-state: CGST + SGST. Inter-state: IGST. Unregistered hotels
     charge no GST.
+
+    inclusive=True ("GST Included by Hotel", client 09/2026): the given
+    amount is the GROSS price the customer pays — GST is extracted from
+    WITHIN it (total_amount stays equal to the given amount) instead of
+    being added on top. The hotel absorbs the tax; the customer-facing
+    total never changes.
     """
+    if inclusive and is_registered:
+        gross = money(taxable_amount)
+        taxable = extract_taxable_from_inclusive(
+            gross, rates, is_interstate=is_interstate
+        )
+        total_tax = money(gross - taxable)
+        if is_interstate:
+            igst, cgst, sgst = total_tax, Decimal("0.00"), Decimal("0.00")
+        else:
+            cgst = money(total_tax / 2)
+            sgst = money(total_tax - cgst)
+            igst = Decimal("0.00")
+        return GstBreakup(
+            taxable_amount=taxable,
+            cgst_amount=cgst,
+            sgst_amount=sgst,
+            igst_amount=igst,
+            total_tax=total_tax,
+            total_amount=gross,  # customer pays exactly the listed price
+            is_interstate=is_interstate,
+            rates_version=rates.version,
+        )
+
     taxable = money(taxable_amount)
     if not is_registered:
         return GstBreakup(

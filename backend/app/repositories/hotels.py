@@ -40,6 +40,30 @@ async def get_or_create_gst_settings(db: AsyncSession, hotel_id: UUID) -> GstSet
     return gst
 
 
+async def get_gst_context(
+    db: AsyncSession, hotel_id: UUID
+) -> tuple[GstSettings, bool, bool]:
+    """(gst_settings, is_registered, inclusive) — THE way to read GST config.
+
+    Client 09/2026 GST modes map onto two persisted flags:
+    - "no_gst"               → is_registered=False
+    - "included_by_hotel"    → is_registered=True, inclusive=True
+      (GST extracted from within the price; customer never sees it)
+    - "included_by_customer" → is_registered=True, inclusive=False
+      (GST added on top and displayed to the customer)
+    """
+    gst = await get_or_create_gst_settings(db, hotel_id)
+    settings = await get_or_create_settings(db, hotel_id)
+    return gst, gst.is_gst_registered, bool(settings.tax_inclusive_pricing)
+
+
+def gst_mode(is_registered: bool, inclusive: bool) -> str:
+    """String mode name for API responses / audits."""
+    if not is_registered:
+        return "no_gst"
+    return "included_by_hotel" if inclusive else "included_by_customer"
+
+
 async def get_or_create_payment_config(
     db: AsyncSession, hotel_id: UUID
 ) -> HotelPaymentConfig:

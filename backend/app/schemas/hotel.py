@@ -1,5 +1,6 @@
 from datetime import time
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -126,6 +127,10 @@ class HotelSettingsUpdate(BaseModel):
 
 
 class GstSettingsOut(ORMModel):
+    # Client 09/2026 three GST modes (derived from is_gst_registered +
+    # HotelSettings.tax_inclusive_pricing):
+    # "no_gst" | "included_by_hotel" | "included_by_customer"
+    gst_mode: str = "included_by_customer"
     is_gst_registered: bool
     gstin: str | None
     legal_name: str | None
@@ -140,6 +145,9 @@ class GstSettingsOut(ORMModel):
 
 
 class GstSettingsUpdate(BaseModel):
+    # Setting gst_mode updates is_gst_registered + tax_inclusive_pricing
+    # together (the mode is the single client-facing concept).
+    gst_mode: Literal["no_gst", "included_by_hotel", "included_by_customer"] | None = None
     is_gst_registered: bool | None = None
     gstin: str | None = Field(default=None, min_length=15, max_length=15)
     legal_name: str | None = Field(default=None, max_length=255)

@@ -408,15 +408,23 @@ function InvoicesContent() {
                 </table>
               </div>
 
-              {/* Totals */}
+              {/* Totals — GST row rules (client 09/2026 modes):
+                  included_by_customer → Subtotal (ex-tax) + GST row;
+                  included_by_hotel    → GST hidden, Subtotal shown GROSS;
+                  no_gst               → GST hidden, tax is zero anyway. */}
               <div className="flex justify-end p-6">
                 <div className="w-full max-w-xs space-y-1.5 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{tp("subtotal")}</span>
-                    <span className="tabular-nums">{fmtINR(invoice.subtotal)}</span>
+                    <span className="tabular-nums">
+                      {fmtINR(
+                        gst.data?.gst_mode === "included_by_customer"
+                          ? invoice.subtotal
+                          : Number(invoice.subtotal) + gstTotal,
+                      )}
+                    </span>
                   </div>
-                  {/* No-GST hotels never see a GST row (client 09/2026) */}
-                  {(gstTotal > 0 || gst.data?.is_gst_registered) && (
+                  {gst.data?.gst_mode === "included_by_customer" && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">{tp("gst")}</span>
                       <span className="tabular-nums">{fmtINR(gstTotal)}</span>

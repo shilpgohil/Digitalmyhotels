@@ -51,6 +51,11 @@ export interface HotelImageOut {
 }
 
 export interface GstSettingsOut {
+  /** Client 09/2026 GST modes:
+   *  - "no_gst": GST flow hidden everywhere in the partner system
+   *  - "included_by_hotel": GST inside the price, never shown to customer
+   *  - "included_by_customer": GST added on top and displayed */
+  gst_mode: "no_gst" | "included_by_hotel" | "included_by_customer";
   is_gst_registered: boolean;
   gstin: string | null;
   legal_name: string | null;

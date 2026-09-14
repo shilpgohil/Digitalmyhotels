@@ -12,15 +12,15 @@ from app.core.tenant import TenantContext
 from app.domain.gst import GstRates, calculate_gst, money
 from app.models.booking import Booking
 from app.models.payment import HotelCharge
-from app.repositories.hotels import get_or_create_gst_settings
+from app.repositories.hotels import get_gst_context
 from app.schemas.payment import ChargeCreate
 from app.services.audit import write_audit
 from app.services.bookings import get_booking, settle_booking_amounts
 from app.services.ledger import append_entry
 
 
-async def _gst_rates(db: AsyncSession, hotel_id: UUID) -> tuple[GstRates, bool]:
-    gst = await get_or_create_gst_settings(db, hotel_id)
+async def _gst_rates(db: AsyncSession, hotel_id: UUID) -> tuple[GstRates, bool, bool]:
+    gst, registered, inclusive = await get_gst_context(db, hotel_id)
     return (
         GstRates(
             cgst=gst.default_cgst_rate,
@@ -28,7 +28,8 @@ async def _gst_rates(db: AsyncSession, hotel_id: UUID) -> tuple[GstRates, bool]:
             igst=gst.default_igst_rate,
             version=gst.version,
         ),
-        gst.is_gst_registered,
+        registered,
+        inclusive,
     )
 
 
@@ -50,9 +51,14 @@ async def add_charge(
         )
 
     taxable = money(body.rate * body.quantity)
-    rates, registered = await _gst_rates(db, hotel_id)
+    rates, registered, inclusive = await _gst_rates(db, hotel_id)
     if body.apply_gst:
-        breakup = calculate_gst(taxable, rates, is_registered=registered)
+        # inclusive ("GST Included by Hotel"): tax extracted from within the
+        # entered price, so the customer-facing total equals the entered amount.
+        breakup = calculate_gst(
+            taxable, rates, is_registered=registered, inclusive=inclusive
+        )
+        taxable = breakup.taxable_amount
         tax, total = breakup.total_tax, breakup.total_amount
     else:
         tax, total = Decimal("0.00"), taxable

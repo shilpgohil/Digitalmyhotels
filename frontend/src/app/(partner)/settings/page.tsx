@@ -491,7 +491,9 @@ function GstForm() {
       return api<GstSettingsOut>("/api/v1/hotels/me/gst", {
         method: "PATCH",
         body: {
-          is_gst_registered: form.get("is_gst_registered") === "on",
+          // Three-mode selector (client 09/2026) — the backend expands it
+          // onto is_gst_registered + tax_inclusive_pricing.
+          gst_mode: fs("gst_mode", "included_by_customer"),
           gstin: fs("gstin").trim() || null,
           legal_name: fs("legal_name").trim() || null,
           trade_name: fs("trade_name").trim() || null,
@@ -522,16 +524,37 @@ function GstForm() {
         mutation.mutate(new FormData(e.currentTarget));
       }}
     >
-      <div className="flex items-center gap-2">
-        <input
-          id="g-reg"
-          name="is_gst_registered"
-          type="checkbox"
-          defaultChecked={data.is_gst_registered}
-          className="size-4 rounded border-input"
-        />
-        <Label htmlFor="g-reg">{t("gstRegistered")}</Label>
-      </div>
+      {/* GST mode — the client's three modes (09/2026):
+          included_by_hotel: tax inside the price, customer never sees GST
+          included_by_customer: tax added on top and displayed
+          no_gst: GST flow hidden everywhere in the partner system */}
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">{t("gstModeTitle")}</legend>
+        {(
+          [
+            ["included_by_hotel", t("gstIncludedByHotel"), t("gstIncludedByHotelHint")],
+            ["included_by_customer", t("gstIncludedByCustomer"), t("gstIncludedByCustomerHint")],
+            ["no_gst", t("noGstApplicable"), t("noGstApplicableHint")],
+          ] as const
+        ).map(([value, label, hint]) => (
+          <label
+            key={value}
+            className="flex cursor-pointer items-start gap-2.5 rounded-md border border-input bg-white px-3 py-2.5 text-sm transition-colors has-[:checked]:border-gold-500 has-[:checked]:bg-gold-50"
+          >
+            <input
+              type="radio"
+              name="gst_mode"
+              value={value}
+              defaultChecked={data.gst_mode === value}
+              className="mt-0.5 size-4 accent-[#C09A2E]"
+            />
+            <span>
+              <span className="font-medium">{label}</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">{hint}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="g-gstin">{t("gstin")}</Label>
