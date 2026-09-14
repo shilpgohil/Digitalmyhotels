@@ -64,7 +64,7 @@ const ADMIN_STATS: AdminStatDef[] = [
   { key: "totalHotels",         icon: LayoutGrid,    tone: "gold",    href: "/admin/hotels?filter=all" },
   { key: "activeHotels",        icon: CheckCircle,   tone: "success", href: "/admin/hotels" },
   { key: "todayCheckins",       icon: Calendar,      tone: "info" },
-  { key: "totalRevenue",        icon: IndianRupee,   tone: "gold",    format: "currency" },
+  { key: "totalRevenue",        icon: IndianRupee,   tone: "gold",    format: "currency", href: "/admin/revenue" },
   { key: "recentlyExpiredCard", icon: XCircle,       tone: "danger",  href: "/admin/expired" },
   { key: "expiredHotelsCard",   icon: AlertTriangle, tone: "warning", href: "/admin/expired?filter=all" },
 ];
@@ -293,7 +293,7 @@ export default function AdminDashboardPage() {
               {(renewals.data?.items ?? []).map((r) => (
                 <tr key={r.id} className="border-t hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3 font-medium">{r.hotel_name}</td>
-                  <td className="px-4 py-3 text-muted-foreground">
+                  <td className="px-4 py-3 text-muted-foreground capitalize">
                     {r.plan_name} — {r.duration_days} {t("days")}
                   </td>
                   <td className="px-4 py-3 font-medium tabular-nums">{fmtINR(r.amount)}</td>
@@ -358,7 +358,7 @@ export default function AdminDashboardPage() {
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
                     {fmtApiDate(h.expiry_date)}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{h.subscription_plan_name ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground capitalize">{h.subscription_plan_name ?? "—"}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex rounded-full bg-danger-bg px-2.5 py-0.5 text-xs font-medium text-danger">
                       Expired
@@ -432,7 +432,7 @@ export default function AdminDashboardPage() {
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
                     {fmtDateTime(h.created_at)}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{h.subscription_plan_name ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground capitalize">{h.subscription_plan_name ?? "—"}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex rounded-full bg-success-bg px-2.5 py-0.5 text-xs font-medium text-success">
                       New
@@ -483,8 +483,10 @@ export default function AdminDashboardPage() {
             { label: t("addHotel"), icon: Plus, href: "/admin/add-hotel" },
             { label: t("viewHotels"), icon: Eye, href: "/admin/hotels" },
             { label: t("renewSubscriptions"), icon: RefreshCw, href: "/admin/expired" },
-            { label: t("generateReport"), icon: FileBarChart2, href: "/admin/plans" },
-            { label: t("settings"), icon: Settings, href: "/admin/plans" },
+            // Fixed targets (client 09/2026: "clicking then go plan page") —
+            // both of these wrongly pointed at /admin/plans.
+            { label: t("generateReport"), icon: FileBarChart2, href: "/admin/revenue" },
+            { label: t("settings"), icon: Settings, href: "/admin/settings" },
           ].map((action) => {
             const Icon = action.icon;
             return (

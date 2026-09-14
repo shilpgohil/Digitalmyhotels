@@ -509,9 +509,10 @@ export default function AddHotelPage() {
   };
 
   return (
-    // pb-32: the fixed action bar must never cover the last section
-    // (client 09/2026: "cut bottom part — increase padding").
-    <main className="p-4 space-y-4 max-w-3xl mx-auto !pb-32 sm:p-6">
+    // pb-44: the fixed action bar must never cover the last section
+    // (client 09/2026: "cut bottom part — increase padding"; bumped from
+    // pb-32 → pb-44 after continued reports of the last section being cut).
+    <main className="p-4 space-y-4 max-w-3xl mx-auto !pb-44 sm:p-6">
       {/* Page title */}
       <div>
         <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t("addNewHotel")}</h1>
@@ -1064,8 +1065,14 @@ export default function AddHotelPage() {
       )}
 
       {/* Sticky bottom action bar — matches Figma: Save Draft + Add Hotel */}
-      {/* On mobile: full-width buttons; on sm+: right-aligned */}
-      <div className="fixed bottom-0 inset-x-0 z-10 flex items-center justify-end gap-3 border-t border-border bg-white px-4 py-3 shadow-md sm:px-8">
+      {/* On mobile: full-width buttons; on sm+: right-aligned.
+          lg:left-64 keeps the bar inside the content area so it never
+          covers the sidebar's bottom items (Logout) on desktop.
+          safe-area padding stops mobile browser chrome from cutting it. */}
+      <div
+        className="fixed bottom-0 left-0 right-0 lg:left-64 z-10 flex items-center justify-end gap-3 border-t border-border bg-white px-4 py-3 shadow-md sm:px-8"
+        style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+      >
         <Button
           type="button"
           variant="outline"

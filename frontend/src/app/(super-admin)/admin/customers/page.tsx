@@ -11,6 +11,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Download, Eye } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTable } from "@/components/ui/data-table";
@@ -77,29 +78,42 @@ export default function AdminCustomersPage() {
   const cols = [t("customerName"), t("contactNumber"), t("hotelName"), t("city"), "ID", tc("actions")];
 
   /** Export the FULL (unpaginated) filtered list as CSV — masked fields only,
-   *  same privacy level as the on-screen table (client 09/2026). */
+   *  same privacy level as the on-screen table (client 09/2026).
+   *  Wrapped in try/catch: the previous version failed silently when the
+   *  backend rejected limit=5000 (was capped at 100 → 422) — the button
+   *  appeared dead. Errors now surface as a toast. */
   const exportCsv = async () => {
-    const params = new URLSearchParams();
-    if (search) params.set("q", search);
-    params.set("limit", "5000");
-    params.set("offset", "0");
-    const data = await apiFetch<{ items: CustomerSummary[] }>(
-      `/api/v1/super-admin/customers?${params}`,
-    );
-    const esc = (v: string | null | undefined) =>
-      `"${String(v ?? "").replaceAll('"', '""')}"`;
-    const csv = [
-      ["Customer", "Contact (masked)", "Hotel", "City"].join(","),
-      ...data.items.map((c) =>
-        [esc(c.full_name), esc(c.phone_masked), esc(c.hotel_name), esc(c.city)].join(","),
-      ),
-    ].join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "all-customers.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set("q", search);
+      params.set("limit", "5000");
+      params.set("offset", "0");
+      const data = await apiFetch<{ items: CustomerSummary[] }>(
+        `/api/v1/super-admin/customers?${params}`,
+      );
+      if (!data.items.length) {
+        toast.info("No customers to export");
+        return;
+      }
+      const esc = (v: string | null | undefined) =>
+        `"${String(v ?? "").replaceAll('"', '""')}"`;
+      const csv = [
+        ["Customer", "Contact (masked)", "Hotel", "City"].join(","),
+        ...data.items.map((c) =>
+          [esc(c.full_name), esc(c.phone_masked), esc(c.hotel_name), esc(c.city)].join(","),
+        ),
+      ].join("\n");
+      // \uFEFF BOM so Excel opens the file as UTF-8 (names with accents)
+      const url = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "all-customers.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("CSV downloaded");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : tc("error"));
+    }
   };
 
   return (

@@ -153,6 +153,46 @@ async def renew_subscription(
     return sub
 
 
+async def extend_subscription(
+    db: AsyncSession,
+    *,
+    hotel_id: UUID,
+    days: int,
+) -> Subscription:
+    """Custom grace grant (client 09/2026): super admin extends the CURRENT
+    plan by an arbitrary number of days — a short courtesy period, not a paid
+    renewal.
+
+    - Active plan: expiry moves out by `days` (remaining days preserved).
+    - Already-lapsed plan: extension runs from TODAY (today + days), so a
+      "5-day grant" always gives 5 usable days.
+    - Suspended hotels cannot be extended (unsuspend is a deliberate action).
+    - Reactivates an expired hotel so it leaves the expired lists.
+    """
+    hotel = (
+        await db.execute(select(Hotel).where(Hotel.id == hotel_id))
+    ).scalar_one_or_none()
+    if hotel is None:
+        raise NotFoundError("Hotel not found")
+    sub = await get_active_subscription(db, hotel_id)
+    if sub is None:
+        raise NotFoundError(
+            "This hotel has no subscription to extend — assign a plan instead."
+        )
+    if sub.status == "suspended" or hotel.status == "suspended":
+        raise ConflictError(
+            "Suspended hotels cannot be extended. Reactivate the hotel first.",
+            code="hotel_suspended",
+        )
+    base = max(sub.expiry_date, date.today())
+    sub.expiry_date = base + timedelta(days=days)
+    refresh_status(sub)
+    if hotel.status in ("trial", "expired"):
+        hotel.status = "active"
+    await db.flush()
+    return sub
+
+
 async def get_plan_by_code(db: AsyncSession, code: str) -> SubscriptionPlan:
     result = await db.execute(select(SubscriptionPlan).where(SubscriptionPlan.code == code))
     plan = result.scalar_one_or_none()

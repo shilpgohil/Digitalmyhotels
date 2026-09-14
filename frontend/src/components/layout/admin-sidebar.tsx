@@ -11,6 +11,7 @@ import {
   CheckCircle,
   Clock,
   CreditCard,
+  IndianRupee,
   KeyRound,
   UserPlus,
   Users,
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
   { href: "/admin/expired", labelKey: "recentlyExpiredNav", icon: Clock },
   { href: "/admin/registrations", labelKey: "recentRegistrationsNav", icon: UserPlus },
   { href: "/admin/expired?filter=all", labelKey: "expiredHotelsNav", icon: XCircle },
+  { href: "/admin/revenue", labelKey: "totalRevenueNav", icon: IndianRupee },
   { href: "/admin/password-requests", labelKey: "passwordRequestsNav", icon: KeyRound },
 ] as const;
 

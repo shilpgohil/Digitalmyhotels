@@ -97,6 +97,7 @@ interface AdminHotelDetail {
   address_line1: string | null;
   status: string;
   gstin: string | null;
+  owner_user_id: string | null;
   owner_name: string | null;
   owner_email: string | null;
   owner_phone: string | null;
@@ -289,8 +290,24 @@ export default function AdminEditHotelPage({
   const [email, setEmail] = useState("");
   const [mapId, setMapId] = useState("");
   const [ownerPhone, setOwnerPhone] = useState("");
+  const [ownerNewPassword, setOwnerNewPassword] = useState("");
   const [identityInit, setIdentityInit] = useState(false);
   const [gstInit, setGstInit] = useState(false);
+
+  // Direct owner password reset (client 09/2026) — same endpoint the
+  // password-requests screen uses; server revokes sessions + forces change.
+  const resetOwnerPw = useMutation({
+    mutationFn: () =>
+      apiFetch(`/api/v1/super-admin/users/${adminDetail.data?.owner_user_id}/reset-password`, {
+        method: "POST",
+        body: { new_password: ownerNewPassword },
+      }),
+    onSuccess: () => {
+      toast.success("Owner password reset — they must change it at next login");
+      setOwnerNewPassword("");
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
+  });
 
   useEffect(() => {
     if (hotel.data && !identityInit) {
@@ -624,6 +641,13 @@ export default function AdminEditHotelPage({
         queryClient.refetchQueries({ queryKey: ["admin-edit-hotel-services", hotelId] }),
         queryClient.refetchQueries({ queryKey: ["admin-hotel-detail", hotelId] }),
       ]);
+      // Invalidate every hotel LIST view too — without this the admin
+      // navigates back and sees pre-edit values for up to staleTime (30s),
+      // which read as "update doesn't update" (client 09/2026).
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels-list"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels-expired"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-dashboard"] });
       setIdentityInit(false);
       setGstInit(false);
       setRoomsInit(false);
@@ -747,6 +771,42 @@ export default function AdminEditHotelPage({
                   className="max-w-xs"
                 />
               </div>
+
+              {/* Reset Owner Password — direct reset without waiting for a
+                  request (client 09/2026: "Super admin reset password option
+                  show"). Sessions are revoked and change is forced at next
+                  login server-side. */}
+              {adminDetail.data.owner_user_id && (
+                <div className="space-y-1.5 border-t pt-4">
+                  <Label htmlFor="admin-owner-newpw" className="text-xs">
+                    Reset Owner Password
+                  </Label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                      id="admin-owner-newpw"
+                      type="password"
+                      value={ownerNewPassword}
+                      onChange={(e) => setOwnerNewPassword(e.target.value)}
+                      placeholder="New temporary password (min. 8)"
+                      minLength={8}
+                      className="max-w-xs"
+                      autoComplete="new-password"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={ownerNewPassword.length < 8 || resetOwnerPw.isPending}
+                      onClick={() => resetOwnerPw.mutate()}
+                    >
+                      {resetOwnerPw.isPending ? tc("saving") : "Reset Password"}
+                    </Button>
+                  </div>
+                  <p className="text-label text-muted-foreground">
+                    The owner must change this password at next login. All their sessions are logged out.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

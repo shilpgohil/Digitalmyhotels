@@ -95,6 +95,7 @@ class AdminHotelDetailOut(BaseModel):
     gstin: str | None = None
     is_gst_registered: bool = False
     # Owner
+    owner_user_id: UUID | None = None  # enables direct password reset (client 09/2026)
     owner_name: str | None
     owner_email: str | None
     owner_phone: str | None
@@ -220,6 +221,13 @@ class SubscriptionAssign(BaseModel):
     grace_days: int = Field(default=7, ge=0, le=90)
 
 
+class SubscriptionExtend(BaseModel):
+    """Custom short-period grant (client 09/2026): extend the current plan
+    by N days without a paid renewal."""
+
+    days: int = Field(ge=1, le=365)
+
+
 class HotelAdminOut(ORMModel):
     id: UUID
     name: str
@@ -284,3 +292,19 @@ class PlatformDashboardOut(BaseModel):
     recently_expired: int = 0  # expired in last 30 days
     today_checkins: int = 0
     total_revenue: Decimal = Decimal("0.00")
+
+
+class AdminRevenueRowOut(BaseModel):
+    """Per-hotel revenue summary for the super-admin Total Revenue screen."""
+
+    hotel_id: UUID
+    hotel_name: str
+    city: str | None = None
+    revenue: Decimal
+    payments_count: int
+
+
+class AdminRevenueListOut(BaseModel):
+    total_revenue: Decimal
+    items: list[AdminRevenueRowOut]
+    total: int

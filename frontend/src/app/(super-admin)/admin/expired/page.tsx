@@ -10,6 +10,7 @@ import { apiFetch } from "@/lib/api/client";
 import { fmtApiDate } from "@/lib/formatting";
 import type { HotelAdminListOut } from "@/types/money";
 import { RenewDialog } from "@/components/admin/renew-dialog";
+import { ExtendDialog } from "@/components/admin/extend-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { FilterBar } from "@/components/ui/filter-bar";
 
@@ -32,12 +33,27 @@ function ExpiredContent() {
         offset: String(page * PAGE_SIZE),
       });
       if (search) params.set("q", search);
-      if (!isAll) params.set("recent_days", "30");
+      if (!isAll) {
+        params.set("recent_days", "30");
+        // Also surface hotels lapsing within 5 days — "about to expire"
+        // (client 09/2026: "if 5 days left then show wisely").
+        params.set("expiring_within", "5");
+      }
       return apiFetch<HotelAdminListOut>(`/api/v1/super-admin/hotels?${params}`);
     },
     staleTime: 30_000,
     retry: 1,
   });
+
+  /** Days from today until expiry — positive = still active, ≤0 = lapsed. */
+  const daysUntilExpiry = (expiry: string | null): number | null => {
+    if (!expiry) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const exp = new Date(expiry);
+    exp.setHours(0, 0, 0, 0);
+    return Math.round((exp.getTime() - today.getTime()) / 86_400_000);
+  };
 
   const total = hotels.data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -79,11 +95,24 @@ function ExpiredContent() {
             <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
               {h.expiry_date ? fmtApiDate(h.expiry_date) : "—"}
             </td>
-            <td className="px-4 py-3 text-muted-foreground">{h.subscription_plan_name ?? "—"}</td>
+            <td className="px-4 py-3 text-muted-foreground capitalize">{h.subscription_plan_name ?? "—"}</td>
             <td className="px-4 py-3">
-              <span className="inline-flex rounded-full bg-danger-bg px-2.5 py-0.5 text-xs font-medium text-danger">
-                Expired
-              </span>
+              {(() => {
+                const days = daysUntilExpiry(h.expiry_date);
+                if (days !== null && days >= 0) {
+                  // Not yet lapsed — "about to expire" amber badge
+                  return (
+                    <span className="inline-flex rounded-full bg-warning-bg px-2.5 py-0.5 text-xs font-medium text-warning">
+                      {days === 0 ? "Expires today" : `Expires in ${days}d`}
+                    </span>
+                  );
+                }
+                return (
+                  <span className="inline-flex rounded-full bg-danger-bg px-2.5 py-0.5 text-xs font-medium text-danger">
+                    Expired
+                  </span>
+                );
+              })()}
             </td>
             <td className="px-4 py-3">
               <div className="flex items-center gap-2">
@@ -95,6 +124,9 @@ function ExpiredContent() {
                   {tc("edit")}
                 </Link>
                 <RenewDialog hotel={h} />
+                {/* Custom grant — extend the current plan by N days
+                    (client 09/2026) */}
+                <ExtendDialog hotel={h} />
               </div>
             </td>
           </tr>

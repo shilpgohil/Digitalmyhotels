@@ -168,6 +168,60 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
     )
 
 
+async def revenue_summary(
+    db: AsyncSession,
+    *,
+    q: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> dict:
+    """Per-hotel completed-payment revenue for the Total Revenue screen
+    (client 09/2026: "Missing Total Revenue screen in Super Admin flow")."""
+    base = (
+        select(
+            Hotel.id.label("hotel_id"),
+            Hotel.name.label("hotel_name"),
+            Hotel.city.label("city"),
+            func.coalesce(func.sum(Payment.amount), 0).label("revenue"),
+            func.count(Payment.id).label("payments_count"),
+        )
+        .join(Payment, and_(Payment.hotel_id == Hotel.id, Payment.status == "completed"))
+        .group_by(Hotel.id, Hotel.name, Hotel.city)
+        .order_by(func.sum(Payment.amount).desc())
+    )
+    if q:
+        like = f"%{q.lower()}%"
+        base = base.where(func.lower(Hotel.name).like(like))
+
+    total_count = int(
+        (await db.scalar(select(func.count()).select_from(base.subquery()))) or 0
+    )
+    rows = (await db.execute(base.limit(limit).offset(offset))).all()
+
+    grand_total = money(
+        await db.scalar(
+            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+                Payment.status == "completed"
+            )
+        )
+        or 0
+    )
+    return {
+        "total_revenue": grand_total,
+        "items": [
+            {
+                "hotel_id": r.hotel_id,
+                "hotel_name": r.hotel_name,
+                "city": r.city,
+                "revenue": money(r.revenue),
+                "payments_count": int(r.payments_count),
+            }
+            for r in rows
+        ],
+        "total": total_count,
+    }
+
+
 async def list_hotels(
     db: AsyncSession,
     *,
@@ -176,6 +230,7 @@ async def list_hotels(
     limit: int = 20,
     offset: int = 0,
     recent_days: int | None = None,
+    expiring_within: int | None = None,
 ) -> HotelAdminListOut:
     base = select(Hotel).order_by(Hotel.created_at.desc())
     # Active + expired lists are subscription-aware: Hotel.status is never
@@ -185,10 +240,37 @@ async def list_hotels(
         latest = _latest_sub_sq()
         base = base.outerjoin(latest, latest.c.hotel_id == Hotel.id)
         if status == "expired":
-            base = base.where(or_(Hotel.status == "expired", _sub_expired_cond(latest)))  # type: ignore[arg-type]
+            expired_cond = or_(Hotel.status == "expired", _sub_expired_cond(latest))  # type: ignore[arg-type]
             if recent_days is not None:
+                # "Recently Expired" view (client 09/2026):
+                #  a) hotels that expired within the last `recent_days` —
+                #     hotels whose status was set to expired manually but have
+                #     no subscription row must not be NULL-filtered out
+                #     (previous bug: `expiry_date >= cutoff` on a NULL row
+                #     silently dropped them from the list);
+                #  b) PLUS hotels whose plan lapses within the next
+                #     `expiring_within` days — "about to expire" rows the
+                #     admin should renew before they lapse.
                 cutoff = date.today() - timedelta(days=recent_days)
-                base = base.where(latest.c.expiry_date >= cutoff)
+                recently_expired = and_(
+                    expired_cond,
+                    or_(
+                        latest.c.expiry_date.is_(None),
+                        latest.c.expiry_date >= cutoff,
+                    ),
+                )
+                if expiring_within is not None:
+                    soon = date.today() + timedelta(days=expiring_within)
+                    about_to_expire = and_(
+                        latest.c.status != "suspended",
+                        latest.c.expiry_date >= func.current_date(),
+                        latest.c.expiry_date <= soon,
+                    )
+                    base = base.where(or_(recently_expired, about_to_expire))
+                else:
+                    base = base.where(recently_expired)
+            else:
+                base = base.where(expired_cond)
         else:
             # "not expired": either no subscription (coalesce → True) or
             # expiry + grace >= today, avoiding not_() on an untyped expr.
@@ -441,6 +523,23 @@ async def get_hotel_detail(db: AsyncSession, hotel_id: UUID) -> dict:
         sub_status = latest_sub.status
         sub_expiry = str(latest_sub.expiry_date) if latest_sub.expiry_date else None
 
+    # Effective status — subscription-aware, matching the list views.
+    # Hotel.status is never flipped automatically when a plan lapses, so the
+    # raw column can still say "active" for a hotel whose subscription is
+    # long past its grace period. The detail page must derive the same
+    # "expired" the admin list shows (client 09/2026: "hotel already
+    # expired but displays status Active in detail").
+    effective_status = hotel.status
+    if (
+        hotel.status == "active"
+        and latest_sub is not None
+        and latest_sub.status != "suspended"
+        and latest_sub.expiry_date is not None
+        and latest_sub.expiry_date + timedelta(days=latest_sub.grace_days or 0)
+        < date.today()
+    ):
+        effective_status = "expired"
+
     return {
         "id": hotel.id,
         "name": hotel.name,
@@ -449,10 +548,11 @@ async def get_hotel_detail(db: AsyncSession, hotel_id: UUID) -> dict:
         "phone": hotel.phone,
         "email": hotel.email,
         "address_line1": hotel.address_line1,
-        "status": hotel.status,
+        "status": effective_status,
         "created_at": hotel.created_at,
         "gstin": gst_row.gstin if gst_row else None,
         "is_gst_registered": gst_row.is_gst_registered if gst_row else False,
+        "owner_user_id": owner.id if owner else None,
         "owner_name": owner.full_name if owner else None,
         "owner_email": owner.email if owner else None,
         "owner_phone": owner.phone if owner else None,

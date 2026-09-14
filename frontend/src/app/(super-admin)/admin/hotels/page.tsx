@@ -11,6 +11,7 @@ import { apiFetch, ApiError } from "@/lib/api/client";
 import { fmtApiDate } from "@/lib/formatting";
 import type { HotelAdminListOut, HotelAdminOut } from "@/types/money";
 import { RenewDialog } from "@/components/admin/renew-dialog";
+import { ExtendDialog } from "@/components/admin/extend-dialog";
 import { HotelStatusBadge, hotelDisplayStatus } from "@/components/admin/admin-list-state";
 import { DataTable } from "@/components/ui/data-table";
 import { FilterBar } from "@/components/ui/filter-bar";
@@ -151,7 +152,7 @@ function HotelRow({
       <td className="px-4 py-3 text-muted-foreground tabular-nums">{hotel.phone ?? "—"}</td>
       {showMeta && (
         <>
-          <td className="px-4 py-3 text-muted-foreground">{hotel.subscription_plan_name ?? "—"}</td>
+          <td className="px-4 py-3 text-muted-foreground capitalize">{hotel.subscription_plan_name ?? "—"}</td>
           <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
             {hotel.expiry_date ? fmtApiDate(hotel.expiry_date) : "—"}
           </td>
@@ -181,6 +182,8 @@ function HotelRow({
           {kind === "expired" && (
             <>
               <RenewDialog hotel={hotel} />
+              {/* Custom N-day grant (client 09/2026) */}
+              <ExtendDialog hotel={hotel} />
               <Button size="sm" className="bg-danger text-white hover:bg-danger/90" onClick={() => onStatus("suspended")} disabled={pending}>
                 {deactivateLabel}
               </Button>
@@ -193,6 +196,7 @@ function HotelRow({
                 {deactivateLabel}
               </Button>
               <RenewDialog hotel={hotel} />
+              <ExtendDialog hotel={hotel} />
             </>
           )}
         </div>

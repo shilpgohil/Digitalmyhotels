@@ -89,7 +89,7 @@ export default function AdminPlansPage() {
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="font-display text-xl">{p.name}</p>
+                  <p className="font-display text-xl capitalize">{p.name}</p>
                   {/* First letter uppercase (client 09/2026 common change) */}
                   <p className="mt-1 text-sm text-muted-foreground capitalize">{p.code}</p>
                 </div>

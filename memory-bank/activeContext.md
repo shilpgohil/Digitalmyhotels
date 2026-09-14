@@ -1,5 +1,33 @@
 # Active Context — DigitalMyHotels
 
+## SUPER ADMIN 10-ISSUE BATCH 14/09/2026
+(Partly pre-staged by a parallel session — reviewed, gaps filled, shipped.)
+1. Add Hotel bottom cut: pb-44 + action bar lg:left-64 + safe-area padding.
+2. GST modes: shipped earlier same day (commit 2c956f0) — verified.
+3. Capitalize: plan name+code, subscription_plan_name across 5 admin tables.
+4. Dashboard Quick Actions: "Settings"→/admin/settings, "Generate Report"→
+   /admin/revenue (both wrongly pointed at /admin/plans — the client's
+   "clicking then go plan page" complaint).
+5. Recently Expired: hotels endpoint takes expiring_within=N; view shows
+   recent_days=30 expired PLUS lapsing-within-5-days rows w/ amber
+   "Expires in Nd" badge; NULL-expiry manual-expired rows no longer dropped.
+6. Total Revenue screen: GET /super-admin/revenue (grand total + per-hotel
+   completed payments, search+paging) + /admin/revenue page + sidebar item +
+   dashboard card link. Same definition as dashboard total_revenue.
+7. SA reset password: owner_user_id in AdminHotelDetailOut; Reset Owner
+   Password block on hotel edit (uses existing users/{id}/reset-password).
+8. Expired-but-Active detail: get_hotel_detail derives effective_status
+   (expiry+grace < today → "expired").
+9. Custom extension: POST /super-admin/hotels/{id}/subscription/extend
+   {days 1-365} → extend_subscription (base=max(today,expiry), refresh
+   status, reactivate hotel, audited). ExtendDialog on expired page + hotels
+   list rows. i18n admin.extend* en+hi.
+10. Edit hotel "not saving": save was fine (api bound to X-Hotel-Id); cause
+    was stale list caches — invalidations added for all admin list keys.
+Also: customers endpoint limit cap 100→5000 (CSV export was 422ing), CSV
+export toasts + BOM. Pre-existing test failures unchanged (super_admin_control
+= conftest state pollution).
+
 ## GST THREE-MODE IMPLEMENTATION 14/09/2026 (client re-raised — now COMPLETE)
 Root cause of the complaint: HotelSettings.tax_inclusive_pricing was stored
 at hotel creation but NEVER read by any calculation — "Included by Hotel"

@@ -16,12 +16,14 @@ from app.schemas.platform import (
     AdminCustomerSummaryOut,
     AdminHotelDetailOut,
     AdminHotelUpdate,
+    AdminRevenueListOut,
     CreateHotelRequest,
     HotelAdminListOut,
     PlatformDashboardOut,
     RenewalRequestAdminListOut,
     RenewalRequestAdminOut,
     SubscriptionAssign,
+    SubscriptionExtend,
     SubscriptionOut,
     SubscriptionPlanCreate,
     SubscriptionPlanOut,
@@ -58,6 +60,20 @@ async def platform_trend(
     return await reports_service.platform_monthly_trend(db, months=months)
 
 
+@router.get("/revenue", response_model=AdminRevenueListOut)
+async def revenue_summary(
+    q: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    _user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AdminRevenueListOut:
+    """Total Revenue screen — grand total + per-hotel completed-payment revenue
+    (client 09/2026)."""
+    data = await admin_service.revenue_summary(db, q=q, limit=limit, offset=offset)
+    return AdminRevenueListOut(**data)
+
+
 @router.get("/hotels", response_model=HotelAdminListOut)
 async def list_hotels(
     status: str | None = Query(default=None),
@@ -65,6 +81,10 @@ async def list_hotels(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     recent_days: int | None = Query(default=None, ge=1, le=365),
+    # "About to expire" window for the Recently Expired view — hotels whose
+    # plan lapses within this many days are included alongside recently
+    # expired ones (client 09/2026: "if 5 days left then show wisely").
+    expiring_within: int | None = Query(default=None, ge=1, le=60),
     _user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> HotelAdminListOut:
@@ -75,6 +95,7 @@ async def list_hotels(
         limit=limit,
         offset=offset,
         recent_days=recent_days,
+        expiring_within=expiring_within,
     )
 
 
@@ -216,7 +237,11 @@ async def reset_hotel_user_password(
 @router.get("/customers", response_model=AdminCustomerListOut)
 async def list_customers(
     q: str | None = Query(default=None, max_length=100),
-    limit: int = Query(default=20, ge=1, le=100),
+    # le=5000: the customers CSV export fetches the full filtered list in one
+    # call. Data is masked summaries only, endpoint is super-admin-only, so a
+    # higher cap is safe (was le=100, which made the frontend export fail
+    # with a 422 — client 09/2026: "Export functionality is not working").
+    limit: int = Query(default=20, ge=1, le=5000),
     offset: int = Query(default=0, ge=0),
     _user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
@@ -335,6 +360,30 @@ async def assign_subscription(
         entity_id=sub.id,
         actor_id=user.id,
         hotel_id=hotel_id,
+        correlation_id=_correlation(request),
+    )
+    return SubscriptionOut.model_validate(sub)
+
+
+@router.post("/hotels/{hotel_id}/subscription/extend", response_model=SubscriptionOut)
+async def extend_subscription(
+    hotel_id: UUID,
+    body: SubscriptionExtend,
+    request: Request,
+    user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> SubscriptionOut:
+    """Custom grant (client 09/2026): extend the hotel's current plan by N
+    days entered by the super admin — a short courtesy period."""
+    sub = await sub_service.extend_subscription(db, hotel_id=hotel_id, days=body.days)
+    await write_audit(
+        db,
+        action="platform.subscription_extended",
+        entity_type="subscription",
+        entity_id=sub.id,
+        actor_id=user.id,
+        hotel_id=hotel_id,
+        after={"days": str(body.days), "new_expiry": str(sub.expiry_date)},
         correlation_id=_correlation(request),
     )
     return SubscriptionOut.model_validate(sub)

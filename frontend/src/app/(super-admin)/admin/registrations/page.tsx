@@ -89,7 +89,7 @@ function RegistrationsContent() {
             </td>
             <td className="px-4 py-3 text-muted-foreground">{h.city ?? "—"}</td>
             <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{fmtDateTime(h.created_at)}</td>
-            <td className="px-4 py-3 text-muted-foreground">{h.subscription_plan_name ?? "—"}</td>
+            <td className="px-4 py-3 text-muted-foreground capitalize">{h.subscription_plan_name ?? "—"}</td>
             <td className="px-4 py-3">
               <span className="inline-flex rounded-full bg-success-bg px-2.5 py-0.5 text-xs font-medium text-success">New</span>
             </td>
