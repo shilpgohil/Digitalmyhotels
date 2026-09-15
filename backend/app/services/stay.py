@@ -1231,6 +1231,30 @@ async def reverse_checkout(
     if checkout is None:
         raise NotFoundError("Checkout record not found")
 
+    # Money guard (plan §3.3): a payment recorded AFTER the checkout completed
+    # means the books moved on — reversing underneath it risks a corrupted
+    # settlement. Those payments must be corrected/refunded first.
+    # The 1-minute margin excludes the checkout's OWN collection, which is
+    # written in the same transaction (same-timestamp class as the checkout).
+    from app.models.payment import Payment as _Payment
+
+    post_checkout_payment = await db.scalar(
+        select(func.count())
+        .select_from(_Payment)
+        .where(
+            _Payment.booking_id == booking.id,
+            _Payment.hotel_id == hotel_id,
+            _Payment.status == "completed",
+            _Payment.paid_at > checkout.created_at + timedelta(minutes=1),
+        )
+    )
+    if post_checkout_payment:
+        raise ConflictError(
+            "A payment was recorded after this checkout. Correct or refund it "
+            "before reversing the checkout.",
+            code="post_checkout_payment_exists",
+        )
+
     rooms = await _current_rooms_locked(db, booking)
     for room in rooms:
         # The room may already be under cleaning; reversal reclaims it.
@@ -1251,6 +1275,46 @@ async def reverse_checkout(
     checkout.reversed_at = _now()
     checkout.reverse_reason = reason
     booking.status = "checked_in"
+
+    # Reverse the late-fee ledger debit (plan §3.3) — the stay is open again,
+    # so the checkout-time overstay fee no longer applies.
+    if checkout.late_fee and checkout.late_fee > 0:
+        from app.services.ledger import append_entry as _append_rev
+
+        await _append_rev(
+            db,
+            hotel_id=hotel_id,
+            booking_id=booking.id,
+            entry_type="credit",
+            amount=checkout.late_fee,
+            description="Late checkout fee reversed (checkout reversal)",
+            reference_type="checkout_fee_reversal",
+            reference_id=checkout.id,
+            created_by_id=tenant.user_id,
+        )
+
+    # Auto-cancel the invoice (plan §3.3): invoices are generated at checkout
+    # (§3.4); a reversed checkout's invoice is no longer a valid bill. A fresh
+    # one is generated when the stay checks out again.
+    from app.models.invoice import Invoice as _Invoice
+    from app.services.invoices import cancel_invoice as _cancel_invoice
+
+    active_invoice_id = await db.scalar(
+        select(_Invoice.id).where(
+            _Invoice.booking_id == booking.id,
+            _Invoice.hotel_id == hotel_id,
+            _Invoice.status.notin_(("cancelled",)),
+        )
+    )
+    if active_invoice_id:
+        await _cancel_invoice(
+            db,
+            tenant,
+            active_invoice_id,
+            f"Checkout reversed: {reason}",
+            correlation_id=correlation_id,
+        )
+
     await write_audit(
         db,
         action="stay.checkout_reversed",
