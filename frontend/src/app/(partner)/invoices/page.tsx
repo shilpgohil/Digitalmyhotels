@@ -80,6 +80,14 @@ function InvoicesContent() {
     enabled: !!activeHotelId,
   });
 
+  // Branding toggle for the card footer (plan §3.8).
+  const hotelSettings = useQuery({
+    queryKey: ["hotel-settings", activeHotelId],
+    queryFn: () => api<{ show_powered_by: boolean }>("/api/v1/hotels/me/settings"),
+    enabled: !!activeHotelId,
+    staleTime: 300_000,
+  });
+
   const gst = useQuery({
     queryKey: ["gst-settings", activeHotelId],
     queryFn: () => api<GstSettingsOut>("/api/v1/hotels/me/gst"),
@@ -383,6 +391,10 @@ function InvoicesContent() {
                         {fmtApiDateTime(booking.data.check_in_date, booking.data.check_in_time)} →{" "}
                         {fmtApiDateTime(booking.data.check_out_date, booking.data.check_out_time)}
                       </p>
+                      {/* Booking number (client 15/09: "Add below … BK-0023") */}
+                      <p className="text-sm font-medium tabular-nums text-muted-foreground">
+                        {booking.data.booking_number}
+                      </p>
                     </>
                   )}
                 </div>
@@ -467,6 +479,14 @@ function InvoicesContent() {
                   </div>
                 </div>
               </div>
+
+              {/* "Powered by DigitalMyHotels" — per-hotel super-admin toggle
+                  (client 15/09, plan §3.8). Default ON. */}
+              {hotelSettings.data?.show_powered_by !== false && (
+                <p className="border-t px-6 py-3 text-center text-xs italic text-muted-foreground">
+                  Powered by DigitalMyHotels
+                </p>
+              )}
             </div>
           </div>
         )}

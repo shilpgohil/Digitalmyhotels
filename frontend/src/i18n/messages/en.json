@@ -206,7 +206,9 @@
     "sectionRooms": "Rooms",
     "sectionRequirements": "Special requirements",
     "saveFailuresTitle": "{count, plural, one {1 change failed to save} other {# changes failed to save}}",
-    "saveFailuresHint": "Everything else was saved. Fix the items above and press Update again — successful sections are safe to resubmit."
+    "saveFailuresHint": "Everything else was saved. Fix the items above and press Update again — successful sections are safe to resubmit.",
+    "poweredByToggle": "Powered by DigitalMyHotels",
+    "poweredByToggleDesc": "Show the DigitalMyHotels branding line on this hotel's invoices."
   },
   "dashboard": {
     "totalRooms": "Total Rooms",

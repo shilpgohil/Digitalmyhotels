@@ -43,6 +43,8 @@ export interface HotelSettingsOut {
   access_mode: "full" | "checkin_only";
   collect_emergency_contact: boolean;
   collect_vehicle_details: boolean;
+  /** "Powered by DigitalMyHotels" invoice branding (plan §3.8). */
+  show_powered_by: boolean;
 }
 
 export interface HotelImageOut {

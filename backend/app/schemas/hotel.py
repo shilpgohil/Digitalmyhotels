@@ -108,6 +108,7 @@ class HotelSettingsOut(ORMModel):
     access_mode: str = "full"
     collect_emergency_contact: bool = True
     collect_vehicle_details: bool = True
+    show_powered_by: bool = True
 
 
 class HotelSettingsUpdate(BaseModel):
@@ -124,6 +125,8 @@ class HotelSettingsUpdate(BaseModel):
     late_checkout_fee_per_hour: Decimal | None = Field(default=None, ge=0)
     collect_emergency_contact: bool | None = None
     collect_vehicle_details: bool | None = None
+    # Super-admin controlled invoice branding (plan §3.8).
+    show_powered_by: bool | None = None
 
 
 class GstSettingsOut(ORMModel):

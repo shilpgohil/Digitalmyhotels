@@ -80,6 +80,9 @@ class HotelSettings(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     booking_next_number: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     registration_next_number: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     tax_inclusive_pricing: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # "Powered by DigitalMyHotels" on invoices — super admin can hide it per
+    # hotel (client 15/09, plan §3.8). Default ON.
+    show_powered_by: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     currency: Mapped[str] = mapped_column(String(8), default="INR", nullable=False)
     early_checkin_grace_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
     late_checkout_grace_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)

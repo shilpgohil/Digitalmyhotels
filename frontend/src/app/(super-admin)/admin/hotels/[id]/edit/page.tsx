@@ -403,12 +403,14 @@ export default function AdminEditHotelPage({
 
   const [collectEmergency, setCollectEmergency] = useState(true);
   const [collectVehicle, setCollectVehicle] = useState(true);
+  const [showPoweredBy, setShowPoweredBy] = useState(true);
   const [settingsInit, setSettingsInit] = useState(false);
 
   useEffect(() => {
     if (settings.data && !settingsInit) {
       setCollectEmergency(settings.data.collect_emergency_contact);
       setCollectVehicle(settings.data.collect_vehicle_details);
+      setShowPoweredBy(settings.data.show_powered_by ?? true);
       setSettingsInit(true);
     }
   }, [settings.data, settingsInit]);
@@ -546,7 +548,12 @@ export default function AdminEditHotelPage({
       await attemptSettings(() =>
         api("/api/v1/hotels/me/settings", {
           method: "PATCH",
-          body: { collect_emergency_contact: collectEmergency, collect_vehicle_details: collectVehicle },
+          body: {
+            collect_emergency_contact: collectEmergency,
+            collect_vehicle_details: collectVehicle,
+            // Invoice branding — super admin control (plan §3.8).
+            show_powered_by: showPoweredBy,
+          },
         }),
       );
 
@@ -1007,6 +1014,15 @@ export default function AdminEditHotelPage({
                   <p className="mt-0.5 text-xs text-muted-foreground">{t("vehicleDetailsDesc")}</p>
                 </div>
                 <Toggle checked={collectVehicle} onChange={setCollectVehicle} label={t("vehicleDetails")} />
+              </div>
+              {/* "Powered by DigitalMyHotels" branding — super admin control
+                  (client 15/09, plan §3.8). */}
+              <div className="flex items-center justify-between border-t py-2">
+                <div>
+                  <p className="text-sm font-medium">{t("poweredByToggle")}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{t("poweredByToggleDesc")}</p>
+                </div>
+                <Toggle checked={showPoweredBy} onChange={setShowPoweredBy} label={t("poweredByToggle")} />
               </div>
             </div>
           </SectionCard>

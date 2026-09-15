@@ -511,6 +511,20 @@ async def render_invoice_pdf(
         pdf.set_text_color(190, 40, 40)
         pdf.cell(0, 6, "THIS INVOICE HAS BEEN CANCELLED", new_x="LMARGIN", new_y="NEXT")
 
+    # "Powered by DigitalMyHotels" footer — per-hotel super-admin toggle
+    # (client 15/09, plan §3.8).
+    settings_row = await db.scalar(
+        select(HotelSettings.show_powered_by).where(
+            HotelSettings.hotel_id == tenant.require_hotel()
+        )
+    )
+    if settings_row is not False:  # default ON when no settings row exists
+        pdf.ln(6)
+        pdf.set_x(14)
+        pdf.set_font("helvetica", "I", 8)
+        pdf.set_text_color(*MUTED)
+        pdf.cell(182, 5, "Powered by DigitalMyHotels", align="C", new_x="LMARGIN", new_y="NEXT")
+
     return bytes(pdf.output())
 
 
