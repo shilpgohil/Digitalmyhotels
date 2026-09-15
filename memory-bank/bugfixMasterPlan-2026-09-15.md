@@ -61,6 +61,22 @@ Full suite: 218 passed / 3 documented pre-existing failures. Build green.
 Full suite: 222 passed / 3 documented pre-existing failures. Build green.
 DEFERRED from Phase 3: §3.5 quote snapshot (medium, low urgency).
 
+**PHASE 3 REVERIFIED 15/09 (commit 4d4ea7a) — 3 real findings fixed:**
+1. §3.1 interaction REGRESSION caught: booked check-in balance added approx
+   GST on top of the now-GST-inclusive booking total (double count). GST in
+   that breakdown now applies only to NEW desk extras. Walk-in preview
+   unchanged (its room rates are ex-GST until the booking is created).
+2. §3.4 stale-invoice hole: a MID-STAY invoice (check-in success screen) was
+   reused at checkout, missing checkout charges/late fees (= client's
+   "payment amount wrong print vs modal"). Checkout now CANCELS the stale
+   invoice ("Superseded by the final checkout invoice") and regenerates.
+   Regression test added.
+3. §3.6: card/others added to the reports CSV export too.
+Verified-held: wind-down×auto-invoice no new failure mode; reversal margin
+excludes same-transaction collection; settle_booking_amounts counts deposit
+(§3.2 flows correctly); PDF footer defaults ON when settings row missing;
+dashboard 4-bucket percentages sum to 100. Suite: 223 passed / 3 pre-existing.
+
 ## STRICT IMPLEMENTATION PROTOCOL (binding for every item)
 
 1. ONE ITEM AT A TIME. A change set touches only the files its item needs. No
