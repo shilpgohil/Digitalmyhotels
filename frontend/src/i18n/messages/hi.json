@@ -88,7 +88,9 @@
     "mustChangePassword": "आगे बढ़ने से पहले अपना अस्थायी पासवर्ड बदलें।",
     "currentPassword": "वर्तमान पासवर्ड",
     "changePassword": "पासवर्ड बदलें",
-    "passwordChanged": "पासवर्ड बदल गया"
+    "passwordChanged": "पासवर्ड बदल गया",
+    "idleWarning": "निष्क्रियता के कारण 1 मिनट में आप साइन आउट हो जाएँगे",
+    "idleLoggedOut": "निष्क्रियता के कारण साइन आउट किया गया"
   },
   "nav": {
     "overview": "अवलोकन",

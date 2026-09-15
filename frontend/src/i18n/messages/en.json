@@ -88,7 +88,9 @@
     "mustChangePassword": "You must change your temporary password before continuing.",
     "currentPassword": "Current password",
     "changePassword": "Change Password",
-    "passwordChanged": "Password changed"
+    "passwordChanged": "Password changed",
+    "idleWarning": "You will be signed out in 1 minute due to inactivity",
+    "idleLoggedOut": "Signed out due to inactivity"
   },
   "nav": {
     "overview": "Overview",

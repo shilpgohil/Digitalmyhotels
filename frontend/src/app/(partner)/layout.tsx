@@ -1,3 +1,4 @@
+import { IdleLogout } from "@/components/auth/idle-logout";
 import { RequireAuth } from "@/components/auth/require-auth";
 import { HotelKeyed } from "@/components/layout/hotel-keyed";
 import { PartnerSidebar } from "@/components/layout/partner-sidebar";
@@ -26,6 +27,9 @@ export default function PartnerLayout({ children }: { readonly children: React.R
             Renders on top of everything so staff can't accidentally use the app
             while the hotel is deactivated by the platform. */}
         <HotelSuspendedOverlay />
+
+        {/* Idle auto-logout — 15 min inactivity (client 15/09, plan §7.2) */}
+        <IdleLogout />
 
         <div className="flex h-screen overflow-hidden">
           {/* Fixed 256px navy sidebar — always expanded (classic frame) */}
