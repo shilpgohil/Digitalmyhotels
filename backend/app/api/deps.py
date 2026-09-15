@@ -17,6 +17,18 @@ from app.models.user import HotelMembership, User
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
+_MUTATING_METHODS = frozenset({"POST", "PATCH", "PUT", "DELETE"})
+# Wind-down whitelist (plan Part 2 / scenario S1): mutations still allowed for
+# an EXPIRED hotel — closing out in-house guests + renewing the plan. Charges
+# are safe to include: the service layer only accepts them on checked-in stays.
+_EXPIRED_ALLOWED_PREFIXES = (
+    "/api/v1/checkouts",
+    "/api/v1/payments",
+    "/api/v1/invoices",
+    "/api/v1/charges",
+    "/api/v1/subscriptions",
+)
+
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
@@ -114,6 +126,27 @@ async def get_tenant_context(
             "Contact DigitalMyHotels support.",
             code="hotel_suspended",
         )
+
+    # ── Subscription expiry enforcement (plan Part 2 + scenario S1) ─────────
+    # Past expiry + grace, the hotel goes into WIND-DOWN: reads keep working,
+    # but mutations are blocked EXCEPT the operations needed to honestly close
+    # out guests already in-house (checkout, payment collection/refund,
+    # invoicing, charges on checked-in stays) and to renew the plan.
+    # New business (bookings, check-ins, staff, settings, …) is blocked.
+    # Super admins are exempt (they returned above) — extend/renew instantly
+    # restores access.
+    if request.method in _MUTATING_METHODS:
+        path = request.url.path
+        if not path.startswith(_EXPIRED_ALLOWED_PREFIXES):
+            from app.services.subscriptions import is_past_grace
+
+            if await is_past_grace(db, membership.hotel_id):
+                raise ForbiddenError(
+                    "This hotel's subscription has expired. You can still "
+                    "check out in-house guests and collect payments; renew "
+                    "the plan to resume full operations.",
+                    code="subscription_expired",
+                )
 
     role_code = RoleCode(membership.role.code)
     request.state.tenant = TenantContext(

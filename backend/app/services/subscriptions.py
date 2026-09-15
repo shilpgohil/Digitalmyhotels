@@ -44,6 +44,20 @@ def refresh_status(sub: Subscription, today: date | None = None) -> str:
     return sub.status
 
 
+async def is_past_grace(db: AsyncSession, hotel_id: UUID) -> bool:
+    """True when the hotel's subscription lapsed BEYOND its grace period.
+
+    Used by the tenant dependency for wind-down enforcement (plan Part 2):
+    hotels without any subscription row (local/dev/tests) are never blocked;
+    a suspended subscription is handled by the hotel-suspension check instead.
+    """
+    sub = await get_active_subscription(db, hotel_id)
+    if sub is None or sub.status == "suspended":
+        return False
+    grace_end = sub.expiry_date + timedelta(days=sub.grace_days or 0)
+    return date.today() > grace_end
+
+
 async def assert_transactions_allowed(db: AsyncSession, hotel_id: UUID) -> None:
     """Hotels without a subscription row stay unrestricted (local/dev/tests).
 
