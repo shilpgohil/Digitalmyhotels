@@ -40,6 +40,7 @@ import { compressReceipt } from "@/lib/compress-image";
 import { useImageEditor } from "@/components/media/image-editor";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PERMISSIONS } from "@/lib/permissions";
+import { sanitizePhone } from "@/lib/input-discipline";
 import type { ListOut } from "@/types/hotel";
 import type {
   ExpenseCategoryOut,
@@ -451,7 +452,7 @@ function AddVendorDialog({ onDone }: { onDone: () => void }) {
           </div>
           <div>
             <Label htmlFor="vendor-phone">{t("vendorPhone")}</Label>
-            <Input id="vendor-phone" className="mt-1" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <Input id="vendor-phone" className="mt-1" value={phone} maxLength={10} inputMode="tel" onChange={(e) => setPhone(sanitizePhone(e.target.value))} />
           </div>
           <div>
             <Label htmlFor="vendor-gstin">GSTIN</Label>

@@ -44,6 +44,7 @@ import { fmtDateTime } from "@/lib/formatting";
 import type { ListOut, TeamMemberOut } from "@/types/hotel";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
+import { liveNameCase, sanitizePhone } from "@/lib/input-discipline";
 
 const CREATABLE_ROLES = ["manager", "admin", "housekeeping"] as const;
 
@@ -357,11 +358,11 @@ function CreateMemberDialog({ onCreated }: { onCreated: () => void }) {
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 space-y-1.5">
               <Label htmlFor="tm-name">{t("name")}</Label>
-              <Input id="tm-name" name="full_name" required minLength={2} maxLength={200} />
+              <Input id="tm-name" name="full_name" required minLength={2} maxLength={200} onChange={(e) => { e.target.value = liveNameCase(e.target.value); }} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tm-phone">{t("phone")}</Label>
-              <Input id="tm-phone" name="phone" type="tel" required maxLength={32} />
+              <Input id="tm-phone" name="phone" type="tel" required maxLength={10} inputMode="tel" onChange={(e) => { e.target.value = sanitizePhone(e.target.value); }} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tm-email">{t("email")}</Label>
@@ -578,6 +579,7 @@ function EditMemberDialog({
               defaultValue={member?.full_name ?? ""}
               required
               minLength={2}
+              onChange={(e) => { e.target.value = liveNameCase(e.target.value); }}
             />
           </div>
           <div className="space-y-1.5">
@@ -587,6 +589,8 @@ function EditMemberDialog({
               name="phone"
               defaultValue={member?.phone ?? ""}
               inputMode="tel"
+              maxLength={10}
+              onChange={(e) => { e.target.value = sanitizePhone(e.target.value); }}
             />
           </div>
           <div className="space-y-1.5">

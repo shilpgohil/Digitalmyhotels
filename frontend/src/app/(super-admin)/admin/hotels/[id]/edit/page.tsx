@@ -34,6 +34,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { sanitizeLandline, sanitizePhone } from "@/lib/input-discipline";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, ApiError, API_BASE, apiUpload } from "@/lib/api/client";
@@ -783,9 +784,10 @@ export default function AdminEditHotelPage({
                 <Input
                   id="admin-owner-phone"
                   value={ownerPhone}
-                  onChange={(e) => setOwnerPhone(e.target.value)}
-                  placeholder="10-digit mobile"
+                  maxLength={10}
                   inputMode="tel"
+                  onChange={(e) => setOwnerPhone(sanitizePhone(e.target.value))}
+                  placeholder="10-digit mobile"
                   className="max-w-xs"
                 />
               </div>
@@ -858,7 +860,7 @@ export default function AdminEditHotelPage({
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="aeh-phone">{t("phoneNumber")}</Label>
-                  <Input id="aeh-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" inputMode="tel" />
+                  <Input id="aeh-phone" value={phone} maxLength={12} onChange={(e) => setPhone(sanitizeLandline(e.target.value))} placeholder="Phone" inputMode="tel" />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label htmlFor="aeh-address">{t("propertyAddress")}</Label>

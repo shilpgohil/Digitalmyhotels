@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
+import { liveNameCase, sanitizeLandline, sanitizePhone } from "@/lib/input-discipline";
 import { apiFetch, ApiError, API_BASE, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { compressImage, compressLogo } from "@/lib/compress-image";
@@ -598,9 +599,10 @@ export default function AddHotelPage() {
             <Input
               id="ah-phone"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+91 XXXXXXXXXX"
+              maxLength={12}
               inputMode="tel"
+              onChange={(e) => setPhone(sanitizeLandline(e.target.value))}
+              placeholder="+91 XXXXXXXXXX"
             />
           </div>
           <div className="space-y-1.5">
@@ -830,7 +832,7 @@ export default function AddHotelPage() {
               <Input
                 id="ah-owner-name"
                 value={ownerName}
-                onChange={(e) => setOwnerName(e.target.value)}
+                onChange={(e) => setOwnerName(liveNameCase(e.target.value))}
                 placeholder="Full Name"
                 required
               />
@@ -840,9 +842,10 @@ export default function AddHotelPage() {
               <Input
                 id="ah-owner-phone"
                 value={ownerPhone}
-                onChange={(e) => setOwnerPhone(e.target.value)}
-                placeholder="+91 XXXXXXXXXX"
+                maxLength={10}
                 inputMode="tel"
+                onChange={(e) => setOwnerPhone(sanitizePhone(e.target.value))}
+                placeholder="+91 XXXXXXXXXX"
               />
             </div>
             <div className="space-y-1.5">

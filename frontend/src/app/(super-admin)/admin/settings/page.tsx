@@ -19,6 +19,7 @@ import { SectionPanel } from "@/components/ui/section-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { liveNameCase, sanitizePhone } from "@/lib/input-discipline";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import {
   Dialog,
@@ -99,7 +100,7 @@ function EditProfileDialog() {
               value={fullName}
               minLength={2}
               maxLength={200}
-              onChange={(e) => setFullName(e.target.value)}
+              onChange={(e) => setFullName(liveNameCase(e.target.value))}
             />
           </div>
           <div className="space-y-1.5">
@@ -107,9 +108,10 @@ function EditProfileDialog() {
             <Input
               id="ep-phone"
               type="tel"
-              maxLength={20}
+              maxLength={10}
+              inputMode="tel"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(sanitizePhone(e.target.value))}
             />
           </div>
           <p className="text-label text-muted-foreground">{t("emailNotEditable")}</p>
