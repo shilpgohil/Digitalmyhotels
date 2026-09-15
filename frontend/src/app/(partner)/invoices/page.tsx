@@ -557,7 +557,7 @@ function GenerateDialog({ onDone }: { onDone: () => void }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="inline-flex h-8 items-center rounded-lg bg-primary px-2.5 text-sm font-medium text-primary-foreground">
+      <DialogTrigger className="inline-flex h-[42px] items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/85">
         {t("generate")}
       </DialogTrigger>
       <DialogContent>

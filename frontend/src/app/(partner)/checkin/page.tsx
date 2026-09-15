@@ -508,7 +508,7 @@ function ForeignGuestSection({
                 <select
                   value={value.visa_type}
                   onChange={(e) => set("visa_type", e.target.value)}
-                  className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                  className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                 >
                   <option value="">{t("selectOption")}</option>
                   <option value="Tourist">{t("visa_tourist")}</option>
@@ -1136,7 +1136,7 @@ function NewGuestForm({
           <select
             value={form.id_proof_type}
             onChange={(e) => set("id_proof_type", e.target.value)}
-            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+            className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
           >
             <option value="Aadhar Card">{t("idAadhar")}</option>
             <option value="PAN Card">{t("idPan")}</option>
@@ -1236,7 +1236,7 @@ function NewGuestForm({
           <select
             value={form.gender}
             onChange={(e) => set("gender", e.target.value)}
-            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+            className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
           >
             <option value="">{t("selectOption")}</option>
             <option value="Male">{t("male")}</option>
@@ -2610,7 +2610,7 @@ function CheckinForm({
               <select
                 value={pgPurpose}
                 onChange={(e) => setPgPurpose(e.target.value)}
-                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
                 <option value="">{t("select")}</option>
                 <option value="Business">{t("purpose_business")}</option>
@@ -2658,7 +2658,7 @@ function CheckinForm({
               <select
                 value={pgIdType}
                 onChange={(e) => setPgIdType(e.target.value)}
-                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
                 <option value="Aadhar Card">{t("idAadhar")}</option>
                 <option value="PAN Card">{t("idPan")}</option>
@@ -2763,7 +2763,7 @@ function CheckinForm({
               <select
                 value={pgGender}
                 onChange={(e) => setPgGender(e.target.value)}
-                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
                 <option value="">{t("selectOption")}</option>
                 <option value="Male">{t("male")}</option>
@@ -3052,7 +3052,7 @@ function CheckinForm({
                 <select
                   value={paymentMode}
                   onChange={(e) => setPaymentMode(e.target.value as "cash" | "upi" | "credit_card" | "debit_card" | "bank_transfer" | "other")}
-                  className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                  className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                   disabled={newAdvance === 0}
                 >
                   <option value="cash">Cash</option>
@@ -3157,7 +3157,7 @@ function CheckinForm({
             <select
               value={vehType}
               onChange={(e) => setVehType(e.target.value)}
-              className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+              className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
             >
               <option value="Car">{t("veh_car")}</option>
               <option value="Bike">{t("veh_bike")}</option>
@@ -4225,7 +4225,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               id="wi-guest-type"
               value={guestType}
               onChange={(e) => setGuestType(e.target.value as GuestType | "")}
-              className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+              className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
             >
               <option value="">{t("select")}</option>
               {GUEST_TYPES.map((gt) => (
@@ -4302,7 +4302,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   <select
                     value={pgIdType}
                     onChange={(e) => setPgIdType(e.target.value)}
-                    className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                    className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                   >
                     <option value="Aadhar Card">{t("idAadhar")}</option>
                     <option value="PAN Card">{t("idPan")}</option>
@@ -4404,7 +4404,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   <select
                     value={pgGender}
                     onChange={(e) => setPgGender(e.target.value)}
-                    className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                    className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                   >
                     <option value="">{t("selectOption")}</option>
                     <option value="Male">{t("male")}</option>
@@ -4687,7 +4687,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               <select
                 value={paymentMode}
                 onChange={(e) => setPaymentMode(e.target.value as "cash" | "upi" | "credit_card" | "debit_card" | "bank_transfer" | "other")}
-                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                 disabled={newAdvance === 0}
               >
                 <option value="cash">Cash</option>
@@ -4761,7 +4761,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             <select
               value={vehType}
               onChange={(e) => setVehType(e.target.value)}
-              className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+              className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
             >
               <option value="Car">{t("veh_car")}</option>
               <option value="Bike">{t("veh_bike")}</option>

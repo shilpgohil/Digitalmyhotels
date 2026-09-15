@@ -731,7 +731,7 @@ function CollectDialog({ bookingId, onDone }: { bookingId: string; onDone: () =>
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="inline-flex h-8 items-center rounded-lg bg-primary px-2.5 text-sm font-medium text-primary-foreground">
+      <DialogTrigger className="inline-flex h-[42px] items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/85">
         {t("collectPayment")}
       </DialogTrigger>
       <DialogContent>
@@ -829,7 +829,7 @@ function ChargeDialog({ bookingId, onDone }: { bookingId: string; onDone: () => 
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm">
+      <DialogTrigger className="inline-flex h-[42px] items-center rounded-lg border px-4 text-sm font-medium transition-colors hover:bg-muted">
         {t("addCharge")}
       </DialogTrigger>
       <DialogContent>

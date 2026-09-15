@@ -340,7 +340,7 @@ function CreateMemberDialog({ onCreated }: { onCreated: () => void }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/80">
+      <DialogTrigger className="inline-flex h-[42px] items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/80">
         <Plus className="size-4" aria-hidden />
         {t("addMember")}
       </DialogTrigger>
