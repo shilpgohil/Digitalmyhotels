@@ -203,6 +203,53 @@ async def test_invoice_generation_and_cancel(
     assert again.status_code == 201
 
 
+async def test_booking_total_is_gst_aware_at_creation(
+    client: AsyncClient, hotel_a: HotelFixture
+) -> None:
+    """Plan §3.1 (client: "incorrect payment due amount"): booking totals use
+    the SAME GST engine as checkout/invoice, so Edit Stay / lists / checkout
+    all show one number."""
+    headers = await _headers(client, hotel_a)
+    gst = await client.patch(
+        "/api/v1/hotels/me/gst",
+        json={"is_gst_registered": True, "gstin": "27ABCDE1234F1Z5", "state_code": "27"},
+        headers=headers,
+    )
+    assert gst.status_code == 200, gst.text
+
+    rt = await client.post(
+        "/api/v1/rooms/types",
+        json={"code": "GSTB", "name": "Gst Booking", "base_price": "1000.00"},
+        headers=headers,
+    )
+    room = await client.post(
+        "/api/v1/rooms",
+        json={"room_number": "GB-1", "room_type_id": rt.json()["id"]},
+        headers=headers,
+    )
+    guest = await client.post(
+        "/api/v1/guests",
+        json={"full_name": "Gst Booking Guest", "phone": "9833311122"},
+        headers=headers,
+    )
+    booking = await client.post(
+        "/api/v1/bookings",
+        json={
+            "primary_guest_id": guest.json()["id"],
+            "room_ids": [room.json()["id"]],
+            "check_in_date": str(TODAY),
+            "check_out_date": str(TODAY + timedelta(days=1)),
+        },
+        headers=headers,
+    )
+    assert booking.status_code == 201, booking.text
+    body = booking.json()
+    # 1000 room + 12% GST (6+6 default) = 1120 — same as the checkout quote.
+    assert Decimal(body["total_amount"]) == 1120
+    assert Decimal(body["tax_amount"]) == 120
+    assert Decimal(body["due_amount"]) == 1120
+
+
 async def test_refund_allocates_advance_then_deposit(
     client: AsyncClient, hotel_a: HotelFixture
 ) -> None:

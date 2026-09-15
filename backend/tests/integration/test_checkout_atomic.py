@@ -137,10 +137,12 @@ async def test_quote_taxes_proposed_charges_and_does_not_mutate(
     assert Decimal(q["final_total"]) == 3136
     assert Decimal(q["due"]) == 3136
 
-    # Read-only: no charge rows, booking untouched.
+    # Read-only: no charge rows, booking untouched. Booking totals are
+    # GST-aware since plan §3.1 (2000 rooms + 240 GST) — the point here is
+    # that the QUOTE did not change it.
     assert await _charge_count(client, headers, booking["id"]) == 0
     detail = await client.get(f"/api/v1/bookings/{booking['id']}", headers=headers)
-    assert Decimal(detail.json()["total_amount"]) == 2000
+    assert Decimal(detail.json()["total_amount"]) == 2240
     assert detail.json()["status"] == "checked_in"
 
 
@@ -438,7 +440,9 @@ async def test_failed_checkout_rolls_back_proposed_charges(
 
     assert await _charge_count(client, headers, booking["id"]) == 0
     detail = await client.get(f"/api/v1/bookings/{booking['id']}", headers=headers)
-    assert Decimal(detail.json()["total_amount"]) == 2000
+    # GST-aware booking total (plan §3.1): 2000 rooms + 240 GST — the rolled-
+    # back checkout must leave it exactly as created.
+    assert Decimal(detail.json()["total_amount"]) == 2240
     assert detail.json()["status"] == "checked_in"
 
 

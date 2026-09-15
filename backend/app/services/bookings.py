@@ -102,6 +102,29 @@ async def _assert_no_overlap(
         )
 
 
+async def _room_gst(db: AsyncSession, hotel_id: UUID, room_taxable: Decimal):
+    """Room GST breakup using THE shared engine (plan §3.1).
+
+    Same math as the checkout quote, compute_settlement and the invoice —
+    booking totals must never disagree with them. Mode-aware: no_gst → zero
+    tax; included_by_hotel → tax inside the price (total unchanged);
+    included_by_customer → tax added on top.
+    """
+    from app.domain.gst import GstRates, calculate_gst
+    from app.repositories.hotels import get_gst_context
+
+    gst, registered, inclusive = await get_gst_context(db, hotel_id)
+    rates = GstRates(
+        cgst=gst.default_cgst_rate,
+        sgst=gst.default_sgst_rate,
+        igst=gst.default_igst_rate,
+        version=gst.version,
+    )
+    return calculate_gst(
+        room_taxable, rates, is_registered=registered, inclusive=inclusive
+    )
+
+
 def _nights(check_in: date, check_out: date) -> int:
     return max((check_out - check_in).days, 1)
 
@@ -213,7 +236,14 @@ async def create_booking(
         (_stay_rate(room) * nights for room in rooms_with_types),
         Decimal("0.00"),
     )
-    total = money(max(subtotal - body.discount_amount, Decimal("0.00")))
+    # UNIFIED PRICING (plan §3.1): booking totals are GST-AWARE from creation,
+    # using the SAME engine as the checkout quote and the invoice. Previously
+    # totals excluded room GST while checkout/invoice included it, so "due"
+    # disagreed across screens (client: "incorrect payment due amount").
+    room_breakup = await _room_gst(db, hotel_id, money(subtotal))
+    total = money(
+        max(room_breakup.total_amount - body.discount_amount, Decimal("0.00"))
+    )
 
     booking = Booking(
         hotel_id=hotel_id,
@@ -232,6 +262,7 @@ async def create_booking(
         room_count=len(rooms),
         discount_amount=body.discount_amount,
         total_amount=total,
+        tax_amount=room_breakup.total_tax,
         security_deposit=body.security_deposit,
         due_amount=total,
         special_requests=body.special_requests,
@@ -464,9 +495,11 @@ async def update_booking(
         room_subtotal = sum(
             (br.rate * nights for br in booking.rooms if br.is_current), Decimal("0.00")
         )
+        # GST-aware (plan §3.1) — same engine as checkout/invoice.
+        room_bk = await _room_gst(db, booking.hotel_id, money(room_subtotal))
         booking.total_amount = money(
             max(
-                room_subtotal
+                room_bk.total_amount
                 + charges_total
                 - (changes.get("discount_amount", booking.discount_amount)),
                 Decimal("0.00"),
@@ -654,8 +687,10 @@ async def replace_booking_room(
     ) * nights
 
     old_total = booking.total_amount
+    # GST-aware (plan §3.1) — same engine as checkout/invoice.
+    room_bk = await _room_gst(db, hotel_id, money(room_subtotal))
     booking.total_amount = money(
-        max(room_subtotal + charges_total - booking.discount_amount, Decimal("0.00"))
+        max(room_bk.total_amount + charges_total - booking.discount_amount, Decimal("0.00"))
     )
     settle_booking_amounts(booking)
 
@@ -789,8 +824,10 @@ async def add_room_to_booking(
     ) * nights
 
     old_total = booking.total_amount
+    # GST-aware (plan §3.1) — same engine as checkout/invoice.
+    room_bk = await _room_gst(db, hotel_id, money(room_subtotal))
     booking.total_amount = money(
-        max(room_subtotal + charges_total - booking.discount_amount, Decimal("0.00"))
+        max(room_bk.total_amount + charges_total - booking.discount_amount, Decimal("0.00"))
     )
     settle_booking_amounts(booking)
 
