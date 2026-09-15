@@ -44,6 +44,7 @@ import { StatusBadge, ROOM_STATUS_TONE } from "@/components/feedback/status-badg
 import { fmtDateTime, fmtDate, fmtApiDate, fmtINR } from "@/lib/formatting";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/lib/api/use-api";
+import { invalidateMoney, invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/client";
@@ -132,11 +133,11 @@ function CurrentGuestsContent() {
     currentPage * PAGE_SIZE,
   );
 
+  // Stay edits/transfers change room state and can reprice the stay —
+  // refresh both families across every page (plan Part 6).
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["room-status-summary", activeHotelId] });
+    invalidateRoomState(queryClient);
+    invalidateMoney(queryClient);
   };
 
   return (

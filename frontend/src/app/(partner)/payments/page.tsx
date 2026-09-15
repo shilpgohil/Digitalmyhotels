@@ -35,6 +35,7 @@ import { StatusBadge } from "@/components/feedback/status-badge";
 import { PaymentStatusBadge } from "@/components/stay/booking-badges";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { useApi } from "@/lib/api/use-api";
+import { invalidateMoney } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
 import { fmtINR, localToday } from "@/lib/formatting";
@@ -200,14 +201,9 @@ function PaymentsContent() {
     enabled: !!activeHotelId && !!bookingId,
   });
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["payments", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["payment-summary", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["billing-history", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["charges", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["ledger", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
-  };
+  // Cross-page money invalidation (plan Part 6): also refreshes the
+  // dashboard's Today's Collection, invoices and daily closing.
+  const invalidate = () => invalidateMoney(queryClient);
 
   const showActions = can(PERMISSIONS.paymentsCorrect) || can(PERMISSIONS.paymentsRefund);
 

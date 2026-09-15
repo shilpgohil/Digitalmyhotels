@@ -70,6 +70,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { GuestPicker } from "@/components/guests/guest-picker";
 import { RoomAvailabilityPicker } from "@/components/rooms/room-availability-picker";
 import { useApi } from "@/lib/api/use-api";
+import { invalidateMoney, invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE, ApiError, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
@@ -2513,10 +2514,9 @@ function CheckinForm({
     onSuccess: (result) => {
       setCheckinResult(result);
     setError(null);
-      queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
-      queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
-      queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
-      queryClient.invalidateQueries({ queryKey: ["room-status-summary", activeHotelId] });
+      // Cross-page invalidation (plan Part 6): check-in moves rooms AND money.
+      invalidateRoomState(queryClient);
+      invalidateMoney(queryClient);
       toast.success(t("checkedInToastReg", { regs: result.registration_numbers.join(", ") }));
     },
     onError: (e) => setError(e instanceof ApiError ? e.message : t("checkinFailed")),
@@ -4033,10 +4033,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         setDrafts(next);
         setRestoredDraftId(null);
       }
-      queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
-      queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
-      queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
-      queryClient.invalidateQueries({ queryKey: ["room-status-summary", activeHotelId] });
+      // Cross-page invalidation (plan Part 6): check-in moves rooms AND money.
+      invalidateRoomState(queryClient);
+      invalidateMoney(queryClient);
       toast.success(t("checkedInToastReg", { regs: result.registration_numbers.join(", ") }));
     },
     onError: (e) => {
@@ -4984,11 +4983,11 @@ function CheckinContent() {
     sessionStorage.removeItem(checkinSessionKey(activeHotelId));
   }, [pendingBookingId, bookings.data]);
 
+  // Check-in changes room state AND money (advance collected) — refresh both
+  // families across every page (plan Part 6).
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["room-status-summary", activeHotelId] });
+    invalidateRoomState(queryClient);
+    invalidateMoney(queryClient);
   };
 
   if (selectedBooking) {

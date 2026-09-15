@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/table";
 import { StatusBadge, ROOM_STATUS_TONE } from "@/components/feedback/status-badge";
 import { useApi } from "@/lib/api/use-api";
+import { invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/client";
@@ -152,6 +153,9 @@ function RoomsContent() {
     queryKey: ["rooms", activeHotelId],
     queryFn: () => api<ListOut<RoomOut>>("/api/v1/rooms?limit=200"),
     enabled: !!activeHotelId,
+    // Multi-device desks converge without manual refresh (plan Part 6).
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 
   /** Room counts per status, derived from the already-fetched rooms list. */
@@ -168,10 +172,8 @@ function RoomsContent() {
       ? (rooms.data?.items.length ?? 0)
       : statuses.reduce((sum, status) => sum + (statusCounts[status] ?? 0), 0);
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["room-status-summary", activeHotelId] });
-  };
+  // Cross-page room-state invalidation (plan Part 6).
+  const invalidate = () => invalidateRoomState(queryClient);
 
   const statusMutation = useMutation({
     mutationFn: ({ roomId, status }: { roomId: string; status: RoomStatus }) =>

@@ -43,6 +43,7 @@ import { GuestPicker } from "@/components/guests/guest-picker";
 import { NewGuestFullForm, type QueuedDoc } from "@/components/stay/new-guest-full-form";
 import { RoomAvailabilityPicker } from "@/components/rooms/room-availability-picker";
 import { useApi } from "@/lib/api/use-api";
+import { invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError, API_BASE, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
@@ -396,9 +397,9 @@ function AdvanceBookingContent() {
     },
     onSuccess: (booking) => {
       setError(null);
-      queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
-      queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
-      queryClient.invalidateQueries({ queryKey: ["room-status-summary", activeHotelId] });
+      // Cross-page room-state invalidation (plan Part 6): a new advance
+      // booking reserves rooms — the check-in picker must see it.
+      invalidateRoomState(queryClient);
       toast.success(`Advance booking created — ${booking.booking_number}`);
       router.push("/advance-bookings");
     },

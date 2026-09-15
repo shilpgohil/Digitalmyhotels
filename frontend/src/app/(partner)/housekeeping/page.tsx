@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { StatusBadge, ROOM_STATUS_TONE } from "@/components/feedback/status-badge";
 import { useApi } from "@/lib/api/use-api";
+import { invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -44,19 +45,22 @@ function HousekeepingContent() {
     queryKey: ["hk-tasks", activeHotelId],
     queryFn: () => api<HousekeepingTaskOut[]>("/api/v1/housekeeping/tasks"),
     enabled: !!activeHotelId,
+    // Multi-device desks converge without manual refresh (plan Part 6).
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
   const maintenance = useQuery({
     queryKey: ["maintenance", activeHotelId],
     queryFn: () => api<MaintenanceOut[]>("/api/v1/housekeeping/maintenance"),
     enabled: !!activeHotelId && can(PERMISSIONS.maintenanceManage),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["hk-tasks", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["maintenance", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["room-status-summary", activeHotelId] });
-  };
+  // Cross-page room-state invalidation (plan Part 6): completing a cleaning
+  // must refresh the check-in room picker, dashboard chips, room status page
+  // etc. WITHOUT a manual reload (client bug: "still shows Cleaning Soon").
+  const invalidate = () => invalidateRoomState(queryClient);
 
   const start = useMutation({
     mutationFn: (id: string) =>

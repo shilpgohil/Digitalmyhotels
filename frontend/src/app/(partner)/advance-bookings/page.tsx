@@ -31,6 +31,7 @@ import {
   PaymentStatusBadge,
 } from "@/components/stay/booking-badges";
 import { useApi } from "@/lib/api/use-api";
+import { invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
 import type { ListOut } from "@/types/hotel";
@@ -141,12 +142,9 @@ function AdvanceBookingsContent() {
     return merged.sort((a, b) => a.check_in_date.localeCompare(b.check_in_date));
   }, [statusFilter, pendingBookings.data, confirmedBookings.data]);
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["room-status-summary", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
-  };
+  // Cross-page room-state invalidation (plan Part 6): cancel/no-show frees
+  // rooms — the check-in picker and dashboard must see it immediately.
+  const invalidate = () => invalidateRoomState(queryClient);
 
   const cancelMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>

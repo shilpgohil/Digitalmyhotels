@@ -29,6 +29,7 @@ import {
   PaymentStatusBadge,
 } from "@/components/stay/booking-badges";
 import { useApi } from "@/lib/api/use-api";
+import { invalidateMoney, invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
@@ -820,9 +821,10 @@ function CompletedBookingsContent() {
           booking={reversalTarget}
           onClose={() => setReversalTarget(null)}
           onDone={() => {
-            queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
-            queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
-            queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
+            // Reversal reopens the stay AND cancels the invoice — refresh
+            // both room-state and money families (plan Part 6).
+            invalidateRoomState(queryClient);
+            invalidateMoney(queryClient);
           }}
         />
       </main>

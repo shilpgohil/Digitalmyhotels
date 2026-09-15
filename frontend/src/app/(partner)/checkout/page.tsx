@@ -43,6 +43,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useApi } from "@/lib/api/use-api";
+import { invalidateMoney, invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE, ApiError } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
@@ -399,11 +400,11 @@ function CheckoutContent() {
     }
   }, [deepLinkId, guests.data, entry]);
 
+  // Checkout changes BOTH room state and money — refresh every page family
+  // (plan Part 6): dashboard collection, invoices, availability, hk tasks…
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["current-guests", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["bookings", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["rooms", activeHotelId] });
-    queryClient.invalidateQueries({ queryKey: ["room-status-summary", activeHotelId] });
+    invalidateRoomState(queryClient);
+    invalidateMoney(queryClient);
   };
 
   const checkoutMutation = useMutation({

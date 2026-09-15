@@ -269,6 +269,10 @@ export function RoomAvailabilityPicker({
       ),
     enabled: datesValid && !!activeHotelId,
     staleTime: 30_000,
+    // Multi-device desks converge without manual refresh (plan Part 6):
+    // housekeeping completing a clean on another device shows up here.
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 
   // Re-fetch when parent increments refreshKey (e.g. after double_booking error).
