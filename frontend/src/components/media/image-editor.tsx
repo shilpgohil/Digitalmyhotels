@@ -147,21 +147,33 @@ function ImageEditorDialog({
   const tc = useTranslations("common");
 
   const initialBox = useMemo(() => {
-    switch (aspect) {
-      case "square":
-        return { w: 260, h: 260 };
-      case "id_card":
-        // ISO ID-1 card ratio 1.586 — wider frame so Aadhaar/DL text is legible
-        // (client 9-08 item 10: "increase width as per the Aadharcard and DL").
-        return { w: 380, h: 240 };
-      case "passport":
-        // Passport photo-page ratio ≈ 1.42.
-        return { w: 312, h: 220 };
-      case "receipt":
-        return { w: 240, h: 320 };
-      default:
-        return { w: 290, h: 210 };
-    }
+    const base = (() => {
+      switch (aspect) {
+        case "square":
+          return { w: 260, h: 260 };
+        case "id_card":
+          // ISO ID-1 card ratio 1.586 — wider frame so Aadhaar/DL text is legible
+          // (client 9-08 item 10: "increase width as per the Aadharcard and DL").
+          return { w: 380, h: 240 };
+        case "passport":
+          // Passport photo-page ratio ≈ 1.42.
+          return { w: 312, h: 220 };
+        case "receipt":
+          return { w: 240, h: 320 };
+        default:
+          return { w: 290, h: 210 };
+      }
+    })();
+    // Client 15/09 (plan §4.4): "increase the zoom/size ~2× so the customer
+    // information is readable". Growing the FRAME (not the zoom) keeps the
+    // default crop covering the whole card — bumping `scale` instead would
+    // silently crop off the edges when staff hits Done without adjusting.
+    // Growth is clamped to the viewport so phones keep today's layout.
+    if (typeof window === "undefined") return base;
+    const maxW = Math.min(window.innerWidth - 48, 760);
+    const maxH = window.innerHeight - 240; // toolbar + footer allowance
+    const growth = Math.min(1.8, Math.max(1, Math.min(maxW / base.w, maxH / base.h)));
+    return { w: Math.round(base.w * growth), h: Math.round(base.h * growth) };
   }, [aspect]);
 
   // FREE crop (client 09/2026): the preset only sets the INITIAL frame — the
