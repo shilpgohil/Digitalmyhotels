@@ -126,6 +126,76 @@ async def test_walk_in_succeeds_on_room_with_future_booking(
     assert booking["status"] == "confirmed"
 
 
+async def test_walk_in_checkin_on_cleaning_required_room(
+    client: AsyncClient, hotel_a: HotelFixture
+) -> None:
+    """The picker offers cleaning_required rooms for same-day stays (normal
+    desk workflow: cleaned before arrival). The booking API used to 409 them
+    (is_allocatable); the widened same-day set must let book-and-checkin
+    succeed end-to-end (CLEANING_REQUIRED → OCCUPIED is a legal transition)."""
+    headers = await _headers(client, hotel_a)
+    room_id = await _setup_room(client, headers, "DR-704", "DRV4")
+
+    # Put the room into cleaning_required. Available → cleaning_required is
+    # not a direct manual transition (it normally comes from a checkout), so
+    # route through maintenance (both hops are legal manual moves).
+    for target in ("maintenance", "cleaning_required"):
+        status = await client.put(
+            f"/api/v1/rooms/{room_id}/status",
+            json={"status": target},
+            headers=headers,
+        )
+        assert status.status_code == 200, status.text
+
+    guest_id = await _make_guest(client, headers, "9899911006")
+    resp = await client.post(
+        "/api/v1/checkins/book-and-checkin",
+        json={
+            "booking": {
+                "primary_guest_id": guest_id,
+                "room_ids": [room_id],
+                "check_in_date": str(TODAY),
+                "check_out_date": str(TODAY + timedelta(days=1)),
+            },
+            "terms_acknowledged": True,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+
+    rooms = await client.get("/api/v1/rooms?limit=200", headers=headers)
+    item = {r["id"]: r for r in rooms.json()["items"]}[room_id]
+    assert item["status"] == "occupied"
+
+
+async def test_day_use_future_booking_shows_ribbon(
+    client: AsyncClient, hotel_a: HotelFixture
+) -> None:
+    """Day-use bookings (check_out == check_in) must also surface as the
+    next-booking ribbon — they hold that calendar day."""
+    headers = await _headers(client, hotel_a)
+    room_id = await _setup_room(client, headers, "DR-705", "DRV5")
+    guest_id = await _make_guest(client, headers, "9899911007")
+
+    future = TODAY + timedelta(days=4)
+    body = {
+        "primary_guest_id": guest_id,
+        "room_ids": [room_id],
+        "check_in_date": str(future),
+        "check_out_date": str(future),  # day use
+        "check_in_time": "10:00",
+        "check_out_time": "18:00",
+    }
+    resp = await client.post("/api/v1/bookings", json=body, headers=headers)
+    assert resp.status_code == 201, resp.text
+
+    rooms = await client.get("/api/v1/rooms?limit=200", headers=headers)
+    item = {r["id"]: r for r in rooms.json()["items"]}[room_id]
+    assert item["status"] == "available"
+    assert item["next_booking_date"] == str(future)
+    assert item["next_booking_time"] == "10:00"
+
+
 async def test_cancel_one_of_two_future_bookings_keeps_other_visible(
     client: AsyncClient, hotel_a: HotelFixture
 ) -> None:
