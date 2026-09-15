@@ -83,6 +83,19 @@ DEFERRED from Phase 3: §3.5 quote snapshot (medium, low urgency).
   (direct access + foreign autofill still 404; masked-only hits).
 Suite: 225 passed / 3 documented pre-existing. Build green.
 
+**PHASE 4 REVERIFIED 15/09 (commit e8333d1):**
+- Client clarification implemented: SUPER ADMIN is exempt from the team cap
+  (tenant.is_super_admin skips the check) — platform can grant members
+  beyond the hotel-side limit; hotel itself stays capped after the grant.
+  Test extended (SA grant over cap succeeds; hotel add still 422).
+- Line-reviewed the parallel session's commits and they hold: invalidation
+  helpers cover all room/money query families with prefix matching (applied
+  in 9 pages); IdleLogout is timestamp-based w/ visibilitychange (mounted in
+  partner + SA layouts); lockout wired into authenticate_user (record/clear)
+  and change-password revokes all refresh tokens.
+- FULL i18n parity sweep across ALL namespaces: zero drift (en ↔ hi).
+- Battery: team/auth/role-boundaries/cross-hotel suites 34 passed.
+
 **PHASE 3 REVERIFIED 15/09 (commit 4d4ea7a) — 3 real findings fixed:**
 1. §3.1 interaction REGRESSION caught: booked check-in balance added approx
    GST on top of the now-GST-inclusive booking total (double count). GST in
