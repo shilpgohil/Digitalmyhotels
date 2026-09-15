@@ -455,10 +455,17 @@ function CheckoutContent() {
     checkoutMutation.mutate();
   };
 
-  /** Generate the invoice once (after checkout) and cache its id. */
+  /** Resolve the invoice id (plan §3.4): checkout now AUTO-generates the
+   *  invoice and returns its id — Print/Download/Email use it directly. The
+   *  POST below is only a fallback for older checkouts; a conflict means the
+   *  invoice already exists, which is a success, not an error. */
   const ensureInvoice = async (): Promise<string | null> => {
     if (!checkoutResult) return null;
     if (invoiceId) return invoiceId;
+    if (checkoutResult.invoice_id) {
+      setInvoiceId(checkoutResult.invoice_id);
+      return checkoutResult.invoice_id;
+    }
     setInvoiceBusy(true);
     try {
       const inv = await api<{ id: string }>("/api/v1/invoices", {

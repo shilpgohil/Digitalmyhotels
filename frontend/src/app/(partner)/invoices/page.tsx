@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -63,6 +63,10 @@ function InvoicesContent() {
   // client 09/2026: merged the old separate "Invoice Preview" page in here).
   const [selectedId, setSelectedId] = useState("");
   const [sharingPdf, setSharingPdf] = useState(false);
+  /** Scroll target for the preview card (client 15/09: "View button click →
+   *  scroll down" — the preview renders below the fold and clicking View
+   *  appeared to do nothing). */
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const invoices = useQuery({
     queryKey: ["invoices", activeHotelId],
@@ -256,7 +260,20 @@ function InvoicesContent() {
                       </StatusBadge>
                     </TableCell>
                     <TableCell className="space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => setSelectedId(inv.id)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedId(inv.id);
+                          // Bring the preview card into view (plan §3.4).
+                          setTimeout(() => {
+                            previewRef.current?.scrollIntoView({
+                              behavior: "smooth",
+                              block: "start",
+                            });
+                          }, 50);
+                        }}
+                      >
                         {tc("view")}
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => downloadPdf(inv.id)}>
@@ -292,7 +309,7 @@ function InvoicesContent() {
 
         {/* ── Styled invoice preview (the ONE proper invoice design) ── */}
         {invoice && (
-          <div className="mt-6">
+          <div className="mt-6 scroll-mt-4" ref={previewRef}>
             <div className="mx-auto mb-3 flex max-w-3xl items-center justify-end gap-2">
               <Button variant="outline" onClick={() => window.print()}>
                 <Printer className="size-4" aria-hidden />
@@ -505,7 +522,17 @@ function GenerateDialog({ onDone }: { onDone: () => void }) {
       setOpen(false);
       onDone();
     },
-    onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
+    onError: (e) => {
+      // Friendly conflict (plan §10.4): an existing invoice is a SUCCESS
+      // state, not an error — checkout now auto-generates them (§3.4).
+      if (e instanceof ApiError && e.code === "invoice_exists") {
+        toast.info(t("alreadyExists"));
+        setOpen(false);
+        onDone();
+        return;
+      }
+      toast.error(e instanceof ApiError ? e.message : tc("error"));
+    },
   });
 
   return (

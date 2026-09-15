@@ -267,6 +267,9 @@ class CheckOutOut(BaseModel):
     is_late: bool
     late_fee: Decimal
     payment_due_authorized: bool
+    # Auto-generated at checkout (plan §3.4) — the frontend uses this directly
+    # for Print/Download/Email instead of a second generation call.
+    invoice_id: UUID | None = None
 
 
 class CheckoutReversalRequest(BaseModel):

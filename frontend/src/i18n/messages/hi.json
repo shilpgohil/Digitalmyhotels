@@ -939,7 +939,8 @@
     "status_partially_paid": "आंशिक भुगतान",
     "status_paid": "भुगतान पूरा",
     "status_cancelled": "रद्द",
-    "status_refunded": "वापसी"
+    "status_refunded": "वापसी",
+    "alreadyExists": "इस बुकिंग का इनवॉइस पहले से मौजूद है - नीचे सूची में दिख रहा है"
   },
   "restaurantBilling": {
     "title": "रेस्तरां बिलिंग",

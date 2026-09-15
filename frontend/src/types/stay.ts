@@ -344,4 +344,6 @@ export interface CheckOutOut {
   is_late: boolean;
   late_fee: string;
   payment_due_authorized: boolean;
+  /** Auto-generated at checkout (plan §3.4). */
+  invoice_id: string | null;
 }

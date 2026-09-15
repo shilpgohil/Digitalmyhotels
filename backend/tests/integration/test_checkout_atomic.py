@@ -183,12 +183,18 @@ async def test_atomic_checkout_collects_exact_quoted_due(
     assert Decimal(payments[0]["amount"]) == quoted_due
     assert await _charge_count(client, headers, booking["id"]) == 2
 
-    # Invoice agrees with the quote and the persisted checkout.
-    invoice = await client.post(
+    # Invoice is AUTO-GENERATED at checkout (plan §3.4) and agrees with the
+    # quote; a second manual generation is a conflict (never a duplicate).
+    invoice_id = done.json()["invoice_id"]
+    assert invoice_id, "checkout must auto-generate the invoice"
+    invoice = await client.get(f"/api/v1/invoices/{invoice_id}", headers=headers)
+    assert invoice.status_code == 200, invoice.text
+    assert Decimal(invoice.json()["total_amount"]) == quoted_total
+    dup = await client.post(
         "/api/v1/invoices", json={"booking_id": booking["id"]}, headers=headers
     )
-    assert invoice.status_code == 201, invoice.text
-    assert Decimal(invoice.json()["total_amount"]) == quoted_total
+    assert dup.status_code == 409
+    assert "invoice_exists" in dup.text
 
 
 # ── (c) a retry after success must not duplicate anything ─────────────────
@@ -292,10 +298,11 @@ async def test_discount_lowers_settlement_and_needs_authorization(
     assert committed.status_code == 201, committed.text
     assert Decimal(committed.json()["final_total"]) == base_total - 500
 
-    invoice = await client.post(
-        "/api/v1/invoices", json={"booking_id": booking["id"]}, headers=headers
-    )
-    assert invoice.status_code == 201, invoice.text
+    # Auto-generated at checkout (plan §3.4) — fetch it via the returned id.
+    invoice_id = committed.json()["invoice_id"]
+    assert invoice_id, "checkout must auto-generate the invoice"
+    invoice = await client.get(f"/api/v1/invoices/{invoice_id}", headers=headers)
+    assert invoice.status_code == 200, invoice.text
     assert Decimal(invoice.json()["discount_amount"]) == 500
     assert Decimal(invoice.json()["total_amount"]) == base_total - 500
 

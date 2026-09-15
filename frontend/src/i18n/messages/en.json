@@ -876,7 +876,8 @@
     "status_partially_paid": "Partially Paid",
     "status_paid": "Paid",
     "status_cancelled": "Cancelled",
-    "status_refunded": "Refunded"
+    "status_refunded": "Refunded",
+    "alreadyExists": "An invoice already exists for this booking - it is shown in the list below"
   },
   "restaurantBilling": {
     "title": "Restaurant Billing",

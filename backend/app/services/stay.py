@@ -1132,6 +1132,35 @@ async def check_out(
         )
         booking.payment_status = "refunded"
     await db.flush()
+
+    # ── auto-generate the invoice (plan §3.4, client: "invoice not generated")
+    # Invoices were previously created only when staff clicked Print/Download
+    # AFTER checkout — bookings completed without touching those buttons never
+    # got one, and invoice numbers ran out of booking order. Generating inside
+    # the checkout transaction guarantees every completed stay has an invoice
+    # and numbering follows checkout order. If one already exists (generated
+    # manually mid-stay), it is kept — never duplicated.
+    from app.core.errors import ConflictError as _Conflict
+    from app.services.invoices import generate_invoice as _gen_invoice
+
+    invoice_id: UUID | None = None
+    try:
+        invoice = await _gen_invoice(
+            db, tenant, booking.id, correlation_id=correlation_id
+        )
+        invoice_id = invoice.id
+    except _Conflict:
+        # Active invoice already exists (generated manually mid-stay) — reuse it.
+        from app.models.invoice import Invoice as _Invoice
+
+        invoice_id = await db.scalar(
+            select(_Invoice.id).where(
+                _Invoice.booking_id == booking.id,
+                _Invoice.hotel_id == hotel_id,
+                _Invoice.status.notin_(("cancelled",)),
+            )
+        )
+
     await write_audit(
         db,
         action="stay.checked_out",
@@ -1174,6 +1203,7 @@ async def check_out(
         refund_amount=refund,
         is_late=is_late,
         late_fee=late_fee,
+        invoice_id=invoice_id,
         payment_due_authorized=checkout.payment_due_authorized,
     )
 
