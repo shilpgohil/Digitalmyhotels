@@ -145,8 +145,21 @@ produces every symptom the client sees:
 ## 6. Open questions for the client (before implementation)
 1. Should the "Reserved" stat card count only today's arrivals (recommended) or
    all future reservations?
-2. How many days ahead should the "Reserved from …" ribbon look? (Recommend:
-   next confirmed booking regardless of distance, since it's one query.)
+2. ~~How many days ahead should the "Reserved from …" ribbon look?~~
+   **DECIDED (user, 15/09):** ribbon always shows the next confirmed booking,
+   however far out.
+
+### 6.1 Filter semantics (DECIDED 15/09)
+A physically-free room with a future booking sorts under the **Available**
+filter (it IS sellable now) with its "Reserved from …" ribbon visible on the
+card. The **Reserved** filter narrows to rooms whose guest arrives TODAY.
+Rules:
+- Single-membership only — stat-card counts must keep summing to the room
+  total (client already once reported "Room Status wrong count").
+- Optional follow-up: the Reserved filter view may render two sections —
+  "Arriving today" + "Upcoming reservations" — without changing the counts.
+- Availability picker's "Reserved" chip: matches rooms with ANY upcoming
+  booking (picker is a date-planning context, unlike the live grid).
 3. Same-day walk-in onto a room whose guest arrives TODAY later in the evening
    (day-use gap): allow with warning, or block? (Currently blocked by overlap;
    recommend keep blocked.)
