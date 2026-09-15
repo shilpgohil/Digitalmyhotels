@@ -277,8 +277,10 @@ function PlanContent() {
             </p>
           )}
 
+          {/* Centered current-subscription strip (client 15/09: "Need
+              Center — currently not center") */}
           {sub.data && (
-            <div className="mx-auto mt-6 flex max-w-md items-center justify-between rounded-lg border bg-card px-4 py-3">
+            <div className="mx-auto mt-6 flex max-w-md flex-wrap items-center justify-center gap-x-4 gap-y-2 rounded-lg border bg-card px-5 py-3 text-center">
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
                   {t("currentPlan")}
@@ -392,10 +394,14 @@ function PlanContent() {
                     ))}
                   </ul>
                   {canRequest && (
+                    /* 42px + proper styling (client 15/09: "Button: 42px and
+                       need styling for button") */
                     <Button
                       className={cn(
-                        "mt-6 w-full",
-                        best && "bg-gold-500 text-navy-900 hover:bg-gold-400",
+                        "mt-6 h-[42px] w-full font-semibold",
+                        best
+                          ? "bg-gold-500 text-navy-900 hover:bg-gold-400"
+                          : "border-gold-500 text-gold-700 hover:bg-gold-50",
                       )}
                       variant={best ? "default" : "outline"}
                       disabled={pending}

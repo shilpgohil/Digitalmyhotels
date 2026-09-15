@@ -105,6 +105,58 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
+    labelKey: "property",
+    items: [
+      {
+        href: "/rooms",
+        labelKey: "roomStatus",
+        icon: BedDouble,
+        permission: PERMISSIONS.roomsView,
+      },
+      {
+        href: "/housekeeping",
+        labelKey: "housekeeping",
+        icon: Sparkles,
+        permission: PERMISSIONS.housekeepingManage,
+      },
+      {
+        href: "/edit-hotel",
+        labelKey: "editHotel",
+        icon: Building2,
+        permission: PERMISSIONS.hotelManageSettings,
+      },
+    ],
+  },
+  {
+    labelKey: "money",
+    items: [
+      {
+        href: "/payments",
+        labelKey: "payments",
+        icon: Wallet,
+        permission: PERMISSIONS.paymentsView,
+      },
+      {
+        href: "/restaurant-billing",
+        labelKey: "restaurantBilling",
+        icon: UtensilsCrossed,
+        permission: PERMISSIONS.financialReports,
+      },
+      {
+        href: "/gst-tax",
+        labelKey: "gstTax",
+        icon: Landmark,
+        permission: PERMISSIONS.financialReports,
+      },
+      {
+        href: "/invoices",
+        labelKey: "invoices",
+        icon: FileText,
+        permission: PERMISSIONS.invoicesManage,
+      },
+    ],
+  },
+  {
     // Staff attendance module (client 09/2026 staff check-in flow)
     labelKey: "staffGroup",
     items: [
@@ -155,58 +207,6 @@ const SECTIONS: NavSection[] = [
         labelKey: "lateEarly",
         icon: CalendarClock,
         permission: PERMISSIONS.staffAttendanceView,
-      },
-    ],
-  },
-  {
-    labelKey: "property",
-    items: [
-      {
-        href: "/rooms",
-        labelKey: "roomStatus",
-        icon: BedDouble,
-        permission: PERMISSIONS.roomsView,
-      },
-      {
-        href: "/housekeeping",
-        labelKey: "housekeeping",
-        icon: Sparkles,
-        permission: PERMISSIONS.housekeepingManage,
-      },
-      {
-        href: "/edit-hotel",
-        labelKey: "editHotel",
-        icon: Building2,
-        permission: PERMISSIONS.hotelManageSettings,
-      },
-    ],
-  },
-  {
-    labelKey: "money",
-    items: [
-      {
-        href: "/payments",
-        labelKey: "payments",
-        icon: Wallet,
-        permission: PERMISSIONS.paymentsView,
-      },
-      {
-        href: "/restaurant-billing",
-        labelKey: "restaurantBilling",
-        icon: UtensilsCrossed,
-        permission: PERMISSIONS.financialReports,
-      },
-      {
-        href: "/gst-tax",
-        labelKey: "gstTax",
-        icon: Landmark,
-        permission: PERMISSIONS.financialReports,
-      },
-      {
-        href: "/invoices",
-        labelKey: "invoices",
-        icon: FileText,
-        permission: PERMISSIONS.invoicesManage,
       },
     ],
   },

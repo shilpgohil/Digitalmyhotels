@@ -235,7 +235,9 @@ function TeamContent() {
                           >
                             <MoreVertical className="size-4" aria-hidden />
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          {/* Wider so "Edit Profile" / "Reset Password" never
+                              wrap (client 15/09: "Need increase width") */}
+                          <DropdownMenuContent align="end" className="min-w-[190px]">
                             <DropdownMenuItem onClick={() => setEditTarget(member)}>
                               <Pencil className="size-4" aria-hidden />
                               {t("editProfile")}
