@@ -676,7 +676,10 @@
     "phoneNumber": "Mobile Number",
     "idProofType": "ID Proof Type",
     "idNumber": "ID Number",
-    "guestCreated": "Guest created"
+    "guestCreated": "Guest created",
+    "otherHotelBadge": "Other hotel",
+    "importAction": "Import",
+    "guestImported": "Guest imported from another hotel — details and ID photos copied"
   },
   "stay": {
     "checkinTitle": "Guest Check-in",
@@ -1891,6 +1894,8 @@
     "qrNotConfiguredInfo": "UPI QR not configured — add it in Settings → Payments.",
     "createGuestAction": "Create Guest",
     "manualExtraCharges": "Manual extra charges (₹)",
-    "extraIncludesServices": "Includes {amount} from selected services"
+    "extraIncludesServices": "Includes {amount} from selected services",
+    "otherHotelBadge": "Other hotel",
+    "guestImported": "Guest imported from another hotel — details and ID photos copied"
   }
 }

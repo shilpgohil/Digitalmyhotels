@@ -181,7 +181,7 @@ async def search_guests(
     else:
         return []
     result = await db.execute(stmt.order_by(Guest.full_name).limit(20))
-    return [
+    hits = [
         GuestSearchResultOut(
             id=g.id,
             full_name=g.full_name,
@@ -190,6 +190,179 @@ async def search_guests(
         )
         for g in result.scalars().all()
     ]
+
+    # ── Cross-hotel search (plan §1.7, client: "other hotel customer detail
+    # search not able to search"). ONLY for a FULL phone number (exact match,
+    # ≥10 digits) — prefix search stays hotel-local so staff cannot trawl
+    # other hotels' guest lists. Results are masked; selecting one triggers
+    # the explicit, audited import.
+    if phone:
+        normalized_full = normalize_phone(phone)
+        if normalized_full and len(normalized_full) >= 10:
+            local_phones = {h.phone_masked for h in hits}
+            cross_result = await db.execute(
+                select(Guest)
+                .where(
+                    Guest.hotel_id != hotel_id,
+                    Guest.normalized_phone == normalized_full,
+                )
+                .order_by(Guest.created_at.desc())
+                .limit(5)
+            )
+            seen_names: set[str] = set()
+            for g in cross_result.scalars().all():
+                masked = _mask_phone(g.normalized_phone)
+                # Skip if the same person already exists locally, and dedupe
+                # identical copies across multiple hotels.
+                if masked in local_phones or g.full_name.lower() in seen_names:
+                    continue
+                seen_names.add(g.full_name.lower())
+                hits.append(
+                    GuestSearchResultOut(
+                        id=g.id,
+                        full_name=g.full_name,
+                        phone_masked=masked,
+                        id_last4=g.id_last4,
+                        cross_hotel=True,
+                    )
+                )
+    return hits
+
+
+async def import_guest(
+    db: AsyncSession,
+    tenant: TenantContext,
+    source_guest_id: UUID,
+    phone: str,
+    *,
+    correlation_id: str | None = None,
+) -> Guest:
+    """Copy a guest found via CROSS-HOTEL search into the current hotel
+    (plan §1.7 — the ONE intended cross-hotel data share).
+
+    Safeguards (master-context privacy doctrine):
+    - Knowledge proof: the FULL phone must match the source guest exactly —
+      a guessed/leaked guest UUID alone cannot pull another hotel's data.
+    - Base identity data + ID document photos are copied; the encrypted full
+      ID number and internal notes are NOT (the importing hotel re-verifies).
+    - Idempotent: if this hotel already has a guest with that phone, the
+      existing local record is returned untouched.
+    - Audited with source hotel + guest ids.
+    """
+    from app.core.errors import ValidationAppError
+    from app.models.guest import GuestDocument
+
+    hotel_id = tenant.require_hotel()
+    normalized = normalize_phone(phone)
+    if not normalized:
+        raise ValidationAppError("Invalid phone number", code="invalid_phone")
+
+    source = (
+        await db.execute(
+            select(Guest).where(
+                Guest.id == source_guest_id,
+                Guest.normalized_phone == normalized,
+                Guest.hotel_id != hotel_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if source is None:
+        # Same response whether the id is wrong or the phone doesn't match —
+        # no enumeration signal.
+        raise NotFoundError("Guest not found")
+
+    existing = (
+        await db.execute(
+            select(Guest).where(
+                Guest.hotel_id == hotel_id,
+                Guest.normalized_phone == normalized,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        return existing
+
+    guest = Guest(
+        hotel_id=hotel_id,
+        full_name=source.full_name,
+        normalized_phone=source.normalized_phone,
+        email=source.email,
+        address=source.address,
+        city=source.city,
+        state=source.state,
+        country=source.country,
+        postal_code=source.postal_code,
+        gender=source.gender,
+        date_of_birth=source.date_of_birth,
+        id_proof_type=source.id_proof_type,
+        id_last4=source.id_last4,
+        # The importing hotel has not verified anything yet.
+        id_verification_status="unverified",
+    )
+    db.add(guest)
+    await db.flush()
+
+    # Copy the NEWEST ID document per side into THIS hotel's storage prefix.
+    # Storage failures are per-document non-fatal — the text import always
+    # succeeds; staff can re-capture a missing photo at the desk.
+    from app.integrations.storage.base import get_storage, new_object_key
+
+    docs = (
+        await db.execute(
+            select(GuestDocument)
+            .where(GuestDocument.guest_id == source.id)
+            .order_by(GuestDocument.created_at.desc())
+        )
+    ).scalars().all()
+    storage = get_storage()
+    copied_sides: set[str] = set()
+    copied = 0
+    for doc in docs:
+        side = doc.side or "front"
+        if side in copied_sides:
+            continue  # newest-first — keep only the latest per side
+        try:
+            data = await storage.get_bytes(doc.object_key)
+            suffix = doc.object_key.rsplit(".", 1)[-1].lower()
+            if suffix not in ("png", "jpg", "jpeg", "webp"):
+                suffix = "jpg"
+            content_type = {
+                "png": "image/png",
+                "webp": "image/webp",
+            }.get(suffix, "image/jpeg")
+            new_key = new_object_key(
+                f"hotels/{hotel_id}/guests/{guest.id}", f"{side}.{suffix}"
+            )
+            await storage.put_bytes(key=new_key, data=data, content_type=content_type)
+            db.add(
+                GuestDocument(
+                    hotel_id=hotel_id,
+                    guest_id=guest.id,
+                    document_type=doc.document_type,
+                    object_key=new_key,
+                    side=doc.side,
+                )
+            )
+            copied_sides.add(side)
+            copied += 1
+        except Exception:  # noqa: BLE001 — per-doc failures must not abort
+            continue
+
+    await write_audit(
+        db,
+        action="guests.cross_hotel_import",
+        entity_type="guest",
+        entity_id=guest.id,
+        actor_id=tenant.user_id,
+        hotel_id=hotel_id,
+        after={
+            "source_guest_id": str(source.id),
+            "source_hotel_id": str(source.hotel_id),
+            "documents_copied": str(copied),
+        },
+        correlation_id=correlation_id,
+    )
+    return guest
 
 
 async def autofill_guest(

@@ -21,6 +21,9 @@ export interface GuestSearchResult {
   full_name: string;
   phone_masked: string;
   id_last4: string | null;
+  /** Guest belongs to ANOTHER hotel (plan §1.7) — selecting triggers the
+   *  explicit, audited import instead of a plain autofill. */
+  cross_hotel?: boolean;
 }
 
 export interface GuestAutofill {

@@ -108,6 +108,21 @@ class GuestSearchResultOut(BaseModel):
     full_name: str
     phone_masked: str
     id_last4: str | None
+    # Guest belongs to ANOTHER hotel on the platform (plan §1.7) — selecting
+    # them triggers an explicit, audited import instead of a plain autofill.
+    cross_hotel: bool = False
+
+
+class GuestImportRequest(BaseModel):
+    """Import a guest found via cross-hotel search (plan §1.7).
+
+    The FULL phone number is required as a knowledge proof: it must match the
+    source guest exactly, so a guessed/leaked guest UUID alone cannot pull
+    another hotel's guest data.
+    """
+
+    source_guest_id: UUID
+    phone: str = Field(min_length=8, max_length=20)
 
 
 class GuestListOut(BaseModel):

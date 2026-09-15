@@ -77,6 +77,27 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
       toast.error(error instanceof ApiError ? error.message : tc("error")),
   });
 
+  // Cross-hotel import (plan §1.7): copies the guest (base data + ID photos)
+  // into THIS hotel — explicit, phone-proofed, audited — then selects the
+  // fresh LOCAL record like any other pick.
+  const importGuest = useMutation({
+    mutationFn: (sourceGuestId: string) =>
+      api<GuestOut>("/api/v1/guests/import", {
+        method: "POST",
+        body: { source_guest_id: sourceGuestId, phone: searchedPhone },
+      }),
+    onSuccess: (guest) => {
+      toast.success(t("guestImported"));
+      onSelected({
+        id: guest.id,
+        full_name: guest.full_name,
+        phone: guest.normalized_phone,
+      });
+    },
+    onError: (error) =>
+      toast.error(error instanceof ApiError ? error.message : tc("error")),
+  });
+
   const create = useMutation({
     mutationFn: (form: FormData) =>
       api<GuestOut>("/api/v1/guests", {
@@ -167,14 +188,22 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
               {hit.id_last4 && (
                 <span className="text-xs text-muted-foreground">ID ••{hit.id_last4}</span>
               )}
+              {/* Guest found at ANOTHER hotel (plan §1.7) */}
+              {hit.cross_hotel && (
+                <span className="rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info">
+                  {t("otherHotelBadge")}
+                </span>
+              )}
               <Button
                 type="button"
                 size="sm"
                 className="ml-auto"
-                disabled={autofill.isPending}
-                onClick={() => autofill.mutate(hit.id)}
+                disabled={autofill.isPending || importGuest.isPending}
+                onClick={() =>
+                  hit.cross_hotel ? importGuest.mutate(hit.id) : autofill.mutate(hit.id)
+                }
               >
-                {t("autofill")}
+                {hit.cross_hotel ? t("importAction") : t("autofill")}
               </Button>
             </li>
           ))}

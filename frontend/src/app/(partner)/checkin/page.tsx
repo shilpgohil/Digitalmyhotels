@@ -1396,13 +1396,25 @@ function AdditionalGuestEntry({
 
   const handleSelectExisting = async (g: GuestSearchResult) => {
     try {
+      // Cross-hotel hit (plan §1.7): IMPORT the guest into this hotel first
+      // (explicit, phone-proofed, audited — copies base data + ID photos),
+      // then continue with the fresh LOCAL record.
+      let guestId = g.id;
+      if (g.cross_hotel) {
+        const imported = await api<GuestOut>("/api/v1/guests/import", {
+          method: "POST",
+          body: { source_guest_id: g.id, phone: searchPhone.trim() },
+        });
+        guestId = imported.id;
+        toast.success(t("guestImported"));
+      }
       // Parallel: full profile + saved documents, so a returning co-guest's
       // card shows their phone AND existing front/back/selfie tiles
       // (client 9-08 items 9 + 11).
       const [full, docsList] = await Promise.all([
-        api<GuestAutofill>(`/api/v1/guests/${g.id}/autofill`, { method: "POST" }),
+        api<GuestAutofill>(`/api/v1/guests/${guestId}/autofill`, { method: "POST" }),
         api<{ id: string; side: string | null }[]>(
-          `/api/v1/guests/${g.id}/documents`,
+          `/api/v1/guests/${guestId}/documents`,
         ).catch(() => [] as { id: string; side: string | null }[]),
       ]);
       const bySide: Partial<Record<DocSide, string>> = {};
@@ -1413,7 +1425,7 @@ function AdditionalGuestEntry({
       }
       setExistingDocs(bySide);
       const resolved: ResolvedCoGuest = {
-        guest_id: g.id,
+        guest_id: guestId,
         full_name: full.full_name,
         phone: full.phone,
         docs: [],
@@ -1815,6 +1827,12 @@ function AdditionalGuestEntry({
                     <span className="ml-2 text-muted-foreground">{g.phone_masked}</span>
                     {g.id_last4 && (
                       <span className="ml-1 text-xs text-muted-foreground">{t("idLast4", { last4: g.id_last4 })}</span>
+                    )}
+                    {/* Guest found at ANOTHER hotel (plan §1.7) */}
+                    {g.cross_hotel && (
+                      <span className="ml-2 rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info">
+                        {t("otherHotelBadge")}
+                      </span>
                     )}
                   </button>
                 </li>

@@ -14,6 +14,7 @@ from app.db.session import get_db
 from app.schemas.guest import (
     GuestAutofillOut,
     GuestCreate,
+    GuestImportRequest,
     GuestListOut,
     GuestOut,
     GuestSearchOut,
@@ -96,6 +97,24 @@ async def get_guest(
     db: AsyncSession = Depends(get_db),
 ) -> GuestOut:
     guest = await guests_service.get_guest(db, tenant, guest_id)
+    return guests_service.to_out(guest)
+
+
+@router.post("/import", response_model=GuestOut, status_code=201)
+async def import_guest(
+    body: GuestImportRequest,
+    request: Request,
+    tenant: TenantContext = Depends(require_permissions(Permission.GUESTS_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> GuestOut:
+    """Cross-hotel guest import (plan §1.7) — explicit, phone-proofed, audited."""
+    guest = await guests_service.import_guest(
+        db,
+        tenant,
+        body.source_guest_id,
+        body.phone,
+        correlation_id=_correlation(request),
+    )
     return guests_service.to_out(guest)
 
 
