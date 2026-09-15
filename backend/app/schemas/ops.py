@@ -261,6 +261,9 @@ class PaymentMethodReportOut(BaseModel):
     to_date: date
     cash: Decimal
     upi: Decimal
+    # Credit/Debit Card + Others split (client 15/09).
+    card: Decimal = Decimal("0.00")
+    others: Decimal = Decimal("0.00")
     refunds_cash: Decimal
     refunds_upi: Decimal
 

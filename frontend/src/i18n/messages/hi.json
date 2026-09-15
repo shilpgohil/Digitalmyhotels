@@ -266,7 +266,8 @@
     "guestMix": "अतिथि प्रकार",
     "weekPattern": "साप्ताहिक माँग",
     "roomTypeRevenue": "कमरे के प्रकार के अनुसार आय",
-    "noGuestData": "इस अवधि में कोई अतिथि प्रकार डेटा नहीं।"
+    "noGuestData": "इस अवधि में कोई अतिथि प्रकार डेटा नहीं।",
+    "creditDebitCard": "क्रेडिट/डेबिट कार्ड"
   },
   "rooms": {
     "title": "कमरे की स्थिति",
@@ -915,7 +916,9 @@
     "category_transport": "परिवहन",
     "category_restaurant": "रेस्टोरेंट",
     "category_damage": "क्षति",
-    "category_other": "अन्य"
+    "category_other": "अन्य",
+    "creditDebitCard": "क्रेडिट/डेबिट कार्ड",
+    "othersCard": "अन्य"
   },
   "invoices": {
     "title": "चालान",
@@ -1024,7 +1027,7 @@
     "paidTo": "किसे भुगतान / विक्रेता",
     "mode_cash": "नकद",
     "mode_upi": "UPI",
-    "mode_card": "कार्ड",
+    "mode_card": "क्रेडिट/डेबिट कार्ड",
     "mode_credit_card": "क्रेडिट कार्ड",
     "mode_debit_card": "डेबिट कार्ड",
     "mode_bank_transfer": "नेट बैंकिंग",
@@ -1169,7 +1172,9 @@
     "colOccupancyPct": "अधिभोग %",
     "colRevenue": "राजस्व",
     "noRoomUtilization": "इस अवधि के लिए कोई कमरा उपयोग डेटा नहीं",
-    "noGstRows": "इस अवधि के लिए कोई GST प्रविष्टि नहीं"
+    "noGstRows": "इस अवधि के लिए कोई GST प्रविष्टि नहीं",
+    "creditDebitCard": "क्रेडिट/डेबिट कार्ड",
+    "othersLabel": "अन्य"
   },
   "plan": {
     "title": "योजना और सदस्यता",

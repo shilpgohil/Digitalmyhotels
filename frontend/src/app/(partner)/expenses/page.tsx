@@ -252,6 +252,23 @@ function ExpensesContent() {
             tone="info"
             isLoading={summary.isLoading}
           />
+          {/* Credit/Debit Card + Others (client 15/09) */}
+          <StatCard
+            label={t("mode_card")}
+            value={fmtINR(summary.data?.card_amount ?? 0)}
+            subtitle="Paid by Card"
+            icon={Wallet}
+            tone="danger"
+            isLoading={summary.isLoading}
+          />
+          <StatCard
+            label={t("mode_other")}
+            value={fmtINR(summary.data?.other_amount ?? 0)}
+            subtitle="Other Modes"
+            icon={Wallet}
+            tone="navy"
+            isLoading={summary.isLoading}
+          />
           <StatCard
             label={t("statEntries")}
             value={String(summary.data?.entries ?? 0)}

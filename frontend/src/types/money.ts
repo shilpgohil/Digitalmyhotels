@@ -124,6 +124,8 @@ export interface ExpenseSummaryOut {
   pending_amount: string;  // SUBMITTED (awaiting approval) — shown separately
   cash_amount: string;     // committed, paid by cash (Figma CASH card)
   upi_amount: string;      // committed, paid by UPI (Figma UPI card)
+  card_amount: string;     // committed, credit/debit card (client 15/09)
+  other_amount: string;    // committed, other methods (client 15/09)
 }
 
 export interface RecurringExpenseOut {
@@ -219,6 +221,8 @@ export interface PaymentMethodReportOut {
   to_date: string;
   cash: string;
   upi: string;
+  card: string;
+  others: string;
   refunds_cash: string;
   refunds_upi: string;
 }

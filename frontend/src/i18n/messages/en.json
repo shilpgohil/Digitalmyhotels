@@ -266,7 +266,8 @@
     "guestMix": "Guest Mix",
     "weekPattern": "Weekly Demand Pattern",
     "roomTypeRevenue": "Revenue by Room Type",
-    "noGuestData": "No guest type data for this period."
+    "noGuestData": "No guest type data for this period.",
+    "creditDebitCard": "Credit/Debit Card"
   },
   "rooms": {
     "title": "Room Status",
@@ -852,7 +853,9 @@
     "category_transport": "Transport",
     "category_restaurant": "Restaurant",
     "category_damage": "Damage",
-    "category_other": "Other"
+    "category_other": "Other",
+    "creditDebitCard": "Credit/Debit Card",
+    "othersCard": "Others"
   },
   "invoices": {
     "title": "Invoices",
@@ -961,11 +964,11 @@
     "paidTo": "Paid To / Vendor",
     "mode_cash": "Cash",
     "mode_upi": "UPI",
-    "mode_card": "Card",
+    "mode_card": "Credit/Debit Card",
     "mode_credit_card": "Credit Card",
     "mode_debit_card": "Debit Card",
     "mode_bank_transfer": "Net Banking",
-    "mode_other": "Other",
+    "mode_other": "Others",
     "fromDate": "From",
     "toDate": "To",
     "clearFilters": "Clear",
@@ -1169,7 +1172,9 @@
     "colOccupancyPct": "Occupancy %",
     "colRevenue": "Revenue",
     "noRoomUtilization": "No room utilization data",
-    "noGstRows": "No GST entries for this period"
+    "noGstRows": "No GST entries for this period",
+    "creditDebitCard": "Credit/Debit Card",
+    "othersLabel": "Others"
   },
   "plan": {
     "title": "Plan & Subscription",

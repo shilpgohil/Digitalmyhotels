@@ -58,9 +58,22 @@ async def payment_summary(
         func.coalesce(
             func.sum(case((Payment.method == "upi", Payment.amount), else_=0)), 0
         ).label("upi"),
+        # Card bucket (client 15/09): credit/debit/legacy "card" combined.
         func.coalesce(
             func.sum(case(
-                (Payment.method.notin_(["cash", "upi"]), Payment.amount), else_=0
+                (Payment.method.in_(["credit_card", "debit_card", "card"]), Payment.amount),
+                else_=0,
+            )), 0
+        ).label("card"),
+        func.coalesce(
+            func.sum(case(
+                (
+                    Payment.method.notin_(
+                        ["cash", "upi", "credit_card", "debit_card", "card"]
+                    ),
+                    Payment.amount,
+                ),
+                else_=0,
             )), 0
         ).label("other"),
         func.coalesce(
@@ -132,6 +145,7 @@ async def payment_summary(
         total_collected=money(pay_row.total),
         cash=money(pay_row.cash),
         upi=money(pay_row.upi),
+        card=money(pay_row.card),
         other=money(pay_row.other),
         refunds=money(ref_row.total),
         deposits=money(pay_row.deposits),

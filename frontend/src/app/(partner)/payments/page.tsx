@@ -53,6 +53,8 @@ interface PaymentSummary {
   total_collected: string;
   cash: string;
   upi: string;
+  card: string;
+  other: string;
   refunds: string;
   deposits: string;
   paid_bookings: number;
@@ -286,6 +288,9 @@ function PaymentsContent() {
           <StatCard label={t("paidCard")}        value={fmtINR(summary.data?.paid_amount    ?? 0)} tone="success" isLoading={summary.isLoading} />
           <StatCard label={t("cash")}            value={fmtINR(summary.data?.cash           ?? 0)} tone="gold"    isLoading={summary.isLoading} />
           <StatCard label={t("upi")}             value={fmtINR(summary.data?.upi            ?? 0)} tone="info"    isLoading={summary.isLoading} />
+          {/* Credit/Debit Card + Others (client 15/09) */}
+          <StatCard label={t("creditDebitCard")} value={fmtINR(summary.data?.card           ?? 0)} tone="danger"  isLoading={summary.isLoading} />
+          <StatCard label={t("othersCard")}      value={fmtINR(summary.data?.other          ?? 0)} tone="info"    isLoading={summary.isLoading} />
           <StatCard label={t("partialCard")}     value={fmtINR(summary.data?.partial_amount ?? 0)} tone="amber"   isLoading={summary.isLoading} />
           <StatCard label={t("pendingCard")}     value={fmtINR(summary.data?.pending_amount ?? 0)} tone="danger"  isLoading={summary.isLoading} />
         </StatCardGrid>

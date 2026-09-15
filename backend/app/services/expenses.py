@@ -205,6 +205,19 @@ async def expense_summary(
     upi_amount = await db.scalar(
         ranged_committed.where(Expense.payment_method == "upi")
     )
+    # Credit/Debit Card + Others (client 15/09) — same committed basis.
+    card_amount = await db.scalar(
+        ranged_committed.where(
+            Expense.payment_method.in_(["credit_card", "debit_card", "card"])
+        )
+    )
+    other_amount = await db.scalar(
+        ranged_committed.where(
+            Expense.payment_method.notin_(
+                ["cash", "upi", "credit_card", "debit_card", "card"]
+            )
+        )
+    )
 
     today_amount = await db.scalar(
         base_committed.where(Expense.expense_date == today)
@@ -243,6 +256,8 @@ async def expense_summary(
         "pending_amount": pending_amount or 0,
         "cash_amount": cash_amount or 0,
         "upi_amount": upi_amount or 0,
+        "card_amount": card_amount or 0,
+        "other_amount": other_amount or 0,
     }
 
 

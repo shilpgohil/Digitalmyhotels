@@ -145,6 +145,9 @@ class ExpenseSummaryOut(BaseModel):
     # Committed (approved+paid) only; respects the optional date window.
     cash_amount: Decimal = Decimal("0.00")
     upi_amount: Decimal = Decimal("0.00")
+    # Credit/Debit Card + Others cards (client 15/09).
+    card_amount: Decimal = Decimal("0.00")
+    other_amount: Decimal = Decimal("0.00")
 
 
 class RecurringExpenseOut(ORMModel):

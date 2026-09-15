@@ -135,7 +135,9 @@ class PaymentSummaryOut(BaseModel):
     total_collected: Decimal
     cash: Decimal
     upi: Decimal
-    # card + bank_transfer + other methods combined
+    # credit_card + debit_card + card (client 15/09: dedicated stat card)
+    card: Decimal = Decimal("0")
+    # bank_transfer + everything else
     other: Decimal = Decimal("0")
     refunds: Decimal
     deposits: Decimal

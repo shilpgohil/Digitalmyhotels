@@ -210,11 +210,16 @@ async def payments_by_method(
     hotel_id = tenant.require_hotel()
     from_date, to_date = _range(from_date, to_date)
 
-    async def _sum(model, method: str, date_col, status: str) -> Decimal:
+    async def _sum(
+        model, methods: list[str], date_col, status: str, *, exclude: bool = False
+    ) -> Decimal:
+        method_cond = (
+            model.method.notin_(methods) if exclude else model.method.in_(methods)
+        )
         value = await db.scalar(
             select(func.coalesce(func.sum(model.amount), 0)).where(
                 model.hotel_id == hotel_id,
-                model.method == method,
+                method_cond,
                 model.status == status,
                 func.date(date_col) >= from_date,
                 func.date(date_col) <= to_date,
@@ -222,13 +227,23 @@ async def payments_by_method(
         )
         return money(value or 0)
 
+    _card_methods = ["credit_card", "debit_card", "card"]
     return PaymentMethodReportOut(
         from_date=from_date,
         to_date=to_date,
-        cash=await _sum(Payment, "cash", Payment.paid_at, "completed"),
-        upi=await _sum(Payment, "upi", Payment.paid_at, "completed"),
-        refunds_cash=await _sum(Refund, "cash", Refund.refunded_at, "completed"),
-        refunds_upi=await _sum(Refund, "upi", Refund.refunded_at, "completed"),
+        cash=await _sum(Payment, ["cash"], Payment.paid_at, "completed"),
+        upi=await _sum(Payment, ["upi"], Payment.paid_at, "completed"),
+        # Credit/Debit Card + Others split (client 15/09).
+        card=await _sum(Payment, _card_methods, Payment.paid_at, "completed"),
+        others=await _sum(
+            Payment,
+            ["cash", "upi", *_card_methods],
+            Payment.paid_at,
+            "completed",
+            exclude=True,
+        ),
+        refunds_cash=await _sum(Refund, ["cash"], Refund.refunded_at, "completed"),
+        refunds_upi=await _sum(Refund, ["upi"], Refund.refunded_at, "completed"),
     )
 
 

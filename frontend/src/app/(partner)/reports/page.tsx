@@ -269,8 +269,15 @@ function ReportsContent() {
                 {[
                   { label: t("cash"), value: payments.data.cash, color: "bg-gold-500" },
                   { label: t("upi"), value: payments.data.upi, color: "bg-success" },
+                  /* Credit/Debit Card + Others (client 15/09) */
+                  { label: t("creditDebitCard"), value: payments.data.card, color: "bg-danger" },
+                  { label: t("othersLabel"), value: payments.data.others, color: "bg-slate-400" },
                 ].map(({ label, value, color }) => {
-                  const total = Number(payments.data.cash) + Number(payments.data.upi);
+                  const total =
+                    Number(payments.data.cash) +
+                    Number(payments.data.upi) +
+                    Number(payments.data.card) +
+                    Number(payments.data.others);
                   const pct = total > 0 ? Math.round((Number(value) / total) * 100) : 0;
                   return (
                     <div key={label}>

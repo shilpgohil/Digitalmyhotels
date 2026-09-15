@@ -131,7 +131,7 @@ interface SmartDashboard {
   arrivals_today: number;
   overdue_count: number;
 }
-interface PaymentSummary { total_collected: string; cash: string; upi: string; other: string; refunds: string; }
+interface PaymentSummary { total_collected: string; cash: string; upi: string; card: string; other: string; refunds: string; }
 
 // ── Icon map for insights ─────────────────────────────────────────────────────
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -323,11 +323,13 @@ export default function DashboardPage() {
   const today_rev = p(todayPayments.data?.total_collected);
   const todayCash  = p(todayPayments.data?.cash);
   const todayUpi   = p(todayPayments.data?.upi);
+  const todayCardAmt = p(todayPayments.data?.card);
   const todayOther = p(todayPayments.data?.other);
   const todayRefunds = p(todayPayments.data?.refunds);
   const cashPct  = today_rev > 0 ? Math.round(todayCash / today_rev * 100) : 0;
   const upiPct   = today_rev > 0 ? Math.round(todayUpi  / today_rev * 100) : 0;
-  const otherPct = Math.max(0, 100 - cashPct - upiPct);
+  const cardPct  = today_rev > 0 ? Math.round(todayCardAmt / today_rev * 100) : 0;
+  const otherPct = Math.max(0, 100 - cashPct - upiPct - cardPct);
 
   const trendData = useMemo(() =>
     (d?.trend_30d ?? []).map((pt) => ({
@@ -413,11 +415,11 @@ export default function DashboardPage() {
               {todayPayments.isLoading && <Skeleton className="h-28" />}
               {todayPayments.data && (
                 <div className="space-y-3">
+                  {/* All four modes always visible (client 15/09) */}
                   <PaymentBar label={t("cash")} amount={todayCash} pct={cashPct} color="bg-gold-500" />
                   <PaymentBar label={t("upi")} amount={todayUpi} pct={upiPct} color="bg-navy-700" />
-                  {todayOther > 0 && (
-                    <PaymentBar label={t("otherMethods")} amount={todayOther} pct={otherPct} color="bg-slate-400" />
-                  )}
+                  <PaymentBar label={t("creditDebitCard")} amount={todayCardAmt} pct={cardPct} color="bg-danger" />
+                  <PaymentBar label={t("otherMethods")} amount={todayOther} pct={otherPct} color="bg-slate-400" />
                   {todayRefunds > 0 && (
                     <p className="text-label text-muted-foreground">
                       {t("refundsDeducted", { amount: fmtINR(todayRefunds) })}
