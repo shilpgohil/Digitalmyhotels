@@ -1549,7 +1549,12 @@
     "uploadLogo": "लोगो अपलोड करें",
     "changeLogo": "लोगो बदलें",
     "maxTeamMembers": "अधिकतम टीम सदस्य",
-    "maxTeamMembersHint": "होटल कितने सक्रिय सदस्य जोड़ सकता है (मालिक को छोड़कर)। डिफ़ॉल्ट 5।"
+    "maxTeamMembersHint": "होटल कितने सक्रिय सदस्य जोड़ सकता है (मालिक को छोड़कर)। डिफ़ॉल्ट 5।",
+    "totalRevenueTitle": "कुल राजस्व",
+    "totalRevenueSubtitle": "प्लेटफ़ॉर्म-व्यापी राजस्व (पूर्ण भुगतान)",
+    "noRevenueYet": "अभी कोई राजस्व दर्ज नहीं",
+    "paymentsCol": "भुगतान",
+    "revenueCol": "राजस्व"
   },
   "roomPicker": {
     "filterLabel": "कमरों को स्थिति के अनुसार फ़िल्टर करें",
@@ -1559,7 +1564,12 @@
     "filterOccupied": "अधिकृत",
     "filterCleaning": "सफ़ाई",
     "filterMaintenance": "रखरखाव",
-    "filterNoRooms": "चुनी गई तिथियों के लिए इस श्रेणी में कोई कमरा नहीं है।"
+    "filterNoRooms": "चुनी गई तिथियों के लिए इस श्रेणी में कोई कमरा नहीं है।",
+    "selectDatesFirst": "उपलब्ध कमरे देखने के लिए चेक-इन और चेक-आउट तिथियाँ चुनें।",
+    "loadFailed": "कमरों की उपलब्धता लोड नहीं हो सकी। कृपया पुनः प्रयास करें।",
+    "noneAvailable": "इन तिथियों के लिए कोई कमरा उपलब्ध नहीं है।",
+    "capacityExceeded": "क्षमता से अधिक",
+    "unavailableMaintenance": "अनुपलब्ध — रखरखाव / सेवा से बाहर"
   },
   "checkoutPage": {
     "findBooking": "बुकिंग खोजें",

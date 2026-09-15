@@ -1549,7 +1549,12 @@
     "uploadLogo": "Upload Logo",
     "changeLogo": "Change Logo",
     "maxTeamMembers": "Max Team Members",
-    "maxTeamMembersHint": "Active members the hotel can add (excluding the owner). Default 5."
+    "maxTeamMembersHint": "Active members the hotel can add (excluding the owner). Default 5.",
+    "totalRevenueTitle": "Total Revenue",
+    "totalRevenueSubtitle": "Platform-wide revenue (completed payments)",
+    "noRevenueYet": "No revenue recorded yet",
+    "paymentsCol": "Payments",
+    "revenueCol": "Revenue"
   },
   "roomPicker": {
     "filterLabel": "Filter rooms by status",
@@ -1559,7 +1564,12 @@
     "filterOccupied": "Occupied",
     "filterCleaning": "Cleaning",
     "filterMaintenance": "Maintenance",
-    "filterNoRooms": "No rooms in this category for the selected dates."
+    "filterNoRooms": "No rooms in this category for the selected dates.",
+    "selectDatesFirst": "Select check-in and check-out dates to see available rooms.",
+    "loadFailed": "Could not load room availability. Please try again.",
+    "noneAvailable": "No rooms available for these dates.",
+    "capacityExceeded": "Capacity exceeded",
+    "unavailableMaintenance": "Unavailable — Maintenance / Out of Service"
   },
   "checkoutPage": {
     "findBooking": "Find Booking",

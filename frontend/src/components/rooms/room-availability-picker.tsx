@@ -331,7 +331,7 @@ export function RoomAvailabilityPicker({
     return (
       <div className="flex items-center gap-3 rounded-xl border-2 border-dashed border-border px-4 py-5 text-sm text-muted-foreground">
         <Calendar className="size-5 shrink-0 text-muted-foreground/50" aria-hidden />
-        <p>Select check-in and check-out dates to see available rooms.</p>
+        <p>{t("selectDatesFirst")}</p>
       </div>
     );
   }
@@ -354,7 +354,7 @@ export function RoomAvailabilityPicker({
   if (isError) {
     return (
       <p className="text-sm text-danger">
-        Could not load room availability. Please try again.
+        {t("loadFailed")}
       </p>
     );
   }
@@ -432,7 +432,7 @@ export function RoomAvailabilityPicker({
         )}
         {available.length === 0 ? (
           <div className="rounded-xl border border-warning/20 bg-warning-bg px-4 py-3 text-sm text-warning">
-            No rooms available for these dates.
+            {t("noneAvailable")}
             {comingSoon.length > 0 && (
               <span className="ml-1 font-medium">
                 See {comingSoon.length} room{comingSoon.length !== 1 ? "s" : ""} coming free below.
@@ -490,7 +490,7 @@ export function RoomAvailabilityPicker({
       {filteredNotBookable.length > 0 && (
         <div>
           <p className="text-micro uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">
-            Unavailable — Maintenance / Out of service
+            {t("unavailableMaintenance")}
           </p>
           <div className="grid gap-1.5 sm:grid-cols-2">
             {filteredNotBookable.map((room) => (
@@ -524,7 +524,7 @@ export function RoomAvailabilityPicker({
         <div className="flex items-start gap-2.5 rounded-xl border border-danger/20 bg-danger-bg px-4 py-3">
           <AlertTriangle className="size-4 text-danger shrink-0 mt-0.5" aria-hidden />
           <div>
-            <p className="text-sm font-semibold text-danger">Capacity exceeded</p>
+            <p className="text-sm font-semibold text-danger">{t("capacityExceeded")}</p>
             <p className="text-xs text-danger/80 mt-0.5">
               Selected rooms can accommodate {totalCapacity} guest{totalCapacity !== 1 ? "s" : ""},
               but you have {totalGuests} guest{totalGuests !== 1 ? "s" : ""} ({adults} adult{adults !== 1 ? "s" : ""}

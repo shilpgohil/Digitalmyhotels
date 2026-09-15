@@ -83,6 +83,40 @@ DEFERRED from Phase 3: §3.5 quote snapshot (medium, low urgency).
   (direct access + foreign autofill still 404; masked-only hits).
 Suite: 225 passed / 3 documented pre-existing. Build green.
 
+**PHASE 5 SHIPPED 15/09 (commits 0b6a5a8…):** input discipline + polish.
+- lib/input-discipline.ts: sanitizePhone (10-digit mobile, strips +91/0),
+  sanitizeLandline (12), sanitizePincode, ID_RULES per type (Aadhaar 12
+  digits / PAN 10 upper / Passport 8 / DL 16 / Voter 10) via idRuleFor,
+  liveNameCase (word-initial uppercase, preserves deliberate casing).
+  Applied: guest flows (NewGuestForm, both PG sections, em contact, co-guest
+  search), GuestPicker, team dialogs (uncontrolled inputs via e.target.value
+  mutation), vendor phone, SA add-hotel/edit (owner mobile 10 / hotel
+  landline 12), admin profile. MaskedIdInput takes idType → per-type
+  cap/keyboard/placeholder; mask-bullet values never sanitized.
+- Backend: guest schemas title-case full_name on write; validate_id_number
+  (length caps + Aadhaar digits-only; format NOT enforced — OCR/legacy).
+- lib/format-status.ts: formatStatus (snake→Title Case, UPI/GST/ID/QR/PAN
+  acronyms) applied: payments, completed bookings, housekeeping, daily
+  closing, plan page, SA hotel edit + dialog.
+- 42px sweep: 13 checkin form selects h-9→42px (match Input default);
+  primary dialog triggers (collect payment, add charge, add team member,
+  generate invoice, open maintenance).
+- Plans page: centered subscription strip, 42px gold-styled CTAs, "Valid
+  Until". Team menu min-w 190 + "Edit Profile". Sidebar: Staff group AFTER
+  Money (frontDesk → property → money → staff → operations).
+- use-my-location: distinct denied/timeout/unsupported guidance (en+hi).
+- Edit Hotel: UNSAVED room types selectable in the rooms dropdown
+  ("__new__:<key>" resolved to created ids at save) — client's "room type
+  not displayed after adding".
+- Vendor detail modal on the expenses table (name click → dialog).
+- i18n: room-availability-picker + SA revenue page de-hardcoded (en+hi);
+  full-parity sweep OK. Remaining minor empty-state subtitles logged below.
+- Checkout dropdown item verified covered by Part 6 staleness fix.
+FOLLOW-UPS (minor, not blocking): empty-state subtitles in invoices/team/
+restaurant-billing/gst-tax/notifications/audit still hardcoded English;
+advance-booking page section labels; expenses stat subtitles.
+Suite: 225 passed / 3 documented pre-existing. Build green.
+
 **PHASE 4 REVERIFIED 15/09 (commit e8333d1):**
 - Client clarification implemented: SUPER ADMIN is exempt from the team cap
   (tenant.is_super_admin skips the check) — platform can grant members

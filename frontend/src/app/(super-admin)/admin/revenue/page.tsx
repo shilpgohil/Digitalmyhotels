@@ -63,12 +63,12 @@ export default function AdminRevenuePage() {
   const total = revenue.data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  const cols = [t("hotelName"), t("city"), "Payments", "Revenue"];
+  const cols = [t("hotelName"), t("city"), t("paymentsCol"), t("revenueCol")];
 
   return (
     <main className="p-4 space-y-6 sm:p-6">
       <div>
-        <h1 className="text-xl font-bold text-foreground sm:text-2xl">Total Revenue</h1>
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t("totalRevenueTitle")}</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">{t("dashboardSubtitle")}</p>
       </div>
 
@@ -79,7 +79,7 @@ export default function AdminRevenuePage() {
             <IndianRupee className="size-6 text-gold-600" aria-hidden />
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Platform-wide revenue (completed payments)</p>
+            <p className="text-sm text-muted-foreground">{t("totalRevenueSubtitle")}</p>
             {revenue.isLoading ? (
               <Skeleton className="mt-1 h-8 w-40" />
             ) : (
@@ -103,7 +103,7 @@ export default function AdminRevenuePage() {
         isError={revenue.isError}
         onRetry={() => revenue.refetch()}
         isEmpty={!revenue.isLoading && !revenue.isError && (revenue.data?.items ?? []).length === 0}
-        emptyTitle="No revenue recorded yet"
+        emptyTitle={t("noRevenueYet")}
         columns={cols}
       >
         {!revenue.isLoading && !revenue.isError && (revenue.data?.items ?? []).map((r) => (
