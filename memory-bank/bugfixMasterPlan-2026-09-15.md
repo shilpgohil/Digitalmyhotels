@@ -18,6 +18,25 @@ the recommended option recorded per question unless the client overrides.**
 STILL PENDING FOR PHASE 1 CLOSURE: production storage health check (user must
 verify /storage/health on Render shows B2, else set env vars).
 
+**PHASE 2 SHIPPED 15/09 (commits 36f5647…0cbcefb):**
+- §5.1 identity flow: awaited primary-guest doc uploads (blank-tiles race),
+  QueuedDocUpload initialFile (previews survive Confirm remount), read-only
+  details summary on resolved co-guest card, labeled Edit/Update buttons,
+  "+ Add Room" double-icon fixed.
+- §4.3 OCR autofill: ARG-ORDER BUG fixed (side was passed as ID type — back
+  faces never parsed, banner never showed); OCR failures now toast (en+hi).
+- §4.2 draft v3: co-guests serialized (text data + newForm + Form C); restore
+  mounts entries resolved; existing guests rehydrate profile+docs on mount.
+  Queued FILES still don't survive restore — §4.2b (server-side draft docs)
+  DEFERRED until production storage confirmed on B2.
+- §5.2 same-day room rule (backend availability): stays starting TODAY
+  (hotel-local date) exclude physically-occupied + mid-cleaning rooms →
+  "coming free" section; future bookings unchanged; regression test
+  (test_same_day_availability.py); day-use/lifecycle/concurrency suites green.
+- §4.4 ID crop frame grows ~1.8× clamped to viewport (frame, NOT zoom — a
+  zoom bump would have cropped card edges on immediate Done).
+Full suite: 218 passed / 3 documented pre-existing failures. Build green.
+
 ## STRICT IMPLEMENTATION PROTOCOL (binding for every item)
 
 1. ONE ITEM AT A TIME. A change set touches only the files its item needs. No
