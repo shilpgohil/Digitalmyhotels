@@ -41,6 +41,7 @@ import { ApiError } from "@/lib/api/client";
 import { fmtINR, localToday } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import { PERMISSIONS } from "@/lib/permissions";
+import { formatStatus } from "@/lib/format-status";
 import type { ListOut } from "@/types/hotel";
 import type { BookingOut } from "@/types/stay";
 import type {
@@ -463,7 +464,7 @@ function PaymentsContent() {
                     <TableCell>{p.reference ?? "—"}</TableCell>
                     <TableCell>
                       <StatusBadge tone={p.status === "completed" ? "success" : "warning"}>
-                        {p.status}
+                        {formatStatus(p.status)}
                       </StatusBadge>
                     </TableCell>
                     {showActions && (

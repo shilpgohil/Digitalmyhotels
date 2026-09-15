@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { apiFetch, ApiError } from "@/lib/api/client";
+import { formatStatus } from "@/lib/format-status";
 
 interface AdminHotelDetail {
   id: string;
@@ -208,7 +209,7 @@ export function EditHotelDialog({
                 <div className="rounded-lg border bg-info-bg px-3 py-2 text-xs space-y-0.5">
                   <p className="font-semibold text-info">
                     Plan: {d.subscription_plan_name}
-                    {d.subscription_status ? ` · ${d.subscription_status}` : ""}
+                    {d.subscription_status ? ` · ${formatStatus(d.subscription_status)}` : ""}
                   </p>
                   {d.subscription_expiry && (
                     <p className="text-info">Expires: {d.subscription_expiry}</p>

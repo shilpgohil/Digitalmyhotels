@@ -40,6 +40,7 @@ import type { ChargeOut, PaymentOut } from "@/types/money";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
+import { formatStatus } from "@/lib/format-status";
 import {
   Dialog,
   DialogClose,
@@ -466,7 +467,7 @@ function BookingDetailSheet({
                 {payments.data.items.map((p) => (
                   <li key={p.id} className="flex items-center justify-between gap-3 px-3 py-1.5">
                     <span>{methodLabel(p.method)}</span>
-                    <span className="text-xs text-muted-foreground">{p.status}</span>
+                    <span className="text-xs text-muted-foreground">{formatStatus(p.status)}</span>
                     <span className="tabular-nums">{fmtINR(p.amount)}</span>
                   </li>
                 ))}

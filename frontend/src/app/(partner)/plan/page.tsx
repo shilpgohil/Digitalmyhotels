@@ -23,6 +23,7 @@ import { StatusBadge } from "@/components/feedback/status-badge";
 import { useSubscription } from "@/components/subscription/subscription-gate";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
+import { formatStatus } from "@/lib/format-status";
 import { API_BASE, ApiError } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -286,7 +287,7 @@ function PlanContent() {
                   {t("validUntil")} {fmtApiDate(sub.data.expiry_date)}
                 </p>
               </div>
-              <StatusBadge tone={tone}>{status}</StatusBadge>
+              <StatusBadge tone={tone}>{formatStatus(status)}</StatusBadge>
             </div>
           )}
 

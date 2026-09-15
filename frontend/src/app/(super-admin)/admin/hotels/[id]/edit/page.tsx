@@ -38,6 +38,7 @@ import { sanitizeLandline, sanitizePhone } from "@/lib/input-discipline";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, ApiError, API_BASE, apiUpload } from "@/lib/api/client";
+import { formatStatus } from "@/lib/format-status";
 import { getAccessToken } from "@/lib/auth/session";
 import { compressImage, compressLogo } from "@/lib/compress-image";
 import { useImageEditor } from "@/components/media/image-editor";
@@ -756,7 +757,9 @@ export default function AdminEditHotelPage({
                     </p>
                     <p className="text-sm font-medium text-foreground">
                       {adminDetail.data.subscription_plan_name}
-                      {adminDetail.data.subscription_status ? ` · ${adminDetail.data.subscription_status}` : ""}
+                      {adminDetail.data.subscription_status
+                        ? ` · ${formatStatus(adminDetail.data.subscription_status)}`
+                        : ""}
                     </p>
                     {adminDetail.data.subscription_expiry && (
                       <p className="text-xs text-muted-foreground">

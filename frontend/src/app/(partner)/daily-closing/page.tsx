@@ -20,6 +20,7 @@ import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import type { DailyClosingOut } from "@/types/money";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
+import { formatStatus } from "@/lib/format-status";
 
 function DailyClosingContent() {
   const t = useTranslations("ops");
@@ -101,7 +102,7 @@ function DailyClosingContent() {
           <section className="rounded-lg border bg-card p-5">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-display text-xl">{fmtApiDate(row.business_date)}</h2>
-              <StatusBadge tone={row.status === "closed" ? "success" : "warning"}>{row.status}</StatusBadge>
+              <StatusBadge tone={row.status === "closed" ? "success" : "warning"}>{formatStatus(row.status)}</StatusBadge>
             </div>
             <dl className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
               <Stat label={t("checkins")} value={String(row.checkins_count)} />
@@ -164,7 +165,7 @@ function DailyClosingContent() {
               {paginate(history.data, historyPage, 10).map((h) => (
                 <li key={h.id} className="flex justify-between rounded-lg border bg-card px-4 py-2">
                   <span>{fmtApiDate(h.business_date)}</span>
-                  <span>{h.status}</span>
+                  <span>{formatStatus(h.status)}</span>
                 </li>
               ))}
             </ul>

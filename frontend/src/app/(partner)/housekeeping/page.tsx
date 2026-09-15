@@ -27,6 +27,7 @@ import { invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
 import { PERMISSIONS } from "@/lib/permissions";
+import { formatStatus } from "@/lib/format-status";
 import type { ListOut, RoomOut } from "@/types/hotel";
 import type { HousekeepingTaskOut, MaintenanceOut } from "@/types/money";
 import { RequirePermission } from "@/components/auth/require-permission";
@@ -162,7 +163,7 @@ function HousekeepingContent() {
               {paginate(maintenance.data, maintenancePage, 10).map((m) => (
                 <li key={m.id} className="flex items-center justify-between gap-2">
                   <span>
-                    {m.reason} · {m.status}
+                    {formatStatus(m.reason)} · {formatStatus(m.status)}
                   </span>
                   {m.status !== "resolved" && (
                     <Button size="sm" variant="outline" onClick={() => resolve.mutate(m.id)}>
