@@ -3746,13 +3746,18 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       foreignEnabled: fgEnabled,
       foreignGuest: fgForm,
       // Additional guests — text data only (files can't persist, §4.2).
-      coGuests: coGuests.filter(Boolean).map((cg) => ({
-        guest_id: cg.guest_id,
-        full_name: cg.full_name,
-        phone: cg.phone,
-        newForm: (cg as ResolvedCoGuest & { _newForm?: GuestCreatePayload })._newForm,
-        foreign_guest: cg.foreign_guest ?? null,
-      })),
+      // PRIVACY: the full ID number is NEVER written to localStorage (same
+      // rule as the primary guest) — staff re-enter it after restore.
+      coGuests: coGuests.filter(Boolean).map((cg) => {
+        const nf = (cg as ResolvedCoGuest & { _newForm?: GuestCreatePayload })._newForm;
+        return {
+          guest_id: cg.guest_id,
+          full_name: cg.full_name,
+          phone: cg.phone,
+          newForm: nf ? { ...nf, id_number: "" } : undefined,
+          foreign_guest: cg.foreign_guest ?? null,
+        };
+      }),
     };
     if (!activeHotelId) {
       toast.error(t("draftSaveFailed"));
