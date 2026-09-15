@@ -291,6 +291,9 @@ function readDrafts(hotelId: string | null): CheckinDraft[] {
       }
       localStorage.removeItem(GLOBAL_DRAFTS_KEY_V2);
       localStorage.removeItem(GLOBAL_DRAFT_KEY_V1);
+      // Backfill ids BEFORE persisting so adopted drafts keep stable ids
+      // across reloads (discard-by-id stays reliable in every tab).
+      for (const d of list) d.id = d.id ?? draftId();
       localStorage.setItem(draftsKey(hotelId), JSON.stringify(list));
     }
 
