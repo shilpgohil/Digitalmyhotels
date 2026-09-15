@@ -1,4 +1,5 @@
 import { RequireAuth } from "@/components/auth/require-auth";
+import { HotelKeyed } from "@/components/layout/hotel-keyed";
 import { PartnerSidebar } from "@/components/layout/partner-sidebar";
 import { PartnerMobileTabBar } from "@/components/layout/partner-mobile-tab-bar";
 import { HotelSuspendedOverlay, SubscriptionGate } from "@/components/subscription/subscription-gate";
@@ -38,7 +39,9 @@ export default function PartnerLayout({ children }: { readonly children: React.R
             <PageTransition id="main-content" className="flex min-w-0 flex-1 flex-col overflow-hidden">
               {/* Tab bar floats over content — no reserved bottom pad (client request) */}
               <div className="flex-1 overflow-hidden flex flex-col">
-                {children}
+                {/* Remount pages on hotel switch — kills cross-hotel form state
+                    (plan §1.8) */}
+                <HotelKeyed>{children}</HotelKeyed>
               </div>
             </PageTransition>
           </div>
