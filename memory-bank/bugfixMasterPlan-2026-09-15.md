@@ -37,6 +37,30 @@ verify /storage/health on Render shows B2, else set env vars).
   zoom bump would have cropped card edges on immediate Done).
 Full suite: 218 passed / 3 documented pre-existing failures. Build green.
 
+**PHASE 3 SHIPPED 15/09 (commits df1399f…febba3e):**
+- §3.2 refunds allocate advance→deposit (audited split; over-refund rejected).
+- §3.4 invoices AUTO-GENERATED inside the checkout transaction; invoice_id in
+  CheckOutOut; frontend uses it (fallback POST treats invoice_exists as
+  success); View scrolls to preview; Generate dialog friendly on conflict.
+  Invoice numbering now follows checkout order going forward.
+- §3.3 reverse_checkout: cancels the active invoice, credits back the late
+  fee ledger debit, BLOCKS when a payment exists >1min after checkout
+  (margin excludes the same-transaction collection); 2 regression tests.
+- §3.1 unified pricing: booking totals GST-aware at create/update/replace/
+  add-room via shared _room_gst (mode-aware incl. inclusive); Edit Stay due
+  now equals checkout/invoice; 2 old test baselines updated (documented),
+  new regression test (1000 room → total 1120/tax 120 for registered hotel).
+- §3.6 Card/Others buckets end-to-end: payments summary (card+other),
+  expenses summary (card_amount/other_amount), reports payments-by-method
+  (card/others), dashboard collection rows always visible; en+hi keys in
+  money/dashboard/expenses/reports namespaces.
+- §3.8 show_powered_by (migration aa15b9c27e01 — NOTE: id e1f2a3b4c5d6 was
+  taken, cycle error taught us to check `alembic heads` before naming):
+  invoice card + PDF footer, SA toggle on hotel edit Settings section,
+  booking number added to invoice preview (PDF already had it).
+Full suite: 222 passed / 3 documented pre-existing failures. Build green.
+DEFERRED from Phase 3: §3.5 quote snapshot (medium, low urgency).
+
 ## STRICT IMPLEMENTATION PROTOCOL (binding for every item)
 
 1. ONE ITEM AT A TIME. A change set touches only the files its item needs. No
