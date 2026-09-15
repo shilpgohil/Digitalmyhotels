@@ -459,6 +459,19 @@ async def check_availability(
     """
     hotel_id = tenant.require_hotel()
 
+    # "Today" in the HOTEL's timezone (plan §5.2 / scenario S5): the server
+    # runs on UTC, so date.today() would mis-classify same-day stays between
+    # midnight and 05:30 IST. Same pattern as the attendance module.
+    from datetime import datetime as _dt
+    from zoneinfo import ZoneInfo as _Zi
+
+    from app.models.hotel import Hotel as _Hotel
+
+    hotel_tz_name = await db.scalar(
+        select(_Hotel.timezone).where(_Hotel.id == hotel_id)
+    )
+    today_local = _dt.now(_Zi(hotel_tz_name or "Asia/Kolkata")).date()
+
     # Step 1: all active rooms (eager-load type + amenities in one go)
     rooms_result = await db.execute(
         select(Room)
@@ -565,6 +578,35 @@ async def check_availability(
                 RoomUnavailableItem(
                     **item_data,
                     unavailable_reason=room.status,
+                    occupied_until=None,
+                    occupied_until_time=None,
+                    overlapping_booking_count=0,
+                )
+            )
+        elif check_in <= today_local and room.id in current_checkout:
+            # SAME-DAY rule (plan §5.2, client 15/09): the stay starts TODAY but
+            # the room's current guest has NOT checked out yet — physically
+            # occupied rooms must not be selectable for an immediate check-in.
+            # (Their booking ends today, so the overlap query above misses it.)
+            # Once the guest checks out, the room returns to the available list.
+            co_date, co_time = current_checkout[room.id]
+            unavailable.append(
+                RoomUnavailableItem(
+                    **item_data,
+                    unavailable_reason="occupied",
+                    occupied_until=co_date,
+                    occupied_until_time=co_time,
+                    overlapping_booking_count=1,
+                )
+            )
+        elif check_in <= today_local and room.status == RoomStatus.CLEANING_IN_PROGRESS.value:
+            # Same-day + housekeeping mid-clean → offered once cleaning is done
+            # ("cleaning_required" stays selectable: it will be cleaned before
+            # the guest arrives — that is the normal desk workflow).
+            unavailable.append(
+                RoomUnavailableItem(
+                    **item_data,
+                    unavailable_reason="cleaning",
                     occupied_until=None,
                     occupied_until_time=None,
                     overlapping_booking_count=0,
