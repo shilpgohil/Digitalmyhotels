@@ -1,6 +1,49 @@
 # Bugfix & Hardening Master Plan — 2026-09-15
 
-**STATUS: PLAN ONLY — nothing in this document has been implemented.**
+**STATUS: IMPLEMENTATION IN PROGRESS (started 15/09 13:10) — one item at a time
+under the STRICT IMPLEMENTATION PROTOCOL below. Decisions Q1–Q9: proceeding with
+the recommended option recorded per question unless the client overrides.**
+
+**PHASE 1 SHIPPED 15/09 (commits d4eda62…588aa67):**
+- §1.1 drafts hotel-scoped (v3 keys + one-time adoption migration)
+- §1.2 session hand-off key hotel-scoped
+- §1.8 HotelKeyed remount on hotel switch (kills cross-hotel form state)
+- §1.6 selfie key prefix validation + regression test
+- Part 2 backend: wind-down enforcement in tenant dep (mutations blocked past
+  expiry+grace except /checkouts /payments /invoices /charges /subscriptions);
+  integration test green; full suite 217 passed / 3 pre-existing failures
+- Part 2 frontend: non-dismissible wind-down panel outside WIND_DOWN_PATHS
+  (/plan /checkout /current-guests /payments /invoices), pending-renewal badge,
+  en+hi. KEEP path lists in sync backend↔frontend.
+STILL PENDING FOR PHASE 1 CLOSURE: production storage health check (user must
+verify /storage/health on Render shows B2, else set env vars).
+
+## STRICT IMPLEMENTATION PROTOCOL (binding for every item)
+
+1. ONE ITEM AT A TIME. A change set touches only the files its item needs. No
+   opportunistic edits — unrelated findings get logged in this file instead.
+2. READ BEFORE WRITE. Read the full surrounding function/component before editing;
+   after editing, re-read the diff (`git diff`) before verifying.
+3. BLAST-RADIUS LIST. Before editing shared code (pricing, tenant deps, query keys,
+   storage, GST), write down every flow that consumes it and check each one after.
+4. PER-ITEM VERIFICATION. After each item: `tsc --noEmit` + targeted tests +
+   lints on changed files. Every 3–4 items or before any push: full `next build` +
+   backend `pytest` (docker Postgres) + `ruff`.
+5. REGRESSION GUARD-RAILS (known fragile areas — check on every touch):
+   - GST three-mode display/math (no blanket "show GST" fixes).
+   - Whole-rupee money() rounding; never float arithmetic on amounts.
+   - Tenant scoping: every new query/key/storage key carries hotel_id.
+   - i18n en+hi parity for every new user-visible string.
+   - 42px form controls; localYmd for calendar dates (never toISOString).
+   - Draft/localStorage schema changes must keep backward-compat reads.
+6. COMMIT PER ITEM (conventional message naming the plan section), push only after
+   verification passes. Never bundle unrelated items in one commit.
+7. REVERIFY THE CLIENT'S SYMPTOM. Each item ends by walking the client's exact
+   reproduction (as a test where feasible, otherwise reasoned trace written in the
+   commit message or this file).
+8. STOP ON SURPRISE. If an edit reveals unexpected coupling, stop, re-plan the item
+   here, then continue — never push through with guesses.
+
 
 Sources merged into this plan:
 1. Client bug batch of 15/09/2026 (~35 items, screenshots in `main documents/bugs and updates ss/`).
