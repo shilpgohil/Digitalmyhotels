@@ -879,6 +879,7 @@ function QueuedDocUpload({
   existingDocId,
   idType,
   onOcrResult,
+  initialFile,
 }: {
   readonly side: DocSide;
   readonly label: string;
@@ -895,12 +896,18 @@ function QueuedDocUpload({
   /** OCR result — wired when front/back face is uploaded; same behaviour as
    *  primary-guest DocUpload so co-guest identity can also be auto-filled. */
   readonly onOcrResult?: (result: import("@/lib/id-ocr").IdOcrResult) => void;
+  /** Already-QUEUED file (plan §5.1): when the tile remounts after "Confirm
+   *  Guest Details", the parent passes the queued file back so the preview
+   *  survives — previously the card showed three BLANK tiles (client bug). */
+  readonly initialFile?: File | null;
 }) {
   const t = useTranslations("checkin");
   const { activeHotelId } = useAuth();
   const { edit } = useImageEditor();
-  const [queued, setQueued] = useState(false);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [queued, setQueued] = useState(!!initialFile);
+  const [preview, setPreview] = useState<string | null>(() =>
+    initialFile ? URL.createObjectURL(initialFile) : null,
+  );
   /** True while the preview shows the SAVED document (nothing new queued). */
   const [showingExisting, setShowingExisting] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -1502,7 +1509,7 @@ function AdditionalGuestEntry({
         </div>
         <NewGuestForm
           initial={buildEditInitial()}
-          confirmLabel={t("saveGuest")}
+          confirmLabel={t("updateGuest")}
           pending={saving}
           onConfirm={(form, formDocs) => void handleEditConfirm(form, formDocs)}
         />
@@ -1511,6 +1518,32 @@ function AdditionalGuestEntry({
   }
 
   if (resolved) {
+    // Read-only details summary (plan §5.1): confirming must never HIDE what
+    // was entered (client: "Confirm Guest Details click button then hide
+    // customer"). Pending guests read from the queued form; returning guests
+    // from the autofill profile.
+    const nf = (resolved as ResolvedCoGuest & { _newForm?: GuestCreatePayload })._newForm;
+    const summary: { label: string; value: string | null | undefined }[] = [
+      { label: t("fieldGender"), value: nf?.gender ?? autofill?.gender },
+      { label: t("fieldDob"), value: nf?.date_of_birth ?? autofill?.date_of_birth },
+      { label: t("fieldAddress"), value: nf?.address ?? autofill?.address },
+      { label: t("fieldCity"), value: nf?.city ?? autofill?.city },
+      { label: t("fieldState"), value: nf?.state ?? autofill?.state },
+      { label: t("pincode"), value: nf?.postal_code ?? autofill?.postal_code },
+      {
+        label: t("idType"),
+        value: nf?.id_proof_type ?? autofill?.id_proof_type,
+      },
+      {
+        label: t("idNumberShort"),
+        value: nf?.id_number
+          ? `••••${nf.id_number.slice(-4)}`
+          : autofill?.id_last4
+            ? `••••${autofill.id_last4}`
+            : null,
+      },
+    ].filter((row) => !!row.value);
+
     return (
       <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
         <div className="flex items-center justify-between">
@@ -1525,15 +1558,16 @@ function AdditionalGuestEntry({
           )}
             </div>
         </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
+            {/* Labeled Edit (plan §5.1) — the icon-only pencil read as "no
+                update button" (client). Opens the form; saving shows Update. */}
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="p-1 text-muted-foreground transition-colors hover:text-foreground"
-              aria-label={t("editGuest")}
-              title={t("editGuest")}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-input bg-white px-2.5 text-xs font-semibold transition-colors hover:bg-muted"
             >
-              <Pencil className="size-4" aria-hidden />
+              <Pencil className="size-3.5" aria-hidden />
+              {t("editGuest")}
             </button>
             <button
               type="button"
@@ -1551,6 +1585,22 @@ function AdditionalGuestEntry({
             </button>
           </div>
         </div>
+
+        {/* Captured details — read-only grid; edits go through Edit above. */}
+        {summary.length > 0 && (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg border bg-white px-3 py-2.5 sm:grid-cols-3">
+            {summary.map((row) => (
+              <div key={row.label} className="min-w-0">
+                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">
+                  {row.label}
+                </p>
+                <p className="truncate text-xs font-medium" title={row.value ?? ""}>
+                  {row.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
         {/* OCR confirm panel for co-guest — same autofill behaviour as primary guest */}
         {coGuestOcrResult && (
           <AutofillBanner
@@ -1589,6 +1639,8 @@ function AdditionalGuestEntry({
           />
         )}
 
+        {/* key includes whether a queued file exists so a tile picks up its
+            preview when the card (re)mounts after Confirm (plan §5.1). */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <QueuedDocUpload
             side="front"
@@ -1597,6 +1649,7 @@ function AdditionalGuestEntry({
             onOcrResult={(r) => { setCoGuestOcrResult(r); }}
             guestId={resolved.guest_id}
             existingDocId={existingDocs.front}
+            initialFile={docs.find((d) => d.side === "front")?.file ?? null}
           />
           <QueuedDocUpload
             side="back"
@@ -1605,6 +1658,7 @@ function AdditionalGuestEntry({
             onOcrResult={(r) => { setCoGuestOcrResult(r); }}
             guestId={resolved.guest_id}
             existingDocId={existingDocs.back}
+            initialFile={docs.find((d) => d.side === "back")?.file ?? null}
           />
           <QueuedDocUpload
             side="selfie"
@@ -1612,6 +1666,7 @@ function AdditionalGuestEntry({
             onQueued={handleQueueDoc}
             guestId={resolved.guest_id}
             existingDocId={existingDocs.selfie}
+            initialFile={docs.find((d) => d.side === "selfie")?.file ?? null}
           />
         </div>
         {/* Foreign guest (Form C) — per co-guest, same fields as the primary. */}
@@ -3363,23 +3418,36 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         },
       });
       // Upload the queued ID docs (front/back/selfie) for the new guest.
-      // Non-blocking: a failed upload never aborts the guest creation.
-      for (const doc of docs) {
-        const fd = new FormData();
-        fd.append("side", doc.side);
-        fd.append("document_type", "id_proof");
-        fd.append("file", doc.file);
-        apiUpload(`/api/v1/guests/${created.id}/documents`, fd, {
-          hotelId: activeHotelId ?? undefined,
-        }).catch((err: unknown) => console.warn("[checkin] pg doc upload:", err));
-      }
-      return created;
+      // AWAITED (plan §5.1): the previous fire-and-forget version raced the
+      // document-list fetch in handleGuestSelected — the tiles rendered blank
+      // even though the uploads finished a second later (client: "uploaded
+      // aadhaar card and photo but not show"). A failed upload still never
+      // aborts guest creation — it is reported via a warning toast instead.
+      const uploadResults = await Promise.allSettled(
+        docs.map((doc) => {
+          const fd = new FormData();
+          fd.append("side", doc.side);
+          fd.append("document_type", "id_proof");
+          fd.append("file", doc.file);
+          return apiUpload(`/api/v1/guests/${created.id}/documents`, fd, {
+            hotelId: activeHotelId ?? undefined,
+          });
+        }),
+      );
+      const failedUploads = uploadResults.filter(
+        (r) => r.status === "rejected",
+      ).length;
+      return { created, failedUploads };
     },
-    onSuccess: async (created) => {
+    onSuccess: async ({ created, failedUploads }) => {
       setShowPgCreate(false);
       toast.success(tg("guestCreated"));
+      if (failedUploads > 0) {
+        toast.warning(t("someDocsFailed", { count: failedUploads }));
+      }
       // Select like GuestPicker.onSelected → also re-fetches autofill + docs
-      // so the identity fields and doc tiles below fill in.
+      // so the identity fields and doc tiles below fill in (uploads are now
+      // complete, so the document list includes them).
       await handleGuestSelected({
         id: created.id,
         full_name: created.full_name,

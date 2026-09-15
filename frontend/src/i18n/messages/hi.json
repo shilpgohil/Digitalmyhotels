@@ -1689,7 +1689,7 @@
     "noSavedId": "इस अतिथि के लिए कोई ID नंबर सहेजा नहीं गया है",
     "allocatedRooms": "आवंटित कमरे",
     "changeRoom": "कमरा बदलें",
-    "addRoom": "+ कमरा जोड़ें",
+    "addRoom": "कमरा जोड़ें",
     "addRoomTitle": "इस बुकिंग में एक और कमरा जोड़ें",
     "confirmAddHint": "चुना हुआ कमरा इस बुकिंग में जोड़ें? कुल राशि अपडेट हो जाएगी।",
     "confirmAdd": "कमरा जोड़ें",
@@ -1873,6 +1873,9 @@
     "qrNotConfiguredInfo": "UPI QR कॉन्फ़िगर नहीं है — इसे सेटिंग्स → भुगतान में जोड़ें।",
     "createGuestAction": "अतिथि बनाएँ",
     "manualExtraCharges": "मैनुअल अतिरिक्त शुल्क (₹)",
-    "extraIncludesServices": "चुनी गई सेवाओं के {amount} शामिल हैं"
+    "extraIncludesServices": "चुनी गई सेवाओं के {amount} शामिल हैं",
+    "updateGuest": "अतिथि अपडेट करें",
+    "idNumberShort": "आईडी नंबर",
+    "someDocsFailed": "{count} दस्तावेज़ अपलोड नहीं हो सके — कृपया दोबारा अपलोड करें"
   }
 }
