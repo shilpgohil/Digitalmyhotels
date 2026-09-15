@@ -101,6 +101,8 @@ interface AdminHotelDetail {
   owner_name: string | null;
   owner_email: string | null;
   owner_phone: string | null;
+  /** Team size cap (plan §7.1) — super admin adjustable. */
+  max_team_members: number;
   subscription_plan_name: string | null;
   subscription_status: string | null;
   subscription_expiry: string | null;
@@ -290,6 +292,7 @@ export default function AdminEditHotelPage({
   const [email, setEmail] = useState("");
   const [mapId, setMapId] = useState("");
   const [ownerPhone, setOwnerPhone] = useState("");
+  const [maxTeamMembers, setMaxTeamMembers] = useState("5");
   const [ownerNewPassword, setOwnerNewPassword] = useState("");
   const [identityInit, setIdentityInit] = useState(false);
   const [gstInit, setGstInit] = useState(false);
@@ -323,6 +326,7 @@ export default function AdminEditHotelPage({
   useEffect(() => {
     if (adminDetail.data && !identityInit) {
       setOwnerPhone(adminDetail.data.owner_phone ?? "");
+      setMaxTeamMembers(String(adminDetail.data.max_team_members ?? 5));
     }
   }, [adminDetail.data, identityInit]);
 
@@ -533,12 +537,19 @@ export default function AdminEditHotelPage({
         );
       }
 
-      // 1c. Owner phone (admin only — uses super-admin PATCH endpoint)
-      if (ownerPhone.trim() !== (adminDetail.data?.owner_phone ?? "")) {
+      // 1c. Owner phone + team limit (admin only — super-admin PATCH endpoint)
+      const teamLimitNum = Math.max(1, Math.min(100, Number.parseInt(maxTeamMembers, 10) || 5));
+      const phoneChanged = ownerPhone.trim() !== (adminDetail.data?.owner_phone ?? "");
+      const limitChanged = teamLimitNum !== (adminDetail.data?.max_team_members ?? 5);
+      if (phoneChanged || limitChanged) {
         await attempt("Owner")(() =>
           apiFetch(`/api/v1/super-admin/hotels/${hotelId}`, {
             method: "PATCH",
-            body: { owner_phone: ownerPhone.trim() || null },
+            body: {
+              ...(phoneChanged ? { owner_phone: ownerPhone.trim() || null } : {}),
+              // Team size cap (client 15/09, plan §7.1).
+              ...(limitChanged ? { max_team_members: teamLimitNum } : {}),
+            },
           }),
         );
       }
@@ -777,6 +788,26 @@ export default function AdminEditHotelPage({
                   inputMode="tel"
                   className="max-w-xs"
                 />
+              </div>
+
+              {/* Team size cap (client 15/09, plan §7.1): default 5, raised
+                  here per hotel when the client pays for more seats. */}
+              <div className="space-y-1.5">
+                <Label htmlFor="admin-team-limit" className="text-xs">
+                  Max Team Members (excluding owner)
+                </Label>
+                <Input
+                  id="admin-team-limit"
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={maxTeamMembers}
+                  onChange={(e) => setMaxTeamMembers(e.target.value)}
+                  className="max-w-[120px]"
+                />
+                <p className="text-label text-muted-foreground">
+                  The hotel cannot add active team members beyond this limit.
+                </p>
               </div>
 
               {/* Reset Owner Password — direct reset without waiting for a

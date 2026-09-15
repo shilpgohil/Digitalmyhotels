@@ -338,7 +338,9 @@
     "role_housekeeping": "Housekeeping",
     "editProfile": "Edit profile",
     "pendingResetRequests": "{count, plural, one {1 password reset request} other {# password reset requests}}",
-    "dismissRequest": "Dismiss"
+    "dismissRequest": "Dismiss",
+    "memberQuota": "Team members: {used} of {limit} used",
+    "memberLimitReached": "Member limit reached - contact DigitalMyHotels support to increase it."
   },
   "bookings": {
     "title": "Bookings",
@@ -1535,7 +1537,9 @@
     "allExpiredTitle": "Expired Hotels",
     "hotelLogo": "Hotel Logo",
     "uploadLogo": "Upload Logo",
-    "changeLogo": "Change Logo"
+    "changeLogo": "Change Logo",
+    "maxTeamMembers": "Max Team Members",
+    "maxTeamMembersHint": "Active members the hotel can add (excluding the owner). Default 5."
   },
   "roomPicker": {
     "filterLabel": "Filter rooms by status",

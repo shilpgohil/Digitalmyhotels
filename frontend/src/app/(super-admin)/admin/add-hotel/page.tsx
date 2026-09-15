@@ -229,6 +229,8 @@ export default function AddHotelPage() {
   type GstType = "included_by_hotel" | "included_by_customer" | "no_gst";
   const [gstType, setGstType] = useState<GstType>("no_gst");
   const [totalRooms, setTotalRooms] = useState("");
+  // Team size cap — default 5 (client 15/09, plan §7.1).
+  const [maxTeam, setMaxTeam] = useState("5");
 
   // --- Section 4: Owner ---
   const [ownerName, setOwnerName] = useState("");
@@ -299,6 +301,7 @@ export default function AddHotelPage() {
           gstin: gstin.trim() || null,
           map_id: mapId.trim() || null,
           total_rooms: totalRooms.trim() ? Number.parseInt(totalRooms.trim(), 10) : null,
+          max_team_members: Math.max(1, Math.min(100, Number.parseInt(maxTeam, 10) || 5)),
           gst_type: gstType,
           owner_full_name: ownerName.trim(),
           owner_email: ownerEmail.trim(),
@@ -781,6 +784,20 @@ export default function AddHotelPage() {
               placeholder="25"
             />
             <p className="text-label text-muted-foreground">{t("totalRoomsHint")}</p>
+          </div>
+          {/* Team size cap (client 15/09, plan §7.1) */}
+          <div className="space-y-1.5">
+            <Label htmlFor="ah-max-team">{t("maxTeamMembers")}</Label>
+            <Input
+              id="ah-max-team"
+              type="number"
+              min={1}
+              max={100}
+              value={maxTeam}
+              onChange={(e) => setMaxTeam(e.target.value)}
+              placeholder="5"
+            />
+            <p className="text-label text-muted-foreground">{t("maxTeamMembersHint")}</p>
           </div>
         </div>
       </Section>

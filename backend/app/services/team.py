@@ -52,7 +52,8 @@ async def _get_role(db: AsyncSession, code: str) -> Role:
 
 async def list_team(
     db: AsyncSession, tenant: TenantContext, *, limit: int = 50, offset: int = 0
-) -> tuple[list[TeamMemberOut], int]:
+) -> tuple[list[TeamMemberOut], int, int, int]:
+    """Returns (items, total, member_limit, active_non_owner_members)."""
     hotel_id = tenant.require_hotel()
     base = select(HotelMembership).where(HotelMembership.hotel_id == hotel_id)
     total = (
@@ -68,7 +69,28 @@ async def list_team(
         .limit(limit)
         .offset(offset)
     )
-    return [_to_out(m) for m in result.scalars().all()], total
+    # Cap display "X of Y used" (plan §7.1).
+    from app.models.hotel import Hotel as _Hotel
+    from app.models.user import Role as _Role
+
+    member_limit = (
+        await db.scalar(select(_Hotel.max_team_members).where(_Hotel.id == hotel_id))
+        or 5
+    )
+    active_members = (
+        await db.scalar(
+            select(func.count())
+            .select_from(HotelMembership)
+            .join(_Role, _Role.id == HotelMembership.role_id)
+            .where(
+                HotelMembership.hotel_id == hotel_id,
+                HotelMembership.status == "active",
+                _Role.code != RoleCode.OWNER.value,
+            )
+        )
+        or 0
+    )
+    return [_to_out(m) for m in result.scalars().all()], total, member_limit, active_members
 
 
 async def _get_membership(
@@ -102,6 +124,36 @@ async def create_team_member(
         raise ValidationAppError(
             "This role cannot be created by a hotel owner", code="role_not_creatable"
         )
+
+    # ── Team size cap (client 15/09, plan §7.1) ──────────────────────────
+    # ACTIVE members excluding the owner, counted INSIDE the transaction with
+    # the hotel row locked, so two simultaneous adds cannot both pass the
+    # check (scenario S3). Hotels already over the cap keep their members —
+    # they just cannot add more until under the limit.
+    from app.models.hotel import Hotel as _Hotel
+    from app.models.user import Role as _Role
+
+    max_members = await db.scalar(
+        select(_Hotel.max_team_members).where(_Hotel.id == hotel_id).with_for_update()
+    )
+    max_members = max_members or 5
+    active_members = await db.scalar(
+        select(func.count())
+        .select_from(HotelMembership)
+        .join(_Role, _Role.id == HotelMembership.role_id)
+        .where(
+            HotelMembership.hotel_id == hotel_id,
+            HotelMembership.status == "active",
+            _Role.code != RoleCode.OWNER.value,
+        )
+    )
+    if (active_members or 0) >= max_members:
+        raise ValidationAppError(
+            f"Team member limit reached ({max_members}). Contact DigitalMyHotels "
+            "support to increase this hotel's limit.",
+            code="team_limit_reached",
+        )
+
     role = await _get_role(db, role_code.value)
     phone_norm = normalize_phone(body.phone) if body.phone else None
     email = body.email

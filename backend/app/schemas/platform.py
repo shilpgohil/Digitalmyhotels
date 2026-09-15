@@ -96,6 +96,7 @@ class AdminHotelDetailOut(BaseModel):
     is_gst_registered: bool = False
     # Owner
     owner_user_id: UUID | None = None  # enables direct password reset (client 09/2026)
+    max_team_members: int = 5  # team cap (plan §7.1)
     owner_name: str | None
     owner_email: str | None
     owner_phone: str | None
@@ -118,6 +119,8 @@ class AdminHotelUpdate(BaseModel):
     gstin: str | None = Field(default=None, max_length=15)
     # Backfills the OWNER user's phone so phone login works (item 30).
     owner_phone: str | None = Field(default=None, max_length=32)
+    # Team size cap — super admin can raise per hotel (plan §7.1).
+    max_team_members: int | None = Field(default=None, ge=1, le=100)
 
 
 class AdminCustomerSummaryOut(BaseModel):
@@ -274,6 +277,8 @@ class CreateHotelRequest(BaseModel):
     # Additional fields per Figma Add-Hotel form
     total_rooms: int | None = Field(default=None, ge=0)
     map_id: str | None = Field(default=None, max_length=255)
+    # Team size cap — default 5 (client 15/09, plan §7.1).
+    max_team_members: int = Field(default=5, ge=1, le=100)
     # GST type selection
     gst_type: str | None = None  # "included_by_hotel" | "included_by_customer" | "no_gst"
     # Payment setup

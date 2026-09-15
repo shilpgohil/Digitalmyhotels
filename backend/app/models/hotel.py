@@ -43,6 +43,9 @@ class Hotel(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     total_rooms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Google Maps embed ID or place ID for the hotel property
     map_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Max ACTIVE team members (excluding the owner) — default 5, super admin
+    # can raise per hotel (client 15/09, plan §7.1).
+    max_team_members: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
 
     # ── Staff-attendance geofence (admin-configurable, OFF by default) ──
     # Toggle may only be enabled once latitude+longitude are set.

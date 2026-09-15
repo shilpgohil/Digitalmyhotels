@@ -338,7 +338,9 @@
     "role_housekeeping": "हाउसकीपिंग",
     "editProfile": "प्रोफ़ाइल संपादित करें",
     "pendingResetRequests": "{count, plural, one {1 पासवर्ड रीसेट अनुरोध} other {# पासवर्ड रीसेट अनुरोध}}",
-    "dismissRequest": "खारिज करें"
+    "dismissRequest": "खारिज करें",
+    "memberQuota": "टीम सदस्य: {limit} में से {used} उपयोग में",
+    "memberLimitReached": "सदस्य सीमा पूरी हो गई - सीमा बढ़ाने के लिए DigitalMyHotels सहायता से संपर्क करें।"
   },
   "bookings": {
     "title": "बुकिंग",
@@ -1535,7 +1537,9 @@
     "allExpiredTitle": "समाप्त होटल",
     "hotelLogo": "होटल लोगो",
     "uploadLogo": "लोगो अपलोड करें",
-    "changeLogo": "लोगो बदलें"
+    "changeLogo": "लोगो बदलें",
+    "maxTeamMembers": "अधिकतम टीम सदस्य",
+    "maxTeamMembersHint": "होटल कितने सक्रिय सदस्य जोड़ सकता है (मालिक को छोड़कर)। डिफ़ॉल्ट 5।"
   },
   "roomPicker": {
     "filterLabel": "कमरों को स्थिति के अनुसार फ़िल्टर करें",

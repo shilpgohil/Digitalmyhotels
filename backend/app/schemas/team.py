@@ -59,3 +59,6 @@ class TeamPasswordReset(BaseModel):
 class TeamListOut(BaseModel):
     items: list[TeamMemberOut]
     total: int
+    # Team cap display "X of Y used" (client 15/09, plan §7.1).
+    member_limit: int = 5
+    active_members: int = 0

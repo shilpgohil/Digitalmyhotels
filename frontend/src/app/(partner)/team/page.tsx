@@ -57,9 +57,16 @@ function TeamContent() {
 
   const team = useQuery({
     queryKey: ["team", activeHotelId],
-    queryFn: () => api<ListOut<TeamMemberOut>>("/api/v1/team?limit=100"),
+    queryFn: () =>
+      api<ListOut<TeamMemberOut> & { member_limit: number; active_members: number }>(
+        "/api/v1/team?limit=100",
+      ),
     enabled: !!activeHotelId,
   });
+  // Team size cap (client 15/09, plan §7.1).
+  const memberLimit = team.data?.member_limit ?? 5;
+  const activeMembers = team.data?.active_members ?? 0;
+  const limitReached = activeMembers >= memberLimit;
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["team", activeHotelId] });
@@ -151,8 +158,23 @@ function TeamContent() {
             </ul>
           </div>
         )}
-        <div className="mb-4 flex justify-end">
-          <CreateMemberDialog onCreated={invalidate} />
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          {/* Cap indicator "X of Y" (client 15/09, plan §7.1) */}
+          <div className="text-sm text-muted-foreground">
+            {team.data && (
+              <span
+                className={
+                  limitReached ? "font-semibold text-warning" : undefined
+                }
+              >
+                {t("memberQuota", { used: activeMembers, limit: memberLimit })}
+              </span>
+            )}
+            {limitReached && (
+              <p className="mt-0.5 text-xs text-warning">{t("memberLimitReached")}</p>
+            )}
+          </div>
+          {!limitReached && <CreateMemberDialog onCreated={invalidate} />}
         </div>
         <div className="rounded-lg border bg-card">
           {team.isLoading && (

@@ -34,8 +34,15 @@ async def list_team(
     tenant: TenantContext = Depends(require_permissions(Permission.HOTEL_MANAGE_TEAM)),
     db: AsyncSession = Depends(get_db),
 ) -> TeamListOut:
-    items, total = await team_service.list_team(db, tenant, limit=limit, offset=offset)
-    return TeamListOut(items=items, total=total)
+    items, total, member_limit, active_members = await team_service.list_team(
+        db, tenant, limit=limit, offset=offset
+    )
+    return TeamListOut(
+        items=items,
+        total=total,
+        member_limit=member_limit,
+        active_members=active_members,
+    )
 
 
 @router.get("/password-requests")

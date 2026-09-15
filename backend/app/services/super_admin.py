@@ -402,6 +402,7 @@ async def create_hotel_with_owner(
         status="trial",
         total_rooms=body.total_rooms,
         map_id=body.map_id,
+        max_team_members=body.max_team_members,
     )
     db.add(hotel)
     await db.flush()
@@ -553,6 +554,7 @@ async def get_hotel_detail(db: AsyncSession, hotel_id: UUID) -> dict:
         "gstin": gst_row.gstin if gst_row else None,
         "is_gst_registered": gst_row.is_gst_registered if gst_row else False,
         "owner_user_id": owner.id if owner else None,
+        "max_team_members": hotel.max_team_members or 5,
         "owner_name": owner.full_name if owner else None,
         "owner_email": owner.email if owner else None,
         "owner_phone": owner.phone if owner else None,
