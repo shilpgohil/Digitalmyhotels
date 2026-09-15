@@ -249,6 +249,16 @@ interface CheckinDraft {
   pgCompany: string;
   foreignEnabled: boolean;
   foreignGuest: ForeignGuestFormState;
+  /** Additional guests, TEXT data only (plan §4.2 — client: "When I Restore,
+   *  Additional Guests Detail not showing"). Queued document Files cannot be
+   *  serialized to localStorage — staff re-attach photos after restore. */
+  coGuests?: {
+    guest_id: string;
+    full_name: string;
+    phone?: string;
+    newForm?: GuestCreatePayload;
+    foreign_guest?: ForeignGuestIn | null;
+  }[];
 }
 
 function draftId(): string {
@@ -1280,10 +1290,13 @@ function AdditionalGuestEntry({
   idx,
   onResolved,
   onRemove,
+  initial,
 }: {
   readonly idx: number;
   readonly onResolved: (guest: ResolvedCoGuest) => void;
   readonly onRemove: () => void;
+  /** Draft restore (plan §4.2): mount directly in the resolved state. */
+  readonly initial?: ResolvedCoGuest | null;
 }) {
   const t = useTranslations("checkin");
   const tc = useTranslations("common");
@@ -1294,7 +1307,7 @@ function AdditionalGuestEntry({
   // True once a Search request has actually completed — prevents "No match"
   // showing prematurely while the user is still typing (before hitting Search).
   const [hasSearched, setHasSearched] = useState(false);
-  const [resolved, setResolved] = useState<ResolvedCoGuest | null>(null);
+  const [resolved, setResolved] = useState<ResolvedCoGuest | null>(initial ?? null);
   const [mode, setMode] = useState<"search" | "form">("search");
   const [docs, setDocs] = useState<{ side: DocSide; file: File }[]>([]);
   /** Saved document ids per side for a returning guest (preloads the tiles). */
@@ -1310,6 +1323,37 @@ function AdditionalGuestEntry({
   // Foreign guest (Form C) — same fields as the primary guest's section.
   const [fgEnabled, setFgEnabled] = useState(false);
   const [fgForm, setFgForm] = useState<ForeignGuestFormState>(EMPTY_FOREIGN_GUEST);
+
+  // Draft-restore rehydration (plan §4.2): a restored EXISTING guest re-fetches
+  // profile + saved documents so the summary grid and doc tiles fill back in.
+  // Pending (__new__) guests already carry their form data via _newForm.
+  useEffect(() => {
+    if (!initial || initial.guest_id.startsWith("__new__")) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [full, docsList] = await Promise.all([
+          api<GuestAutofill>(`/api/v1/guests/${initial.guest_id}/autofill`, { method: "POST" }),
+          api<{ id: string; side: string | null }[]>(
+            `/api/v1/guests/${initial.guest_id}/documents`,
+          ).catch(() => [] as { id: string; side: string | null }[]),
+        ]);
+        if (cancelled) return;
+        const bySide: Partial<Record<DocSide, string>> = {};
+        for (const doc of docsList) {
+          if ((doc.side === "front" || doc.side === "back" || doc.side === "selfie") && !bySide[doc.side]) {
+            bySide[doc.side] = doc.id;
+          }
+        }
+        setExistingDocs(bySide);
+        setAutofill(full);
+      } catch {
+        // Non-fatal: the card still shows name/phone from the draft.
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** Update Form C state and propagate it into the resolved co-guest. */
   const applyForeign = (enabled: boolean, f: ForeignGuestFormState) => {
@@ -3701,6 +3745,14 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       pgCompany,
       foreignEnabled: fgEnabled,
       foreignGuest: fgForm,
+      // Additional guests — text data only (files can't persist, §4.2).
+      coGuests: coGuests.filter(Boolean).map((cg) => ({
+        guest_id: cg.guest_id,
+        full_name: cg.full_name,
+        phone: cg.phone,
+        newForm: (cg as ResolvedCoGuest & { _newForm?: GuestCreatePayload })._newForm,
+        foreign_guest: cg.foreign_guest ?? null,
+      })),
     };
     if (!activeHotelId) {
       toast.error(t("draftSaveFailed"));
@@ -3750,6 +3802,22 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       // Re-select the guest (also re-fetches identity autofill, non-fatal).
       void handleGuestSelected(d.guest);
     }
+    // Additional guests round-trip (plan §4.2): rebuild resolved entries from
+    // the serialized text data. Queued photos are gone (Files can't persist);
+    // existing guests re-fetch their saved documents on mount instead.
+    const restoredCoGuests = (d.coGuests ?? []).map((sg) => {
+      const rg: ResolvedCoGuest & { _newForm?: GuestCreatePayload } = {
+        guest_id: sg.guest_id,
+        full_name: sg.full_name,
+        phone: sg.phone,
+        docs: [],
+        foreign_guest: sg.foreign_guest ?? null,
+      };
+      if (sg.newForm) rg._newForm = sg.newForm;
+      return rg;
+    });
+    setCoGuests(restoredCoGuests);
+    setGuestKeys(restoredCoGuests.map((_, i) => Date.now() + i));
     // Keep the draft in the list until this check-in actually completes —
     // deleted then (or via its own Discard button), never on restore alone.
     setRestoredDraftId(d.id ?? null);
@@ -4376,6 +4444,8 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               idx={i}
               onResolved={(g) => resolveGuest(key, g)}
               onRemove={() => removeGuestEntry(key)}
+              /* Draft restore (§4.2): mount straight into the resolved card. */
+              initial={coGuests[i] ?? null}
             />
           ))}
           <button
