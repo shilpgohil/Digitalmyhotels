@@ -1,7 +1,7 @@
 from datetime import date
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 
 class ORMModel(BaseModel):
@@ -14,6 +14,43 @@ def normalize_phone(raw: str) -> str:
     if len(digits) > 10:
         digits = digits[-10:]
     return digits
+
+
+def title_case_name(value: str) -> str:
+    """First letter of every word uppercased, rest untouched (plan Phase 5:
+    'while writing names first letter auto capital'). 'raj kumar' → 'Raj
+    Kumar'; deliberate casing like 'RAJ' or 'McArthur' survives."""
+    out: list[str] = []
+    for word in value.split(" "):
+        out.append(word[:1].upper() + word[1:] if word else word)
+    return " ".join(out)
+
+
+# Per-ID-type caps (plan Phase 5) — mirrors frontend lib/input-discipline.ts.
+# (max_length, digits_only). Length-capped only; exact format is NOT enforced
+# server-side so OCR'd and legacy values keep working.
+_ID_LIMITS: dict[str, tuple[int, bool]] = {
+    "Aadhar Card": (12, True),
+    "PAN Card": (10, False),
+    "Passport": (8, False),
+    "Driving License": (16, False),
+    "Voter ID": (10, False),
+}
+
+
+def validate_id_number(id_proof_type: str | None, id_number: str | None) -> None:
+    if not id_proof_type or not id_number:
+        return
+    limit = _ID_LIMITS.get(id_proof_type)
+    if limit is None:
+        return
+    max_len, digits_only = limit
+    if len(id_number) > max_len:
+        raise ValueError(
+            f"{id_proof_type} number must be at most {max_len} characters"
+        )
+    if digits_only and not id_number.isdigit():
+        raise ValueError(f"{id_proof_type} number must contain digits only")
 
 
 class GuestBase(BaseModel):
@@ -39,6 +76,16 @@ class GuestBase(BaseModel):
             raise ValueError("Phone number is too short")
         return value
 
+    @field_validator("full_name")
+    @classmethod
+    def cap_name(cls, value: str) -> str:
+        return title_case_name(value.strip())
+
+    @model_validator(mode="after")
+    def check_id_number(self) -> "GuestBase":
+        validate_id_number(self.id_proof_type, self.id_number)
+        return self
+
 
 class GuestCreate(GuestBase):
     pass
@@ -58,6 +105,16 @@ class GuestUpdate(BaseModel):
     id_proof_type: str | None = Field(default=None, max_length=64)
     id_number: str | None = Field(default=None, min_length=4, max_length=64)
     notes: str | None = Field(default=None, max_length=4000)
+
+    @field_validator("full_name")
+    @classmethod
+    def cap_name(cls, value: str | None) -> str | None:
+        return title_case_name(value.strip()) if value else value
+
+    @model_validator(mode="after")
+    def check_id_number(self) -> "GuestUpdate":
+        validate_id_number(self.id_proof_type, self.id_number)
+        return self
 
 
 class GuestOut(ORMModel):

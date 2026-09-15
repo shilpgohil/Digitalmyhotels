@@ -98,6 +98,7 @@ import type { GuestType } from "@/types/stay";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
 import { MaskedIdInput } from "@/components/checkin/masked-id-input";
+import { liveNameCase, sanitizePhone } from "@/lib/input-discipline";
 import { InlineCameraCapture } from "@/components/checkin/inline-camera-capture";
 import { UpiQrBlock } from "@/components/checkin/upi-qr-block";
 import { CollapsibleSection } from "@/components/checkin/collapsible-section";
@@ -1148,6 +1149,7 @@ function NewGuestForm({
           label={t("fieldIdNumber")}
           labelClassName="text-xs"
           value={form.id_number ?? ""}
+          idType={form.id_proof_type}
           onChange={(v) => set("id_number", v)}
           placeholder={t("last4Min")}
         />
@@ -1219,11 +1221,11 @@ function NewGuestForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label className="text-xs">{tg("fullName")} *</Label>
-          <Input value={form.full_name} onChange={(e) => set("full_name", e.target.value)} placeholder={tg("fullName")} required />
+          <Input value={form.full_name} onChange={(e) => set("full_name", liveNameCase(e.target.value))} placeholder={tg("fullName")} required />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">{tg("phoneNumber")} *</Label>
-          <Input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder={t("mobile10")} inputMode="tel" required />
+          <Input value={form.phone} onChange={(e) => set("phone", sanitizePhone(e.target.value))} maxLength={10} placeholder={t("mobile10")} inputMode="tel" required />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">{t("emailOptional")}</Label>
@@ -1797,7 +1799,7 @@ function AdditionalGuestEntry({
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" aria-hidden />
               <Input
                 value={searchPhone}
-                onChange={(e) => { setSearchPhone(e.target.value); setHasSearched(false); }}
+                onChange={(e) => { setSearchPhone(sanitizePhone(e.target.value)); setHasSearched(false); }}
                 placeholder={t("searchByPhone")}
                 className="pl-9"
                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleSearch())}
@@ -2668,6 +2670,7 @@ function CheckinForm({
             <div className="sm:col-span-2">
               <MaskedIdInput
                 label={t("idNoOf", { type: pgIdType.toUpperCase() })}
+                idType={pgIdType}
                 value={pgIdNumber}
                 onChange={setPgIdNumber}
                 placeholder={t("enterIdNumber", { type: pgIdType })}
@@ -2749,11 +2752,11 @@ function CheckinForm({
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
               <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{tg("fullName")}</Label>
-              <Input value={pgName} onChange={(e) => setPgName(e.target.value)} placeholder={tg("fullName")} />
+              <Input value={pgName} onChange={(e) => setPgName(liveNameCase(e.target.value))} placeholder={tg("fullName")} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
-              <Input value={pgPhone} onChange={(e) => setPgPhone(e.target.value)} placeholder={t("phonePlaceholder")} inputMode="tel" />
+              <Input value={pgPhone} onChange={(e) => setPgPhone(sanitizePhone(e.target.value))} maxLength={10} placeholder={t("phonePlaceholder")} inputMode="tel" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldGender")}</Label>
@@ -3127,7 +3130,7 @@ function CheckinForm({
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
             <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactName")}</Label>
-            <Input value={emName} onChange={(e) => setEmName(e.target.value)} placeholder={t("contactNamePlaceholder")} />
+            <Input value={emName} onChange={(e) => setEmName(liveNameCase(e.target.value))} placeholder={t("contactNamePlaceholder")} />
           </div>
           <div className="space-y-1.5">
             <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactRelation")}</Label>
@@ -3135,7 +3138,7 @@ function CheckinForm({
           </div>
           <div className="space-y-1.5">
             <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
-            <Input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} placeholder={t("phonePlaceholder")} inputMode="tel" />
+            <Input value={emPhone} onChange={(e) => setEmPhone(sanitizePhone(e.target.value))} maxLength={10} placeholder={t("phonePlaceholder")} inputMode="tel" />
           </div>
         </div>
       </Section>
@@ -4311,6 +4314,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                 <div className="sm:col-span-2">
                   <MaskedIdInput
                     label={t("idNoOf", { type: pgIdType.toUpperCase() })}
+                    idType={pgIdType}
                     value={pgIdNumber}
                     onChange={setPgIdNumber}
                     placeholder={t("enterIdNumber", { type: pgIdType })}
@@ -4389,11 +4393,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-1.5">
                   <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{tg("fullName")}</Label>
-                  <Input value={pgName} onChange={(e) => setPgName(e.target.value)} placeholder={tg("fullName")} />
+                  <Input value={pgName} onChange={(e) => setPgName(liveNameCase(e.target.value))} placeholder={tg("fullName")} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
-                  <Input value={pgPhone} onChange={(e) => setPgPhone(e.target.value)} placeholder={t("phonePlaceholder")} inputMode="tel" />
+                  <Input value={pgPhone} onChange={(e) => setPgPhone(sanitizePhone(e.target.value))} maxLength={10} placeholder={t("phonePlaceholder")} inputMode="tel" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldGender")}</Label>
@@ -4730,7 +4734,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
             <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactName")}</Label>
-            <Input value={emName} onChange={(e) => setEmName(e.target.value)} placeholder={t("contactNamePlaceholder")} />
+            <Input value={emName} onChange={(e) => setEmName(liveNameCase(e.target.value))} placeholder={t("contactNamePlaceholder")} />
             </div>
           <div className="space-y-1.5">
             <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{ts("contactRelation")}</Label>
@@ -4738,7 +4742,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           </div>
           <div className="space-y-1.5">
             <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
-            <Input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} placeholder={t("phonePlaceholder")} inputMode="tel" />
+            <Input value={emPhone} onChange={(e) => setEmPhone(sanitizePhone(e.target.value))} maxLength={10} placeholder={t("phonePlaceholder")} inputMode="tel" />
           </div>
         </div>
       </Section>

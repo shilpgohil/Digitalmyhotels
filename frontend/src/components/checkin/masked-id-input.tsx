@@ -9,6 +9,7 @@ import { type ReactNode, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { idRuleFor } from "@/lib/input-discipline";
 
 interface MaskedIdInputProps {
   label: string;
@@ -17,6 +18,9 @@ interface MaskedIdInputProps {
   onChange: (v: string) => void;
   placeholder?: string;
   trailing?: ReactNode;
+  /** ID type — applies the per-type digit/char cap and format (plan Phase 5:
+   *  Aadhaar 12 digits, PAN 10 uppercase, Passport 8, DL 16, Voter 10). */
+  idType?: string | null;
 }
 
 /** Mask an ID number, keeping only the last 4 characters visible. */
@@ -33,11 +37,23 @@ export function MaskedIdInput({
   onChange,
   placeholder,
   trailing,
+  idType,
 }: MaskedIdInputProps) {
   const t = useTranslations("checkin");
   const [show, setShow] = useState(false);
   const [focused, setFocused] = useState(false);
   const masked = !show && !focused;
+  const rule = idRuleFor(idType);
+
+  const handleChange = (raw: string) => {
+    // Saved-ID hints look like "••••••••1234" — never sanitize a value that
+    // still carries mask bullets, or the hint gets destroyed mid-edit.
+    if (raw.includes("•")) {
+      onChange(raw);
+      return;
+    }
+    onChange(idType ? rule.sanitize(raw) : raw);
+  };
 
   return (
     <div className="space-y-1.5">
@@ -56,11 +72,13 @@ export function MaskedIdInput({
         <Input
           value={masked ? maskIdValue(value) : value}
           onChange={(e) => {
-            if (!masked) onChange(e.target.value);
+            if (!masked) handleChange(e.target.value);
           }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder={placeholder}
+          placeholder={placeholder || (idType ? rule.placeholder : undefined)}
+          inputMode={idType ? rule.inputMode : undefined}
+          maxLength={idType ? Math.max(rule.maxLength, value.length) : undefined}
           autoComplete="off"
           className="flex-1"
         />
