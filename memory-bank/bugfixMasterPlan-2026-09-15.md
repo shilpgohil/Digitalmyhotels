@@ -117,6 +117,21 @@ restaurant-billing/gst-tax/notifications/audit still hardcoded English;
 advance-booking page section labels; expenses stat subtitles.
 Suite: 225 passed / 3 documented pre-existing. Build green.
 
+**FULL-SHEET AUDIT 15/09 evening (commit 530fd18):**
+- Part 9 GAP FOUND & FIXED: the pay modal never collected the UPI transaction
+  id and RenewalRequestAdminOut had no note — SA could not verify payments.
+  Now: required txn-ref input (alphanumeric, min 6, uppercased) → note
+  "Txn: …" → shown gold/mono on the SA renewal-requests table.
+- 10.3 VERIFIED implemented: team create + team reset BOTH set
+  must_reset_password=True + revoke sessions; tenant dep blocks with 403
+  must_reset_password; api client redirects to /change-password.
+- STILL OPEN (honest list): 10.7 double-scroll SA add-hotel (needs repro),
+  10.6 "SA add hotel not working" (backend lifecycle test passes — needs
+  client repro details; Figma parity pass pending), 10.8 auto-checkout
+  next day (blocked on Q9 money-handling decision), 10.12 "Wrong"
+  screenshot (unidentified), §4.2b draft photos (blocked on production B2
+  confirmation), minor i18n empty-state subtitles.
+
 **PHASE 4 REVERIFIED 15/09 (commit e8333d1):**
 - Client clarification implemented: SUPER ADMIN is exempt from the team cap
   (tenant.is_super_admin skips the check) — platform can grant members
