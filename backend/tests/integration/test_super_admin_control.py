@@ -176,12 +176,20 @@ async def test_suspended_hotel_locks_out_staff_until_reactivated(
     )
     assert suspended.status_code == 200, suspended.text
 
-    # Owner AND staff are locked out of every hotel-scoped endpoint.
+    # Owner AND staff are locked out. Fresh LOGINS are rejected outright
+    # (login-time blocking added in the hardening batch — stricter than the
+    # original contract this test was written against)…
     for role in ("owner", "admin", "housekeeping"):
-        headers = auth_headers(await login(client, *hotel_a.credentials(role)))
-        blocked = await client.get("/api/v1/rooms?limit=5", headers=headers)
-        assert blocked.status_code == 403, f"{role}: {blocked.text}"
-        assert blocked.json()["error"]["code"] == "hotel_suspended"
+        email, password = hotel_a.credentials(role)
+        resp = await client.post(
+            "/api/v1/auth/login", json={"email": email, "password": password}
+        )
+        assert resp.status_code == 403, f"{role}: {resp.text}"
+        assert resp.json()["error"]["code"] == "hotel_suspended"
+    # …and EXISTING sessions are blocked on every hotel-scoped endpoint.
+    blocked = await client.get("/api/v1/rooms?limit=5", headers=owner_headers)
+    assert blocked.status_code == 403, blocked.text
+    assert blocked.json()["error"]["code"] == "hotel_suspended"
     # Transactions likewise.
     tx = await client.post(
         "/api/v1/guests",

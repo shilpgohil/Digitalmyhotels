@@ -55,6 +55,18 @@ class RoomOut(ORMModel):
     room_type_name: str | None = None
     amenities: list[str] = []
 
+    # ── Derived reservation context (room-status redesign, plan 15/09) ──────
+    # "Reserved" is a CALENDAR fact derived from confirmed bookings at read
+    # time — it is no longer stored in room.status. These fields let the UI
+    # render "Reserved (today) · arrives 14:00" / "Available · Reserved from
+    # Sep 24, 14:00" / "Occupied · departs today 11:00" with hour accuracy.
+    arriving_today: bool = False
+    arrival_time: str | None = None  # "HH:MM" hotel local — today's arrival
+    next_booking_date: date | None = None  # earliest FUTURE confirmed booking
+    next_booking_time: str | None = None  # its expected check-in time
+    departing_today: bool = False  # current in-house guest checks out today
+    departure_time: str | None = None  # "HH:MM" expected checkout time
+
 
 class RoomCreate(BaseModel):
     room_number: str = Field(min_length=1, max_length=32)
@@ -123,6 +135,11 @@ class RoomAvailableItem(BaseModel):
     # Format: "HH:MM" (hotel local time).  NULL if room is not currently occupied.
     current_checkout_date: date | None = None
     current_checkout_time: str | None = None
+    # Next confirmed booking that starts ON/AFTER the requested checkout —
+    # lets the picker say "Booked from Sep 24, 14:00 — free for your dates"
+    # so a busy-looking room being offered no longer reads as a bug.
+    next_booking_date: date | None = None
+    next_booking_time: str | None = None
 
 
 class RoomUnavailableItem(RoomAvailableItem):

@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.tenant import TenantContext
 from app.domain.gst import money
-from app.domain.room_status import RoomStatus, is_allocatable
+from app.domain.room_status import RoomStatus
 from app.models.booking import Booking, BookingRoom
 from app.models.guest import Guest
 from app.models.hotel import HotelSettings
@@ -26,6 +26,34 @@ from app.services.audit import write_audit
 from app.services.guests import get_guest
 
 ACTIVE_BOOKING_STATUSES = ("pending", "confirmed", "checked_in")
+
+# Same-day bookings: physical states a room must NOT be in right now. This set
+# MIRRORS check_availability's same-day rules so the picker and the booking
+# API can never disagree (the old is_allocatable check rejected
+# cleaning_required / inspection_required rooms the picker had offered).
+#   bookable — available, clean_ready, cleaning_required (cleaned before
+#              arrival), inspection_required, reserved (legacy rows only,
+#              until the redesign migration converts them to available).
+_SAME_DAY_BLOCKED = frozenset(
+    {
+        RoomStatus.OCCUPIED.value,
+        RoomStatus.CLEANING_IN_PROGRESS.value,
+        RoomStatus.MAINTENANCE.value,
+        RoomStatus.OUT_OF_SERVICE.value,
+    }
+)
+
+
+def _assert_same_day_bookable(room: Room) -> None:
+    """409 if the room's physical state blocks an immediate (same-day) stay."""
+    if room.status in _SAME_DAY_BLOCKED:
+        from app.domain.room_status import status_label
+
+        raise ConflictError(
+            f"Room {room.room_number} is not available right now "
+            f"(status: {status_label(room.status)})",
+            code="room_not_allocatable",
+        )
 
 
 async def next_booking_number(db: AsyncSession, hotel_id: UUID) -> str:
@@ -174,8 +202,16 @@ async def create_booking(
 
     await assert_transactions_allowed(db, hotel_id)
 
+    # HOTEL-LOCAL today (redesign B4 fix): the server runs UTC, so date.today()
+    # would mis-classify same-day bookings made 00:00–05:30 IST as "future"
+    # (skipping the physical allocatable check) and reject valid bookings for
+    # "today" as past dates. Same pattern as check_availability.
+    from app.services.rooms import hotel_today
+
+    today_local = await hotel_today(db, hotel_id)
+
     # Prevent bookings for dates already in the past.
-    if body.check_in_date < date.today():
+    if body.check_in_date < today_local:
         raise ValidationAppError(
             "Check-in date cannot be in the past", code="checkin_date_past"
         )
@@ -187,16 +223,20 @@ async def create_booking(
         db, hotel_id, [r.id for r in rooms], body.check_in_date, body.check_out_date
     )
 
-    # For today's bookings check the room is currently allocatable.
-    # For future bookings the room may still be Available (the overlap check
-    # prevents double-booking). We reserve the room below for all confirmed bookings.
-    is_same_day = body.check_in_date == date.today()
-    for room in rooms:
-        if is_same_day and not is_allocatable(room.status):
-            raise ConflictError(
-                f"Room {room.room_number} is not available (status: {room.status})",
-                code="room_not_allocatable",
-            )
+    # For today's bookings the room must be physically usable NOW. This set
+    # MIRRORS check_availability's same-day rules so the picker and the
+    # booking API can never disagree (the old is_allocatable check rejected
+    # cleaning_required/inspection_required rooms the picker had offered):
+    #   blocked  — occupied, cleaning_in_progress, maintenance, out_of_service
+    #   bookable — available, clean_ready, cleaning_required (cleaned before
+    #              arrival), inspection_required, reserved (legacy rows only,
+    #              until the redesign migration converts them to available).
+    # For future bookings physical state is irrelevant — the overlap check
+    # above is the sole double-booking guard.
+    is_same_day = body.check_in_date == today_local
+    if is_same_day:
+        for room in rooms:
+            _assert_same_day_bookable(room)
 
     nights = _nights(body.check_in_date, body.check_out_date)
     is_day_use = body.check_in_date == body.check_out_date
@@ -288,12 +328,13 @@ async def create_booking(
                 is_current=True,
             )
         )
-        # Per SRS §6: "Confirmed booking → Reserved."
-        # Reserve for all confirmed bookings (not just same-day) so room
-        # status correctly shows as Reserved on the property grid.
-        if booking.status == "confirmed":
-            if room.status in (RoomStatus.AVAILABLE.value, RoomStatus.CLEAN_READY.value):
-                room.status = RoomStatus.RESERVED.value
+        # ROOM-STATUS REDESIGN (plan 15/09): "Reserved" is NO LONGER stored in
+        # room.status — a reservation is a calendar fact derived from bookings
+        # at read time (list_rooms / availability enrich each room with
+        # arriving_today + next_booking).  Storing it painted rooms "Reserved"
+        # for far-future bookings, drifted with multi-booking/cancel flows, and
+        # broke same-day walk-ins (picker offered a room booking then 409'd).
+        # Double-booking safety lives entirely in _assert_no_overlap above.
 
     await db.flush()
 
@@ -615,11 +656,10 @@ async def replace_booking_room(
         booking.check_out_date,
         exclude_booking_id=booking.id,
     )
-    if booking.check_in_date <= date.today() and not is_allocatable(to_room.status):
-        raise ConflictError(
-            f"Room {to_room.room_number} is not available (status: {to_room.status})",
-            code="room_not_allocatable",
-        )
+    from app.services.rooms import hotel_today as _hotel_today
+
+    if booking.check_in_date <= await _hotel_today(db, hotel_id):
+        _assert_same_day_bookable(to_room)
 
     # ── Repricing ──────────────────────────────────────────────────────────
     # Same room type: keep the stored rate (preserves staff overrides).
@@ -655,12 +695,10 @@ async def replace_booking_room(
         )
     )
 
-    # Reservation status follows the swap (mirrors create_booking / release).
-    if booking.status == "confirmed":
-        if from_room.status == RoomStatus.RESERVED.value:
-            from_room.status = RoomStatus.AVAILABLE.value
-        if to_room.status in (RoomStatus.AVAILABLE.value, RoomStatus.CLEAN_READY.value):
-            to_room.status = RoomStatus.RESERVED.value
+    # Reservation state is derived from bookings at read time (redesign 15/09).
+    # Legacy self-heal only: release a pre-migration stored 'reserved' flag.
+    if from_room.status == RoomStatus.RESERVED.value:
+        from_room.status = RoomStatus.AVAILABLE.value
 
     # ── Reprice booking total (room subtotal + charges − discount) ─────────
     from app.models.payment import HotelCharge
@@ -778,12 +816,10 @@ async def add_room_to_booking(
         booking.check_out_date,
         exclude_booking_id=booking.id,
     )
-    if booking.check_in_date <= date.today() and not is_allocatable(new_room_typed.status):
-        raise ConflictError(
-            f"Room {new_room_typed.room_number} is not available "
-            f"(status: {new_room_typed.status})",
-            code="room_not_allocatable",
-        )
+    from app.services.rooms import hotel_today as _hotel_today
+
+    if booking.check_in_date <= await _hotel_today(db, hotel_id):
+        _assert_same_day_bookable(new_room_typed)
 
     # Rate: use the room type's default base rate (staff can override later).
     new_rate = new_room_typed.room_type.base_price if new_room_typed.room_type else Decimal("0.00")
@@ -799,9 +835,8 @@ async def add_room_to_booking(
         )
     )
 
-    # Reserve the new room.
-    if new_room_typed.status in (RoomStatus.AVAILABLE.value, RoomStatus.CLEAN_READY.value):
-        new_room_typed.status = RoomStatus.RESERVED.value
+    # Reservation state is derived at read time (redesign 15/09) — no status
+    # write here; the overlap check above already guards double booking.
 
     # Reprice booking total.
     from app.models.payment import HotelCharge
@@ -866,6 +901,12 @@ async def add_room_to_booking(
 
 
 async def _release_rooms(db: AsyncSession, booking: Booking) -> None:
+    """Legacy self-heal: clear pre-migration stored 'reserved' flags.
+
+    Reservation state is derived from bookings at read time (redesign 15/09);
+    nothing writes RESERVED anymore, so this only heals rows created before
+    the migration. Safe to remove once all environments are migrated.
+    """
     room_ids = [br.room_id for br in booking.rooms if br.is_current]
     if not room_ids:
         return

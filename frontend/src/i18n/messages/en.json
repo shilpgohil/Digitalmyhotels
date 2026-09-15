@@ -316,7 +316,18 @@
     "status_clean_ready": "Clean / Ready",
     "status_inspection_required": "Inspection Required",
     "status_maintenance": "Maintenance",
-    "status_out_of_service": "Out of Service"
+    "status_out_of_service": "Out of Service",
+    "bucket_available": "Available",
+    "bucket_reserved": "Reserved",
+    "bucket_occupied": "Occupied",
+    "bucket_cleaning": "Cleaning",
+    "bucket_maintenance": "Maintenance",
+    "reservedToday": "Reserved (Today)",
+    "arrivesAt": "Arrives {time}",
+    "arrivingToday": "Arriving today",
+    "reservedFrom": "Reserved from {date}",
+    "departsToday": "Departs today {time}",
+    "departsTodayNoTime": "Departs today"
   },
   "team": {
     "title": "Team Members",

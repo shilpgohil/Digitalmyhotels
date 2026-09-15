@@ -76,10 +76,12 @@ async def test_full_lifecycle_booking_checkin_transfer_checkout(
     assert booking["status"] == "confirmed"
     assert Decimal(booking["total_amount"]) == 4000  # 2 nights x 2000
 
-    # Room became reserved.
+    # Redesign 15/09: reservation is DERIVED, not stored — the physical status
+    # stays available; the rooms list flags the arrival instead.
     rooms = await client.get("/api/v1/rooms?limit=200", headers=headers)
-    room_status = {r["id"]: r["status"] for r in rooms.json()["items"]}
-    assert room_status[room_ids[0]] == "reserved"
+    room_items = {r["id"]: r for r in rooms.json()["items"]}
+    assert room_items[room_ids[0]]["status"] == "available"
+    assert room_items[room_ids[0]]["arriving_today"] is True
 
     # Check in with a co-guest.
     co_guest_id = await _make_guest(client, headers, "9822222222")

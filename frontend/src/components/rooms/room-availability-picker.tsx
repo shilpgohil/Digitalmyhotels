@@ -193,6 +193,15 @@ function AvailableChip({
             : `Free at ${room.current_checkout_time}`}
         </span>
       )}
+      {/* Upcoming-booking hint (redesign 15/09): the room is free for the
+          REQUESTED dates but has a confirmed booking afterwards — spell it
+          out so a "busy-looking" room being offered never reads as a bug. */}
+      {room.next_booking_date && (
+        <span className="mt-0.5 flex items-center gap-0.5 text-micro font-medium text-gold-600">
+          <Clock className="size-2.5" aria-hidden />
+          {`Booked from ${fmtApiDateTime(room.next_booking_date, room.next_booking_time)} — free for your dates`}
+        </span>
+      )}
     </button>
   );
 }

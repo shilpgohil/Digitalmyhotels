@@ -115,11 +115,14 @@ async def test_replace_room_reprices_and_swaps_reservation(
     # Repriced to the new room type's base price.
     assert Decimal(out["total_amount"]) == 3500
 
-    # Old room released, new room reserved.
+    # Redesign 15/09: reservation is DERIVED — both rooms stay physically
+    # available; the arrival flag moved from the old room to the new one.
     rooms = await client.get("/api/v1/rooms?limit=100", headers=headers)
-    by_number = {r["room_number"]: r["status"] for r in rooms.json()["items"]}
-    assert by_number["501"] == "available"
-    assert by_number["502"] == "reserved"
+    by_number = {r["room_number"]: r for r in rooms.json()["items"]}
+    assert by_number["501"]["status"] == "available"
+    assert by_number["501"]["arriving_today"] is False
+    assert by_number["502"]["status"] == "available"
+    assert by_number["502"]["arriving_today"] is True
 
     # Check-in proceeds on the replacement room.
     checkin = await client.post(
@@ -251,15 +254,18 @@ async def test_missed_arrival_fires_once_and_keeps_room_reserved(
     assert await sweep_missed_arrivals(db_session, now_utc=late_now) == 1
     assert await sweep_missed_arrivals(db_session, now_utc=late_now) == 0
 
-    # The room is NOT auto-released; manual no-show does that.
+    # The booking is NOT auto-released; the room still shows as arriving today
+    # (derived from the confirmed booking) until a manual no-show clears it.
     rooms = await client.get("/api/v1/rooms?limit=100", headers=headers)
-    by_number = {r["room_number"]: r["status"] for r in rooms.json()["items"]}
-    assert by_number["508"] == "reserved"
+    by_number = {r["room_number"]: r for r in rooms.json()["items"]}
+    assert by_number["508"]["status"] == "available"
+    assert by_number["508"]["arriving_today"] is True
 
     no_show = await client.post(
         f"/api/v1/bookings/{booking['id']}/no-show", headers=headers
     )
     assert no_show.status_code == 200, no_show.text
     rooms = await client.get("/api/v1/rooms?limit=100", headers=headers)
-    by_number = {r["room_number"]: r["status"] for r in rooms.json()["items"]}
-    assert by_number["508"] == "available"
+    by_number = {r["room_number"]: r for r in rooms.json()["items"]}
+    assert by_number["508"]["status"] == "available"
+    assert by_number["508"]["arriving_today"] is False

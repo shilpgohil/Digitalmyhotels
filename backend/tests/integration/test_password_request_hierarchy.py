@@ -40,7 +40,10 @@ async def test_staff_request_routes_to_hotel_admin_and_completes_on_reset(
 ) -> None:
     staff_email, _ = hotel_a.credentials("housekeeping")
 
-    # Public request — same response whether or not the account exists.
+    # Known account → accepted. (Contract change, client 9-14: the response
+    # surfaces the registered phone so the new password can be sent there,
+    # which requires identifying the account — an unknown identifier is now
+    # an explicit 404 rather than the old anti-enumeration 200.)
     ok = await client.post(
         "/api/v1/auth/password-reset/request-admin",
         json={"identifier": staff_email},
@@ -50,8 +53,7 @@ async def test_staff_request_routes_to_hotel_admin_and_completes_on_reset(
         "/api/v1/auth/password-reset/request-admin",
         json={"identifier": f"ghost-{uuid4().hex[:8]}@example.org"},
     )
-    assert ghost.status_code == 200
-    assert ok.json() == ghost.json()
+    assert ghost.status_code == 404
 
     owner_headers = auth_headers(await login(client, *hotel_a.credentials("owner")))
     pending = await client.get("/api/v1/team/password-requests", headers=owner_headers)

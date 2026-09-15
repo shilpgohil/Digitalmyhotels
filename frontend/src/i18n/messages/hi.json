@@ -316,7 +316,18 @@
     "status_clean_ready": "साफ़ / तैयार",
     "status_inspection_required": "निरीक्षण आवश्यक",
     "status_maintenance": "रखरखाव",
-    "status_out_of_service": "सेवा से बाहर"
+    "status_out_of_service": "सेवा से बाहर",
+    "bucket_available": "उपलब्ध",
+    "bucket_reserved": "आरक्षित",
+    "bucket_occupied": "अधिकृत",
+    "bucket_cleaning": "सफ़ाई",
+    "bucket_maintenance": "रखरखाव",
+    "reservedToday": "आरक्षित (आज)",
+    "arrivesAt": "{time} बजे आगमन",
+    "arrivingToday": "आज आगमन",
+    "reservedFrom": "{date} से आरक्षित",
+    "departsToday": "आज {time} बजे प्रस्थान",
+    "departsTodayNoTime": "आज प्रस्थान"
   },
   "team": {
     "title": "टीम सदस्य",

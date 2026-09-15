@@ -40,7 +40,9 @@ import {
 } from "@/components/ui/table";
 import { StatusBadge, ROOM_STATUS_TONE } from "@/components/feedback/status-badge";
 import { useApi } from "@/lib/api/use-api";
+import { fmtApiDateTime } from "@/lib/formatting";
 import { invalidateRoomState } from "@/lib/query-invalidation";
+import { roomBucket, type RoomBucket } from "@/lib/room-buckets";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/client";
@@ -50,10 +52,11 @@ import { RequirePermission } from "@/components/auth/require-permission";
 
 /**
  * Stat cards shown above the room grid (per the "Room Status - Meridian Court"
- * figma). Colors/classes mirror the dashboard's stat-card row. `statuses` is
- * the group of room statuses counted by the card (null = all rooms), and
- * `filter` is the grid filter applied when the card is clicked — the same
- * status the matching filter chip uses ("all" clears the filter).
+ * figma). Counting uses the shared roomBucket() partition (redesign 15/09):
+ * "Reserved" = confirmed guest arrives TODAY on a physically-free room; a
+ * free room with only a future booking counts as Available (it IS sellable
+ * now) and carries a "Reserved from …" ribbon on its card instead. Buckets
+ * are a strict partition so the six cards always sum to the room total.
  */
 const STAT_CARDS: Array<{
   key: string;
@@ -61,25 +64,35 @@ const STAT_CARDS: Array<{
   labelNs: "rooms" | "dashboard";
   icon: React.ComponentType<{ className?: string }>;
   tone: StatCardTone;
-  statuses: RoomStatus[] | null;
-  filter: RoomStatus | "all";
+  bucket: RoomBucket | null;
+  filter: RoomBucket | "all";
 }> = [
-  { key: "total",       labelKey: "statTotal",   labelNs: "rooms",      icon: Building2, tone: "navy",    statuses: null,                                                                         filter: "all"             },
-  { key: "booked",      labelKey: "statBooked",  labelNs: "rooms",      icon: DoorClosed, tone: "danger", statuses: ["occupied"],                                                                 filter: "occupied"        },
-  { key: "available",   labelKey: "available",   labelNs: "dashboard",  icon: DoorOpen,   tone: "success",statuses: ["available", "clean_ready"],                                                 filter: "available"       },
-  { key: "reserved",    labelKey: "reserved",    labelNs: "dashboard",  icon: Bookmark,   tone: "info",   statuses: ["reserved"],                                                                 filter: "reserved"        },
-  { key: "cleaning",    labelKey: "cleaning",    labelNs: "dashboard",  icon: Sparkles,   tone: "warning",statuses: ["cleaning_required", "cleaning_in_progress", "inspection_required"],         filter: "cleaning_required"},
-  { key: "maintenance", labelKey: "maintenance", labelNs: "dashboard",  icon: Wrench,     tone: "navy2",  statuses: ["maintenance", "out_of_service"],                                            filter: "maintenance"     },
+  { key: "total",       labelKey: "statTotal",   labelNs: "rooms",      icon: Building2, tone: "navy",    bucket: null,          filter: "all"         },
+  { key: "booked",      labelKey: "statBooked",  labelNs: "rooms",      icon: DoorClosed, tone: "danger", bucket: "occupied",    filter: "occupied"    },
+  { key: "available",   labelKey: "available",   labelNs: "dashboard",  icon: DoorOpen,   tone: "success",bucket: "available",   filter: "available"   },
+  { key: "reserved",    labelKey: "reserved",    labelNs: "dashboard",  icon: Bookmark,   tone: "info",   bucket: "reserved",    filter: "reserved"    },
+  { key: "cleaning",    labelKey: "cleaning",    labelNs: "dashboard",  icon: Sparkles,   tone: "warning",bucket: "cleaning",    filter: "cleaning"    },
+  { key: "maintenance", labelKey: "maintenance", labelNs: "dashboard",  icon: Wrench,     tone: "navy2",  bucket: "maintenance", filter: "maintenance" },
 ];
 
-const GRID_FILTERS: Array<RoomStatus | "all"> = [
+const GRID_FILTERS: Array<RoomBucket | "all"> = [
   "all",
   "available",
   "reserved",
   "occupied",
-  "cleaning_required",
+  "cleaning",
   "maintenance",
 ];
+
+// Deep-link back-compat: dashboard cards / saved links may still use raw
+// statuses (?filter=cleaning_required). Map them onto the bucket filters.
+const LEGACY_FILTER_MAP: Record<string, RoomBucket> = {
+  cleaning_required: "cleaning",
+  cleaning_in_progress: "cleaning",
+  inspection_required: "cleaning",
+  clean_ready: "available",
+  out_of_service: "maintenance",
+};
 
 /**
  * Statuses a user may set manually — the single source of truth for BOTH the
@@ -95,6 +108,54 @@ const MANUAL_STATUSES: RoomStatus[] = [
   "maintenance",
   "out_of_service",
 ];
+
+/**
+ * Two-layer status display (redesign 15/09): physical badge + derived
+ * reservation ribbons, hour-accurate. Shared by grid tiles and table rows.
+ *  - Free room, guest arrives today  → "Reserved (Today)" badge + arrival time
+ *  - Free room, future booking       → physical badge + "Reserved from <date, time>"
+ *  - Occupied, guest departs today   → physical badge + "Departs today <time>"
+ */
+function RoomStatusCell({ room }: { readonly room: RoomOut }) {
+  const t = useTranslations("rooms");
+  const bucket = roomBucket(room);
+  // Derived reserved: physically free but today's guest is due — show the
+  // reservation as the primary badge (this is what "Reserved" now means).
+  const derivedReserved = bucket === "reserved";
+  return (
+    <div className="flex flex-col items-start gap-0.5">
+      {derivedReserved ? (
+        <StatusBadge tone={ROOM_STATUS_TONE.reserved}>{t("reservedToday")}</StatusBadge>
+      ) : (
+        <StatusBadge tone={ROOM_STATUS_TONE[room.status]}>
+          {t(`status_${room.status}`)}
+        </StatusBadge>
+      )}
+      {derivedReserved && (
+        <span className="text-micro font-medium text-info">
+          {room.arrival_time
+            ? t("arrivesAt", { time: room.arrival_time })
+            : t("arrivingToday")}
+        </span>
+      )}
+      {/* Future-booking ribbon — the room is sellable until that date. */}
+      {!room.arriving_today && room.next_booking_date && (
+        <span className="text-micro font-semibold text-gold-600">
+          {t("reservedFrom", {
+            date: fmtApiDateTime(room.next_booking_date, room.next_booking_time),
+          })}
+        </span>
+      )}
+      {room.departing_today && (
+        <span className="text-micro font-medium text-success">
+          {room.departure_time
+            ? t("departsToday", { time: room.departure_time })
+            : t("departsTodayNoTime")}
+        </span>
+      )}
+    </div>
+  );
+}
 
 /** Shared status-change menu items — identical options for grid and table views. */
 function RoomStatusMenuItems({
@@ -139,14 +200,16 @@ function RoomsContent() {
   const queryClient = useQueryClient();
   const { activeHotelId, can } = useAuth();
   const [view, setView] = useState<"grid" | "table">("grid");
-  // ?filter=<status> deep link — the dashboard's room-status cards land here
-  // pre-filtered (client 9-08 item 17).
-  const [gridFilter, setGridFilter] = useState<RoomStatus | "all">(() => {
+  // ?filter=<bucket> deep link — the dashboard's room-status cards land here
+  // pre-filtered (client 9-08 item 17). Legacy raw-status params are mapped.
+  const [gridFilter, setGridFilter] = useState<RoomBucket | "all">(() => {
     if (typeof window === "undefined") return "all";
     const param = new URLSearchParams(window.location.search).get("filter");
-    return param && GRID_FILTERS.includes(param as RoomStatus | "all")
-      ? (param as RoomStatus | "all")
-      : "all";
+    if (!param) return "all";
+    if (GRID_FILTERS.includes(param as RoomBucket | "all")) {
+      return param as RoomBucket | "all";
+    }
+    return LEGACY_FILTER_MAP[param] ?? "all";
   });
 
   const rooms = useQuery({
@@ -158,19 +221,20 @@ function RoomsContent() {
     refetchOnWindowFocus: true,
   });
 
-  /** Room counts per status, derived from the already-fetched rooms list. */
-  const statusCounts = useMemo(() => {
-    const counts: Partial<Record<RoomStatus, number>> = {};
+  /** Room counts per BUCKET (shared partition — redesign 15/09). */
+  const bucketCounts = useMemo(() => {
+    const counts: Partial<Record<RoomBucket, number>> = {};
     for (const room of rooms.data?.items ?? []) {
-      counts[room.status] = (counts[room.status] ?? 0) + 1;
+      const bucket = roomBucket(room);
+      counts[bucket] = (counts[bucket] ?? 0) + 1;
     }
     return counts;
   }, [rooms.data]);
 
-  const cardValue = (statuses: RoomStatus[] | null) =>
-    statuses === null
+  const cardValue = (bucket: RoomBucket | null) =>
+    bucket === null
       ? (rooms.data?.items.length ?? 0)
-      : statuses.reduce((sum, status) => sum + (statusCounts[status] ?? 0), 0);
+      : (bucketCounts[bucket] ?? 0);
 
   // Cross-page room-state invalidation (plan Part 6).
   const invalidate = () => invalidateRoomState(queryClient);
@@ -217,7 +281,7 @@ function RoomsContent() {
                   <StatCard
                     key={card.key}
                     label={label}
-                    value={rooms.data ? String(cardValue(card.statuses)) : "—"}
+                    value={rooms.data ? String(cardValue(card.bucket)) : "—"}
                     icon={card.icon}
                     tone={card.tone}
                     isLoading={rooms.isLoading}
@@ -236,7 +300,7 @@ function RoomsContent() {
               <SegmentedChips
                 options={GRID_FILTERS.map((filter) => ({
                   value: filter,
-                  label: filter === "all" ? t("filterAll") : t(`status_${filter}`),
+                  label: filter === "all" ? t("filterAll") : t(`bucket_${filter}`),
                 }))}
                 value={gridFilter}
                 onChange={setGridFilter}
@@ -281,14 +345,14 @@ function RoomsContent() {
                 {rooms.data &&
                   rooms.data.items.length > 0 &&
                   gridFilter !== "all" &&
-                  rooms.data.items.every((room) => room.status !== gridFilter) && (
+                  rooms.data.items.every((room) => roomBucket(room) !== gridFilter) && (
                     <p className="p-10 text-center text-sm text-muted-foreground">
-                      {t("noRoomsInStatus", { status: t(`status_${gridFilter}`) })}
+                      {t("noRoomsInStatus", { status: t(`bucket_${gridFilter}`) })}
                     </p>
                   )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
                   {rooms.data?.items
-                    .filter((room) => gridFilter === "all" || room.status === gridFilter)
+                    .filter((room) => gridFilter === "all" || roomBucket(room) === gridFilter)
                     .map((room) => (
                       <div
                         key={room.id}
@@ -315,9 +379,7 @@ function RoomsContent() {
                             </DropdownMenu>
                           )}
                         </div>
-                        <StatusBadge tone={ROOM_STATUS_TONE[room.status]}>
-                          {t(`status_${room.status}`)}
-                        </StatusBadge>
+                        <RoomStatusCell room={room} />
                         <span className="text-xs text-muted-foreground">
                           {room.room_type_name}
                         </span>
@@ -353,7 +415,7 @@ function RoomsContent() {
                   </TableHeader>
                   <TableBody>
                     {rooms.data.items
-                      .filter((room) => gridFilter === "all" || room.status === gridFilter)
+                      .filter((room) => gridFilter === "all" || roomBucket(room) === gridFilter)
                       .map((room) => (
                       <TableRow key={room.id}>
                         <TableCell className="font-medium">{room.room_number}</TableCell>
@@ -363,9 +425,7 @@ function RoomsContent() {
                           {room.amenities.join(", ") || "—"}
                         </TableCell>
                         <TableCell>
-                          <StatusBadge tone={ROOM_STATUS_TONE[room.status]}>
-                            {t(`status_${room.status}`)}
-                          </StatusBadge>
+                          <RoomStatusCell room={room} />
                         </TableCell>
                         <TableCell className="text-right">
                           {can(PERMISSIONS.roomsUpdateStatus) && (

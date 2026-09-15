@@ -109,6 +109,19 @@ export interface RoomOut {
   room_type_id: string;
   room_type_name: string | null;
   amenities: string[];
+  // ── Derived reservation context (room-status redesign, 15/09) ─────────────
+  /** A confirmed booking's stay window includes today (guest expected). */
+  arriving_today: boolean;
+  /** "HH:MM" expected arrival time for today's booking. */
+  arrival_time: string | null;
+  /** ISO date of the earliest FUTURE confirmed booking on this room. */
+  next_booking_date: string | null;
+  /** "HH:MM" check-in time of that future booking. */
+  next_booking_time: string | null;
+  /** Current in-house guest checks out today. */
+  departing_today: boolean;
+  /** "HH:MM" expected checkout time today. */
+  departure_time: string | null;
 }
 
 // ── Date-aware availability ───────────────────────────────────────────────────
@@ -130,6 +143,11 @@ export interface RoomAvailableItem {
   current_checkout_date: string | null;
   /** For currently-occupied rooms: "HH:MM" checkout time (hotel local time). */
   current_checkout_time: string | null;
+  /** Next confirmed booking starting on/after the requested checkout —
+      "Booked from Sep 24, 14:00 — free for your dates". */
+  next_booking_date: string | null;
+  /** "HH:MM" check-in time of that next booking. */
+  next_booking_time: string | null;
 }
 
 export type UnavailableReason =

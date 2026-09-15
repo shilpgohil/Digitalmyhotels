@@ -36,6 +36,93 @@ _FREEING_STATUSES = frozenset(
 )
 
 
+async def hotel_today(db: AsyncSession, hotel_id: UUID) -> date:
+    """Today's date in the HOTEL's timezone (server runs UTC; a same-day
+    decision made between 00:00–05:30 IST would otherwise use yesterday)."""
+    from datetime import datetime as _dt
+    from zoneinfo import ZoneInfo as _Zi
+
+    from app.models.hotel import Hotel as _Hotel
+
+    tz_name = await db.scalar(select(_Hotel.timezone).where(_Hotel.id == hotel_id))
+    return _dt.now(_Zi(tz_name or "Asia/Kolkata")).date()
+
+
+class _BookingContext:
+    """Per-room derived reservation facts (room-status redesign, plan 15/09)."""
+
+    __slots__ = (
+        "arriving_today",
+        "arrival_time",
+        "next_booking_date",
+        "next_booking_time",
+        "departing_today",
+        "departure_time",
+    )
+
+    def __init__(self) -> None:
+        self.arriving_today = False
+        self.arrival_time: str | None = None
+        self.next_booking_date: date | None = None
+        self.next_booking_time: str | None = None
+        self.departing_today = False
+        self.departure_time: str | None = None
+
+
+async def _booking_context(
+    db: AsyncSession, hotel_id: UUID, today: date
+) -> dict[UUID, _BookingContext]:
+    """One batched query: derive per-room reservation context from bookings.
+
+    - arriving_today: a CONFIRMED booking whose stay window includes today
+      (check_in <= today < effective checkout — covers late arrivals too).
+    - next_booking: the earliest confirmed booking starting AFTER today.
+    - departing_today: the current CHECKED-IN guest checks out today.
+    Reservation state is always derived — never stored on the room — so it
+    can never drift (multiple bookings, cancellations, edits all re-derive).
+    """
+    rows = await db.execute(
+        select(
+            BookingRoom.room_id,
+            Booking.status,
+            Booking.check_in_date,
+            Booking.check_in_time,
+            Booking.check_out_date,
+            Booking.check_out_time,
+        )
+        .join(Booking, Booking.id == BookingRoom.booking_id)
+        .where(
+            BookingRoom.hotel_id == hotel_id,
+            BookingRoom.is_current.is_(True),
+            Booking.status.in_(("confirmed", "checked_in")),
+            # Anything already fully in the past is irrelevant.
+            Booking.check_out_date >= today,
+        )
+    )
+    ctx: dict[UUID, _BookingContext] = {}
+    for room_id, status, ci_date, ci_time, co_date, co_time in rows.all():
+        c = ctx.setdefault(room_id, _BookingContext())
+        if status == "checked_in":
+            if co_date == today:
+                c.departing_today = True
+                c.departure_time = co_time
+            continue
+        # status == "confirmed" (not yet checked in)
+        # Day-use bookings have check_out == check_in; they still hold today.
+        effective_out = max(co_date, ci_date)
+        if ci_date <= today <= effective_out:
+            c.arriving_today = True
+            # Earliest arrival wins if several bookings arrive today.
+            if c.arrival_time is None or (ci_time or "99:99") < (c.arrival_time or "99:99"):
+                c.arrival_time = ci_time
+        elif ci_date > today and (
+            c.next_booking_date is None or ci_date < c.next_booking_date
+        ):
+            c.next_booking_date = ci_date
+            c.next_booking_time = ci_time
+    return ctx
+
+
 async def has_in_house_guest(
     db: AsyncSession, hotel_id: UUID, room_id: UUID
 ) -> bool:
@@ -60,7 +147,7 @@ async def has_in_house_guest(
     return result.scalar_one_or_none() is not None
 
 
-def _room_out(room: Room) -> RoomOut:
+def _room_out(room: Room, ctx: _BookingContext | None = None) -> RoomOut:
     return RoomOut(
         id=room.id,
         room_number=room.room_number,
@@ -74,6 +161,12 @@ def _room_out(room: Room) -> RoomOut:
         room_type_id=room.room_type_id,
         room_type_name=room.room_type.name if room.room_type else None,
         amenities=[a.name for a in room.amenities],
+        arriving_today=ctx.arriving_today if ctx else False,
+        arrival_time=ctx.arrival_time if ctx else None,
+        next_booking_date=ctx.next_booking_date if ctx else None,
+        next_booking_time=ctx.next_booking_time if ctx else None,
+        departing_today=ctx.departing_today if ctx else False,
+        departure_time=ctx.departure_time if ctx else None,
     )
 
 
@@ -196,7 +289,13 @@ async def list_rooms(
         .limit(limit)
         .offset(offset)
     )
-    return [_room_out(r) for r in result.scalars().all()], total
+    rooms = list(result.scalars().all())
+
+    # Derived reservation context (arriving today / next booking / departing) —
+    # one batched query, hotel-local today (plan 15/09 room-status redesign).
+    today = await hotel_today(db, hotel_id)
+    ctx = await _booking_context(db, hotel_id, today)
+    return [_room_out(r, ctx.get(r.id)) for r in rooms], total
 
 
 async def get_room(db: AsyncSession, tenant: TenantContext, room_id: UUID) -> Room:
@@ -462,15 +561,7 @@ async def check_availability(
     # "Today" in the HOTEL's timezone (plan §5.2 / scenario S5): the server
     # runs on UTC, so date.today() would mis-classify same-day stays between
     # midnight and 05:30 IST. Same pattern as the attendance module.
-    from datetime import datetime as _dt
-    from zoneinfo import ZoneInfo as _Zi
-
-    from app.models.hotel import Hotel as _Hotel
-
-    hotel_tz_name = await db.scalar(
-        select(_Hotel.timezone).where(_Hotel.id == hotel_id)
-    )
-    today_local = _dt.now(_Zi(hotel_tz_name or "Asia/Kolkata")).date()
+    today_local = await hotel_today(db, hotel_id)
 
     # Step 1: all active rooms (eager-load type + amenities in one go)
     rooms_result = await db.execute(
@@ -536,6 +627,50 @@ async def check_availability(
     overlaps: dict[UUID, tuple[date, int]] = {
         row.room_id: (row.free_from, row.booking_count) for row in overlap_rows
     }
+
+    # Step 2b: for rooms free for the requested window, find the NEXT confirmed
+    # booking starting on/after the requested checkout so the picker can show
+    # "Booked from Sep 24, 14:00 — free for your dates" (redesign plan §4.3).
+    next_stmt = (
+        select(
+            BookingRoom.room_id,
+            func.min(Booking.check_in_date).label("next_ci"),
+        )
+        .join(Booking, Booking.id == BookingRoom.booking_id)
+        .where(
+            BookingRoom.hotel_id == hotel_id,
+            BookingRoom.is_current.is_(True),
+            Booking.status == "confirmed",
+            Booking.check_in_date >= effective_out,
+        )
+        .group_by(BookingRoom.room_id)
+    )
+    next_dates: dict[UUID, date] = {
+        row.room_id: row.next_ci for row in (await db.execute(next_stmt)).all()
+    }
+    # Fetch the check-in TIME of those next bookings (hour accuracy) in one go.
+    next_times: dict[UUID, str | None] = {}
+    if next_dates:
+        time_rows = await db.execute(
+            select(
+                BookingRoom.room_id,
+                Booking.check_in_date,
+                Booking.check_in_time,
+            )
+            .join(Booking, Booking.id == BookingRoom.booking_id)
+            .where(
+                BookingRoom.hotel_id == hotel_id,
+                BookingRoom.is_current.is_(True),
+                Booking.status == "confirmed",
+                Booking.check_in_date >= effective_out,
+            )
+        )
+        for room_id, ci_date, ci_time in time_rows.all():
+            if next_dates.get(room_id) == ci_date:
+                # Earliest time wins when several bookings start that day.
+                cur = next_times.get(room_id)
+                if cur is None or (ci_time or "99:99") < (cur or "99:99"):
+                    next_times[room_id] = ci_time
 
     available: list[RoomAvailableItem] = []
     unavailable: list[RoomUnavailableItem] = []
@@ -629,6 +764,8 @@ async def check_availability(
                 **item_data,
                 current_checkout_date=co_date,
                 current_checkout_time=co_time,
+                next_booking_date=next_dates.get(room.id),
+                next_booking_time=next_times.get(room.id),
             ))
 
     # Sort unavailable: "booked" rooms by earliest free date first

@@ -91,6 +91,7 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { fmtApiDate, fmtINR, localToday } from "@/lib/formatting";
 import { PERMISSIONS, canSeeFinanceMetrics } from "@/lib/permissions";
+import { roomBucket, type RoomBucket } from "@/lib/room-buckets";
 import { cn } from "@/lib/utils";
 import type { CurrentGuestOut } from "@/types/stay";
 
@@ -186,15 +187,15 @@ const ROOM_CARDS: Array<{
   labelKey: string;
   icon: React.ElementType;
   tone: StatCardTone;
-  statuses: string[] | null;
+  bucket: RoomBucket | null;
   filter: string;
 }> = [
-  { key: "total",       labelNs: "rooms",     labelKey: "statTotal",  icon: Building2, tone: "navy",    statuses: null,                                                                        filter: "all"              },
-  { key: "booked",      labelNs: "rooms",     labelKey: "statBooked", icon: DoorClosed, tone: "danger", statuses: ["occupied"],                                                                filter: "occupied"         },
-  { key: "available",   labelNs: "dashboard", labelKey: "available",  icon: DoorOpen,   tone: "success",statuses: ["available", "clean_ready"],                                                filter: "available"        },
-  { key: "reserved",    labelNs: "dashboard", labelKey: "reserved",   icon: Bookmark,   tone: "info",   statuses: ["reserved"],                                                                filter: "reserved"         },
-  { key: "cleaning",    labelNs: "dashboard", labelKey: "cleaning",   icon: Sparkles,   tone: "warning",statuses: ["cleaning_required", "cleaning_in_progress", "inspection_required"],        filter: "cleaning_required"},
-  { key: "maintenance", labelNs: "dashboard", labelKey: "maintenance",icon: Wrench,     tone: "navy2",  statuses: ["maintenance", "out_of_service"],                                           filter: "maintenance"      },
+  { key: "total",       labelNs: "rooms",     labelKey: "statTotal",  icon: Building2, tone: "navy",    bucket: null,          filter: "all"         },
+  { key: "booked",      labelNs: "rooms",     labelKey: "statBooked", icon: DoorClosed, tone: "danger", bucket: "occupied",    filter: "occupied"    },
+  { key: "available",   labelNs: "dashboard", labelKey: "available",  icon: DoorOpen,   tone: "success",bucket: "available",   filter: "available"   },
+  { key: "reserved",    labelNs: "dashboard", labelKey: "reserved",   icon: Bookmark,   tone: "info",   bucket: "reserved",    filter: "reserved"    },
+  { key: "cleaning",    labelNs: "dashboard", labelKey: "cleaning",   icon: Sparkles,   tone: "warning",bucket: "cleaning",    filter: "cleaning"    },
+  { key: "maintenance", labelNs: "dashboard", labelKey: "maintenance",icon: Wrench,     tone: "navy2",  bucket: "maintenance", filter: "maintenance" },
 ];
 
 function RoomStatusCards() {
@@ -205,7 +206,10 @@ function RoomStatusCards() {
 
   const rooms = useQuery({
     queryKey: ["rooms", activeHotelId],
-    queryFn: () => api<{ items: { status: string }[] }>("/api/v1/rooms?limit=200"),
+    queryFn: () =>
+      api<{ items: { status: string; arriving_today?: boolean }[] }>(
+        "/api/v1/rooms?limit=200",
+      ),
     enabled: !!activeHotelId && can(PERMISSIONS.roomsView),
     staleTime: 30_000,
     refetchInterval: 60_000,
@@ -213,14 +217,15 @@ function RoomStatusCards() {
 
   if (!can(PERMISSIONS.roomsView)) return null;
 
-  const counts: Record<string, number> = {};
+  // Shared bucket partition (redesign 15/09) — identical to Room Status page,
+  // so the dashboard chips and the grid can never disagree.
+  const counts: Partial<Record<RoomBucket, number>> = {};
   for (const room of rooms.data?.items ?? []) {
-    counts[room.status] = (counts[room.status] ?? 0) + 1;
+    const bucket = roomBucket(room);
+    counts[bucket] = (counts[bucket] ?? 0) + 1;
   }
-  const value = (statuses: string[] | null) =>
-    statuses === null
-      ? (rooms.data?.items.length ?? 0)
-      : statuses.reduce((sum, s) => sum + (counts[s] ?? 0), 0);
+  const value = (bucket: RoomBucket | null) =>
+    bucket === null ? (rooms.data?.items.length ?? 0) : (counts[bucket] ?? 0);
 
   return (
     <StatCardGrid cols={6}>
@@ -230,7 +235,7 @@ function RoomStatusCards() {
           <StatCard
             key={card.key}
             label={label}
-            value={rooms.isLoading ? "—" : String(value(card.statuses))}
+            value={rooms.isLoading ? "—" : String(value(card.bucket))}
             icon={card.icon as React.ComponentType<{ className?: string }>}
             tone={card.tone}
             isLoading={rooms.isLoading}
