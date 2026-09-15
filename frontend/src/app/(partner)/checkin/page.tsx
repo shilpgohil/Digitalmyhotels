@@ -4758,7 +4758,11 @@ function ArrivalsStrip({
 
 // ─── Page content ─────────────────────────────────────────────────────────────
 
-const CHECKIN_SESSION_KEY = "dmh.checkin.selectedBookingId";
+/** Hotel-scoped (plan §1.2): the selected-booking hand-off must never survive a
+ *  hotel switch in the same tab. The id was already validated against the
+ *  current hotel's booking list, but scoping the key removes the class. */
+const checkinSessionKey = (hotelId: string | null) =>
+  `dmh.checkin.selectedBookingId:${hotelId ?? "none"}`;
 
 function CheckinContent() {
   const t = useTranslations("checkin");
@@ -4776,7 +4780,7 @@ function CheckinContent() {
     // ?booking=<id> lets other pages (e.g. Advance Bookings) deep-link into
     // the check-in form for a specific booking.
     const fromUrl = new URLSearchParams(window.location.search).get("booking");
-    return fromUrl ?? sessionStorage.getItem(CHECKIN_SESSION_KEY);
+    return fromUrl ?? sessionStorage.getItem(checkinSessionKey(activeHotelId));
   });
 
   // Clean ?new=1 / ?booking= from URL after reading them (prevents re-opening
@@ -4817,7 +4821,7 @@ function CheckinContent() {
     const match = bookings.data.items.find((b) => b.id === pendingBookingId);
     if (match) setSelectedBooking(match);
     setPendingBookingId(null);
-    sessionStorage.removeItem(CHECKIN_SESSION_KEY);
+    sessionStorage.removeItem(checkinSessionKey(activeHotelId));
   }, [pendingBookingId, bookings.data]);
 
   const invalidate = () => {
@@ -4835,11 +4839,11 @@ function CheckinContent() {
           <CheckinForm
             booking={selectedBooking}
             onBack={() => {
-              sessionStorage.removeItem(CHECKIN_SESSION_KEY);
+              sessionStorage.removeItem(checkinSessionKey(activeHotelId));
               setSelectedBooking(null);
             }}
             onDone={() => {
-              sessionStorage.removeItem(CHECKIN_SESSION_KEY);
+              sessionStorage.removeItem(checkinSessionKey(activeHotelId));
               setSelectedBooking(null);
               invalidate();
             }}
@@ -4861,7 +4865,7 @@ function CheckinContent() {
             defaultInTime={defaultInTime}
             defaultOutTime={defaultOutTime}
             onSelect={(booking) => {
-              sessionStorage.setItem(CHECKIN_SESSION_KEY, booking.id);
+              sessionStorage.setItem(checkinSessionKey(activeHotelId), booking.id);
               setSelectedBooking(booking);
             }}
           />
