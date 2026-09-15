@@ -292,6 +292,18 @@ async def self_check_in(
         )
         db.add(record)
 
+    # SECURITY (plan §1.6): the selfie key is client-supplied — accept ONLY keys
+    # produced by upload_selfie for THIS hotel and THIS user. Without this check
+    # a leaked/guessed key from another hotel could be attached here and later
+    # served to this hotel's managers (cross-tenant file read).
+    selfie_key = body.selfie_key
+    if selfie_key is not None:
+        expected_prefix = f"hotels/{hotel.id}/staff/selfies/{profile.user_id}/"
+        if not selfie_key.startswith(expected_prefix):
+            raise ValidationAppError(
+                "Invalid selfie reference", code="invalid_selfie_key"
+            )
+
     _apply_check_in(
         record,
         profile,
@@ -303,7 +315,7 @@ async def self_check_in(
         lng=body.lng,
         accuracy_m=body.accuracy_m,
         distance_m=distance,
-        selfie_key=body.selfie_key,
+        selfie_key=selfie_key,
     )
     await db.flush()
 

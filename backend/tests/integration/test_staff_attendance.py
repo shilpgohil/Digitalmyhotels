@@ -173,6 +173,22 @@ async def test_geofence_blocks_far_checkin_and_allows_near(
     assert r.json()["check_out_at"] is not None
 
 
+async def test_checkin_rejects_foreign_selfie_key(
+    client: AsyncClient, hotel_a: HotelFixture
+):
+    """SECURITY (plan §1.6): a client-supplied selfie key that does not belong
+    to this hotel+user must be rejected — otherwise a leaked key from another
+    hotel could be attached and later served cross-tenant."""
+    manager = await _h(client, hotel_a, "manager")
+    r = await client.post(
+        "/api/v1/staff/attendance/check-in",
+        headers=manager,
+        json={"selfie_key": "hotels/00000000-0000-0000-0000-00000000beef/staff/selfies/x/y.jpg"},
+    )
+    assert r.status_code == 422, r.text
+    assert "invalid_selfie_key" in r.text
+
+
 async def test_self_today_state_machine(client: AsyncClient, hotel_a: HotelFixture):
     admin = await _h(client, hotel_a, "admin")
     r = await client.get("/api/v1/staff/me/attendance/today", headers=admin)
