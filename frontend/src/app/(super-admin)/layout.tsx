@@ -25,7 +25,12 @@ export default function SuperAdminLayout({ children }: { readonly children: Reac
         {/* Main content */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <AdminHeader />
-          <PageTransition id="main-content" className="flex-1 overflow-y-auto">
+          {/* min-h-0: flex-1 alone doesn't prevent an item growing past its
+              allocated height (min-height defaults to auto). Without min-h-0
+              the PageTransition div expands to its content height and
+              overflow-y-auto never triggers → content spills into the
+              outer container → double scrollbar (client screenshot 63563463). */}
+          <PageTransition id="main-content" className="flex-1 min-h-0 overflow-y-auto">
             {children}
           </PageTransition>
         </div>

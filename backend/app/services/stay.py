@@ -1288,6 +1288,28 @@ async def reverse_checkout(
             )
         room.status = RoomStatus.OCCUPIED.value
 
+        # Cancel open housekeeping tasks that were created at checkout.
+        # Without this, room.status = OCCUPIED but housekeeping still shows
+        # "Cleaning Required" — the mismatch the client reported (screenshot
+        # 63535942, "Wrong").  We cancel ALL open tasks for this room because
+        # the guest is back; any stayover cleans will be re-requested if needed.
+        from app.models.ops import HousekeepingTask as _HKTask
+        from app.services.housekeeping import _OPEN_TASK_STATUSES as _OPEN_HK
+
+        stale_hk = await db.execute(
+            select(_HKTask).where(
+                _HKTask.hotel_id == hotel_id,
+                _HKTask.room_id == room.id,
+                _HKTask.status.in_(_OPEN_HK),
+            )
+        )
+        for hk_task in stale_hk.scalars():
+            hk_task.status = "cancelled"
+            hk_task.completed_at = _now()
+            hk_task.notes = (
+                f"{hk_task.notes} | " if hk_task.notes else ""
+            ) + "Auto-cancelled: checkout reversed"
+
     checkout.is_reversed = True
     checkout.reversed_at = _now()
     checkout.reverse_reason = reason

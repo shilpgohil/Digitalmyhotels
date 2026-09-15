@@ -136,17 +136,14 @@ function RoomRow({
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">{t("roomType")}</Label>
-          <select
+          {/* Free-text so any room type name can be entered — the dropdown had
+              hardcoded options that caused "Room Type Missing" when a hotel uses
+              a custom type (client screenshot 63563159). */}
+          <Input
             value={entry.room_type}
             onChange={(e) => onChange(idx, "room_type", e.target.value)}
-            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
-          >
-            <option value="">—</option>
-            <option value="Deluxe Suite">Deluxe Suite</option>
-            <option value="Standard Double">Standard Double</option>
-            <option value="Standard Single">Standard Single</option>
-            <option value="Premium Suite">Premium Suite</option>
-          </select>
+            placeholder="e.g. Deluxe Suite"
+          />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">{t("bedType")}</Label>
@@ -286,6 +283,7 @@ export default function AddHotelPage() {
   }, []);
 
   const mutation = useMutation({
+    onMutate: () => setError(null),   // clear stale error banner before each attempt
     mutationFn: async () => {
       const failedSteps: string[] = [];
 
@@ -372,32 +370,47 @@ export default function AddHotelPage() {
         }
       }
 
-      // Step 4 (optional): create room type + rooms
+      // Step 4 (optional): create room types + rooms.
+      // Each unique type name gets its own RoomType record so that e.g.
+      // "Deluxe Suite" and "Standard Double" don't collapse to one type
+      // (old bug: a single hardcoded "STD" code was used for every room).
       const validRooms = rooms.filter((r) => r.room_number.trim() && r.room_type.trim());
       if (validRooms.length > 0) {
         try {
-          const rt = await apiFetch<{ id: string }>("/api/v1/rooms/types", {
-            method: "POST",
-            body: {
-              code: "STD",
-              name: validRooms[0].room_type || "Standard",
-              base_price: "1000.00",
-              max_occupancy: Math.max(...validRooms.map((r) => r.max_adults + r.max_children)),
-            },
-            hotelId: hotel.id,
-          });
+          // Group by type name (preserves insertion order)
+          const byType = new Map<string, RoomEntry[]>();
           for (const room of validRooms) {
-            await apiFetch("/api/v1/rooms", {
+            const name = room.room_type.trim() || "Standard";
+            if (!byType.has(name)) byType.set(name, []);
+            byType.get(name)!.push(room);
+          }
+          let typeIdx = 0;
+          for (const [typeName, typeRooms] of byType) {
+            // Slugify into a unique code (spaces → underscore, uppercase).
+            const code = `T${typeIdx++}_${typeName.slice(0, 8).replace(/\s+/g, "_").toUpperCase()}`;
+            const rt = await apiFetch<{ id: string }>("/api/v1/rooms/types", {
               method: "POST",
               body: {
-                room_number: room.room_number,
-                room_type_id: rt.id,
-                bed_type: room.bed_type || null,
-                max_adults: room.max_adults,
-                max_children: room.max_children,
+                code,
+                name: typeName,
+                base_price: "1000.00",
+                max_occupancy: Math.max(...typeRooms.map((r) => r.max_adults + r.max_children)),
               },
               hotelId: hotel.id,
             });
+            for (const room of typeRooms) {
+              await apiFetch("/api/v1/rooms", {
+                method: "POST",
+                body: {
+                  room_number: room.room_number,
+                  room_type_id: rt.id,
+                  bed_type: room.bed_type || null,
+                  max_adults: room.max_adults,
+                  max_children: room.max_children,
+                },
+                hotelId: hotel.id,
+              });
+            }
           }
         } catch {
           failedSteps.push(t("roomInventorySetup"));
@@ -513,10 +526,10 @@ export default function AddHotelPage() {
   };
 
   return (
-    // pb-44: the fixed action bar must never cover the last section
-    // (client 09/2026: "cut bottom part — increase padding"; bumped from
-    // pb-32 → pb-44 after continued reports of the last section being cut).
-    <main className="p-4 space-y-4 max-w-3xl mx-auto !pb-44 sm:p-6">
+    // pb-24 (96px): enough clearance for the 66px fixed action bar + safe area.
+    // Was !pb-44 (176px) which created a large visible blank white space between
+    // the last section and the footer (client screenshot 63563463 "Remove spacing").
+    <main className="p-4 space-y-4 max-w-3xl mx-auto !pb-24 sm:p-6">
       {/* Page title */}
       <div>
         <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t("addNewHotel")}</h1>
