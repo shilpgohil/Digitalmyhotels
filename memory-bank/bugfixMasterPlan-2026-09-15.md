@@ -64,6 +64,12 @@ Backend is fundamentally tenant-scoped (good), but add `hotel_id` filters at:
 - **Fix plan:** on save, require `selfie_key.startswith(f"hotels/{hotel_id}/")`
   (ideally the full staff-selfies prefix); reject otherwise. Add test.
 
+### 1.8 Hotel switch mid-form submits under the wrong hotel (found in scenario pass)
+- Switching hotels does not unmount pages: dirty form state (check-in fields, room
+  selections) survives and can be submitted under the NEW hotel's X-Hotel-Id.
+- **Fix plan:** key the partner layout on `activeHotelId` so every page remounts on
+  switch. See scenario S6.
+
 ### 1.7 Cross-hotel guest search — the ONE intended data share (client-reported)
 - Today `guests.search_guests` filters `Guest.hotel_id == hotel_id` — cross-hotel
   search doesn't exist, which is the client's "other hotel customer detail search not
@@ -403,6 +409,75 @@ the partner plan page, and the ref shown in the super admin approval UI.
 | Remove spacing + one scroll | 10.7 |
 | Auto-checkout next day | 10.8 (Q9) |
 | Two modals open | 10.9 |
+
+## CROSS-VERIFICATION RESULTS (claims re-checked first-hand, 15/09 12:40)
+
+Audit claims are NOT blindly trusted — each load-bearing one was re-verified in code:
+
+| Claim | Verdict |
+|---|---|
+| `queryClient.clear()` on hotel switch exists | ✅ TRUE (`partner-header.tsx` L71) — mitigates unscoped query keys on switch; localStorage NOT cleared, so draft leak stands |
+| Refund only reduces advance, never deposit | ✅ CONFIRMED (`payments.py` L431 vs L459) — real money bug |
+| Selfie key stored verbatim + served unchecked | ✅ CONFIRMED (`attendance.py` L306→L210, serve L1099) — real cross-tenant read |
+| Booking totals exclude GST | ✅ CONFIRMED (`bookings.py` L216, L467, L657, L792) — drift with GST-aware checkout/invoice is real |
+| `update_booking`/`cancel_booking` skip expiry check | ✅ CONFIRMED — no `assert_transactions_allowed` |
+| sessionStorage booking-id leak (audit 1.2 HIGH) | ⚠️ DOWNGRADED TO LOW — stored id is matched against the CURRENT hotel's booking list before use (`checkin/page.tsx` L4786); a foreign id resolves to nothing. Fix stays (hygiene) but not urgent |
+| `mark_read` cross-tenant (audit #7 MEDIUM) | ⚠️ DOWNGRADED TO LOW — Python checks block cross-hotel rows; only rows with BOTH `user_id` and `hotel_id` NULL are exposed, and no code path creates such rows today. SQL-level scoping stays as defence-in-depth |
+
+## CROSS-CUTTING SCENARIO MATRIX (product-level stress test of the plan)
+
+**S1 — Expired hotel WITH in-house guests (CHANGES Part 2 design).**
+Blanket blocking at expiry+grace would trap checked-in guests: no checkout, no due
+collection, no invoice. Revised Part 2 design — expiry blocks by OPERATION CLASS:
+- BLOCKED: new bookings, advance bookings, check-ins, new charges on new stays,
+  staff creation, settings changes.
+- ALLOWED (wind-down): checkout of existing in-house stays, payment collection and
+  invoice generation for those stays, read access everywhere.
+- The expired overlay reflects this: "You can complete current guest checkouts;
+  renew to resume operations."
+This also protects the auto-checkout job (10.8) from expiry blocking.
+
+**S2 — Mobile view.** Sidebar reorder (8.5) propagates automatically (mobile drawer
+renders the same PartnerNav); mobile tab bar priority list untouched. Expired overlay:
+full-screen, scroll-behind locked, tested at 360px. Plans-page centering verified in
+stacked mobile layout. Room picker "coming free" section must remain visible on
+mobile when same-day blocking moves rooms there. ID viewer 2×: initial scale only —
+pinch gestures keep working. Idle logout must use a last-activity TIMESTAMP compared
+on visibilitychange/focus (not a plain setTimeout — mobile browsers freeze timers in
+background, which would otherwise never fire or fire wrongly on return). Draft doc
+uploads reuse the existing compress helpers before upload (mobile data).
+
+**S3 — Concurrency.** Room double-booking: `_lock_rooms` verified present on
+create/replace/add. Team limit enforcement must count members INSIDE the insert
+transaction (lock the hotel row) or two simultaneous adds can exceed the cap.
+Housekeeping/reception cross-device staleness: covered by 30s polling + focus
+refetch (Part 6). Drafts stay per-browser by design (two devices never shared them);
+server-side drafts are a possible future upgrade, out of scope now.
+
+**S4 — Object storage.** Phase-1 GATE: production must be on B2 (health check) BEFORE
+shipping draft-document uploads (4.2), or draft docs get lost like the Aadhaar photos.
+The selfie-key prefix validation pattern (1.6) must be applied to EVERY client-supplied
+object key (grep `_key` fields in all request schemas at implementation time).
+Draft-doc sweeps (30-day orphan cleanup) prevent B2 bloat.
+
+**S5 — Timezone.** Auto-checkout job (10.8) and "Expires in Nd" badges compute in the
+HOTEL's timezone using the established localYmd pattern (attendance module precedent).
+Never toISOString for calendar dates (known past bug class).
+
+**S6 — Hotel switch mid-form (NEW finding → added as Part 1.8).**
+Switching hotels in the header does NOT unmount the current page: React form state
+(check-in guest fields, selected rooms) survives the switch, so a form filled under
+Hotel A could be SUBMITTED under Hotel B's X-Hotel-Id. Plan: key the partner layout
+content on `activeHotelId` (remount on switch) — one-line structural fix, verify no
+lost-work complaints (acceptable: switching hotels mid-form is abandoning the form).
+
+**S7 — Offline/flaky network.** Local text drafts keep working offline. Draft DOC
+uploads require network: restore must tolerate missing/failed doc objects (placeholder
+tile + re-upload prompt), never block restore of the text data.
+
+**S8 — Migration safety.** Team-limit: hotels already over cap keep members (no
+deletions). Invoice numbers: never renumbered. Draft migration: one-time adoption,
+documented. All new columns nullable-or-defaulted (zero-downtime deploys on Render).
 
 ## Phasing & verification
 
