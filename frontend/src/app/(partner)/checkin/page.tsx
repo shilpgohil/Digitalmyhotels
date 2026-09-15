@@ -195,10 +195,19 @@ function buildForeignGuestPayload(
 // ─── Walk-in drafts (localStorage) ───────────────────────────────────────────
 // Multiple drafts are kept (client 09/2026: "only the last draft stays" was a
 // bug — every saved draft must survive until restored+checked-in or discarded).
+//
+// TENANT ISOLATION (client 15/09/2026, plan §1.1): drafts are stored PER HOTEL.
+// The old v2/v1 keys were global — drafts from Hotel A appeared under Hotel B on
+// the same browser. v3 keys embed the hotel id; on first read for a hotel, any
+// remaining GLOBAL drafts are adopted into that hotel once (they were almost
+// certainly created there — single-hotel devices are the normal case) and the
+// global keys are deleted so no other hotel can ever see them.
 
-const DRAFTS_KEY = "dmh.checkinDrafts.v2";
-/** Pre-multi-draft key — migrated into the list on first read. */
-const LEGACY_DRAFT_KEY = "dmh.checkinDraft.v1";
+/** Hotel-scoped drafts key (v3). */
+const draftsKey = (hotelId: string) => `dmh.checkinDrafts.v3:${hotelId}`;
+/** Pre-isolation GLOBAL keys — migrated into the active hotel's v3 list once. */
+const GLOBAL_DRAFTS_KEY_V2 = "dmh.checkinDrafts.v2";
+const GLOBAL_DRAFT_KEY_V1 = "dmh.checkinDraft.v1";
 const MAX_DRAFTS = 10;
 
 /** Serialized walk-in form state saved to localStorage via "Save Draft". */
@@ -248,38 +257,55 @@ function draftId(): string {
     : `d-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/** Read ALL saved drafts (newest first), migrating any legacy single draft. */
-function readDrafts(): CheckinDraft[] {
+/** Parse a stored draft list, tolerating corrupt/legacy shapes. */
+function parseDraftList(raw: string | null): CheckinDraft[] {
+  if (!raw) return [];
   try {
-    const raw = localStorage.getItem(DRAFTS_KEY);
-    let list: CheckinDraft[] = raw ? (JSON.parse(raw) as CheckinDraft[]) : [];
-    if (!Array.isArray(list)) list = [];
-
-    // One-time migration: the old single-draft key joins the list.
-    const legacyRaw = localStorage.getItem(LEGACY_DRAFT_KEY);
-    if (legacyRaw) {
-      try {
-        const legacy = JSON.parse(legacyRaw) as CheckinDraft;
-        legacy.id = legacy.id ?? draftId();
-        list.push(legacy);
-      } catch {
-        // corrupt legacy draft — drop it
-      }
-      localStorage.removeItem(LEGACY_DRAFT_KEY);
-      localStorage.setItem(DRAFTS_KEY, JSON.stringify(list));
-    }
-
-    // Backfill ids for any old entries so per-draft discard always works.
-    for (const d of list) d.id = d.id ?? draftId();
-    return list;
+    const list = JSON.parse(raw) as CheckinDraft[];
+    return Array.isArray(list) ? list : [];
   } catch {
     return [];
   }
 }
 
-function writeDrafts(list: CheckinDraft[]): void {
+/** Read the ACTIVE HOTEL's drafts (newest first), adopting any pre-isolation
+ *  global drafts into this hotel exactly once (plan §1.1 migration). */
+function readDrafts(hotelId: string | null): CheckinDraft[] {
+  if (!hotelId) return [];
   try {
-    localStorage.setItem(DRAFTS_KEY, JSON.stringify(list));
+    const list = parseDraftList(localStorage.getItem(draftsKey(hotelId)));
+
+    // One-time migration of the old GLOBAL keys (v2 list + v1 single draft).
+    // After adoption the global keys are removed so no other hotel sees them.
+    const globalV2 = localStorage.getItem(GLOBAL_DRAFTS_KEY_V2);
+    const globalV1 = localStorage.getItem(GLOBAL_DRAFT_KEY_V1);
+    if (globalV2 || globalV1) {
+      list.push(...parseDraftList(globalV2));
+      if (globalV1) {
+        try {
+          const legacy = JSON.parse(globalV1) as CheckinDraft;
+          list.push(legacy);
+        } catch {
+          // corrupt legacy draft — drop it
+        }
+      }
+      localStorage.removeItem(GLOBAL_DRAFTS_KEY_V2);
+      localStorage.removeItem(GLOBAL_DRAFT_KEY_V1);
+      localStorage.setItem(draftsKey(hotelId), JSON.stringify(list));
+    }
+
+    // Backfill ids for any old entries so per-draft discard always works.
+    for (const d of list) d.id = d.id ?? draftId();
+    return list.slice(0, MAX_DRAFTS);
+  } catch {
+    return [];
+  }
+}
+
+function writeDrafts(hotelId: string | null, list: CheckinDraft[]): void {
+  if (!hotelId) return;
+  try {
+    localStorage.setItem(draftsKey(hotelId), JSON.stringify(list));
   } catch {
     // storage full/blocked — non-fatal
   }
@@ -3552,9 +3578,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   // check-in completes — abandoning the restore never loses the draft.
   const [drafts, setDrafts] = useState<CheckinDraft[]>([]);
   const [restoredDraftId, setRestoredDraftId] = useState<string | null>(null);
+  // Re-read whenever the active hotel changes — drafts are hotel-scoped (§1.1).
   useEffect(() => {
-    setDrafts(readDrafts());
-  }, []);
+    setDrafts(readDrafts(activeHotelId));
+    setRestoredDraftId(null);
+  }, [activeHotelId]);
 
   const saveDraft = () => {
     const d: CheckinDraft = {
@@ -3590,10 +3618,14 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       foreignEnabled: fgEnabled,
       foreignGuest: fgForm,
     };
+    if (!activeHotelId) {
+      toast.error(t("draftSaveFailed"));
+      return;
+    }
     try {
       // Newest first; keep at most MAX_DRAFTS (oldest dropped).
       const next = [d, ...drafts].slice(0, MAX_DRAFTS);
-      localStorage.setItem(DRAFTS_KEY, JSON.stringify(next));
+      localStorage.setItem(draftsKey(activeHotelId), JSON.stringify(next));
       setDrafts(next);
       toast.success(t("draftSaved"));
     } catch {
@@ -3642,7 +3674,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
 
   const discardDraft = (id: string | undefined) => {
     const next = drafts.filter((d) => d.id !== id);
-    writeDrafts(next);
+    writeDrafts(activeHotelId, next);
     setDrafts(next);
     if (restoredDraftId === id) setRestoredDraftId(null);
   };
@@ -3839,7 +3871,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       // Other saved drafts belong to other guests and must survive.
       if (restoredDraftId) {
         const next = drafts.filter((d) => d.id !== restoredDraftId);
-        writeDrafts(next);
+        writeDrafts(activeHotelId, next);
         setDrafts(next);
         setRestoredDraftId(null);
       }
