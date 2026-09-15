@@ -276,6 +276,134 @@ Audit table 3.x is the work list. Plan:
 
 ---
 
+## PART 9 — Plan-renewal payment verification flow (NEW FEATURE, client)
+
+Client requirement (screenshot 63533826): "Payment process is currently not working."
+1. Hotel opens Plan page → chooses a plan → sees the PLATFORM's payment QR / UPI ID
+   (note: this is DigitalMyHotels' receiving UPI, NOT the hotel's guest-payment UPI —
+   needs a platform_payment_config the super admin maintains in Admin Settings).
+2. Hotel pays externally, then submits the renewal request WITH the UPI
+   Transaction/Payment ID (new field on SubscriptionRenewalRequest: `transaction_ref`,
+   free text, required).
+3. Request lands in super admin Renewal Requests with the transaction ref visible;
+   status = pending (this is also the "Pending expired model popup" state the partner
+   sees — Part 2.3).
+4. Super admin verifies the payment manually (bank/UPI app), clicks Approve → the
+   existing `renew_subscription` applies the plan automatically; Reject requires a
+   reason shown to the hotel.
+5. Audited end-to-end; notification to the hotel on decision.
+This builds on the EXISTING renewal-request machinery (subscriptions service) — the
+new parts are: platform payment config, transaction_ref field + form, QR display on
+the partner plan page, and the ref shown in the super admin approval UI.
+
+## PART 10 — Late additions from the full client list (15/09 official sheet)
+
+10.1 "Export functionality is not working" — root cause found & fixed 14/09 (backend
+     customers limit cap 100 vs frontend 5000 → 422; commit a040a3b). VERIFY on
+     deploy; plan keeps a regression test.
+10.2 "I think Activate automatically when expired" — interpretation: a hotel whose
+     lapsed plan is renewed/extended must return to ACTIVE automatically (no manual
+     Activate). `renew_subscription`/`extend_subscription` already reactivate;
+     ALSO make the reverse automatic: displayed status derives from subscription
+     everywhere (done for detail 14/09 — extend to any remaining view that reads the
+     raw hotel.status column). If instead the client means "auto-suspend on expiry",
+     that is Part 2 (enforcement) — confirm reading (Q8).
+10.3 "Temporary password → customer can't change password" — verify the team
+     temp-password path sets `must_reset_password=True` and that the change-password
+     screen is reachable for hotel members (the guard redirects; audit says backend
+     enforcement exists — likely the team reset endpoint or the login redirect misses
+     the flag). Investigate + fix; add test: temp password login → forced change.
+10.4 "Generate Invoice button shows an error" — likely the `invoice_exists` conflict
+     surfacing as a raw error when an invoice already exists for the booking. Plan:
+     friendly message + auto-open the existing invoice; plus Part 3.4 (auto-generate
+     at checkout) makes most manual generation unnecessary.
+10.5 "Guest not found" (63535340) — reproduce: guest search returning nothing for an
+     existing guest. Suspects: phone normalization mismatch (search normalizes, old
+     rows saved unnormalized), or the guest belongs to another hotel (→ Part 1.7).
+     Backfill migration to re-normalize `guests.normalized_phone` if confirmed.
+10.6 "Super Admin Add hotel functionality is not working + not matching Figma" —
+     reproduce the failing submit (likely a validation error not surfaced — the page
+     already has an error banner; check API error mapping) + a Figma comparison pass
+     on section order/fields. Includes 14/09 padding/42px fixes already shipped.
+10.7 "Remove spacing and remove one scroll" (63563463) — nested scroll container
+     (dialog/page with inner+outer scrollbars) + excess spacing; fix the container to
+     a single scroll context.
+10.8 "Next day automatically checkout — as per our discussion" (63577337) — client
+     expects stays past their checkout DATE to be auto-checked-out the next day.
+     Today: nothing auto-checks-out; overstay accrues hourly fees at manual checkout.
+     DECISION NEEDED (Q9): auto-checkout at a fixed time next day (which time? what
+     payment status? unpaid dues?) — recommend: auto-checkout job at hotel checkout
+     time + grace, marking due as pending payment + notification, never silently
+     collecting money. Needs client sign-off on the money handling.
+10.9 "Currently open 2 modals — wrong" (63577418) — two dialogs stacked (likely the
+     expired-plan modal over another dialog). Rule: single-modal discipline — the
+     expired overlay suppresses/queues other dialogs; audit dialog triggers on the
+     affected screen.
+10.10 Reports page also gets Credit/Debit Card + Others in its payment split
+     (63531712 mentions /reports alongside the dashboard) — extends Part 3.6.
+10.11 "Vendor Detail show in Modal popup" — the expenses vendor ⋮ should open a
+     proper modal dialog (existing hover-popover per screenshot) — convert to Dialog
+     with full vendor fields (name/phone/GST). Extends Part 8.10.
+10.12 "Wrong" (63535942, single word) — screenshot review required at implementation
+     time; adjacent to room-count items, provisionally grouped with Part 8.9.
+
+## Traceability — client sheet row → plan section
+
+| Client item (short) | Plan section |
+|---|---|
+| First letter uppercase (all, multiple rows) | 7.4 + 8.1 |
+| Link → plan page wrong | shipped 14/09 (a040a3b) — verify |
+| Export not working | 10.1 (shipped — verify) |
+| Recently Expired ≤5d + Expired list | shipped 14/09 — verify |
+| Missing Total Revenue screen | shipped 14/09 — verify |
+| 2 options Payment Details + Hotel Expense | 3.6 |
+| Super admin reset password option | shipped 14/09 — verify |
+| Expired but shows Active | shipped 14/09 (effective status) + 10.2 |
+| Activate automatically when expired | 10.2 (Q8) |
+| Edit hotel doesn't update | shipped 14/09 (cache invalidation) — verify |
+| Uploaded Aadhaar/photo not showing | 4.1 (storage health first) |
+| Room selection logic (reserved/occupied/cleaning/maintenance, advance booking) | 5.2 (Q5) |
+| Autofill missing Aadhaar/photo | 4.3 |
+| Autofill button not showing (both flows) | 4.3 + 5.1 |
+| Restore: co-guests + room amounts missing | 4.2 |
+| GST not showing | 3.7 (verify mode first) |
+| Missing GST → payment wrong (print+modal) | 3.1 + 3.7 |
+| Card/Others on expense page | 3.6 |
+| Vendor detail modal | 10.11 |
+| Housekeeping status stale + sync audit | Part 6 |
+| Card/Others on dashboard + reports | 3.6 + 10.10 |
+| Move Staff after Money (sidebar) | 8.5 |
+| Capital + 42px (shift handover) | 8.1 + 8.2 |
+| Invoice not generated | 3.4 |
+| Powered by DigitalMyHotels + SA toggle | 3.8 |
+| Pending in expired modal | 2.3 + Part 9 |
+| Payment process (QR → txn id → SA verify → auto-update) | Part 9 |
+| Plans page center + 42px buttons | 8.2 + 8.3 |
+| Expiring_soon → "Expiring Soon" + status conditions | 7.4 |
+| Create/Confirm guest blank / hide / no update | 5.1 |
+| ID photo zoom 2× | 4.4 |
+| Incorrect payment due | 3.1 |
+| Guest not found | 10.5 |
+| Temp password → can't change | 10.3 |
+| Room status wrong count | 8.9 |
+| "Wrong" (unlabelled) | 10.12 |
+| P Capital + width (team menu) | 8.1 + 8.4 |
+| Additional charges detail | 3.8 |
+| Check-in flow full audit | Part 5 + Part 6 |
+| Invoices functionality + UI | 3.4 + 8.12 |
+| Generate Invoice error | 10.4 |
+| Other-hotel customer search | 1.7 (Q2) |
+| Invoice ID wrong | 3.4 |
+| Max 5 team members + SA limit | 7.1 (Q4) |
+| Idle auto-logout 10–15 min | 7.2 |
+| Use my current location broken | 8.7 |
+| Room type not displayed after add + capital | 8.8 + 8.1 |
+| Single line +30% width, completed bookings excluded, BK-id below | 8.6 + 3.8 |
+| SA Add Hotel not working + Figma | 10.6 |
+| Remove spacing + one scroll | 10.7 |
+| Auto-checkout next day | 10.8 (Q9) |
+| Two modals open | 10.9 |
+
 ## Phasing & verification
 
 - **Phase 1 (critical):** Part 1 (isolation) + Part 2 (expiry) + storage health check
@@ -300,3 +428,16 @@ same-day availability.
 - **Q4** Team limit counts: active members excluding owner — confirm.
 - **Q5** Same-day check-in: hard-block occupied rooms vs blocking-confirm dialog.
 - **Q6** Draft documents uploaded server-side at selection (with sweep) — confirm.
+- **Q7** (merged into Q5) room statuses that must be hard-unselectable for same-day.
+- **Q8** "Activate automatically when expired": confirm it means auto-REACTIVATE on
+  renewal/extension (already true) + derived status everywhere — not auto-suspend.
+- **Q9** Auto-checkout next day: confirm trigger time and how unpaid dues are
+  handled (recommended: auto-checkout at hotel checkout time + grace, dues stay
+  pending, notification fired, no silent money collection).
+
+## Phase 1 additions from the official sheet
+Phase 3 gains Part 9 (renewal payment flow) — it is a feature, not a bug, and sits
+behind Q-decisions only for the auto-checkout item (Q9), which is Phase 4.
+Bugs vs updates classification: rows marked "shipped — verify" are already-fixed bugs
+awaiting the client's re-test on the new deploy; Parts 9, 7.1, 7.2, 10.8, 3.8
+(Powered-by) are UPDATES (new functionality); everything else is a bug fix.
