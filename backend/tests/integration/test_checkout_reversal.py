@@ -104,6 +104,73 @@ async def test_reversal_cancels_invoice_and_recheckout_generates_new(
     assert new_invoice_id and new_invoice_id != invoice_id
 
 
+async def test_midstay_invoice_superseded_at_checkout(
+    client: AsyncClient, hotel_a: HotelFixture
+) -> None:
+    """Plan §3.4 reverify: an invoice generated MID-STAY cannot include
+    checkout charges — checkout must cancel it and issue the final one."""
+    headers = await _headers(client, hotel_a)
+    rt = await client.post(
+        "/api/v1/rooms/types",
+        json={"code": "REV3", "name": "Reversal Type 3", "base_price": "1000.00"},
+        headers=headers,
+    )
+    room = await client.post(
+        "/api/v1/rooms",
+        json={"room_number": "RV-3", "room_type_id": rt.json()["id"]},
+        headers=headers,
+    )
+    guest = await client.post(
+        "/api/v1/guests",
+        json={"full_name": "Midstay Guest", "phone": "9811122255"},
+        headers=headers,
+    )
+    booking = await client.post(
+        "/api/v1/bookings",
+        json={
+            "primary_guest_id": guest.json()["id"],
+            "room_ids": [room.json()["id"]],
+            "check_in_date": str(TODAY),
+            "check_out_date": str(TODAY + timedelta(days=1)),
+        },
+        headers=headers,
+    )
+    booking_id = booking.json()["id"]
+    await client.post("/api/v1/checkins", json={"booking_id": booking_id}, headers=headers)
+
+    # Mid-stay invoice (e.g. from the check-in success screen).
+    midstay = await client.post(
+        "/api/v1/invoices", json={"booking_id": booking_id}, headers=headers
+    )
+    assert midstay.status_code == 201, midstay.text
+    midstay_id = midstay.json()["id"]
+
+    # Checkout adds a charge — the final bill differs from the mid-stay invoice.
+    done = await client.post(
+        "/api/v1/checkouts",
+        json={
+            "booking_id": booking_id,
+            "collect_payment": True,
+            "payment_method": "cash",
+            "charges": [
+                {"description": "Late snack", "amount": "300", "category": "restaurant"}
+            ],
+        },
+        headers=headers,
+    )
+    assert done.status_code == 201, done.text
+    final_id = done.json()["invoice_id"]
+    assert final_id and final_id != midstay_id
+
+    old = (await client.get(f"/api/v1/invoices/{midstay_id}", headers=headers)).json()
+    assert old["status"] == "cancelled"
+    assert "Superseded" in (old["cancel_reason"] or "")
+    new = (await client.get(f"/api/v1/invoices/{final_id}", headers=headers)).json()
+    assert new["status"] != "cancelled"
+    # Final invoice includes the checkout charge (300) on top of the room.
+    assert float(new["total_amount"]) > float(old["total_amount"])
+
+
 async def test_post_checkout_payment_blocks_reversal(
     client: AsyncClient, hotel_a: HotelFixture, db_session: AsyncSession
 ) -> None:

@@ -2303,10 +2303,11 @@ function CheckinForm({
   );
   // Early check-in fee is billed too (is_early/early_fee on the request).
   const displayExtra = chipsTotal + extraChargesNum + earlyFee;
-  // Note: booking.total_amount does not include GST (GST is only on the invoice).
-  // We show an *approximate* GST for the balance display only, using the
-  // hotel's configured rate (whole rupees, matching backend money()).
-  const gstAmount = Math.round((bookingTotal + displayExtra) * (hotelGstRate / 100));
+  // Booking totals are GST-AWARE since plan §3.1 (room GST is already inside
+  // booking.total_amount) — the approximate GST here applies ONLY to the NEW
+  // extras being added at the desk (they get real GST via add_charge).
+  // Adding GST on the booking total again would double-count it.
+  const gstAmount = Math.round(displayExtra * (hotelGstRate / 100));
   // Only subtract the new advance when staff confirmed it was actually collected —
   // otherwise it is not recorded and the balance would be dishonest.
   const collectedAdvance = paymentReceived ? newAdvance : 0;

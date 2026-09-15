@@ -180,6 +180,8 @@ function ReportsContent() {
       ["net_revenue", revenue.data?.net_revenue ?? ""],
       ["cash", payments.data?.cash ?? ""],
       ["upi", payments.data?.upi ?? ""],
+      ["card", payments.data?.card ?? ""],
+      ["others", payments.data?.others ?? ""],
       ["gst_taxable", gst.data?.taxable ?? ""],
       ["expenses", expenses.data?.total ?? ""],
     ];
