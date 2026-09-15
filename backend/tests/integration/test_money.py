@@ -203,6 +203,83 @@ async def test_invoice_generation_and_cancel(
     assert again.status_code == 201
 
 
+async def test_refund_allocates_advance_then_deposit(
+    client: AsyncClient, hotel_a: HotelFixture
+) -> None:
+    """Plan §3.2: a refund larger than the advance must reduce the security
+    deposit for the remainder — previously the deposit was left untouched
+    while the cash left the hotel."""
+    headers = await _headers(client, hotel_a)
+    rt = await client.post(
+        "/api/v1/rooms/types",
+        json={"code": "RFD", "name": "Refund Alloc", "base_price": "1000.00"},
+        headers=headers,
+    )
+    room = await client.post(
+        "/api/v1/rooms",
+        json={"room_number": "RF-1", "room_type_id": rt.json()["id"]},
+        headers=headers,
+    )
+    guest = await client.post(
+        "/api/v1/guests",
+        json={"full_name": "Refund Guest", "phone": "9855544433"},
+        headers=headers,
+    )
+    booking = await client.post(
+        "/api/v1/bookings",
+        json={
+            "primary_guest_id": guest.json()["id"],
+            "room_ids": [room.json()["id"]],
+            "check_in_date": str(TODAY),
+            "check_out_date": str(TODAY + timedelta(days=1)),
+            "security_deposit": "500.00",
+        },
+        headers=headers,
+    )
+    assert booking.status_code == 201, booking.text
+    booking_id = booking.json()["id"]
+    checkin = await client.post(
+        "/api/v1/checkins", json={"booking_id": booking_id}, headers=headers
+    )
+    assert checkin.status_code == 201, checkin.text
+
+    pay = await client.post(
+        "/api/v1/payments",
+        json={"booking_id": booking_id, "amount": "300.00", "method": "cash"},
+        headers=headers,
+    )
+    assert pay.status_code == 201, pay.text
+
+    # Refund 600 = 300 from advance + 300 from the 500 deposit.
+    refund = await client.post(
+        "/api/v1/payments/refunds",
+        json={
+            "booking_id": booking_id,
+            "amount": "600.00",
+            "method": "cash",
+            "reason": "guest left early",
+        },
+        headers=headers,
+    )
+    assert refund.status_code == 201, refund.text
+    detail = (await client.get(f"/api/v1/bookings/{booking_id}", headers=headers)).json()
+    assert Decimal(detail["advance_amount"]) == 0
+    assert Decimal(detail["security_deposit"]) == 200
+
+    # Refunding beyond what remains is still rejected.
+    over = await client.post(
+        "/api/v1/payments/refunds",
+        json={
+            "booking_id": booking_id,
+            "amount": "300.00",
+            "method": "cash",
+            "reason": "too much",
+        },
+        headers=headers,
+    )
+    assert over.status_code == 422, over.text
+
+
 async def test_admin_collects_but_cannot_correct_or_refund(
     client: AsyncClient, hotel_a: HotelFixture
 ) -> None:

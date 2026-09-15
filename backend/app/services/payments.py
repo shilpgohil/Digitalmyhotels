@@ -456,7 +456,17 @@ async def refund_payment(
     db.add(refund)
     await db.flush()
 
-    booking.advance_amount = money(max(booking.advance_amount - amount, Decimal("0.00")))
+    # Allocation (plan §3.2): a refund reduces the ADVANCE first, and any
+    # remainder comes out of the SECURITY DEPOSIT. The previous version only
+    # reduced the advance (floored at 0) — a refund larger than the advance
+    # left the deposit untouched while the cash physically left the hotel,
+    # silently inflating the amount "held" for the guest.
+    from_advance = min(booking.advance_amount, amount)
+    from_deposit = money(amount - from_advance)
+    booking.advance_amount = money(booking.advance_amount - from_advance)
+    booking.security_deposit = money(
+        max(booking.security_deposit - from_deposit, Decimal("0.00"))
+    )
     settle_booking_amounts(booking)
     if booking.status == "checked_out" and booking.due_amount == 0:
         booking.payment_status = "refunded"
@@ -482,6 +492,8 @@ async def refund_payment(
         after={
             "booking": booking.booking_number,
             "amount": str(amount),
+            "from_advance": str(from_advance),
+            "from_deposit": str(from_deposit),
             "reason": body.reason,
         },
         correlation_id=correlation_id,
