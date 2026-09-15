@@ -741,6 +741,9 @@ function DocUpload({
               onOcrResult(result);
             }
           })
+          // OCR failure must not be silent — staff wonder where the autofill
+          // banner went (plan §4.3). Upload continues regardless.
+          .catch(() => toast.warning(t("ocrFailed")))
           .finally(() => setOcrRunning(false));
       }
 
@@ -970,10 +973,20 @@ function QueuedDocUpload({
       try {
         const { parseIdDocument } = await import("@/lib/id-ocr");
         const ocrFile = edited; // use the cropped high-res image
-        const result = await parseIdDocument(ocrFile, side === "back" ? "back" : "front");
+        // BUG FIX (plan §4.3): the side was passed as the ID TYPE, so back
+        // faces never reached the back-face address parser and the autofill
+        // banner silently never appeared (client: "Autofill button not
+        // showing — both guest flows").
+        const result = await parseIdDocument(
+          ocrFile,
+          idType ?? "Aadhar Card",
+          side === "back" ? "back" : "front",
+        );
         if (result) onOcrResult(result);
       } catch {
-        // OCR failure is non-fatal — tile stays uploaded, autofill just won't fire.
+        // OCR failure is non-fatal, but no longer SILENT — staff must know
+        // why no autofill banner appeared (plan §4.3).
+        toast.warning(t("ocrFailed"));
       } finally {
         setOcrRunning(false);
       }

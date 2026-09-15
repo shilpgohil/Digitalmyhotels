@@ -1720,6 +1720,7 @@
     "editGuest": "Edit guest details",
     "saveGuest": "Save Details",
     "updateGuest": "Update Guest",
+    "ocrFailed": "Could not read the ID photo — fill the details manually or retake a clearer photo",
     "idNumberShort": "ID Number",
     "someDocsFailed": "{count} document(s) failed to upload — please re-upload them",
     "guestUpdated": "Guest details updated",
