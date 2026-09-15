@@ -124,7 +124,20 @@ async def test_guests_are_tenant_scoped(
     guest_id = created.json()["id"]
 
     headers_b = await _headers(client, hotel_b)
+    # Direct object access stays hard-blocked across hotels.
     stolen = await client.get(f"/api/v1/guests/{guest_id}", headers=headers_b)
     assert stolen.status_code == 404
+    # FULL-phone search may surface the guest as a MASKED cross-hotel hit
+    # (plan §1.7 — the one intended data share); full data still requires the
+    # phone-proofed import. Direct autofill on the foreign id must fail.
     search = await client.get("/api/v1/guests/search?phone=9700000001", headers=headers_b)
-    assert search.json()["items"] == []
+    hits = search.json()["items"]
+    assert all(item["cross_hotel"] for item in hits), "only masked cross-hotel hits allowed"
+    assert all("9700000001" not in item["phone_masked"] for item in hits)
+    steal_fill = await client.post(
+        f"/api/v1/guests/{guest_id}/autofill", headers=headers_b
+    )
+    assert steal_fill.status_code == 404
+    # PREFIX search never crosses hotels.
+    prefix = await client.get("/api/v1/guests/search?phone=970000", headers=headers_b)
+    assert all(not item["cross_hotel"] for item in prefix.json()["items"])

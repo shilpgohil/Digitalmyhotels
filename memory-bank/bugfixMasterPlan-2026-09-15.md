@@ -61,6 +61,28 @@ Full suite: 218 passed / 3 documented pre-existing failures. Build green.
 Full suite: 222 passed / 3 documented pre-existing failures. Build green.
 DEFERRED from Phase 3: §3.5 quote snapshot (medium, low urgency).
 
+**PHASE 4 SHIPPED 15/09 (commits 9c20730…159cfc2 + test fix):**
+- Part 6 (9c20730): shared invalidateRoomState/invalidateMoney helpers wired
+  into housekeeping, rooms, checkout, payments, reversal, check-in, advance
+  bookings, stay edits; 30s polling + focus refetch on room-state queries —
+  the client's "Cleaning Soon needs refresh" class is closed.
+- §7.1 (818b1ea): hotels.max_team_members (migration bb26c0d38f12, default
+  5), enforced under hotel-row lock (race-safe), Team page X-of-Y quota,
+  SA controls in Add Hotel + hotel edit; over-cap hotels keep members but
+  cannot add.
+- §7.2 (0e3140b): idle auto-logout 15 min, TIMESTAMP-based (mobile
+  background-safe), warning toast at 14 min, partner + super-admin layouts.
+- §7.3 (dde2200): change-password revokes all refresh sessions; per-account
+  lockout (5 fails / 15 min).
+- §1.7 (159cfc2): cross-hotel guest search+import — FULL-phone-only masked
+  cross hits (prefix stays hotel-local), POST /guests/import with phone
+  knowledge-proof, copies base data + newest ID doc per side into the
+  importing hotel's storage prefix (NOT encrypted ID/notes; verification
+  reset), idempotent, audited. Import buttons in GuestPicker + co-guest
+  search. test_guests tenant-scoping test UPDATED to the new contract
+  (direct access + foreign autofill still 404; masked-only hits).
+Suite: 225 passed / 3 documented pre-existing. Build green.
+
 **PHASE 3 REVERIFIED 15/09 (commit 4d4ea7a) — 3 real findings fixed:**
 1. §3.1 interaction REGRESSION caught: booked check-in balance added approx
    GST on top of the now-GST-inclusive booking total (double count). GST in
