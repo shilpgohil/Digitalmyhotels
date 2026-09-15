@@ -1,5 +1,26 @@
 # Active Context — DigitalMyHotels
 
+## 15/09/2026 — MASTER BUGFIX PLAN (NOT YET IMPLEMENTED)
+Client sent a ~35-item bug batch + demanded a full platform audit. Deep
+investigation done (read-only) + two audit subagents (backend 21 findings,
+frontend 7 categories). Everything merged into
+**memory-bank/bugfixMasterPlan-2026-09-15.md** — phased plan, root causes,
+risks, 6 open client decisions (Q1–Q6). KEY CONFIRMED ROOT CAUSES:
+- Drafts leak across hotels: global localStorage key `dmh.checkinDrafts.v2`
+  (frontend-only leak; backend is tenant-scoped).
+- Expired hotels fully usable: enforcement is a dismissible modal; backend
+  blocks only flagged transactions (audit #5 lists open mutations).
+- Invoices created LAZILY on Print/Download click → "completed booking has no
+  invoice" + out-of-order invoice numbers.
+- Booking totals exclude GST while checkout/invoice include it → conflicting
+  "due" values (Edit Stay 784 vs 904).
+- Refunds can under-reduce security deposits; reverse_checkout leaves
+  payments/ledger/invoice intact; selfie object-key injection = real
+  cross-tenant file read.
+- No team-member cap, no idle logout, cross-hotel guest search doesn't exist
+  (currently hotel-scoped only).
+DO NOT start implementation without client answers to Q1–Q6 in the plan file.
+
 ## SUPER ADMIN 10-ISSUE BATCH 14/09/2026
 (Partly pre-staged by a parallel session — reviewed, gaps filled, shipped.)
 1. Add Hotel bottom cut: pb-44 + action bar lg:left-64 + safe-area padding.
