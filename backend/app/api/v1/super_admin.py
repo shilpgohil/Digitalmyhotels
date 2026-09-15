@@ -406,6 +406,7 @@ async def list_renewal_requests(
             duration_days=plan.duration_days,
             amount=req.amount,
             status=req.status,
+            note=req.note,
             created_at=req.created_at,
             decided_at=req.decided_at,
         )
@@ -474,6 +475,7 @@ async def _decide_renewal(
         duration_days=plan.duration_days,
         amount=req.amount,
         status=req.status,
+        note=req.note,
         created_at=req.created_at,
         decided_at=req.decided_at,
     )

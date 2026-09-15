@@ -18,6 +18,8 @@ import { BadgeCheck, CheckCircle2, Copy, Crown, Hourglass } from "lucide-react";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/feedback/status-badge";
 import { useSubscription } from "@/components/subscription/subscription-gate";
@@ -101,11 +103,15 @@ function PaymentModal({
     staleTime: 300_000,
   });
 
+  // UPI transaction/reference id (Part 9, client: "store the Payment ID/
+  // Transaction ID … sent to the Super Admin for verification").
+  const [txnRef, setTxnRef] = useState("");
+
   const submit = useMutation({
     mutationFn: () =>
       api("/api/v1/subscriptions/renewal-requests", {
         method: "POST",
-        body: { plan_id: plan.id },
+        body: { plan_id: plan.id, note: `Txn: ${txnRef.trim()}` },
       }),
     onSuccess: () => {
       setSubmitted(true);
@@ -199,6 +205,23 @@ function PaymentModal({
                 {fmtINR(plan.price)}
               </span>
             </div>
+
+            {/* UPI transaction reference — REQUIRED (Part 9): the super admin
+                verifies this id before activating the plan. */}
+            <div className="space-y-1.5">
+              <Label htmlFor="pay-txn-ref">{t("txnRefLabel")} *</Label>
+              <Input
+                id="pay-txn-ref"
+                value={txnRef}
+                maxLength={40}
+                onChange={(e) =>
+                  setTxnRef(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())
+                }
+                placeholder={t("txnRefPlaceholder")}
+                autoComplete="off"
+              />
+              <p className="text-label text-muted-foreground">{t("txnRefHint")}</p>
+            </div>
             <p className="text-center text-xs text-muted-foreground">{t("payNote")}</p>
 
             <DialogFooter>
@@ -207,7 +230,7 @@ function PaymentModal({
               </Button>
               <Button
                 className="bg-navy-900 text-white hover:bg-navy-800"
-                disabled={submit.isPending}
+                disabled={submit.isPending || txnRef.trim().length < 6}
                 onClick={() => submit.mutate()}
               >
                 {t("completedPayment")}

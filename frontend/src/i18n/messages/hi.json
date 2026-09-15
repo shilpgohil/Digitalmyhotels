@@ -1283,7 +1283,10 @@
     "renewalPendingBadge": "नवीनीकरण अनुरोध लंबित — पुष्टि की प्रतीक्षा में",
     "goToCheckouts": "चेक-आउट पर जाएँ",
     "signOutExpired": "साइन आउट",
-    "loggedInAsExpired": "{name} के रूप में साइन इन"
+    "loggedInAsExpired": "{name} के रूप में साइन इन",
+    "txnRefLabel": "UPI लेन-देन / संदर्भ आईडी",
+    "txnRefPlaceholder": "जैसे 4152XXXXXXXX",
+    "txnRefHint": "भुगतान के बाद आपके UPI ऐप में मिलती है। योजना सक्रिय करने से पहले DigitalMyHotels टीम इसे सत्यापित करती है।"
   },
   "notifications": {
     "title": "सूचनाएँ",

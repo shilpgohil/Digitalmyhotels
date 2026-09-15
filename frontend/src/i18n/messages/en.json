@@ -1283,7 +1283,10 @@
     "renewalPendingBadge": "Renewal request pending — awaiting confirmation",
     "goToCheckouts": "Go to Checkouts",
     "signOutExpired": "Sign Out",
-    "loggedInAsExpired": "Signed in as {name}"
+    "loggedInAsExpired": "Signed in as {name}",
+    "txnRefLabel": "UPI Transaction / Reference ID",
+    "txnRefPlaceholder": "e.g. 4152XXXXXXXX",
+    "txnRefHint": "Found in your UPI app after payment. The DigitalMyHotels team verifies this before activating the plan."
   },
   "notifications": {
     "title": "Notifications",

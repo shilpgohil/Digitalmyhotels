@@ -295,6 +295,12 @@ export default function AdminDashboardPage() {
                   <td className="px-4 py-3 font-medium">{r.hotel_name}</td>
                   <td className="px-4 py-3 text-muted-foreground capitalize">
                     {r.plan_name} — {r.duration_days} {t("days")}
+                    {/* UPI transaction ref (Part 9) — verify before approving */}
+                    {r.note && (
+                      <span className="mt-0.5 block font-mono text-xs font-semibold normal-case text-gold-700">
+                        {r.note}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 font-medium tabular-nums">{fmtINR(r.amount)}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">

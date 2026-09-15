@@ -312,6 +312,8 @@ export interface RenewalRequestOut {
 
 /** Super-admin view of a renewal request (with hotel/plan labels). */
 export interface RenewalRequestAdminOut {
+  /** UPI transaction reference entered by the partner (Part 9). */
+  note?: string | null;
   id: string;
   hotel_id: string;
   hotel_name: string;
