@@ -130,29 +130,35 @@ async def create_team_member(
     # the hotel row locked, so two simultaneous adds cannot both pass the
     # check (scenario S3). Hotels already over the cap keep their members —
     # they just cannot add more until under the limit.
+    # SUPER ADMIN EXEMPTION (client 15/09 clarification): the cap binds the
+    # HOTEL side only — the platform admin may grant extra members beyond the
+    # limit (or raise max_team_members on the hotel edit page).
     from app.models.hotel import Hotel as _Hotel
     from app.models.user import Role as _Role
 
-    max_members = await db.scalar(
-        select(_Hotel.max_team_members).where(_Hotel.id == hotel_id).with_for_update()
-    )
-    max_members = max_members or 5
-    active_members = await db.scalar(
-        select(func.count())
-        .select_from(HotelMembership)
-        .join(_Role, _Role.id == HotelMembership.role_id)
-        .where(
-            HotelMembership.hotel_id == hotel_id,
-            HotelMembership.status == "active",
-            _Role.code != RoleCode.OWNER.value,
+    if not tenant.is_super_admin:
+        max_members = await db.scalar(
+            select(_Hotel.max_team_members)
+            .where(_Hotel.id == hotel_id)
+            .with_for_update()
         )
-    )
-    if (active_members or 0) >= max_members:
-        raise ValidationAppError(
-            f"Team member limit reached ({max_members}). Contact DigitalMyHotels "
-            "support to increase this hotel's limit.",
-            code="team_limit_reached",
+        max_members = max_members or 5
+        active_members = await db.scalar(
+            select(func.count())
+            .select_from(HotelMembership)
+            .join(_Role, _Role.id == HotelMembership.role_id)
+            .where(
+                HotelMembership.hotel_id == hotel_id,
+                HotelMembership.status == "active",
+                _Role.code != RoleCode.OWNER.value,
+            )
         )
+        if (active_members or 0) >= max_members:
+            raise ValidationAppError(
+                f"Team member limit reached ({max_members}). Contact "
+                "DigitalMyHotels support to increase this hotel's limit.",
+                code="team_limit_reached",
+            )
 
     role = await _get_role(db, role_code.value)
     phone_norm = normalize_phone(body.phone) if body.phone else None

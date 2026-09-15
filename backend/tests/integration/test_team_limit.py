@@ -59,11 +59,42 @@ async def test_team_limit_enforced_and_adjustable(
     assert listing["member_limit"] == current_active + 1
     assert listing["active_members"] == current_active + 1
 
-    # Raising the limit (super admin action) lets the next add through.
+    # SUPER ADMIN EXEMPTION (client 15/09 clarification): the cap binds the
+    # hotel side only — the platform admin can grant a member BEYOND the cap.
+    from uuid import uuid4
+
+    from app.services.auth import create_user
+
+    sa_email = f"root-{uuid4().hex[:8]}@example.org"
+    await create_user(
+        db_session,
+        email=sa_email,
+        password="SuperSecret123!",
+        full_name="Platform Root",
+        is_super_admin=True,
+    )
+    await db_session.commit()
+    sa_headers = {
+        **auth_headers(await login(client, sa_email, "SuperSecret123!")),
+        "X-Hotel-Id": str(hotel_a.hotel.id),
+    }
+    granted = await client.post(
+        "/api/v1/team", json=_member_body(3), headers=sa_headers
+    )
+    assert granted.status_code == 201, granted.text
+
+    # The hotel itself is STILL capped after the grant.
+    still_blocked = await client.post(
+        "/api/v1/team", json=_member_body(4), headers=headers
+    )
+    assert still_blocked.status_code == 422
+    assert "team_limit_reached" in still_blocked.text
+
+    # Raising the limit (super admin action) lets the hotel add again.
     await db_session.execute(
         update(Hotel)
         .where(Hotel.id == hotel_a.hotel.id)
-        .values(max_team_members=current_active + 2)
+        .values(max_team_members=current_active + 3)
     )
     await db_session.commit()
     ok2 = await client.post("/api/v1/team", json=_member_body(2), headers=headers)
