@@ -1418,7 +1418,7 @@
     "noPhoneOnFile": "No phone number on file",
     "exportCsv": "Export CSV",
     "changePasswordSection": "Change Password",
-    "changePasswordHint": "Update your super admin password. All other sessions stay signed in.",
+    "changePasswordHint": "Update your super admin password. For security, all sessions are signed out afterwards.",
     "changePasswordAction": "Change Password",
     "allCustomersSection": "All Customers",
     "allCustomersHint": "Cross-hotel customer directory. Rows are masked; opening a full profile is recorded in the audit log.",

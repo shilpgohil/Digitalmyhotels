@@ -28,7 +28,16 @@ async def authenticate_user(db: AsyncSession, identifier: str, password: str) ->
     is normalized (digits only, country code stripped) and matched against
     User.phone. Email login behaves exactly as before.
     """
+    from app.core.rate_limit import (
+        check_account_lockout,
+        clear_failed_logins,
+        record_failed_login,
+    )
+
     identifier = identifier.strip()
+    # Per-account lockout (plan §7.3): 5 failed attempts → 15 min cooldown,
+    # in addition to the per-IP rate limit at the route level.
+    check_account_lockout(identifier)
     user: User | None = None
     if "@" in identifier:
         result = await db.execute(select(User).where(User.email == identifier.lower()))
@@ -39,9 +48,11 @@ async def authenticate_user(db: AsyncSession, identifier: str, password: str) ->
             result = await db.execute(select(User).where(User.phone == normalized))
             user = result.scalar_one_or_none()
     if user is None or not verify_password(password, user.password_hash):
+        record_failed_login(identifier)
         raise UnauthorizedError("Invalid email/phone or password", code="invalid_credentials")
     if not user.is_active:
         raise ForbiddenError("Account is disabled", code="account_disabled")
+    clear_failed_logins(identifier)
     user.last_login_at = datetime.now(UTC)
     return user
 
@@ -261,6 +272,11 @@ async def change_password(
         raise ValidationAppError("Password must be at least 8 characters")
     user.password_hash = hash_password(new_password)
     user.must_reset_password = False
+    # SECURITY (plan §7.3): a stolen refresh cookie must not survive a
+    # password change — revoke every session, same as password RESET does.
+    # The current session's access token stays valid until it expires, then
+    # the user signs in with the new password.
+    await _revoke_all_user_refresh_tokens(db, user.id)
     await write_audit(
         db,
         action="auth.password_changed",
