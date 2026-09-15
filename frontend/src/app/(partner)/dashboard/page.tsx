@@ -329,7 +329,9 @@ export default function DashboardPage() {
   const cashPct  = today_rev > 0 ? Math.round(todayCash / today_rev * 100) : 0;
   const upiPct   = today_rev > 0 ? Math.round(todayUpi  / today_rev * 100) : 0;
   const cardPct  = today_rev > 0 ? Math.round(todayCardAmt / today_rev * 100) : 0;
-  const otherPct = Math.max(0, 100 - cashPct - upiPct - cardPct);
+  // Remainder ONLY when money was actually collected — the old formula showed
+  // a 100% "Others" bar on a ₹0 day (client screenshot 15/09).
+  const otherPct = today_rev > 0 ? Math.max(0, 100 - cashPct - upiPct - cardPct) : 0;
 
   const trendData = useMemo(() =>
     (d?.trend_30d ?? []).map((pt) => ({
