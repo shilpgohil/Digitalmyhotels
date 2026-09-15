@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { AlertOctagon, CalendarX2, LogOut, Phone } from "lucide-react";
+import { AlertOctagon, CalendarX2, Clock, LogOut, Phone } from "lucide-react";
 import { fmtApiDate } from "@/lib/formatting";
 import {
   Dialog,
@@ -36,9 +37,6 @@ export function useSubscription() {
     staleTime: 5 * 60_000,
   });
 }
-
-/** sessionStorage flag so the expired modal shows at most once per browser session. */
-const EXPIRED_MODAL_FLAG = "dmh.expiredModalShown";
 
 /**
  * HotelSuspendedOverlay — full-screen blocker shown the instant the
@@ -101,34 +99,47 @@ export function HotelSuspendedOverlay() {
   );
 }
 
-/** Shows the plan-expired modal once per session, plus a persistent banner. */
+/**
+ * Wind-down page allowlist (plan Part 2 / scenario S1) — mirrors the backend
+ * whitelist: an EXPIRED hotel keeps access to the pages needed to close out
+ * in-house guests and renew; every other page is covered by the blocking
+ * panel below. Keep in sync with `_EXPIRED_ALLOWED_PREFIXES` (backend deps).
+ */
+const WIND_DOWN_PATHS = [
+  "/plan",
+  "/checkout",
+  "/current-guests", // the route staff use to reach a guest's checkout
+  "/payments",
+  "/invoices",
+];
+
+/** Shows the expired wind-down gate, plus the expiring-soon banner. */
 export function SubscriptionGate() {
   const t = useTranslations("plan");
+  const api = useApi();
+  const { activeHotelId, logout, user } = useAuth();
+  const pathname = usePathname();
   const sub = useSubscription();
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return window.sessionStorage.getItem(EXPIRED_MODAL_FLAG) === "1";
-    } catch {
-      return false;
-    }
-  });
-
-  const dismiss = () => {
-    setDismissed(true);
-    try {
-      window.sessionStorage.setItem(EXPIRED_MODAL_FLAG, "1");
-    } catch {
-      // sessionStorage unavailable (private mode) — in-memory dismissal is enough.
-    }
-  };
 
   const status = sub.data?.status;
   const blocked = status === "expired" || status === "suspended";
   const expiring = status === "expiring_soon";
   const [detailOpen, setDetailOpen] = useState(false);
 
+  // Pending renewal request → surfaced on the blocking panel (client:
+  // "Pending needed in the expired modal popup").
+  const myRenewal = useQuery({
+    queryKey: ["renewal-request-mine", activeHotelId],
+    queryFn: () =>
+      api<{ status: string } | null>("/api/v1/subscriptions/renewal-requests/mine"),
+    enabled: !!activeHotelId && blocked,
+    staleTime: 60_000,
+  });
+  const renewalPending = myRenewal.data?.status === "pending";
+
   if (!sub.data || (!blocked && !expiring)) return null;
+
+  const onWindDownPage = WIND_DOWN_PATHS.some((p) => pathname.startsWith(p));
 
   return (
     <>
@@ -192,29 +203,65 @@ export function SubscriptionGate() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={blocked && !dismissed} onOpenChange={(open) => !open && dismiss()}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader className="items-center text-center">
-            <div className="flex size-12 items-center justify-center rounded-full bg-danger-bg">
-              <CalendarX2 className="size-6 text-danger" aria-hidden />
-            </div>
-            <DialogTitle className="font-display text-xl">{t("expiredTitle")}</DialogTitle>
-          </DialogHeader>
-          <p className="text-center text-sm text-muted-foreground">
+      {/* ── Wind-down blocking panel (plan Part 2/S1) ──────────────────────
+          Non-dismissible, replaces page access on NON-wind-down routes.
+          Staff can still open Checkout / Current Guests / Payments /
+          Invoices / Plan (the banner above stays visible there). */}
+      {blocked && !onWindDownPage && (
+        <div className="fixed inset-0 z-[150] flex flex-col items-center justify-center overflow-y-auto bg-navy-950/[0.97] px-6 py-10 text-center">
+          <div className="mb-5 flex size-16 items-center justify-center rounded-full bg-danger/10">
+            <CalendarX2 className="size-8 text-danger" aria-hidden />
+          </div>
+          <h1 className="font-display text-2xl font-bold text-white sm:text-3xl">
+            {t("expiredTitle")}
+          </h1>
+          <p className="mt-3 max-w-xl text-base leading-relaxed text-white/60">
             {t("expiredBody", { date: fmtApiDate(sub.data.expiry_date) })}
           </p>
-          <Link
-            href="/plan"
-            onClick={dismiss}
-            className={cn(
-              buttonVariants(),
-              "w-full bg-gold-500 text-navy-900 hover:bg-gold-400",
-            )}
-          >
-            {t("renewPlan")}
-          </Link>
-        </DialogContent>
-      </Dialog>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/50">
+            {t("windDownHint")}
+          </p>
+
+          {/* Renewal request status — "Pending" once submitted (client ask) */}
+          {renewalPending && (
+            <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-warning/40 bg-warning-bg px-4 py-1.5 text-sm font-semibold text-warning">
+              <Clock className="size-4" aria-hidden />
+              {t("renewalPendingBadge")}
+            </div>
+          )}
+
+          <div className="mt-8 flex w-full max-w-sm flex-col gap-3">
+            <Link
+              href="/plan"
+              className={cn(
+                buttonVariants(),
+                "h-[42px] w-full bg-gold-500 text-navy-900 hover:bg-gold-400",
+              )}
+            >
+              {t("renewPlan")}
+            </Link>
+            <Link
+              href="/checkout"
+              className="inline-flex h-[42px] w-full items-center justify-center rounded-lg border border-white/20 text-sm text-white/70 transition-colors hover:border-white/40 hover:text-white"
+            >
+              {t("goToCheckouts")}
+            </Link>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="inline-flex h-[42px] w-full items-center justify-center gap-2 rounded-lg text-sm text-white/40 transition-colors hover:text-white"
+            >
+              <LogOut className="size-4" aria-hidden />
+              {t("signOutExpired")}
+            </button>
+          </div>
+          {user && (
+            <p className="mt-6 text-xs text-white/30">
+              {t("loggedInAsExpired", { name: user.full_name })}
+            </p>
+          )}
+        </div>
+      )}
     </>
   );
 }

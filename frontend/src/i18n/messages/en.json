@@ -1258,7 +1258,12 @@
     "expiredBanner": "Your subscription expired on {date}. New bookings and payments are blocked.",
     "expiringBanner": "Your subscription expires on {date}. Renew soon to avoid interruption.",
     "viewPlans": "View plans",
-    "renewPlan": "Renew Plan"
+    "renewPlan": "Renew Plan",
+    "windDownHint": "You can still check out in-house guests, collect payments and generate invoices. Everything else is paused until the plan is renewed.",
+    "renewalPendingBadge": "Renewal request pending — awaiting confirmation",
+    "goToCheckouts": "Go to Checkouts",
+    "signOutExpired": "Sign Out",
+    "loggedInAsExpired": "Signed in as {name}"
   },
   "notifications": {
     "title": "Notifications",
