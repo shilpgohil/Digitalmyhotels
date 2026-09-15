@@ -154,6 +154,9 @@ function ExpensesContent() {
   const vendorById = (id: string | null | undefined) =>
     allVendors.data?.find((v) => v.id === id)?.name ?? null;
 
+  // Vendor detail modal (client 15/09: "Vendor Detail show in Modal popup").
+  const [vendorDetail, setVendorDetail] = useState<VendorOut | null>(null);
+
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["expenses", activeHotelId] });
     queryClient.invalidateQueries({ queryKey: ["recurring", activeHotelId] });
@@ -335,7 +338,21 @@ function ExpensesContent() {
               <TableCell className="tabular-nums">{fmtINR(ex.amount)}</TableCell>
               <TableCell>{ex.description ?? "—"}</TableCell>
               <TableCell className="text-muted-foreground">
-                {vendorById(ex.vendor_id) ?? "—"}
+                {/* Vendor detail modal on click (client 15/09: "Vendor Detail
+                    show in Modal popup") */}
+                {(() => {
+                  const vendor = allVendors.data?.find((v) => v.id === ex.vendor_id);
+                  if (!vendor) return "—";
+                  return (
+                    <button
+                      type="button"
+                      className="underline decoration-dotted underline-offset-2 hover:text-foreground"
+                      onClick={() => setVendorDetail(vendor)}
+                    >
+                      {vendor.name}
+                    </button>
+                  );
+                })()}
               </TableCell>
               <TableCell>
                 {FILTER_MODES.includes(ex.payment_method)
@@ -407,6 +424,39 @@ function ExpensesContent() {
             setRejectTarget(null);
           }}
         />
+
+        {/* Vendor detail modal (client 15/09) */}
+        <Dialog open={!!vendorDetail} onOpenChange={(open) => !open && setVendorDetail(null)}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{t("vendorDetailTitle")}</DialogTitle>
+            </DialogHeader>
+            {vendorDetail && (
+              <dl className="space-y-2 text-sm">
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">{t("vendorName")}</dt>
+                  <dd className="font-medium">{vendorDetail.name}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">{t("vendorPhone")}</dt>
+                  <dd className="font-medium tabular-nums">
+                    {vendorDetail.phone ? (
+                      <a href={`tel:${vendorDetail.phone}`} className="hover:underline">
+                        {vendorDetail.phone}
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">GSTIN</dt>
+                  <dd className="font-medium">{vendorDetail.gstin ?? "—"}</dd>
+                </div>
+              </dl>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
     </>
   );

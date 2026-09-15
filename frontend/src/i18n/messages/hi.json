@@ -210,7 +210,11 @@
     "saveFailuresTitle": "{count, plural, one {1 बदलाव सहेजा नहीं जा सका} other {# बदलाव सहेजे नहीं जा सके}}",
     "saveFailuresHint": "बाकी सब सहेज लिया गया। ऊपर की चीज़ें ठीक करके फिर से अपडेट दबाएँ — सफल सेक्शन दोबारा भेजना सुरक्षित है।",
     "poweredByToggle": "Powered by DigitalMyHotels",
-    "poweredByToggleDesc": "इस होटल के इनवॉइस पर DigitalMyHotels ब्रांडिंग पंक्ति दिखाएँ।"
+    "poweredByToggleDesc": "इस होटल के इनवॉइस पर DigitalMyHotels ब्रांडिंग पंक्ति दिखाएँ।",
+    "locationDenied": "लोकेशन अनुमति अस्वीकृत — ब्राउज़र सेटिंग्स में इस साइट के लिए लोकेशन की अनुमति दें, फिर पुनः प्रयास करें।",
+    "locationTimeout": "लोकेशन प्राप्त करने में समय समाप्त — खिड़की के पास जाएँ या GPS जाँचें, फिर पुनः प्रयास करें।",
+    "locationUnsupported": "यह डिवाइस/ब्राउज़र लोकेशन सपोर्ट नहीं करता। निर्देशांक हाथ से दर्ज करें।",
+    "newTypeTag": "नया"
   },
   "dashboard": {
     "totalRooms": "कुल कमरे",
@@ -1096,7 +1100,8 @@
     "status_submitted": "प्रस्तुत",
     "status_approved": "अनुमोदित",
     "status_paid": "भुगतान",
-    "status_rejected": "अस्वीकृत"
+    "status_rejected": "अस्वीकृत",
+    "vendorDetailTitle": "विक्रेता विवरण"
   },
   "ops": {
     "housekeepingTitle": "हाउसकीपिंग",

@@ -301,8 +301,19 @@ function EditHotelContent() {
       setLatitude(pos.lat.toFixed(6));
       setLongitude(pos.lng.toFixed(6));
       toast.success(t("locationCaptured", { accuracy: pos.accuracy_m }));
-    } catch {
-      toast.error(t("locationFailed"));
+    } catch (e) {
+      // Distinct guidance per failure kind (client 15/09: "Use my current
+      // location is not working") — a generic error left staff stuck.
+      const { GeoError } = await import("@/lib/geo");
+      if (e instanceof GeoError && e.kind === "denied") {
+        toast.error(t("locationDenied"));
+      } else if (e instanceof GeoError && e.kind === "timeout") {
+        toast.error(t("locationTimeout"));
+      } else if (e instanceof GeoError && e.kind === "unsupported") {
+        toast.error(t("locationUnsupported"));
+      } else {
+        toast.error(t("locationFailed"));
+      }
     } finally {
       setLocating(false);
     }
@@ -575,6 +586,8 @@ function EditHotelContent() {
 
       // 2a. Room types diff — create new, patch changed (no DELETE endpoint:
       // types may be referenced by rooms, so removal is not supported).
+      // key → created id, resolving rooms that reference UNSAVED types.
+      const newTypeIds: Record<string, string> = {};
       const attemptTypes = attemptIn(t("sectionRoomTypes"));
       for (const entry of typeEntries) {
         const entryName = entry.name.trim();
@@ -587,8 +600,12 @@ function EditHotelContent() {
           ? String(Math.max(0, Math.round(Number.parseFloat(hourlyTrimmed) || 0)))
           : null;
         if (!entry.id) {
-          await attemptTypes(() =>
-            api("/api/v1/rooms/types", {
+          // Capture the created id so rooms referencing this UNSAVED type
+          // ("__new__:<key>" values from the dropdown) resolve below —
+          // client 15/09: "added a new room type; after adding a room, the
+          // room type is not displayed".
+          await attemptTypes(async () => {
+            const created = await api<{ id: string }>("/api/v1/rooms/types", {
               method: "POST",
               body: {
                 code: roomTypeCode(entryName),
@@ -597,8 +614,9 @@ function EditHotelContent() {
                 hourly_rate: hourlyRate,
                 max_occupancy: entry.max_occupancy,
               },
-            }),
-          );
+            });
+            newTypeIds[entry.key] = created.id;
+          });
         } else {
           const orig = originalTypesRef.current.find((o) => o.id === entry.id);
           const changed =
@@ -633,9 +651,16 @@ function EditHotelContent() {
       }
       for (const entry of roomEntries) {
         if (!entry.room_number.trim() || !entry.room_type_id) continue;
+        // Resolve "__new__:<typeEntryKey>" references to the id created above.
+        let resolvedTypeId = entry.room_type_id;
+        if (resolvedTypeId.startsWith("__new__:")) {
+          const mapped = newTypeIds[resolvedTypeId.slice("__new__:".length)];
+          if (!mapped) continue; // the type creation failed — reported already
+          resolvedTypeId = mapped;
+        }
         const body = {
           room_number: entry.room_number.trim(),
-          room_type_id: entry.room_type_id,
+          room_type_id: resolvedTypeId,
           bed_type: entry.bed_type || null,
           max_adults: entry.max_adults,
           max_children: entry.max_children,
@@ -1142,6 +1167,16 @@ function EditHotelContent() {
                               {rt.name}
                             </option>
                           ))}
+                          {/* UNSAVED types added in this session (client
+                              15/09: "after adding a room, the room type is
+                              not displayed") — resolved to real ids at save. */}
+                          {typeEntries
+                            .filter((te) => !te.id && te.name.trim().length >= 2)
+                            .map((te) => (
+                              <option key={te.key} value={`__new__:${te.key}`}>
+                                {te.name.trim()} ({t("newTypeTag")})
+                              </option>
+                            ))}
                         </select>
                       </div>
                       <div className="space-y-1.5">

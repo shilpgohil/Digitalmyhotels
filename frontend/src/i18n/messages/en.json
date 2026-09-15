@@ -210,7 +210,11 @@
     "saveFailuresTitle": "{count, plural, one {1 change failed to save} other {# changes failed to save}}",
     "saveFailuresHint": "Everything else was saved. Fix the items above and press Update again — successful sections are safe to resubmit.",
     "poweredByToggle": "Powered by DigitalMyHotels",
-    "poweredByToggleDesc": "Show the DigitalMyHotels branding line on this hotel's invoices."
+    "poweredByToggleDesc": "Show the DigitalMyHotels branding line on this hotel's invoices.",
+    "locationDenied": "Location permission denied — allow location access for this site in your browser settings, then try again.",
+    "locationTimeout": "Timed out getting your location — move near a window or check GPS, then try again.",
+    "locationUnsupported": "This device/browser does not support location. Enter coordinates manually.",
+    "newTypeTag": "new"
   },
   "dashboard": {
     "totalRooms": "Total Rooms",
@@ -1033,7 +1037,8 @@
     "status_submitted": "Submitted",
     "status_approved": "Approved",
     "status_paid": "Paid",
-    "status_rejected": "Rejected"
+    "status_rejected": "Rejected",
+    "vendorDetailTitle": "Vendor Detail"
   },
   "settings": {
     "title": "Settings",
