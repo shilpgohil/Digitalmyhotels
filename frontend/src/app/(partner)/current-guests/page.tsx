@@ -509,12 +509,20 @@ function StayDetailDialog({
     if (printedForRef.current === entry.booking_id) return;
     printedForRef.current = entry.booking_id;
     printRegistration();
+    // Print-only flow: close the detail dialog once the print window is up.
+    // Leaving it open produced TWO stacked windows (client 15/09 screenshot:
+    // "Currently open 2 models this is wrong").
+    onClose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPrint, booking.data, entry, payments.isSuccess, payments.isError, printRegistration]);
 
   const b = booking.data;
 
   return (
-    <Dialog open={entry !== null} onOpenChange={(open) => !open && onClose()}>
+    // Print-only flow keeps the dialog INVISIBLE — the component stays mounted
+    // so its booking/payments queries can load, but no modal flashes behind
+    // the browser print window.
+    <Dialog open={entry !== null && !autoPrint} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>

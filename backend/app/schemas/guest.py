@@ -9,11 +9,20 @@ class ORMModel(BaseModel):
 
 
 def normalize_phone(raw: str) -> str:
+    """Normalize a guest phone for storage/dedupe.
+
+    Indian mobiles: +91 / 0 prefixes are stripped down to the 10-digit core
+    (unchanged behavior — existing stored numbers keep matching).
+    INTERNATIONAL guests (client 16/09: Australia 15, Germany/Austria/Sweden
+    13+ digits): longer numbers are kept as-is up to the E.164 max of 15
+    digits instead of being blindly truncated to the last 10.
+    """
     digits = "".join(ch for ch in raw if ch.isdigit())
-    # Keep the last 10 digits (Indian mobile) — strips +91 / 0 prefixes.
-    if len(digits) > 10:
-        digits = digits[-10:]
-    return digits
+    if len(digits) == 12 and digits.startswith("91"):
+        return digits[2:]
+    if len(digits) == 11 and digits.startswith("0"):
+        return digits[1:]
+    return digits[:15]
 
 
 def title_case_name(value: str) -> str:

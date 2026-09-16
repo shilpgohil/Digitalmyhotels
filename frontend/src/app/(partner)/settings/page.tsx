@@ -507,7 +507,11 @@ function GstForm() {
     },
     onSuccess: () => {
       onSaved();
+      // Invalidate EVERY GST consumer (client 16/09: "we reload page then
+      // system show"): check-in used the separate "hotel-gst" key, so a GST
+      // mode change never reached it without a hard reload.
       queryClient.invalidateQueries({ queryKey: ["gst-settings", activeHotelId] });
+      queryClient.invalidateQueries({ queryKey: ["hotel-gst", activeHotelId] });
     },
     onError,
   });
@@ -521,7 +525,18 @@ function GstForm() {
       className="max-w-2xl space-y-4 rounded-lg border bg-card p-6"
       onSubmit={(e) => {
         e.preventDefault();
-        mutation.mutate(new FormData(e.currentTarget));
+        const form = new FormData(e.currentTarget);
+        // GSTIN discipline (client 16/09: "GST Update not working" was the
+        // backend's raw 15-char error): validate BEFORE submit with a clear
+        // message. GSTIN is exactly 15 chars: 2-digit state code + 10-char
+        // PAN + entity digit + 'Z' + checksum.
+        const gstin = ((form.get("gstin") as string | null) ?? "").trim().toUpperCase();
+        if (gstin && gstin.length !== 15) {
+          toast.error(t("gstinLengthError"));
+          return;
+        }
+        form.set("gstin", gstin);
+        mutation.mutate(form);
       }}
     >
       {/* GST mode — the client's three modes (09/2026):
@@ -558,7 +573,19 @@ function GstForm() {
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="g-gstin">{t("gstin")}</Label>
-          <Input id="g-gstin" name="gstin" defaultValue={data.gstin ?? ""} maxLength={15} placeholder="27ABCDE1234F1Z5" />
+          <Input
+            id="g-gstin"
+            name="gstin"
+            defaultValue={data.gstin ?? ""}
+            maxLength={15}
+            placeholder="27ABCDE1234F1Z5"
+            className="uppercase"
+            onChange={(e) => {
+              // Uppercase + strip anything not GSTIN-legal as they type.
+              e.target.value = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "");
+            }}
+          />
+          <p className="text-label text-muted-foreground">{t("gstinHint")}</p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="g-legal">{t("legalName")}</Label>

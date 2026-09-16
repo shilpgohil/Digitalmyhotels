@@ -490,6 +490,23 @@ export default function AdminEditHotelPage({
     setTypeEntries((p) => p.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   const addType = () =>
     setTypeEntries((p) => [...p, { key: nextKey(), name: "", base_price: "", hourly_rate: "", max_occupancy: 2 }]);
+  /** Delete a room type (client 16/09: "Missing delete icon" — both systems).
+   *  Unsaved rows are removed locally; saved ones soft-delete via the API,
+   *  which 409s with a clear message while active rooms still use the type. */
+  const removeType = async (entry: RoomTypeEntryState) => {
+    if (!entry.id) {
+      setTypeEntries((p) => p.filter((r) => r.key !== entry.key));
+      return;
+    }
+    try {
+      await api(`/api/v1/rooms/types/${entry.id}`, { method: "DELETE" });
+      setTypeEntries((p) => p.filter((r) => r.key !== entry.key));
+      queryClient.invalidateQueries({ queryKey: ["admin-edit-hotel-room-types", hotelId] });
+      toast.success(t("roomTypeDeleted"));
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : tc("error"));
+    }
+  };
 
   const updateReq = (key: string, patch: Partial<ReqEntryState>) =>
     setReqEntries((p) => p.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -931,8 +948,16 @@ export default function AdminEditHotelPage({
             <div className="mb-5 space-y-3 border-b border-border pb-5">
               <p className="text-sm font-semibold">{t("roomTypes")}</p>
               {typeEntries.map((entry) => (
-                <div key={entry.key} className="rounded-lg border border-border p-4">
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div key={entry.key} className="relative rounded-lg border border-border p-4">
+                  <button
+                    type="button"
+                    onClick={() => void removeType(entry)}
+                    className="absolute right-3 top-3 text-muted-foreground hover:text-danger"
+                    aria-label={t("deleteRoomType")}
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                  </button>
+                  <div className="grid gap-3 pr-6 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="space-y-1.5">
                       <Label className="text-xs">{t("roomTypeName")}</Label>
                       <Input value={entry.name} onChange={(e) => updateType(entry.key, { name: e.target.value })} placeholder="Deluxe" />

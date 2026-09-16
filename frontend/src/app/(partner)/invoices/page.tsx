@@ -266,6 +266,15 @@ function InvoicesContent() {
                       <StatusBadge tone={inv.status === "cancelled" ? "danger" : "info"}>
                         {t(`status_${inv.status}`)}
                       </StatusBadge>
+                      {/* WHY it was cancelled (client 16/09 screenshot): a bare
+                          CANCELLED next to its replacement invoice read as a
+                          bug — surface the stored reason (e.g. superseded at
+                          checkout / checkout reversed). */}
+                      {inv.status === "cancelled" && inv.cancel_reason && (
+                        <p className="mt-0.5 max-w-[220px] truncate text-micro text-muted-foreground" title={inv.cancel_reason}>
+                          {inv.cancel_reason}
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell className="space-x-2">
                       <Button

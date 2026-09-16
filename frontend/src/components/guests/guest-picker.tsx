@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { useApi } from "@/lib/api/use-api";
 import { ApiError } from "@/lib/api/client";
 import type { GuestAutofill, GuestOut, GuestSearchResult } from "@/types/stay";
-import { sanitizePhone } from "@/lib/input-discipline";
+import { sanitizeGuestPhone } from "@/lib/input-discipline";
 
 interface GuestPickerProps {
   onSelected: (guest: { id: string; full_name: string; phone: string }) => void;
@@ -150,9 +150,9 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
         <Input
           placeholder={t("searchByPhone")}
           value={phone}
-          maxLength={10}
+          maxLength={15}
           onChange={(e) => {
-            setPhone(sanitizePhone(e.target.value));
+            setPhone(sanitizeGuestPhone(e.target.value));
             setLast4("");
           }}
           inputMode="tel"

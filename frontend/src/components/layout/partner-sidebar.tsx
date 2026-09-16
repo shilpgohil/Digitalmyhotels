@@ -395,6 +395,10 @@ export function PartnerBrand() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // While the hotel name is LOADING show a skeleton, not "DigitalMyHotels" —
+  // the platform default flashing before the real name confused the client
+  // ("Loading time coming digitalmyhotels display", 16/09).
+  const loading = hotel.isLoading && !hotel.data;
   const hotelName = hotel.data?.name?.trim() || "DigitalMyHotels";
 
   return (
@@ -408,13 +412,19 @@ export function PartnerBrand() {
             alt={hotelName}
             className="size-full bg-white object-contain"
           />
+        ) : loading ? (
+          <span className="size-5 animate-pulse rounded bg-navy-900/20" />
         ) : (
           hotelInitials(hotelName)
         )}
       </div>
       {/* Hotel name — always visible */}
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-white">{hotelName}</p>
+        {loading ? (
+          <span className="block h-4 w-28 animate-pulse rounded bg-white/15" />
+        ) : (
+          <p className="truncate text-sm font-semibold text-white">{hotelName}</p>
+        )}
         <p className="truncate text-micro tracking-widest uppercase text-sidebar-foreground/70">
           Front Desk Suite
         </p>

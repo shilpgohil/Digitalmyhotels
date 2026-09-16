@@ -181,6 +181,16 @@ function PaymentsContent() {
     enabled: !!activeHotelId,
   });
 
+  // No-GST hotels hide the GST column entirely (client 16/09: "if No GST
+  // Applicable — not showing GST all system").
+  const gstSettings = useQuery({
+    queryKey: ["gst-settings", activeHotelId],
+    queryFn: () => api<{ gst_mode: string }>("/api/v1/hotels/me/gst"),
+    enabled: !!activeHotelId,
+    staleTime: 300_000,
+  });
+  const showGstCol = gstSettings.data?.gst_mode !== "no_gst";
+
   const payments = useQuery({
     queryKey: ["payments", activeHotelId, bookingId],
     queryFn: () =>
@@ -316,7 +326,7 @@ function PaymentsContent() {
                       <TableHead className="text-white">{t("colBooking")}</TableHead>
                       <TableHead className="text-white">{t("colGuest")}</TableHead>
                       <TableHead className="text-white">{t("colRoomRent")}</TableHead>
-                      <TableHead className="text-white">{t("colTax")}</TableHead>
+                      {showGstCol && <TableHead className="text-white">{t("colTax")}</TableHead>}
                       <TableHead className="text-white">{t("colDiscount")}</TableHead>
                       <TableHead className="text-white">{t("colAdvance")}</TableHead>
                       <TableHead className="text-white">{t("colBalance")}</TableHead>
@@ -330,7 +340,7 @@ function PaymentsContent() {
                         <TableCell className="font-medium">{row.booking_number}</TableCell>
                         <TableCell>{row.guest_name ?? "—"}</TableCell>
                         <TableCell className="tabular-nums">{fmtINR(row.room_rent)}</TableCell>
-                        <TableCell className="tabular-nums">{fmtINR(row.gst)}</TableCell>
+                        {showGstCol && <TableCell className="tabular-nums">{fmtINR(row.gst)}</TableCell>}
                         <TableCell className="tabular-nums">{fmtINR(row.discount)}</TableCell>
                         <TableCell className="tabular-nums">{fmtINR(row.advance)}</TableCell>
                         <TableCell

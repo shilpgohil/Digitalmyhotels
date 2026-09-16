@@ -22,6 +22,18 @@ export function sanitizeLandline(value: string): string {
   return value.replace(/\D/g, "").slice(0, 12);
 }
 
+/** GUEST phone numbers (client 16/09): international guests have longer
+ *  numbers — Australia up to 15, Germany/Austria/Sweden 13+. Digits only,
+ *  capped at the E.164 maximum of 15. Indian +91/0 prefixes are still
+ *  stripped so domestic entry behaves exactly as before. Use for guest
+ *  identity fields; staff/vendor/hotel fields stay on sanitizePhone (10). */
+export function sanitizeGuestPhone(value: string): string {
+  let digits = value.replace(/\D/g, "");
+  if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2);
+  if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1);
+  return digits.slice(0, 15);
+}
+
 /** Pincode: exactly 6 digits. */
 export function sanitizePincode(value: string): string {
   return value.replace(/\D/g, "").slice(0, 6);

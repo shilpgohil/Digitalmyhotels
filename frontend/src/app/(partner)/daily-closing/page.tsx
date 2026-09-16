@@ -162,10 +162,30 @@ function DailyClosingContent() {
         {history.data && history.data.length > 1 && (
           <div className="mt-6">
             <ul className="space-y-2 text-sm">
+              {/* Each history row shows its numbers (client 16/09: "Not Show
+                  Detail" — a bare date + Open/Closed told staff nothing). */}
               {paginate(history.data, historyPage, 10).map((h) => (
-                <li key={h.id} className="flex justify-between rounded-lg border bg-card px-4 py-2">
-                  <span>{fmtApiDate(h.business_date)}</span>
-                  <span>{formatStatus(h.status)}</span>
+                <li key={h.id} className="rounded-lg border bg-card px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{fmtApiDate(h.business_date)}</span>
+                    <StatusBadge tone={h.status === "closed" ? "success" : "warning"}>
+                      {formatStatus(h.status)}
+                    </StatusBadge>
+                  </div>
+                  <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-4 lg:grid-cols-7">
+                    <div><dt className="uppercase tracking-wide text-micro">{t("checkins")}</dt><dd className="font-semibold text-foreground tabular-nums">{h.checkins_count}</dd></div>
+                    <div><dt className="uppercase tracking-wide text-micro">{t("checkouts")}</dt><dd className="font-semibold text-foreground tabular-nums">{h.checkouts_count}</dd></div>
+                    <div><dt className="uppercase tracking-wide text-micro">{t("revenue")}</dt><dd className="font-semibold text-foreground tabular-nums">{fmtINR(h.total_revenue)}</dd></div>
+                    <div><dt className="uppercase tracking-wide text-micro">{t("cash")}</dt><dd className="font-semibold text-foreground tabular-nums">{fmtINR(h.cash_collected)}</dd></div>
+                    <div><dt className="uppercase tracking-wide text-micro">{t("upi")}</dt><dd className="font-semibold text-foreground tabular-nums">{fmtINR(h.upi_collected)}</dd></div>
+                    <div><dt className="uppercase tracking-wide text-micro">{t("expenses")}</dt><dd className="font-semibold text-foreground tabular-nums">{fmtINR(h.total_expenses)}</dd></div>
+                    <div><dt className="uppercase tracking-wide text-micro">{t("dues")}</dt><dd className="font-semibold text-foreground tabular-nums">{fmtINR(h.dues_total)}</dd></div>
+                  </dl>
+                  {h.notes && (
+                    <p className="mt-1.5 truncate text-micro text-muted-foreground" title={h.notes}>
+                      {h.notes}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

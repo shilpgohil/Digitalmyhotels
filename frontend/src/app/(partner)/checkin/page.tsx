@@ -98,7 +98,7 @@ import type { GuestType } from "@/types/stay";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
 import { MaskedIdInput } from "@/components/checkin/masked-id-input";
-import { liveNameCase, sanitizePhone } from "@/lib/input-discipline";
+import { liveNameCase, sanitizeGuestPhone } from "@/lib/input-discipline";
 import { InlineCameraCapture } from "@/components/checkin/inline-camera-capture";
 import { UpiQrBlock } from "@/components/checkin/upi-qr-block";
 import { CollapsibleSection } from "@/components/checkin/collapsible-section";
@@ -1225,7 +1225,7 @@ function NewGuestForm({
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">{tg("phoneNumber")} *</Label>
-          <Input value={form.phone} onChange={(e) => set("phone", sanitizePhone(e.target.value))} maxLength={10} placeholder={t("mobile10")} inputMode="tel" required />
+          <Input value={form.phone} onChange={(e) => set("phone", sanitizeGuestPhone(e.target.value))} maxLength={15} placeholder={t("mobile10")} inputMode="tel" required />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">{t("emailOptional")}</Label>
@@ -1799,7 +1799,7 @@ function AdditionalGuestEntry({
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" aria-hidden />
               <Input
                 value={searchPhone}
-                onChange={(e) => { setSearchPhone(sanitizePhone(e.target.value)); setHasSearched(false); }}
+                onChange={(e) => { setSearchPhone(sanitizeGuestPhone(e.target.value)); setHasSearched(false); }}
                 placeholder={t("searchByPhone")}
                 className="pl-9"
                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleSearch())}
@@ -2241,7 +2241,7 @@ function CheckinForm({
 
   // Hotel GST settings for accurate payment breakdown.
   const gstSettings = useQuery({
-    queryKey: ["hotel-gst", activeHotelId],
+    queryKey: ["gst-settings", activeHotelId],
     queryFn: () =>
       api<{ gst_mode: string; default_cgst_rate: string; default_sgst_rate: string }>(
         "/api/v1/hotels/me/gst",
@@ -2756,7 +2756,7 @@ function CheckinForm({
             </div>
             <div className="space-y-1.5">
               <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
-              <Input value={pgPhone} onChange={(e) => setPgPhone(sanitizePhone(e.target.value))} maxLength={10} placeholder={t("phonePlaceholder")} inputMode="tel" />
+              <Input value={pgPhone} onChange={(e) => setPgPhone(sanitizeGuestPhone(e.target.value))} maxLength={15} placeholder={t("phonePlaceholder")} inputMode="tel" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldGender")}</Label>
@@ -2988,8 +2988,10 @@ function CheckinForm({
 
           {/* Bottom row: collection inputs */}
           <div className="rounded-xl border bg-muted/20 px-4 py-4 space-y-4">
-            {/* Payment summary breakdown */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 rounded-lg border bg-background px-3 py-3">
+            {/* Payment summary breakdown — column count follows the GST tile:
+                a fixed 5-col grid left an empty bordered gap for no-GST
+                hotels (client 16/09 screenshot). */}
+            <div className={cn("grid grid-cols-2 gap-2 rounded-lg border bg-background px-3 py-3", hotelGstRate > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4")}>
               <div className="space-y-1 text-center">
                 <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Room Rent</p>
                 <p className="text-sm font-bold tabular-nums">{fmtINR(bookingTotal)}</p>
@@ -3138,7 +3140,7 @@ function CheckinForm({
           </div>
           <div className="space-y-1.5">
             <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
-            <Input value={emPhone} onChange={(e) => setEmPhone(sanitizePhone(e.target.value))} maxLength={10} placeholder={t("phonePlaceholder")} inputMode="tel" />
+            <Input value={emPhone} onChange={(e) => setEmPhone(sanitizeGuestPhone(e.target.value))} maxLength={15} placeholder={t("phonePlaceholder")} inputMode="tel" />
           </div>
         </div>
       </Section>
@@ -3354,7 +3356,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
 
   // Hotel GST settings for accurate payment breakdown.
   const gstSettings = useQuery({
-    queryKey: ["hotel-gst", activeHotelId],
+    queryKey: ["gst-settings", activeHotelId],
     queryFn: () =>
       api<{ gst_mode: string; default_cgst_rate: string; default_sgst_rate: string }>(
         "/api/v1/hotels/me/gst",
@@ -4397,7 +4399,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
-                  <Input value={pgPhone} onChange={(e) => setPgPhone(sanitizePhone(e.target.value))} maxLength={10} placeholder={t("phonePlaceholder")} inputMode="tel" />
+                  <Input value={pgPhone} onChange={(e) => setPgPhone(sanitizeGuestPhone(e.target.value))} maxLength={15} placeholder={t("phonePlaceholder")} inputMode="tel" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldGender")}</Label>
@@ -4614,8 +4616,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       {/* ── 6. Payment Details ────────────────────────────────────────────── */}
       <Section icon={CreditCard} title={ts("paymentDetails")} subtitle={t("paymentSubtitleWalkIn")}>
         <div className="rounded-xl border bg-muted/20 px-4 py-4 space-y-4">
-          {/* Payment summary breakdown */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 rounded-lg border bg-background px-3 py-3">
+          {/* Payment summary breakdown — column count follows the GST tile:
+              a fixed 5-col grid left an empty bordered gap for no-GST hotels
+              (client 16/09 screenshot). */}
+          <div className={cn("grid grid-cols-2 gap-2 rounded-lg border bg-background px-3 py-3", hotelGstRate > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4")}>
             <div className="space-y-1 text-center">
               <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Room Rent</p>
               <p className={cn("text-sm font-bold tabular-nums", roomRentWalkIn === 0 ? "text-muted-foreground" : "")}>
@@ -4742,7 +4746,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           </div>
           <div className="space-y-1.5">
             <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
-            <Input value={emPhone} onChange={(e) => setEmPhone(sanitizePhone(e.target.value))} maxLength={10} placeholder={t("phonePlaceholder")} inputMode="tel" />
+            <Input value={emPhone} onChange={(e) => setEmPhone(sanitizeGuestPhone(e.target.value))} maxLength={15} placeholder={t("phonePlaceholder")} inputMode="tel" />
           </div>
         </div>
       </Section>

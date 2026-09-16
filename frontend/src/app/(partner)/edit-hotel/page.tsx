@@ -503,6 +503,23 @@ function EditHotelContent() {
       ...prev,
       { key: nextKey(), name: "", base_price: "", hourly_rate: "", max_occupancy: 2 },
     ]);
+  /** Delete a room type (client 16/09: "Missing delete icon"). Unsaved rows
+   *  are simply removed from state; saved types call the DELETE endpoint,
+   *  which soft-deletes and 409s while active rooms still use the type. */
+  const removeTypeEntry = async (entry: RoomTypeEntryState) => {
+    if (!entry.id) {
+      setTypeEntries((prev) => prev.filter((r) => r.key !== entry.key));
+      return;
+    }
+    try {
+      await api(`/api/v1/rooms/types/${entry.id}`, { method: "DELETE" });
+      setTypeEntries((prev) => prev.filter((r) => r.key !== entry.key));
+      queryClient.invalidateQueries({ queryKey: ["room-types", activeHotelId] });
+      toast.success(t("roomTypeDeleted"));
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : tc("error"));
+    }
+  };
 
   // ── Requirement entry helpers ──────────────────────────────────────────
   const updateReqEntry = (key: string, patch: Partial<ReqEntryState>) =>
@@ -1055,9 +1072,19 @@ function EditHotelContent() {
                 {typeEntries.map((entry) => (
                   <div
                     key={entry.key}
-                    className="rounded-lg border border-border p-4"
+                    className="relative rounded-lg border border-border p-4"
                   >
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {/* Delete icon (client 16/09) — blocked with a clear 409
+                        message while rooms still use the type. */}
+                    <button
+                      type="button"
+                      onClick={() => void removeTypeEntry(entry)}
+                      className="absolute right-3 top-3 text-muted-foreground hover:text-danger"
+                      aria-label={t("deleteRoomType")}
+                    >
+                      <Trash2 className="size-4" aria-hidden />
+                    </button>
+                    <div className="grid gap-3 pr-6 sm:grid-cols-2 lg:grid-cols-4">
                       <div className="space-y-1.5">
                         <Label className="text-xs">{t("roomTypeName")}</Label>
                         <Input

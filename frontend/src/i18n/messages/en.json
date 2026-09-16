@@ -214,7 +214,9 @@
     "locationDenied": "Location permission denied — allow location access for this site in your browser settings, then try again.",
     "locationTimeout": "Timed out getting your location — move near a window or check GPS, then try again.",
     "locationUnsupported": "This device/browser does not support location. Enter coordinates manually.",
-    "newTypeTag": "new"
+    "newTypeTag": "new",
+    "roomTypeDeleted": "Room type deleted",
+    "deleteRoomType": "Delete room type"
   },
   "dashboard": {
     "totalRooms": "Total Rooms",
@@ -1112,7 +1114,9 @@
     "deactivateService": "Deactivate",
     "activateService": "Activate",
     "noServices": "No services configured yet.",
-    "resetPassword": "Reset Password"
+    "resetPassword": "Reset Password",
+    "gstinLengthError": "GSTIN must be exactly 15 characters (2-digit state code + 10-character PAN + 3 more)",
+    "gstinHint": "15 characters, e.g. 27ABCDE1234F1Z5"
   },
   "ops": {
     "housekeepingTitle": "Housekeeping",
@@ -1155,9 +1159,9 @@
     "backdatedPaymentsTitle": "{count, plural, one {1 payment} other {# payments}} recorded today for prior-day bookings",
     "backdatedPaymentsHint": "Total {amount} — these are usually dues collected at checkout. Review before closing.",
     "handoverTitle": "Shift Handover",
-    "openingCash": "Opening cash",
-    "closingCash": "Closing cash",
-    "createHandover": "Create handover",
+    "openingCash": "Opening Cash",
+    "closingCash": "Closing Cash",
+    "createHandover": "Create Handover",
     "handoverCreated": "Handover created",
     "confirmHandover": "Confirm",
     "handoverConfirmed": "Handover confirmed",

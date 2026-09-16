@@ -76,6 +76,20 @@ async def update_room_type(
     return RoomTypeOut.model_validate(room_type)
 
 
+@router.delete("/types/{type_id}", status_code=204, response_class=Response)
+async def delete_room_type(
+    type_id: UUID,
+    request: Request,
+    tenant: TenantContext = Depends(require_permissions(Permission.ROOMS_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Soft-delete a room type — 409 while active rooms still use it."""
+    await rooms_service.delete_room_type(
+        db, tenant, type_id, correlation_id=_correlation(request)
+    )
+    return Response(status_code=204)
+
+
 # --- Rooms ----------------------------------------------------------------------
 
 

@@ -24,7 +24,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { apiFetch, ApiError } from "@/lib/api/client";
+import { apiFetch, ApiError, API_BASE } from "@/lib/api/client";
+import { getAccessToken } from "@/lib/auth/session";
 import { fmtApiDate } from "@/lib/formatting";
 
 interface CustomerSummary {
@@ -77,34 +78,30 @@ export default function AdminCustomersPage() {
 
   const cols = [t("customerName"), t("contactNumber"), t("hotelName"), t("city"), "ID", tc("actions")];
 
-  /** Export the FULL (unpaginated) filtered list as CSV — masked fields only,
-   *  same privacy level as the on-screen table (client 09/2026).
-   *  Wrapped in try/catch: the previous version failed silently when the
-   *  backend rejected limit=5000 (was capped at 100 → 422) — the button
-   *  appeared dead. Errors now surface as a toast. */
+  /** Export the FULL filtered list as CSV via the AUDITED backend endpoint —
+   *  unmasked contact + decrypted ID number (client 16/09: the old export
+   *  reused the masked on-screen list, so the CSV had ***-numbers and a
+   *  blank ID column). Raw fetch: the response is text/csv, not JSON. */
   const exportCsv = async () => {
     try {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
-      params.set("limit", "5000");
-      params.set("offset", "0");
-      const data = await apiFetch<{ items: CustomerSummary[] }>(
-        `/api/v1/super-admin/customers?${params}`,
+      const resp = await fetch(
+        `${API_BASE}/api/v1/super-admin/customers-export?${params}`,
+        {
+          headers: {
+            Accept: "text/csv",
+            Authorization: `Bearer ${getAccessToken() ?? ""}`,
+          },
+          credentials: "include",
+        },
       );
-      if (!data.items.length) {
-        toast.info("No customers to export");
+      if (!resp.ok) {
+        toast.error(tc("error"));
         return;
       }
-      const esc = (v: string | null | undefined) =>
-        `"${String(v ?? "").replaceAll('"', '""')}"`;
-      const csv = [
-        ["Customer", "Contact (masked)", "Hotel", "City"].join(","),
-        ...data.items.map((c) =>
-          [esc(c.full_name), esc(c.phone_masked), esc(c.hotel_name), esc(c.city)].join(","),
-        ),
-      ].join("\n");
-      // \uFEFF BOM so Excel opens the file as UTF-8 (names with accents)
-      const url = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
+      const csv = await resp.text();
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
       const a = document.createElement("a");
       a.href = url;
       a.download = "all-customers.csv";

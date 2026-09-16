@@ -727,6 +727,66 @@ async def search_customers(
     return items, total
 
 
+async def export_customers(
+    db: AsyncSession,
+    *,
+    q: str | None,
+    actor_id: UUID,
+    correlation_id: str | None = None,
+) -> list[dict]:
+    """FULL customer export for the platform owner (client 16/09: the CSV
+    "Missing ID and No show contact No" — the old export reused the masked
+    list). Returns UNMASKED phone + decrypted ID number; every export writes
+    a platform.customers_exported audit row (super-admin only endpoint).
+    """
+    from app.core.encryption import decrypt_sensitive
+    from app.models.guest import Guest
+    from app.schemas.guest import normalize_phone
+
+    stmt = select(Guest, Hotel.name.label("hotel_name")).join(
+        Hotel, Hotel.id == Guest.hotel_id
+    )
+    if q:
+        normalized = normalize_phone(q)
+        conditions: list = [Guest.full_name.ilike(f"%{q}%")]
+        if normalized:
+            conditions.append(Guest.normalized_phone.contains(normalized))
+        stmt = stmt.where(or_(*conditions))
+    rows = (await db.execute(stmt.order_by(Guest.full_name).limit(10000))).all()
+
+    items: list[dict] = []
+    for guest, hotel_name in rows:
+        id_number: str = ""
+        if guest.id_encrypted:
+            try:
+                id_number = decrypt_sensitive(guest.id_encrypted)
+            except Exception:  # noqa: BLE001 — legacy/foreign-key rows: degrade to last4
+                id_number = f"****{guest.id_last4}" if guest.id_last4 else ""
+        elif guest.id_last4:
+            id_number = f"****{guest.id_last4}"
+        items.append(
+            {
+                "full_name": guest.full_name,
+                "phone": guest.normalized_phone or "",
+                "hotel_name": hotel_name,
+                "city": guest.city or "",
+                "id_proof_type": guest.id_proof_type or "",
+                "id_number": id_number,
+                "created_at": guest.created_at,
+            }
+        )
+    await write_audit(
+        db,
+        action="platform.customers_exported",
+        entity_type="guest",
+        entity_id=actor_id,
+        actor_id=actor_id,
+        after={"rows": len(items), "query": q or ""},
+        correlation_id=correlation_id,
+    )
+    return items
+
+
 async def get_customer_detail(
     db: AsyncSession,
     guest_id: UUID,

@@ -255,6 +255,50 @@ async def list_customers(
     )
 
 
+@router.get("/customers-export")
+async def export_customers(
+    request: Request,
+    q: str | None = Query(default=None, max_length=100),
+    user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """FULL customer CSV for the platform owner — unmasked phone + decrypted
+    ID number (client 16/09: masked CSV was useless). AUDITED on every call.
+    Path is /customers-export (not /customers/export) so it can't collide
+    with the /customers/{guest_id} route."""
+    from fastapi.responses import PlainTextResponse
+
+    rows = await admin_service.export_customers(
+        db, q=q, actor_id=user.id, correlation_id=_correlation(request)
+    )
+
+    def esc(v: str) -> str:
+        return '"' + str(v).replace('"', '""') + '"'
+
+    lines = ["Customer,Contact Number,Hotel,City,ID Type,ID Number,Created"]
+    for r in rows:
+        lines.append(
+            ",".join(
+                esc(v)
+                for v in (
+                    r["full_name"],
+                    r["phone"],
+                    r["hotel_name"],
+                    r["city"],
+                    r["id_proof_type"],
+                    r["id_number"],
+                    r["created_at"].date().isoformat() if r["created_at"] else "",
+                )
+            )
+        )
+    # BOM so Excel opens as UTF-8 (Hindi names).
+    return PlainTextResponse(
+        "\ufeff" + "\n".join(lines),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="all-customers.csv"'},
+    )
+
+
 @router.get("/customers/{guest_id}", response_model=AdminCustomerDetailOut)
 async def get_customer(
     guest_id: UUID,

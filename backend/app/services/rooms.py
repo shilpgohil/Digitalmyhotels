@@ -256,6 +256,52 @@ async def update_room_type(
     return room_type
 
 
+async def delete_room_type(
+    db: AsyncSession,
+    tenant: TenantContext,
+    type_id: UUID,
+    *,
+    correlation_id: str | None = None,
+) -> None:
+    """Soft-delete a room type (client 16/09: 'Missing delete icon').
+
+    SOFT delete (is_active=False): historical bookings reference the type via
+    BookingRoom.room_type_id, so a hard DELETE would break invoices/reports.
+    Blocked while any ACTIVE room still uses the type — staff must delete or
+    re-type those rooms first, otherwise they would silently lose pricing.
+    """
+    room_type = await get_room_type(db, tenant, type_id)
+    in_use = (
+        await db.execute(
+            select(func.count())
+            .select_from(Room)
+            .where(
+                Room.hotel_id == tenant.require_hotel(),
+                Room.room_type_id == type_id,
+                Room.is_active.is_(True),
+            )
+        )
+    ).scalar_one()
+    if in_use:
+        raise ConflictError(
+            f"'{room_type.name}' is used by {in_use} room(s). "
+            "Delete or re-assign those rooms first.",
+            code="room_type_in_use",
+        )
+    room_type.is_active = False
+    await write_audit(
+        db,
+        action="rooms.type_deleted",
+        entity_type="room_type",
+        entity_id=room_type.id,
+        actor_id=tenant.user_id,
+        hotel_id=tenant.hotel_id,
+        before={"name": room_type.name, "is_active": "True"},
+        after={"is_active": "False"},
+        correlation_id=correlation_id,
+    )
+
+
 # --- Rooms ----------------------------------------------------------------------
 
 
