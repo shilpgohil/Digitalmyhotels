@@ -128,9 +128,9 @@ Suite: 225 passed / 3 documented pre-existing. Build green.
 - STILL OPEN (honest list): 10.7 double-scroll SA add-hotel (needs repro),
   10.6 "SA add hotel not working" (backend lifecycle test passes — needs
   client repro details; Figma parity pass pending), 10.8 auto-checkout
-  next day (blocked on Q9 money-handling decision), 10.12 "Wrong"
-  screenshot (unidentified), §4.2b draft photos (blocked on production B2
-  confirmation), minor i18n empty-state subtitles.
+  next day (implemented as fully-paid sweep), 10.12 "Wrong"
+  screenshot (unidentified), §4.2b draft photos (IMPLEMENTED 16/09 —
+  upload on Save Draft + 7-day sweep; production B2 confirmed healthy).
 
 **PHASE 4 REVERIFIED 15/09 (commit e8333d1):**
 - Client clarification implemented: SUPER ADMIN is exempt from the team cap
@@ -688,7 +688,9 @@ same-day availability.
 - **Q3** Old untagged drafts: adopt into first active hotel vs discard.
 - **Q4** Team limit counts: active members excluding owner — confirm.
 - **Q5** Same-day check-in: hard-block occupied rooms vs blocking-confirm dialog.
-- **Q6** Draft documents uploaded server-side at selection (with sweep) — confirm.
+- **Q6** Draft documents uploaded server-side at Save Draft (with 7-day sweep) —
+  CONFIRMED 16/09 and implemented. Production B2 verified (`backend=b2`,
+  bucket Digitialmyhotels, write/read/delete OK).
 - **Q7** (merged into Q5) room statuses that must be hard-unselectable for same-day.
 - **Q8** "Activate automatically when expired": confirm it means auto-REACTIVATE on
   renewal/extension (already true) + derived status everywhere — not auto-suspend.

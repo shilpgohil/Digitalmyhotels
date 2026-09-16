@@ -151,18 +151,28 @@ async def _regenerate_qr(
     qr_png = await loop.run_in_executor(None, _render_qr_png, uri, logo_bytes)
 
     storage = get_storage()
+    old_key = config.qr_object_key
     key = f"hotels/{hotel_id}/payment-qr/v{config.config_version}.png"
     await storage.put_bytes(key=key, data=qr_png, content_type="image/png")
     config.qr_object_key = key
     config.qr_version = config.config_version
+    # Best-effort cleanup of the superseded QR version (orphans only cost storage).
+    if old_key and old_key != key:
+        try:
+            await storage.delete(old_key)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 async def _load_logo(config: HotelPaymentConfig) -> bytes | None:
+    """Best-effort logo load — a missing/broken object must never block a
+    payment-config update (storage raises the app NotFoundError, never
+    FileNotFoundError); the QR is simply rendered without the logo."""
     if not config.logo_object_key:
         return None
     try:
         return await get_storage().get_bytes(config.logo_object_key)
-    except FileNotFoundError:
+    except (NotFoundError, FileNotFoundError):
         return None
 
 
@@ -220,7 +230,7 @@ async def get_qr_png(db: AsyncSession, tenant: TenantContext) -> bytes:
         raise NotFoundError("Payment QR is not configured yet", code="qr_not_configured")
     try:
         return await get_storage().get_bytes(config.qr_object_key)
-    except FileNotFoundError as exc:
+    except (NotFoundError, FileNotFoundError) as exc:
         raise NotFoundError("Payment QR is not available", code="qr_missing") from exc
 
 

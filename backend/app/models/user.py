@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,12 +23,24 @@ class Role(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "users"
+    __table_args__ = (
+        # Declared on the model so test databases (Base.metadata.create_all)
+        # enforce the same phone uniqueness production got from migration
+        # b6a4996f6748 — otherwise a test can pass with duplicate phones that
+        # production would reject with an IntegrityError 500.
+        Index(
+            "ix_users_phone",
+            "phone",
+            unique=True,
+            postgresql_where=text("phone IS NOT NULL"),
+        ),
+    )
 
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
     # Stored normalized (digits only, country code stripped — see
-    # app.schemas.guest.normalize_phone). A partial unique index
-    # ix_users_phone (WHERE phone IS NOT NULL) is created in migration
-    # b6a4996f6748 so staff can log in by phone.
+    # app.schemas.guest.normalize_phone). Partial unique index declared above
+    # (created in production by migration b6a4996f6748) so staff can log in
+    # by phone.
     phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)

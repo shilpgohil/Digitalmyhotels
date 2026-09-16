@@ -368,10 +368,18 @@ async def upload_photo(
     if len(data) > MAX_PHOTO_BYTES:
         raise ValidationAppError("Photo must be 2 MB or smaller", code="photo_too_large")
     profile = await get_profile(db, tenant, staff_id)
+    old_key = profile.photo_object_key
     key = new_object_key(f"hotels/{profile.hotel_id}/staff/{profile.id}/photo", filename)
     await get_storage().put_bytes(key=key, data=data, content_type=content_type)
     profile.photo_object_key = key
     await db.flush()
+    # Best-effort cleanup of the replaced photo — orphan objects only cost
+    # storage, so a failed delete is never allowed to fail the upload.
+    if old_key and old_key != key:
+        try:
+            await get_storage().delete(old_key)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 async def get_photo_bytes(

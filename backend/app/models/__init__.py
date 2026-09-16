@@ -7,7 +7,7 @@ from app.models.expense import (
     RecurringExpense,
     Vendor,
 )
-from app.models.guest import Guest, GuestDocument, GuestRegistration
+from app.models.guest import Guest, GuestDocument, GuestDraftDocument, GuestRegistration
 from app.models.hotel import Hotel, HotelPaymentConfig, HotelServiceItem, HotelSettings
 from app.models.invoice import GstSettings, Invoice, InvoiceItem
 from app.models.ops import DailyClosing, HousekeepingTask, MaintenanceRecord, ShiftHandover
@@ -39,6 +39,7 @@ __all__ = [
     "RoomAmenity",
     "Guest",
     "GuestDocument",
+    "GuestDraftDocument",
     "GuestRegistration",
     "Booking",
     "BookingRoom",

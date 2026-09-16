@@ -60,6 +60,25 @@ class GuestDocument(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     side: Mapped[str | None] = mapped_column(String(16), nullable=True)  # front|back|selfie
 
 
+class GuestDraftDocument(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Draft-stage ID photo for check-in drafts (client 16/09).
+
+    Browsers cannot persist File objects in localStorage, so "Save Draft"
+    uploads queued co-guest photos here (hotel-scoped B2 keys) and the draft
+    JSON stores only the object keys. Rows are deleted when the draft is
+    restored+consumed or discarded; a daily sweep removes anything older
+    than the TTL (abandoned drafts on wiped browsers).
+    """
+
+    __tablename__ = "guest_draft_documents"
+
+    hotel_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("hotels.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    object_key: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+
+
 class GuestRegistration(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "guest_registrations"
     __table_args__ = (

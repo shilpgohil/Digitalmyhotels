@@ -37,11 +37,12 @@ import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
+    ArrowLeft,
   BadgeCheck,
   BedDouble,
   Camera,
   Car,
+  ChevronDown,
   Clock,
   Globe,
   CreditCard,
@@ -119,8 +120,10 @@ interface ResolvedCoGuest {
   full_name: string;
   /** Resolved phone — shown on the guest card (client 9-08 item 9). */
   phone?: string;
-  /** Docs queued for upload after guest is created/resolved. */
-  docs: { side: DocSide; file: File }[];
+  /** Docs queued for upload after guest is created/resolved.
+   *  `key` is set when the file already lives in draft storage — re-save
+   *  reuses it instead of uploading a second copy. */
+  docs: { side: DocSide; file: File; key?: string }[];
   /** Form C details when this co-guest is a foreign national. */
   foreign_guest?: ForeignGuestIn | null;
 }
@@ -251,16 +254,24 @@ interface CheckinDraft {
   pgCompany: string;
   foreignEnabled: boolean;
   foreignGuest: ForeignGuestFormState;
-  /** Additional guests, TEXT data only (plan §4.2 — client: "When I Restore,
-   *  Additional Guests Detail not showing"). Queued document Files cannot be
-   *  serialized to localStorage — staff re-attach photos after restore. */
+  /** Additional guests (plan §4.2 + client 16/09). Queued photo FILES cannot
+   *  live in localStorage, so "Save Draft" uploads them to hotel-scoped B2
+   *  draft storage and only their object KEYS are stored here; restore
+   *  re-downloads them into the tiles. */
   coGuests?: {
     guest_id: string;
     full_name: string;
     phone?: string;
     newForm?: GuestCreatePayload;
     foreign_guest?: ForeignGuestIn | null;
+    /** Server-persisted draft photos: side → storage object key. */
+    draft_docs?: { side: DocSide; key: string }[];
   }[];
+}
+
+/** Every draft-photo key referenced by a draft (for cleanup on discard). */
+function draftDocKeys(d: CheckinDraft): string[] {
+  return (d.coGuests ?? []).flatMap((cg) => (cg.draft_docs ?? []).map((x) => x.key));
 }
 
 function draftId(): string {
@@ -1312,7 +1323,11 @@ function AdditionalGuestEntry({
   const [hasSearched, setHasSearched] = useState(false);
   const [resolved, setResolved] = useState<ResolvedCoGuest | null>(initial ?? null);
   const [mode, setMode] = useState<"search" | "form">("search");
-  const [docs, setDocs] = useState<{ side: DocSide; file: File }[]>([]);
+  // Seed from a restored draft's docs — otherwise the tiles render blank and
+  // queuing ONE new photo would wipe the restored ones (docs replace, not merge).
+  const [docs, setDocs] = useState<{ side: DocSide; file: File; key?: string }[]>(
+    initial?.docs ?? [],
+  );
   /** Saved document ids per side for a returning guest (preloads the tiles). */
   const [existingDocs, setExistingDocs] = useState<Partial<Record<DocSide, string>>>({});
   // Edit mode — re-opens the guest form pre-filled with the resolved guest.
@@ -3719,10 +3734,16 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const [error, setError] = useState<string | null>(null);
 
   // ── Section refs — scroll the first invalid section into view on submit ──
+  const formTopRef = useRef<HTMLDivElement | null>(null);
   const datesSectionRef = useRef<HTMLDivElement | null>(null);
   const guestSectionRef = useRef<HTMLDivElement | null>(null);
   const roomsSectionRef = useRef<HTMLDivElement | null>(null);
   const termsSectionRef = useRef<HTMLDivElement | null>(null);
+
+  /** Smooth-scroll to an element. block="start" for the form top so the header stays visible. */
+  const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>, block: ScrollLogicalPosition = "center") => {
+    ref.current?.scrollIntoView({ behavior: "smooth", block });
+  };
 
   // ── Drafts (localStorage) ──
   // ALL saved drafts are listed (newest first); each can be restored or
@@ -3730,75 +3751,175 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   // check-in completes — abandoning the restore never loses the draft.
   const [drafts, setDrafts] = useState<CheckinDraft[]>([]);
   const [restoredDraftId, setRestoredDraftId] = useState<string | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [restoringDraftId, setRestoringDraftId] = useState<string | null>(null);
+  // When true the draft panel is collapsed (user tapped outside / restored one).
+  const [draftsCollapsed, setDraftsCollapsed] = useState(false);
   // Re-read whenever the active hotel changes — drafts are hotel-scoped (§1.1).
   useEffect(() => {
     setDrafts(readDrafts(activeHotelId));
     setRestoredDraftId(null);
+    setRestoringDraftId(null);
+    setDraftsCollapsed(false);
   }, [activeHotelId]);
 
-  const saveDraft = () => {
-    const d: CheckinDraft = {
-      id: draftId(),
-      savedAt: new Date().toISOString(),
-      checkInDate,
-      checkOutDate,
-      checkInTime,
-      checkOutTime,
-      guestType,
-      guest: guest ? { id: guest.id, full_name: guest.full_name, phone: pgPhone } : null,
-      selectedRooms,
-      adultsCount,
-      childCount,
-      specialInstructions,
-      selectedServices,
-      advanceAmount,
-      paymentMode,
-      paymentReceived,
-      extraCharges,
-      serviceAmounts,
-      rateEdits,
-      terms,
-      emName,
-      emRelation,
-      emPhone,
-      vehNumber,
-      vehType,
-      vehTypeOther,
-      vehMake,
-      parkingSlot,
-      pgCompany,
-      foreignEnabled: fgEnabled,
-      foreignGuest: fgForm,
-      // Additional guests — text data only (files can't persist, §4.2).
-      // PRIVACY: the full ID number is NEVER written to localStorage (same
-      // rule as the primary guest) — staff re-enter it after restore.
-      coGuests: coGuests.filter(Boolean).map((cg) => {
-        const nf = (cg as ResolvedCoGuest & { _newForm?: GuestCreatePayload })._newForm;
-        return {
-          guest_id: cg.guest_id,
-          full_name: cg.full_name,
-          phone: cg.phone,
-          newForm: nf ? { ...nf, id_number: "" } : undefined,
-          foreign_guest: cg.foreign_guest ?? null,
-        };
-      }),
-    };
-    if (!activeHotelId) {
-      toast.error(t("draftSaveFailed"));
+  /** Upload one queued photo to hotel-scoped draft storage → object key. */
+  const uploadDraftDoc = async (file: File): Promise<string | null> => {
+    try {
+      const fd = new FormData();
+      fd.append("file", file, file.name || "draft.jpg");
+      const out = await apiUpload<{ key: string }>(
+        "/api/v1/guests/draft-documents",
+        fd,
+        { hotelId: activeHotelId ?? undefined },
+      );
+      return out.key;
+    } catch {
+      return null;
+    }
+  };
+
+  /** Fire-and-forget removal of a draft's server-side photos. */
+  const deleteDraftDocs = (keys: string[]) => {
+    for (const key of keys) {
+      void api(`/api/v1/guests/draft-documents?key=${encodeURIComponent(key)}`, {
+        method: "DELETE",
+      }).catch(() => {
+        // The 7-day TTL sweep is the safety net for failed deletes.
+      });
+    }
+  };
+
+  /** Delete a draft's photos EXCEPT keys still referenced by surviving drafts.
+   *  Restore→re-save reuses object keys, so two drafts can legitimately share
+   *  a key — deleting blindly would destroy the other draft's photos. */
+  const deleteDraftDocsUnlessShared = (keys: string[], remaining: CheckinDraft[]) => {
+    const stillReferenced = new Set(remaining.flatMap(draftDocKeys));
+    deleteDraftDocs(keys.filter((k) => !stillReferenced.has(k)));
+  };
+
+  const saveDraft = async () => {
+    if (!activeHotelId || savingDraft) {
+      if (!activeHotelId) toast.error(t("draftSaveFailed"));
       return;
     }
+    setSavingDraft(true);
     try {
-      // Newest first; keep at most MAX_DRAFTS (oldest dropped).
+      // Persist queued co-guest photos FIRST (client 16/09: draft photos used
+      // to vanish — Files can't live in localStorage, so they go to B2 draft
+      // storage and the draft carries only their keys). Already-uploaded keys
+      // are reused so restore→save does not create a second B2 object.
+      const coGuestDraftDocs: ({ side: DocSide; key: string }[] | undefined)[] = [];
+      let failedPhotos = 0;
+      for (const cg of coGuests.filter(Boolean)) {
+        if (!cg.docs || cg.docs.length === 0) {
+          coGuestDraftDocs.push(undefined);
+          continue;
+        }
+        const uploaded: { side: DocSide; key: string }[] = [];
+        for (const doc of cg.docs) {
+          if (doc.key) {
+            uploaded.push({ side: doc.side, key: doc.key });
+            continue;
+          }
+          const key = await uploadDraftDoc(doc.file);
+          if (key) uploaded.push({ side: doc.side, key });
+          else failedPhotos++;
+        }
+        coGuestDraftDocs.push(uploaded.length > 0 ? uploaded : undefined);
+      }
+      if (failedPhotos > 0) {
+        toast.warning(t("draftPhotoUploadFailed", { count: failedPhotos }));
+      }
+
+      const d: CheckinDraft = {
+        id: draftId(),
+        savedAt: new Date().toISOString(),
+        checkInDate,
+        checkOutDate,
+        checkInTime,
+        checkOutTime,
+        guestType,
+        guest: guest ? { id: guest.id, full_name: guest.full_name, phone: pgPhone } : null,
+        selectedRooms,
+        adultsCount,
+        childCount,
+        specialInstructions,
+        selectedServices,
+        advanceAmount,
+        paymentMode,
+        paymentReceived,
+        extraCharges,
+        serviceAmounts,
+        rateEdits,
+        terms,
+        emName,
+        emRelation,
+        emPhone,
+        vehNumber,
+        vehType,
+        vehTypeOther,
+        vehMake,
+        parkingSlot,
+        pgCompany,
+        foreignEnabled: fgEnabled,
+        foreignGuest: fgForm,
+        // Additional guests — text data + server-persisted photo keys (16/09).
+        // PRIVACY: the full ID number is NEVER written to localStorage (same
+        // rule as the primary guest) — staff re-enter it after restore.
+        coGuests: coGuests.filter(Boolean).map((cg, i) => {
+          const nf = (cg as ResolvedCoGuest & { _newForm?: GuestCreatePayload })._newForm;
+          return {
+            guest_id: cg.guest_id,
+            full_name: cg.full_name,
+            phone: cg.phone,
+            newForm: nf ? { ...nf, id_number: "" } : undefined,
+            foreign_guest: cg.foreign_guest ?? null,
+            draft_docs: coGuestDraftDocs[i],
+          };
+        }),
+      };
+      // Newest first; keep at most MAX_DRAFTS. Evicted drafts' B2 objects
+      // are deleted immediately (unless shared with a surviving draft) so
+      // they don't wait for the 7-day sweep.
       const next = [d, ...drafts].slice(0, MAX_DRAFTS);
-      localStorage.setItem(draftsKey(activeHotelId), JSON.stringify(next));
+      const keptIds = new Set(next.map((x) => x.id));
+      for (const old of drafts.filter((x) => !keptIds.has(x.id))) {
+        deleteDraftDocsUnlessShared(draftDocKeys(old), next);
+      }
+      writeDrafts(activeHotelId, next);
       setDrafts(next);
       toast.success(t("draftSaved"));
     } catch {
       toast.error(t("draftSaveFailed"));
+    } finally {
+      setSavingDraft(false);
     }
   };
 
-  const restoreDraft = (d: CheckinDraft) => {
+  /** Download one server-persisted draft photo back into a File. */
+  const fetchDraftDoc = async (side: DocSide, key: string): Promise<File | null> => {
+    try {
+      const token = getAccessToken();
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (activeHotelId) headers["X-Hotel-Id"] = activeHotelId;
+      const resp = await fetch(
+        `${API_BASE}/api/v1/guests/draft-documents/content?key=${encodeURIComponent(key)}`,
+        { headers, credentials: "include" },
+      );
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      return new File([blob], `${side}.jpg`, { type: blob.type || "image/jpeg" });
+    } catch {
+      return null;
+    }
+  };
+
+  const restoreDraft = async (d: CheckinDraft) => {
+    if (restoringDraftId) return;
+    setRestoringDraftId(d.id ?? "restoring");
+    try {
     setCheckInDate(d.checkInDate);
     setCheckOutDate(d.checkOutDate);
     setCheckInTime(d.checkInTime);
@@ -3831,33 +3952,63 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       // Re-select the guest (also re-fetches identity autofill, non-fatal).
       void handleGuestSelected(d.guest);
     }
-    // Additional guests round-trip (plan §4.2): rebuild resolved entries from
-    // the serialized text data. Queued photos are gone (Files can't persist);
-    // existing guests re-fetch their saved documents on mount instead.
-    const restoredCoGuests = (d.coGuests ?? []).map((sg) => {
-      const rg: ResolvedCoGuest & { _newForm?: GuestCreatePayload } = {
-        guest_id: sg.guest_id,
-        full_name: sg.full_name,
-        phone: sg.phone,
-        docs: [],
-        foreign_guest: sg.foreign_guest ?? null,
-      };
-      if (sg.newForm) rg._newForm = sg.newForm;
-      return rg;
-    });
+    // Additional guests round-trip (plan §4.2 + client 16/09): rebuild
+    // resolved entries from the serialized text data AND re-download any
+    // server-persisted draft photos back into their tiles. Existing guests
+    // additionally re-fetch their saved profile documents on mount.
+    let failedRestore = 0;
+    const restoredCoGuests = await Promise.all(
+      (d.coGuests ?? []).map(async (sg) => {
+        const docs: { side: DocSide; file: File; key?: string }[] = [];
+        for (const dd of sg.draft_docs ?? []) {
+          const file = await fetchDraftDoc(dd.side, dd.key);
+          if (file) docs.push({ side: dd.side, file, key: dd.key });
+          else failedRestore++;
+        }
+        const rg: ResolvedCoGuest & { _newForm?: GuestCreatePayload } = {
+          guest_id: sg.guest_id,
+          full_name: sg.full_name,
+          phone: sg.phone,
+          docs,
+          foreign_guest: sg.foreign_guest ?? null,
+        };
+        if (sg.newForm) rg._newForm = sg.newForm;
+        return rg;
+      }),
+    );
     setCoGuests(restoredCoGuests);
     setGuestKeys(restoredCoGuests.map((_, i) => Date.now() + i));
     // Keep the draft in the list until this check-in actually completes —
     // deleted then (or via its own Discard button), never on restore alone.
     setRestoredDraftId(d.id ?? null);
+    // Collapse the draft panel and scroll the user to the filled form so
+    // the result of the restore is immediately visible.
+    setDraftsCollapsed(true);
     toast.success(t("draftRestored"));
+    if (failedRestore > 0) {
+      toast.warning(t("draftPhotoRestoreFailed", { count: failedRestore }));
+    }
+    // Small delay so the panel collapses before we scroll (avoids layout jump).
+    setTimeout(() => scrollToSection(formTopRef, "start"), 80);
+    } finally {
+      setRestoringDraftId(null);
+    }
   };
 
   const discardDraft = (id: string | undefined) => {
+    // Clean up the discarded draft's server-side photos (16/09) — but never
+    // keys another surviving draft still references.
+    const discarded = drafts.find((d) => d.id === id);
     const next = drafts.filter((d) => d.id !== id);
+    if (discarded) deleteDraftDocsUnlessShared(draftDocKeys(discarded), next);
     writeDrafts(activeHotelId, next);
     setDrafts(next);
     if (restoredDraftId === id) setRestoredDraftId(null);
+    // If no drafts remain, collapse and scroll to the clean form.
+    if (next.length === 0) {
+      setDraftsCollapsed(true);
+      setTimeout(() => scrollToSection(formTopRef, "start"), 80);
+    }
   };
 
   // Same-day is allowed as a day-use stay when both times are set and
@@ -3905,6 +4056,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
 
       // 2. Create new additional guests + upload queued docs (same as MODE B).
       const resolvedCoGuests: CoGuestIn[] = [];
+      const coGuestDocUploads: Promise<unknown>[] = [];
       for (const cg of coGuests.filter(Boolean)) {
         const isNew = cg.guest_id.startsWith("__new__");
         if (isNew) {
@@ -3929,15 +4081,20 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               id_number: newForm.id_number?.trim() || undefined,
             },
           });
-          // Non-blocking uploads — doc failures must not abort check-in
+          // Awaited uploads — failures must not abort check-in, but they must
+          // be COUNTED so the draft backup isn't destroyed and staff is told
+          // (previously fire-and-forget: a failed upload lost the photo
+          // silently while the draft copy was deleted on success).
           for (const doc of cg.docs) {
             const form = new FormData();
             form.append("side", doc.side);
             form.append("document_type", "id_proof");
             form.append("file", doc.file);
-            apiUpload(`/api/v1/guests/${created.id}/documents`, form, {
-              hotelId: activeHotelId ?? undefined,
-            }).catch((err: unknown) => console.warn("[checkin] new co-guest doc:", err));
+            coGuestDocUploads.push(
+              apiUpload(`/api/v1/guests/${created.id}/documents`, form, {
+                hotelId: activeHotelId ?? undefined,
+              }),
+            );
           }
           resolvedCoGuests.push({
             guest_id: created.id,
@@ -3949,9 +4106,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             form.append("side", doc.side);
             form.append("document_type", "id_proof");
             form.append("file", doc.file);
-            apiUpload(`/api/v1/guests/${cg.guest_id}/documents`, form, {
-              hotelId: activeHotelId ?? undefined,
-            }).catch((err: unknown) => console.warn("[checkin] existing co-guest doc:", err));
+            coGuestDocUploads.push(
+              apiUpload(`/api/v1/guests/${cg.guest_id}/documents`, form, {
+                hotelId: activeHotelId ?? undefined,
+              }),
+            );
           }
           resolvedCoGuests.push({
             guest_id: cg.guest_id,
@@ -3959,6 +4118,8 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           });
         }
       }
+      const docResults = await Promise.allSettled(coGuestDocUploads);
+      const failedDocUploads = docResults.filter((r) => r.status === "rejected").length;
 
       // 3. Book + check in atomically — service charges, early check-in fee,
       // extra charges and the advance payment are all applied by the backend
@@ -4043,18 +4204,33 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         },
       );
 
-      return checkinOut;
+      return { result: checkinOut, failedDocUploads };
     },
-    onSuccess: (result) => {
+    onSuccess: ({ result, failedDocUploads }) => {
       setCheckinResult(result);
       setError(null);
       // Check-in completed — only the RESTORED draft (if any) is now stale.
       // Other saved drafts belong to other guests and must survive.
       if (restoredDraftId) {
-        const next = drafts.filter((d) => d.id !== restoredDraftId);
-        writeDrafts(activeHotelId, next);
-        setDrafts(next);
-        setRestoredDraftId(null);
+        const consumed = drafts.find((d) => d.id === restoredDraftId);
+        if (failedDocUploads > 0) {
+          // Some co-guest ID photos did NOT make it onto the guest profile.
+          // Keep the draft (and its server-side photos) so they can be
+          // recovered — deleting them here would lose the photos entirely.
+          toast.warning(t("someDocsFailed", { count: failedDocUploads }));
+          setRestoredDraftId(null);
+        } else {
+          // Its server-side draft photos are consumed too (16/09) — the real
+          // guest documents were uploaded during check-in. Never delete keys
+          // another surviving draft still references.
+          const next = drafts.filter((d) => d.id !== restoredDraftId);
+          if (consumed) deleteDraftDocsUnlessShared(draftDocKeys(consumed), next);
+          writeDrafts(activeHotelId, next);
+          setDrafts(next);
+          setRestoredDraftId(null);
+        }
+      } else if (failedDocUploads > 0) {
+        toast.warning(t("someDocsFailed", { count: failedDocUploads }));
       }
       // Cross-page invalidation (plan Part 6): check-in moves rooms AND money.
       invalidateRoomState(queryClient);
@@ -4087,11 +4263,6 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const canSubmit =
     !!guest && selectedRooms.length > 0 && datesValid && terms && !mutation.isPending;
 
-  // First unmet requirement — shown under the disabled Check In button and
-  // used to scroll the relevant section into view on an attempted submit.
-  const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
-    ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
   const submitHint = !guest
     ? t("requireGuest")
     : selectedRooms.length === 0
@@ -4136,47 +4307,107 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
 
   return (
     <div className="space-y-4">
-      {/* ── Saved drafts (ALL of them — each restorable/discardable) ───────── */}
+      {/* ── Saved drafts (collapsible panel) ──────────────────────────────── */}
       {drafts.length > 0 && (
-        <div className="space-y-2 rounded-xl border border-gold-300 bg-gold-50 px-4 py-3 text-sm">
-          {drafts.map((d) => (
-            <div
-              key={d.id}
-              className="flex flex-wrap items-center justify-between gap-3 border-b border-gold-200 pb-2 last:border-b-0 last:pb-0"
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <FileText className="size-4 shrink-0 text-gold-600" aria-hidden />
-                <span className="truncate text-gold-800">
-                  {t("draftFrom", { date: new Date(d.savedAt).toLocaleString() })}
-                  {d.guest?.full_name ? ` — ${d.guest.full_name}` : ""}
-                  {!d.guest?.full_name && d.selectedRooms?.length
-                    ? ` — ${d.selectedRooms.length} room(s)`
-                    : ""}
-                </span>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <button
-                  type="button"
-                  onClick={() => restoreDraft(d)}
-                  className="inline-flex h-8 items-center rounded-lg bg-navy-900 px-3 text-xs font-semibold text-white hover:bg-navy-900/90"
-                >
-                  {t("restore")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => discardDraft(d.id)}
-                  className="inline-flex h-8 items-center rounded-lg border border-gold-400 px-3 text-xs font-medium text-gold-700 hover:bg-gold-100"
-                >
-                  {t("discard")}
-                </button>
-              </div>
-              </div>
-            ))}
+        <div className={`rounded-xl border transition-all duration-200 ${draftsCollapsed ? "border-gold-200 bg-gold-50/60" : "border-gold-300 bg-gold-50"}`}>
+          {/* Header — always visible; click to expand/collapse */}
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+            onClick={() => setDraftsCollapsed((v) => !v)}
+            aria-expanded={!draftsCollapsed}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <FileText className="size-4 shrink-0 text-gold-600" aria-hidden />
+              <span className="text-sm font-medium text-gold-800 truncate">
+                {draftsCollapsed
+                  ? t("draftsCollapsedLabel", { count: drafts.length })
+                  : t("draftsExpandedLabel", { count: drafts.length })}
+              </span>
+            </div>
+            <ChevronDown
+              className={`size-4 shrink-0 text-gold-600 transition-transform duration-200 ${draftsCollapsed ? "" : "rotate-180"}`}
+              aria-hidden
+            />
+          </button>
+
+          {/* Draft rows — hidden when collapsed */}
+          {!draftsCollapsed && (
+            <div className="border-t border-gold-200 px-4 pb-3 pt-2 space-y-2 text-sm">
+              {drafts.map((d) => {
+                const isRestoring = restoringDraftId === d.id;
+                const isThisRestored = restoredDraftId === d.id;
+                return (
+                  <div
+                    key={d.id}
+                    className={`flex flex-wrap items-center justify-between gap-3 rounded-lg px-3 py-2.5 transition-colors cursor-pointer
+                      ${isThisRestored
+                        ? "bg-success-bg border border-success/30"
+                        : "hover:bg-gold-100 active:bg-gold-200 border border-transparent"}
+                      ${isRestoring ? "animate-pulse" : ""}
+                    `}
+                    onClick={() => {
+                      if (!restoringDraftId) void restoreDraft(d);
+                    }}
+                    role="button"
+                    tabIndex={restoringDraftId ? -1 : 0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        if (!restoringDraftId) void restoreDraft(d);
+                      }
+                    }}
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      {isThisRestored
+                        ? <BadgeCheck className="size-4 shrink-0 text-success" aria-hidden />
+                        : <FileText className="size-4 shrink-0 text-gold-600" aria-hidden />}
+                      <span className={`truncate ${isThisRestored ? "text-success font-medium" : "text-gold-800"}`}>
+                        {t("draftFrom", { date: new Date(d.savedAt).toLocaleString() })}
+                        {d.guest?.full_name ? ` — ${d.guest.full_name}` : ""}
+                        {!d.guest?.full_name && d.selectedRooms?.length
+                          ? ` — ${d.selectedRooms.length} room(s)` : ""}
+                      </span>
+                    </div>
+                    <div
+                      className="flex shrink-0 gap-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        disabled={!!restoringDraftId}
+                        onClick={() => void restoreDraft(d)}
+                        className={`inline-flex h-8 items-center rounded-lg px-3 text-xs font-semibold transition-colors disabled:opacity-60
+                          ${isThisRestored
+                            ? "bg-success text-white hover:bg-success/90"
+                            : "bg-navy-900 text-white hover:bg-navy-900/85 active:bg-navy-900/70"}`}
+                      >
+                        {isRestoring
+                          ? t("draftRestoring")
+                          : isThisRestored
+                            ? t("restored")
+                            : t("restore")}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!!restoringDraftId}
+                        onClick={() => discardDraft(d.id)}
+                        className="inline-flex h-8 items-center rounded-lg border border-gold-400 px-3 text-xs font-medium text-gold-700 hover:bg-gold-100 active:bg-gold-200 transition-colors disabled:opacity-60"
+                      >
+                        {t("discard")}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
       {/* ── 1. Booking Details ─────────────────────────────────────────────── */}
-      <div ref={datesSectionRef}>
+      {/* formTopRef = first section element; both scroll targets live here */}
+      <div ref={(el) => { (formTopRef as React.MutableRefObject<HTMLDivElement | null>).current = el; (datesSectionRef as React.MutableRefObject<HTMLDivElement | null>).current = el; }}>
       <Section
         icon={ClipboardList}
         title={ts("bookingDetailsTitle")}
@@ -4822,11 +5053,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           <Button
             type="button"
             variant="outline"
-            disabled={mutation.isPending}
-            onClick={saveDraft}
+            disabled={mutation.isPending || savingDraft}
+            onClick={() => void saveDraft()}
           >
             <FileText className="size-4" aria-hidden />
-            {ts("saveDraft")}
+            {savingDraft ? ts("savingDraft") : ts("saveDraft")}
             </Button>
           {/* Wrapper catches clicks while the Button is disabled
               (disabled:pointer-events-none) and scrolls to the first
@@ -5063,7 +5294,7 @@ function CheckinContent() {
             </p>
           )}
 
-          <div className="space-y-1">
+          <div id="walkin-section" className="space-y-1">
             <h2 className="text-sm font-semibold text-muted-foreground">{t("walkInTitle")}</h2>
             <p className="text-xs text-muted-foreground">
               {t("walkInDescription")}
@@ -5074,6 +5305,11 @@ function CheckinContent() {
             onDone={() => {
               invalidate();
               setWalkInKey((k) => k + 1);
+              // Scroll back to the top of the walk-in area so the freshly
+              // reset form is immediately visible.
+              setTimeout(() => {
+                document.getElementById("walkin-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }, 50);
             }}
           />
         </div>

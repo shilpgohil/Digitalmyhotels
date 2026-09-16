@@ -24,6 +24,126 @@ MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
 DOCUMENT_SIDES = {"front", "back", "selfie"}
 
 
+# ── Draft documents (check-in draft photo persistence, client 16/09) ─────────
+# Queued co-guest photos survive "Save Draft" by uploading to a hotel-scoped
+# draft area; the localStorage draft stores only the object keys.
+
+DRAFT_DOC_TTL_DAYS = 7
+
+
+def _draft_prefix(hotel_id: UUID) -> str:
+    return f"hotels/{hotel_id}/draft-docs/"
+
+
+async def add_draft_document(
+    db: AsyncSession,
+    tenant: TenantContext,
+    *,
+    filename: str,
+    content_type: str,
+    data: bytes,
+) -> str:
+    """Store a draft-stage photo; returns the object key for the draft JSON."""
+    from app.core.errors import ValidationAppError
+    from app.integrations.storage.base import get_storage, new_object_key
+    from app.models.guest import GuestDraftDocument
+
+    if content_type not in ALLOWED_DOCUMENT_TYPES:
+        raise ValidationAppError(
+            "Document must be PNG, JPEG or WebP", code="invalid_document_type"
+        )
+    if len(data) > MAX_DOCUMENT_BYTES:
+        raise ValidationAppError("Document must be 5 MB or smaller", code="document_too_large")
+
+    hotel_id = tenant.require_hotel()
+    key = new_object_key(f"hotels/{hotel_id}/draft-docs", filename)
+    await get_storage().put_bytes(key=key, data=data, content_type=content_type)
+    db.add(
+        GuestDraftDocument(hotel_id=hotel_id, object_key=key, content_type=content_type)
+    )
+    await db.flush()
+    return key
+
+
+async def get_draft_document(
+    db: AsyncSession, tenant: TenantContext, key: str
+) -> tuple[bytes, str]:
+    """Fetch a draft photo — key must belong to THIS hotel's draft area."""
+    from app.core.errors import NotFoundError as _NF
+    from app.integrations.storage.base import get_storage
+    from app.models.guest import GuestDraftDocument
+
+    hotel_id = tenant.require_hotel()
+    if not key.startswith(_draft_prefix(hotel_id)):
+        raise _NF("Draft document not found")
+    row = (
+        await db.execute(
+            select(GuestDraftDocument).where(
+                GuestDraftDocument.hotel_id == hotel_id,
+                GuestDraftDocument.object_key == key,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise _NF("Draft document not found")
+    data = await get_storage().get_bytes(key)
+    return data, row.content_type
+
+
+async def delete_draft_document(
+    db: AsyncSession, tenant: TenantContext, key: str
+) -> None:
+    """Idempotent delete (restore-consumed / discarded drafts)."""
+    from app.integrations.storage.base import get_storage
+    from app.models.guest import GuestDraftDocument
+
+    hotel_id = tenant.require_hotel()
+    if not key.startswith(_draft_prefix(hotel_id)):
+        return  # foreign/garbage key — silently ignore, nothing leaked
+    row = (
+        await db.execute(
+            select(GuestDraftDocument).where(
+                GuestDraftDocument.hotel_id == hotel_id,
+                GuestDraftDocument.object_key == key,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        return
+    try:
+        await get_storage().delete(key)
+    except Exception:  # noqa: BLE001 — object already gone is fine
+        pass
+    await db.delete(row)
+    await db.flush()
+
+
+async def sweep_expired_draft_documents(db: AsyncSession) -> int:
+    """Delete draft photos older than DRAFT_DOC_TTL_DAYS (abandoned drafts)."""
+    from datetime import UTC as _UTC
+    from datetime import datetime as _dt
+    from datetime import timedelta as _td
+
+    from app.integrations.storage.base import get_storage
+    from app.models.guest import GuestDraftDocument
+
+    cutoff = _dt.now(_UTC) - _td(days=DRAFT_DOC_TTL_DAYS)
+    rows = (
+        await db.execute(
+            select(GuestDraftDocument).where(GuestDraftDocument.created_at < cutoff)
+        )
+    ).scalars().all()
+    for row in rows:
+        try:
+            await get_storage().delete(row.object_key)
+        except Exception:  # noqa: BLE001
+            pass
+        await db.delete(row)
+    if rows:
+        await db.commit()
+    return len(rows)
+
+
 async def add_document(
     db: AsyncSession,
     tenant: TenantContext,

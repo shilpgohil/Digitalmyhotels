@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     refresh_cookie_domain: str | None = None
 
     upi_encryption_key: str = Field(default="dev-fernet-key-replace-with-real-fernet-key==")
+    # Set this to the OLD key when rotating upi_encryption_key so existing
+    # guest-ID/UPI ciphertexts stay decryptable (MultiFernet). Never rotate
+    # the key without it — stored data would become permanently unreadable.
+    upi_encryption_key_previous: str = ""
 
     # Platform collection UPI — where partners pay subscription renewals.
     # Empty = unconfigured: the renewal payment QR endpoint returns 404 and the

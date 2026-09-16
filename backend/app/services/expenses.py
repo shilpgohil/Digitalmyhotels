@@ -428,10 +428,17 @@ async def attach_receipt(
     from app.integrations.storage.base import get_storage, new_object_key
 
     hotel_id = tenant.require_hotel()
+    old_key = expense.attachment_object_key
     key = new_object_key(f"hotels/{hotel_id}/expenses/{expense.id}", filename)
     await get_storage().put_bytes(key=key, data=data, content_type=content_type)
     expense.attachment_object_key = key
     await db.flush()
+    # Best-effort cleanup of the replaced receipt (orphans only cost storage).
+    if old_key and old_key != key:
+        try:
+            await get_storage().delete(old_key)
+        except Exception:  # noqa: BLE001
+            pass
     await write_audit(
         db,
         action="expenses.attachment_added",

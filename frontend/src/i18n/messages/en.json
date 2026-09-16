@@ -751,6 +751,7 @@
     "payAtProperty": "Collect at property",
     "earlyCheckinSection": "Early Check-in",
     "saveDraft": "Save Draft",
+    "savingDraft": "Saving Draft…",
     "idDocuments": "Primary Guest ID Documents",
     "uploadFront": "Upload front image",
     "uploadBack": "Upload back image",
@@ -1565,6 +1566,7 @@
     "vehicleDetailsDesc": "Enables guests to provide specific vehicle details.",
     "saveDraft": "Save Draft",
     "draftSaved": "Draft saved",
+    "draftPhotosNotIncluded": "Logo and gallery photos are not kept in drafts — re-attach them before creating the hotel",
     "qrAfterCreation": "QR code will be generated automatically after hotel creation.",
     "qrPreviewHint": "QR code preview",
     "addHotelBtn": "Add Hotel",
@@ -1949,6 +1951,12 @@
     "abRoomInfo": "Room Information",
     "abRoomInfoSub": "Pick available rooms for the stay dates",
     "abPayment": "Payment",
-    "abPaymentSub": "Collect an optional advance now"
+    "abPaymentSub": "Collect an optional advance now",
+    "draftPhotoUploadFailed": "{count} draft photo(s) could not be saved — re-attach them after restore",
+    "draftPhotoRestoreFailed": "{count} draft photo(s) could not be restored — re-attach them",
+    "draftRestoring": "Restoring…",
+    "draftsCollapsedLabel": "{count, plural, one {# saved draft — tap to view} other {# saved drafts — tap to view}}",
+    "draftsExpandedLabel": "{count, plural, one {# saved draft} other {# saved drafts}}",
+    "restored": "Restored ✓"
   }
 }

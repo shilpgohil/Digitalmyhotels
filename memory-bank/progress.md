@@ -1,5 +1,23 @@
 # Progress — DigitalMyHotels
 
+## 16/09/2026 — Platform persistence audit (uncommitted, same session)
+- Fixed: shared draft-photo keys cross-deletion (critical), restored co-guest
+  tiles blank + wipe-on-queue, silent co-guest doc upload failures deleting
+  the draft backup, add-hotel draft photo warning, payment-config dead
+  FileNotFoundError handler, MultiFernet key rotation, orphan deletes on
+  staff-photo/receipt/QR replacement, ix_users_phone declared on User model.
+- Accepted/documented: selfie orphans pre-check-in, reminder window skip
+  during downtime, in-process rate limiter.
+- Verification: 240 backend tests, ruff, tsc, next build — all green.
+
+## 16/09/2026 — Draft photo persistence (uncommitted)
+- Backend: `POST/GET/DELETE /api/v1/guests/draft-documents`, `GuestDraftDocument`,
+  7-day sweep in the reminders loop, hotel-scoped B2 keys.
+- Frontend: Save Draft uploads queued co-guest Files first; restore rehydrates
+  tiles; reuse existing keys on re-save; evicted/discarded drafts delete B2 objects.
+- Production B2 confirmed live from a logged-in session (owner@sg.in).
+- Tests: 4/4 `test_draft_documents.py`. Frontend `tsc` clean.
+
 ## Remaining audit backlog (2026-09-09) — implemented, uncommitted
 
 - guest_type/source CheckConstraints + `ix_guests_hotel_name_lower` (migration

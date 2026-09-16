@@ -518,6 +518,7 @@ async def reminders_loop() -> None:
     while True:
         await asyncio.sleep(SWEEP_INTERVAL_SECONDS)
         from app.services.attendance import sweep_attendance
+        from app.services.guests import sweep_expired_draft_documents
 
         for sweep_fn in (
             sweep_arrival_today,
@@ -525,6 +526,7 @@ async def reminders_loop() -> None:
             sweep_checkout_reminders,
             sweep_auto_noshow,  # auto-marks no_show after 24h — runs every cycle
             sweep_attendance,   # yesterday's absentees + missing check-outs
+            sweep_expired_draft_documents,  # abandoned draft photos > 7 days
         ):
             try:
                 async with AsyncSessionLocal() as session:

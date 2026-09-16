@@ -118,6 +118,59 @@ async def import_guest(
     return guests_service.to_out(guest)
 
 
+# ── Draft documents (check-in draft photo persistence, client 16/09) ─────────
+# STATIC paths — declared before the /{guest_id} routes so "draft-documents"
+# can never be parsed as a guest UUID.
+
+
+class DraftDocumentOut(BaseModel):
+    key: str
+
+
+@router.post("/draft-documents", response_model=DraftDocumentOut, status_code=201)
+async def upload_draft_document(
+    file: UploadFile = File(...),
+    tenant: TenantContext = Depends(require_permissions(Permission.GUESTS_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> DraftDocumentOut:
+    """Persist a queued check-in photo so "Save Draft" survives reloads."""
+    data = await file.read()
+    key = await guests_service.add_draft_document(
+        db,
+        tenant,
+        filename=file.filename or "draft.jpg",
+        content_type=file.content_type or "image/jpeg",
+        data=data,
+    )
+    return DraftDocumentOut(key=key)
+
+
+@router.get("/draft-documents/content")
+async def download_draft_document(
+    key: str = Query(min_length=8, max_length=512),
+    tenant: TenantContext = Depends(require_permissions(Permission.GUESTS_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Stream a draft photo back for restore — hotel-scoped key enforced."""
+    data, content_type = await guests_service.get_draft_document(db, tenant, key)
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={"Cache-Control": "private, max-age=300"},
+    )
+
+
+@router.delete("/draft-documents", status_code=204, response_class=Response)
+async def delete_draft_document(
+    key: str = Query(min_length=8, max_length=512),
+    tenant: TenantContext = Depends(require_permissions(Permission.GUESTS_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Idempotent cleanup when a draft is consumed or discarded."""
+    await guests_service.delete_draft_document(db, tenant, key)
+    return Response(status_code=204)
+
+
 @router.post("", response_model=GuestOut, status_code=201)
 async def create_guest(
     body: GuestCreate,

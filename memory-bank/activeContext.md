@@ -1,5 +1,53 @@
 # Active Context — DigitalMyHotels
 
+## 16/09/2026 — FULL PERSISTENCE AUDIT (post draft-photo fix)
+Two deep audits (backend + frontend) for the "data never persisted" bug class.
+FIXED SAME DAY:
+- CRITICAL: restore→re-save made two drafts share B2 photo keys; discarding/
+  evicting/completing one deleted the other's photos. All 4 deletion sites now
+  use deleteDraftDocsUnlessShared() (reference-counted against surviving drafts).
+- HIGH: co-guest card's internal docs state ignored restored draft docs —
+  tiles rendered blank AND queuing one new photo wiped the restored ones.
+  Now seeded from initial?.docs.
+- HIGH: walk-in co-guest doc uploads were fire-and-forget (console.warn);
+  on failure the photos were lost while the draft backup got deleted. Now
+  awaited (Promise.allSettled); failures toast someDocsFailed and KEEP the
+  restored draft so photos stay recoverable.
+- HIGH: SA add-hotel Save Draft silently dropped logo/gallery Files — now
+  toasts admin.draftPhotosNotIncluded (en+hi).
+- MEDIUM: payment_config._load_logo/get_qr_png caught FileNotFoundError which
+  storage NEVER raises (it maps to app NotFoundError) — a missing logo object
+  bricked PUT /hotels/me/payment-config. Both now catch NotFoundError.
+- MEDIUM: encryption key rotation would brick all guest-ID/UPI ciphertexts —
+  MultiFernet added with optional UPI_ENCRYPTION_KEY_PREVIOUS setting.
+- LOW: orphan B2 objects on replacement — staff photo, expense receipt, and
+  superseded payment-QR versions now best-effort delete the old key.
+- LOW: ix_users_phone partial unique index existed only in migration
+  b6a4996f6748, not on the User model — test DBs didn't enforce phone
+  uniqueness that production does. Now declared in User.__table_args__;
+  test_team_limit phones made per-run unique (global user-phone uniqueness).
+KNOWN-ACCEPTED (documented, not fixed): attendance selfies uploaded before
+check-in completes have no tracking row → orphan forever (needs sweep or
+tracking rows); checkout/arrival reminder windows are skipped if the service
+is down through the whole window (timeliness-only; overdue sweeps DO catch
+up); login rate-limit/lockout is in-process (resets on restart, documented).
+VERIFIED CLEAN: no local-disk writes outside LocalStorage; all 8 upload
+features hotel-scoped through get_storage(); only 3 endpoints accept raw
+object keys, all prefix+DB validated; migrations single head, schema in sync
+(scratch-DB autogenerate diff); refresh tokens hashed in DB; sweeps use
+durable DB dedup columns. Suite 240 passed, ruff clean, tsc clean, build green.
+
+## 16/09/2026 — DRAFT PHOTO PERSISTENCE + PRODUCTION B2 CONFIRMED
+Co-guest draft photos now upload to hotel-scoped B2 (`hotels/{hotelId}/draft-docs/`)
+on Save Draft. localStorage stores only object keys; restore re-downloads into
+tiles; discard / successful check-in / 7-day TTL sweep delete the objects.
+Table `guest_draft_documents` (migration `dd48e2f5ab34`). Tenant isolation
+enforced by key prefix + hotel_id row. Tests: `test_draft_documents.py` (4).
+UNCOMMITTED — needs deploy before production check-in can use the endpoints.
+PRODUCTION STORAGE (logged in as owner@sg.in on digitalmyhotels-api-sg):
+`backend=b2`, bucket=`Digitialmyhotels`, write/read/delete all OK,
+`files_persist_across_restarts=true`. Old Oregon API is suspended.
+
 ## 15/09/2026 — MASTER BUGFIX PLAN (NOT YET IMPLEMENTED)
 Client sent a ~35-item bug batch + demanded a full platform audit. Deep
 investigation done (read-only) + two audit subagents (backend 21 findings,

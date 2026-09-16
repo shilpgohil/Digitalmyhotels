@@ -751,6 +751,7 @@
     "payAtProperty": "संपत्ति पर एकत्र करें",
     "earlyCheckinSection": "अर्ली चेक-इन",
     "saveDraft": "ड्राफ्ट सहेजें",
+    "savingDraft": "ड्राफ्ट सहेजा जा रहा है…",
     "idDocuments": "मुख्य अतिथि पहचान दस्तावेज़",
     "uploadFront": "सामने की छवि अपलोड करें",
     "uploadBack": "पीछे की छवि अपलोड करें",
@@ -1565,6 +1566,7 @@
     "vehicleDetailsDesc": "अतिथि को विशिष्ट वाहन विवरण प्रदान करने में सक्षम बनाता है।",
     "saveDraft": "ड्राफ्ट सहेजें",
     "draftSaved": "ड्राफ्ट सहेजा गया",
+    "draftPhotosNotIncluded": "लोगो और गैलरी फ़ोटो ड्राफ्ट में नहीं रहतीं — होटल बनाने से पहले उन्हें फिर संलग्न करें",
     "qrAfterCreation": "होटल बनने के बाद QR कोड स्वचालित रूप से उत्पन्न होगा।",
     "qrPreviewHint": "QR कोड प्रीव्यू",
     "addHotelBtn": "होटल जोड़ें",
@@ -1949,6 +1951,12 @@
     "abRoomInfo": "कमरे की जानकारी",
     "abRoomInfoSub": "प्रवास तिथियों के लिए उपलब्ध कमरे चुनें",
     "abPayment": "भुगतान",
-    "abPaymentSub": "अभी वैकल्पिक अग्रिम लें"
+    "abPaymentSub": "अभी वैकल्पिक अग्रिम लें",
+    "draftPhotoUploadFailed": "{count} ड्राफ़्ट फ़ोटो सहेजी नहीं जा सकीं — पुनर्स्थापना के बाद फिर संलग्न करें",
+    "draftPhotoRestoreFailed": "{count} ड्राफ़्ट फ़ोटो बहाल नहीं हो सकीं — कृपया फिर संलग्न करें",
+    "draftRestoring": "बहाल हो रहा है…",
+    "draftsCollapsedLabel": "{count} सहेजे ड्राफ्ट — देखने के लिए टैप करें",
+    "draftsExpandedLabel": "{count} सहेजे ड्राफ्ट",
+    "restored": "बहाल हुआ ✓"
   }
 }

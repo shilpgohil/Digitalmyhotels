@@ -4,6 +4,8 @@ frees a seat; super admin can raise the limit per hotel."""
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import update
@@ -20,10 +22,15 @@ async def _owner(client: AsyncClient, hotel: HotelFixture):
     return auth_headers(await login(client, email, password))
 
 
+# Per-run unique prefix — user phones are GLOBALLY unique (ix_users_phone),
+# so hardcoded numbers can collide with other tests' randomly generated ones.
+_PHONE_PREFIX = f"9{int(uuid4().hex[:6], 16) % 10**7:07d}"
+
+
 def _member_body(n: int) -> dict:
     return {
         "full_name": f"Cap Member {n}",
-        "phone": f"98111000{n:02d}",
+        "phone": f"{_PHONE_PREFIX}{n:02d}",
         "role_code": "housekeeping",
         "password": "TempPass123!",
     }

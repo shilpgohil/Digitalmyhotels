@@ -1111,7 +1111,8 @@ export default function AddHotelPage() {
           variant="outline"
           className="h-[42px] flex-1 px-4 sm:flex-none"
           onClick={() => {
-            // Save draft to localStorage for resume later
+            // Save draft to localStorage for resume later. Image FILES cannot
+            // be serialized — warn so the admin knows to re-attach them.
             try {
               localStorage.setItem("dmh.addHotelDraft", JSON.stringify({
                 hotelName, city, state, phone, address, gstin, email, mapId,
@@ -1119,6 +1120,9 @@ export default function AddHotelPage() {
                 merchantName, upiId, paymentUrl,
               }));
               toast.success(t("draftSaved"));
+              if (logoFile || galleryFiles.some(Boolean)) {
+                toast.info(t("draftPhotosNotIncluded"));
+              }
             } catch {
               router.push("/admin/hotels");
             }
