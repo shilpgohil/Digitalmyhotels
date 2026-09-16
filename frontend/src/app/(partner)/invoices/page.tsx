@@ -238,7 +238,7 @@ function InvoicesContent() {
             </p>
           )}
           {invoices.data?.items.length === 0 && (
-            <EmptyState icon={FileText} title={t("noInvoices")} subtitle="Invoices are generated automatically at checkout." />
+            <EmptyState icon={FileText} title={t("noInvoices")} subtitle={t("noInvoicesHint")} />
           )}
           {invoices.data && invoices.data.items.length > 0 && (
             <Table>

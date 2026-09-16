@@ -194,7 +194,7 @@ function TeamContent() {
             </div>
           )}
           {team.data && team.data.items.length === 0 && (
-            <EmptyState icon={Users} title={t("noMembers")} subtitle="Add team members to manage access and roles." />
+            <EmptyState icon={Users} title={t("noMembers")} subtitle={t("noMembersHint")} />
           )}
           {team.data && team.data.items.length > 0 && (
             <Table>

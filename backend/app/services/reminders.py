@@ -325,13 +325,35 @@ async def sweep_low_availability(
         if total == 0:
             continue
 
-        available = sum(1 for s in rooms if s == "available")
+        available = sum(1 for s in rooms if s in ("available", "clean_ready"))
         occupied = sum(1 for s in rooms if s == "occupied")
-        reserved = sum(1 for s in rooms if s == "reserved")
         pct = Decimal(available) / Decimal(total) * 100
 
         if pct >= 20:
             continue  # no alert needed
+
+        # "Reserved" is DERIVED since the room-status redesign (15/09): count
+        # rooms with a confirmed booking arriving today instead of the stored
+        # flag (which is always 0 after the migration).
+        from app.models.booking import Booking as _Bk  # noqa: PLC0415
+        from app.models.booking import BookingRoom as _BkR  # noqa: PLC0415
+        from app.services.rooms import hotel_today as _hotel_today  # noqa: PLC0415
+
+        today_local = await _hotel_today(db, hotel.id)
+        reserved = (
+            await db.execute(
+                select(func.count(func.distinct(_BkR.room_id)))
+                .select_from(_BkR)
+                .join(_Bk, _Bk.id == _BkR.booking_id)
+                .where(
+                    _BkR.hotel_id == hotel.id,
+                    _BkR.is_current.is_(True),
+                    _Bk.status == "confirmed",
+                    _Bk.check_in_date <= today_local,
+                    _Bk.check_out_date >= today_local,
+                )
+            )
+        ).scalar_one()
 
         # Check if we already fired today for this hotel.
         # Notification is in app.models.platform (same module as Subscription etc.)

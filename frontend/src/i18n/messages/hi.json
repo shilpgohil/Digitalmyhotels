@@ -359,7 +359,8 @@
     "pendingResetRequests": "{count, plural, one {1 पासवर्ड रीसेट अनुरोध} other {# पासवर्ड रीसेट अनुरोध}}",
     "dismissRequest": "खारिज करें",
     "memberQuota": "टीम सदस्य: {limit} में से {used} उपयोग में",
-    "memberLimitReached": "सदस्य सीमा पूरी हो गई - सीमा बढ़ाने के लिए DigitalMyHotels सहायता से संपर्क करें।"
+    "memberLimitReached": "सदस्य सीमा पूरी हो गई - सीमा बढ़ाने के लिए DigitalMyHotels सहायता से संपर्क करें।",
+    "noMembersHint": "पहुँच और भूमिकाएँ प्रबंधित करने के लिए टीम सदस्य जोड़ें।"
   },
   "bookings": {
     "title": "बुकिंग",
@@ -793,7 +794,8 @@
     "addressLabel": "पता",
     "paymentHistory": "भुगतान इतिहास",
     "totalPaid": "कुल भुगतान",
-    "noPaymentsYet": "अभी तक कोई भुगतान दर्ज नहीं"
+    "noPaymentsYet": "अभी तक कोई भुगतान दर्ज नहीं",
+    "noCheckoutReadyHint": "आगामी चेक-आउट तिथियों वाले अतिथि यहाँ दिखेंगे।"
   },
   "settings": {
     "title": "सेटिंग्स",
@@ -946,7 +948,8 @@
     "category_damage": "क्षति",
     "category_other": "अन्य",
     "creditDebitCard": "क्रेडिट/डेबिट कार्ड",
-    "othersCard": "अन्य"
+    "othersCard": "अन्य",
+    "noBillingRowsHint": "भुगतान वाली पूर्ण बुकिंग यहाँ दिखेंगी।"
   },
   "invoices": {
     "title": "चालान",
@@ -971,7 +974,8 @@
     "status_paid": "भुगतान पूरा",
     "status_cancelled": "रद्द",
     "status_refunded": "वापसी",
-    "alreadyExists": "इस बुकिंग का इनवॉइस पहले से मौजूद है - नीचे सूची में दिख रहा है"
+    "alreadyExists": "इस बुकिंग का इनवॉइस पहले से मौजूद है - नीचे सूची में दिख रहा है",
+    "noInvoicesHint": "चेक-आउट पर इनवॉइस अपने आप बनते हैं।"
   },
   "restaurantBilling": {
     "title": "रेस्तरां बिलिंग",
@@ -997,7 +1001,8 @@
     "noItems": "इस अवधि के लिए कोई रेस्तरां शुल्क नहीं मिला।",
     "noGstConfigured": "जीएसटी ₹0 दिखा रहा है — होटल GST पंजीकृत नहीं हो सकता",
     "noGstConfiguredHint": "GST राशि देखने के लिए GST & Tax सेटिंग में CGST/SGST दरें सेट करें।",
-    "configureGst": "GST कॉन्फ़िगर करें →"
+    "configureGst": "GST कॉन्फ़िगर करें →",
+    "noItemsHint": "अतिथि प्रवास के रेस्तरां और क्षति शुल्क यहाँ दिखेंगे।"
   },
   "gstTax": {
     "title": "जीएसटी और कर",
@@ -1116,7 +1121,10 @@
     "status_approved": "अनुमोदित",
     "status_paid": "भुगतान",
     "status_rejected": "अस्वीकृत",
-    "vendorDetailTitle": "विक्रेता विवरण"
+    "vendorDetailTitle": "विक्रेता विवरण",
+    "paidByCash": "नकद से भुगतान",
+    "paidByUpi": "UPI से भुगतान",
+    "paidByCardSub": "कार्ड से भुगतान"
   },
   "ops": {
     "housekeepingTitle": "हाउसकीपिंग",
@@ -1171,7 +1179,9 @@
     "handoverName": "हस्तांतरण नाम",
     "dateTime": "दिनांक / समय",
     "status": "स्थिति",
-    "noHandovers": "अभी तक कोई हस्तांतरण नहीं।"
+    "noHandovers": "अभी तक कोई हस्तांतरण नहीं।",
+    "noTasksHint": "साफ़ किए गए कमरे और लंबित कार्य यहाँ दिखेंगे।",
+    "noMaintenanceHint": "कोई कमरा रखरखाव या सेवा-बाहर नहीं है।"
   },
   "reports": {
     "title": "रिपोर्ट",
@@ -1203,7 +1213,8 @@
     "noRoomUtilization": "इस अवधि के लिए कोई कमरा उपयोग डेटा नहीं",
     "noGstRows": "इस अवधि के लिए कोई GST प्रविष्टि नहीं",
     "creditDebitCard": "क्रेडिट/डेबिट कार्ड",
-    "othersLabel": "अन्य"
+    "othersLabel": "अन्य",
+    "netRevenueHint": "छूट के बाद शुद्ध राजस्व"
   },
   "plan": {
     "title": "योजना और सदस्यता",
@@ -1325,7 +1336,8 @@
     "action": "क्रिया",
     "entity": "इकाई",
     "entityId": "इकाई आईडी",
-    "empty": "कोई ऑडिट प्रविष्टि नहीं।"
+    "empty": "कोई ऑडिट प्रविष्टि नहीं।",
+    "emptyHint": "सभी सिस्टम गतिविधियाँ यहाँ दिखेंगी।"
   },
   "search": {
     "placeholder": "बुकिंग या अतिथि खोजें…",
@@ -1929,6 +1941,14 @@
     "someDocsFailed": "{count} दस्तावेज़ अपलोड नहीं हो सके — कृपया दोबारा अपलोड करें",
     "ocrFailed": "आईडी फ़ोटो पढ़ी नहीं जा सकी — विवरण हाथ से भरें या साफ़ फ़ोटो दोबारा लें",
     "otherHotelBadge": "अन्य होटल",
-    "guestImported": "अतिथि दूसरे होटल से आयात हुआ — विवरण और आईडी फ़ोटो कॉपी हो गए"
+    "guestImported": "अतिथि दूसरे होटल से आयात हुआ — विवरण और आईडी फ़ोटो कॉपी हो गए",
+    "abBookingDetails": "बुकिंग विवरण",
+    "abBookingDetailsSub": "प्रवास तिथियाँ और अतिथि प्रकार",
+    "abGuest": "अतिथि",
+    "abGuestSub": "मौजूदा अतिथि खोजें या नया बनाएं",
+    "abRoomInfo": "कमरे की जानकारी",
+    "abRoomInfoSub": "प्रवास तिथियों के लिए उपलब्ध कमरे चुनें",
+    "abPayment": "भुगतान",
+    "abPaymentSub": "अभी वैकल्पिक अग्रिम लें"
   }
 }

@@ -315,7 +315,7 @@ function PaymentsContent() {
             </p>
           )}
           {billing.data && billing.data.items.length === 0 && (
-            <EmptyState icon={Receipt} title={t("noBillingRows")} subtitle="Completed bookings with payments will appear here." />
+            <EmptyState icon={Receipt} title={t("noBillingRows")} subtitle={t("noBillingRowsHint")} />
           )}
           {billing.data && billing.data.items.length > 0 && (
             <>

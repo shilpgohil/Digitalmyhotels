@@ -110,7 +110,7 @@ function HousekeepingContent() {
             </p>
           )}
           {tasks.data?.length === 0 && (
-            <EmptyState icon={Sparkles} title={t("noTasks")} subtitle="Cleaned rooms and pending tasks appear here." className="py-8" />
+            <EmptyState icon={Sparkles} title={t("noTasks")} subtitle={t("noTasksHint")} className="py-8" />
           )}
           <ul className="space-y-2">
             {paginate(tasks.data ?? [], tasksPage, 10).map((task) => (
@@ -157,7 +157,7 @@ function HousekeepingContent() {
           <section className="mt-6 rounded-lg border bg-card p-4">
             <h2 className="mb-3 text-sm font-semibold">{t("maintenance")}</h2>
             {maintenance.data.length === 0 && (
-              <EmptyState icon={Wrench} title={t("noMaintenance")} subtitle="No rooms are in maintenance or out of service." className="py-8" />
+              <EmptyState icon={Wrench} title={t("noMaintenance")} subtitle={t("noMaintenanceHint")} className="py-8" />
             )}
             <ul className="space-y-2">
               {paginate(maintenance.data, maintenancePage, 10).map((m) => (

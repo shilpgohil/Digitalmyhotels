@@ -258,7 +258,7 @@ function RestaurantBillingContent() {
             </p>
           )}
           {report.data && filteredItems.length === 0 && (
-            <EmptyState icon={UtensilsCrossed} title={t("noItems")} subtitle="Restaurant and damage charges from guest stays appear here." />
+            <EmptyState icon={UtensilsCrossed} title={t("noItems")} subtitle={t("noItemsHint")} />
           )}
           {report.data && filteredItems.length > 0 && (
             <div className="overflow-x-auto">

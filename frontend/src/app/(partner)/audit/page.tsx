@@ -93,7 +93,7 @@ function AuditContent() {
             </p>
           )}
           {logs.data?.items.length === 0 && (
-            <EmptyState icon={ScrollText} title={t("empty")} subtitle="All system actions will appear here." />
+            <EmptyState icon={ScrollText} title={t("empty")} subtitle={t("emptyHint")} />
           )}
           {logs.data && logs.data.items.length > 0 && (
             <Table>

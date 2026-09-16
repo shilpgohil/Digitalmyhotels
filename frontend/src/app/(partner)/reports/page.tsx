@@ -231,7 +231,7 @@ function ReportsContent() {
               <StatCard
                 label={t("revenue")}
                 value={revenue.data ? fmtINR(revenue.data.net_revenue) : "—"}
-                subtitle="Net revenue after discounts"
+                subtitle={t("netRevenueHint")}
                 icon={TrendingUp}
                 tone="white"
                 isLoading={revenue.isLoading}

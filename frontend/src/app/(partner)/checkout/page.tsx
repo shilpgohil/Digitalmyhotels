@@ -710,7 +710,7 @@ function CheckoutContent() {
                   </p>
                 )}
                 {guests.data && guests.data.items.length === 0 && (
-                  <EmptyState icon={LogOut} title={t("noCheckoutReady")} subtitle="Guests with upcoming checkout dates will appear here." className="py-8" />
+                  <EmptyState icon={LogOut} title={t("noCheckoutReady")} subtitle={t("noCheckoutReadyHint")} className="py-8" />
                 )}
                 {guests.data && guests.data.items.length > 0 && (
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end">

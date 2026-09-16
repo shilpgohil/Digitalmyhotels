@@ -243,7 +243,7 @@ function ExpensesContent() {
           <StatCard
             label={t("mode_cash")}
             value={fmtINR(summary.data?.cash_amount ?? 0)}
-            subtitle="Paid by Cash"
+            subtitle={t("paidByCash")}
             icon={Wallet}
             tone="gold"
             isLoading={summary.isLoading}
@@ -251,7 +251,7 @@ function ExpensesContent() {
           <StatCard
             label={t("mode_upi")}
             value={fmtINR(summary.data?.upi_amount ?? 0)}
-            subtitle="Paid by UPI"
+            subtitle={t("paidByUpi")}
             icon={Wallet}
             tone="info"
             isLoading={summary.isLoading}
@@ -260,7 +260,7 @@ function ExpensesContent() {
           <StatCard
             label={t("mode_card")}
             value={fmtINR(summary.data?.card_amount ?? 0)}
-            subtitle="Paid by Card"
+            subtitle={t("paidByCardSub")}
             icon={Wallet}
             tone="danger"
             isLoading={summary.isLoading}

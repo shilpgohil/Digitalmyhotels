@@ -438,7 +438,7 @@ function AdvanceBookingContent() {
           }}
         >
           {/* ── 1. Booking Details ─────────────────────────────────────── */}
-          <Card icon={ClipboardList} title="Booking Details" subtitle="Stay dates and guest type">
+          <Card icon={ClipboardList} title={t("abBookingDetails")} subtitle={t("abBookingDetailsSub")}>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-1.5 lg:col-span-2">
                 <Label htmlFor="ab-cin" className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
@@ -498,7 +498,7 @@ function AdvanceBookingContent() {
           </Card>
 
           {/* ── 2. Guest ───────────────────────────────────────────────── */}
-          <Card icon={UserRound} title="Guest" subtitle="Search an existing guest or create a new one">
+          <Card icon={UserRound} title={t("abGuest")} subtitle={t("abGuestSub")}>
             <div className="space-y-4">
               <GuestPicker
                 selected={guest?.id ? guest : null}
@@ -533,7 +533,7 @@ function AdvanceBookingContent() {
           </Card>
 
           {/* ── 3. Room Information ────────────────────────────────────── */}
-          <Card icon={BedDouble} title="Room Information" subtitle="Pick available rooms for the stay dates">
+          <Card icon={BedDouble} title={t("abRoomInfo")} subtitle={t("abRoomInfoSub")}>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 max-w-xs">
                 <Counter label="Adults" value={adults} min={1} max={40} onChange={setAdults} />
@@ -607,7 +607,7 @@ function AdvanceBookingContent() {
           </Card>
 
           {/* ── 5. Payment ─────────────────────────────────────────────── */}
-          <Card icon={CreditCard} title="Payment" subtitle="Collect an optional advance now">
+          <Card icon={CreditCard} title={t("abPayment")} subtitle={t("abPaymentSub")}>
             <div className="space-y-4">
               {/* Amount + mode row */}
               <div className="grid gap-4 sm:grid-cols-2">

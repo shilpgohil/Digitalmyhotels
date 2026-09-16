@@ -359,7 +359,8 @@
     "pendingResetRequests": "{count, plural, one {1 password reset request} other {# password reset requests}}",
     "dismissRequest": "Dismiss",
     "memberQuota": "Team members: {used} of {limit} used",
-    "memberLimitReached": "Member limit reached - contact DigitalMyHotels support to increase it."
+    "memberLimitReached": "Member limit reached - contact DigitalMyHotels support to increase it.",
+    "noMembersHint": "Add team members to manage access and roles."
   },
   "bookings": {
     "title": "Bookings",
@@ -793,7 +794,8 @@
     "addressLabel": "Address",
     "paymentHistory": "Payment History",
     "totalPaid": "Total Paid",
-    "noPaymentsYet": "No payments recorded yet"
+    "noPaymentsYet": "No payments recorded yet",
+    "noCheckoutReadyHint": "Guests with upcoming checkout dates will appear here."
   },
   "money": {
     "paymentsTitle": "Payment Details",
@@ -881,7 +883,8 @@
     "category_damage": "Damage",
     "category_other": "Other",
     "creditDebitCard": "Credit/Debit Card",
-    "othersCard": "Others"
+    "othersCard": "Others",
+    "noBillingRowsHint": "Completed bookings with payments will appear here."
   },
   "invoices": {
     "title": "Invoices",
@@ -906,7 +909,8 @@
     "status_paid": "Paid",
     "status_cancelled": "Cancelled",
     "status_refunded": "Refunded",
-    "alreadyExists": "An invoice already exists for this booking - it is shown in the list below"
+    "alreadyExists": "An invoice already exists for this booking - it is shown in the list below",
+    "noInvoicesHint": "Invoices are generated automatically at checkout."
   },
   "restaurantBilling": {
     "title": "Restaurant Billing",
@@ -932,7 +936,8 @@
     "noItems": "No restaurant charges found for this period.",
     "noGstConfigured": "GST shows ₹0 — hotel may not be configured as GST registered",
     "noGstConfiguredHint": "Go to GST & Tax settings and enable GST registration with CGST/SGST rates to see tax amounts here.",
-    "configureGst": "Configure GST →"
+    "configureGst": "Configure GST →",
+    "noItemsHint": "Restaurant and damage charges from guest stays appear here."
   },
   "gstTax": {
     "title": "GST & Tax",
@@ -1051,7 +1056,10 @@
     "status_approved": "Approved",
     "status_paid": "Paid",
     "status_rejected": "Rejected",
-    "vendorDetailTitle": "Vendor Detail"
+    "vendorDetailTitle": "Vendor Detail",
+    "paidByCash": "Paid by Cash",
+    "paidByUpi": "Paid by UPI",
+    "paidByCardSub": "Paid by Card"
   },
   "settings": {
     "title": "Settings",
@@ -1171,7 +1179,9 @@
     "handoverName": "Handover Name",
     "dateTime": "Date / Time",
     "status": "Status",
-    "noHandovers": "No handovers yet."
+    "noHandovers": "No handovers yet.",
+    "noTasksHint": "Cleaned rooms and pending tasks appear here.",
+    "noMaintenanceHint": "No rooms are in maintenance or out of service."
   },
   "reports": {
     "title": "Reports",
@@ -1203,7 +1213,8 @@
     "noRoomUtilization": "No room utilization data",
     "noGstRows": "No GST entries for this period",
     "creditDebitCard": "Credit/Debit Card",
-    "othersLabel": "Others"
+    "othersLabel": "Others",
+    "netRevenueHint": "Net revenue after discounts"
   },
   "plan": {
     "title": "Plan & Subscription",
@@ -1325,7 +1336,8 @@
     "action": "Action",
     "entity": "Entity",
     "entityId": "Entity ID",
-    "empty": "No audit entries."
+    "empty": "No audit entries.",
+    "emptyHint": "All system actions will appear here."
   },
   "search": {
     "placeholder": "Search bookings or guests…",
@@ -1929,6 +1941,14 @@
     "manualExtraCharges": "Manual extra charges (₹)",
     "extraIncludesServices": "Includes {amount} from selected services",
     "otherHotelBadge": "Other hotel",
-    "guestImported": "Guest imported from another hotel — details and ID photos copied"
+    "guestImported": "Guest imported from another hotel — details and ID photos copied",
+    "abBookingDetails": "Booking Details",
+    "abBookingDetailsSub": "Stay dates and guest type",
+    "abGuest": "Guest",
+    "abGuestSub": "Search an existing guest or create a new one",
+    "abRoomInfo": "Room Information",
+    "abRoomInfoSub": "Pick available rooms for the stay dates",
+    "abPayment": "Payment",
+    "abPaymentSub": "Collect an optional advance now"
   }
 }
