@@ -66,7 +66,7 @@ const ADMIN_STATS: AdminStatDef[] = [
   { key: "todayCheckins",       icon: Calendar,      tone: "info" },
   { key: "totalRevenue",        icon: IndianRupee,   tone: "gold",    format: "currency", href: "/admin/revenue" },
   { key: "recentlyExpiredCard", icon: XCircle,       tone: "danger",  href: "/admin/expired" },
-  { key: "expiringSoonCard",    icon: AlertTriangle, tone: "warning", href: "/admin/expired?filter=expiring" },
+  { key: "expiredHotelsCard",   icon: AlertTriangle, tone: "warning", href: "/admin/expired?filter=all" },
 ];
 
 function fmtRevenue(v: number | string): string {
@@ -146,12 +146,12 @@ export default function AdminDashboardPage() {
         activeHotels:        dash.data.active_hotels,
         todayCheckins:       dash.data.today_checkins,
         totalRevenue:        dash.data.total_revenue,
-        // Recently Expired = hotels that actually expired in the last 30 days.
-        // Count matches /admin/expired list rows exactly (no expiring_within mixing).
+        // Recently Expired = hotels that lapsed in the last 30 days (including grace period).
+        // Count matches /admin/expired list rows exactly.
         recentlyExpiredCard: dash.data.recently_expired ?? 0,
-        // Expiring Soon = active hotels whose subscription expires within 7 days.
-        // Replaces the less-actionable all-time "Expired Hotels" card.
-        expiringSoonCard:    dash.data.expiring_soon ?? 0,
+        // Expired Hotels = all-time total expired hotels.
+        // Matches the Donut chart "Expired Hotels" slice and /admin/expired?filter=all.
+        expiredHotelsCard:   dash.data.expired_hotels ?? 0,
       }
     : {};
 

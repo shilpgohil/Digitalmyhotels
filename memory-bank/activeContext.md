@@ -1,5 +1,24 @@
 # Active Context — DigitalMyHotels
 
+## 18/09/2026 — BUGFIX: SUPER ADMIN DASHBOARD CARDS & EXPIRED HOTELS COMPLETE LOGICAL ALIGNMENT
+- **Issues Resolved**:
+  1. **Total Revenue Card vs. Page Disconnect**: Card 4 on `/admin` computed guest check-in receipts (`SUM(Payment.amount)`), but linked to `/admin/revenue` (Billing History) which shows SaaS subscription fees. Replaced backend `dashboard()` `total_revenue` with `SUM(SubscriptionPlan.price) WHERE status != 'trial'`, making the dashboard card and the `/admin/revenue` top card 100% mathematically identical.
+  2. **Recently Expired Count Mismatch**: `list_hotels(status="expired", recent_days=30)` included hotels whose plan expired within 30 days and are currently in grace period (`in_grace`), but `dashboard()` excluded them. Updated `dashboard()` `recently_expired` query to use the exact same `or_(_re_recently_expired, _re_in_grace)` clause. Now Card 5 and `/admin/expired` row count match 1-to-1.
+  3. **Card 6 Restoration & Donut Chart Alignment**: Restored `expiredHotelsCard` (All-time expired count) on Card 6 linking to `/admin/expired?filter=all`. Now aligns with the Donut chart "Expired Hotels" slice and the Sidebar "Expired Hotels" item.
+  4. **Status Badge Unification**: Standardized `/admin/expired` to use `HotelStatusBadge` from `admin-list-state.tsx`.
+- **Files Modified**:
+  - `backend/app/services/super_admin.py`: `dashboard()` updated for `total_revenue` and `recently_expired`.
+  - `frontend/src/app/(super-admin)/admin/page.tsx`: Restored `expiredHotelsCard` in `ADMIN_STATS` and `statValues`.
+  - `frontend/src/app/(super-admin)/admin/expired/page.tsx`: Standardized with `HotelStatusBadge`.
+- **7-Stage Verification**:
+  1. Blast-radius: SaaS metrics and expired lists; no write/mutation paths touched.
+  2. `npx tsc --noEmit` → 0 errors.
+  3. `ruff check app` → All checks passed!
+  4. `mypy app` → 0 errors (106 files).
+  5. `pytest tests/unit/` → 68/68 passed.
+  6. `npm run build` → Compiled successfully (57/57 pages).
+  7. API limits (0 violations) & i18n parity (1903/1903). Clean diff.
+
 ## 18/09/2026 — FEAT: BILLING HISTORY / TOTAL REVENUE SCREEN UPGRADE (COMPLETE)
 - **Task**: Upgrade Super Admin "Total Revenue" page (`/admin/revenue`) to a full Billing History ledger matching the reference design.
 - **Previous session completed** (backend):

@@ -131,36 +131,44 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
         )
         or 0
     )
-    # Total revenue: all completed payments across all hotels.
+    # Total revenue: all SaaS subscription revenue collected by platform.
+    # Exactly matches the Total Collected metric on /admin/revenue (Billing History).
     total_revenue = money(
         await db.scalar(
-            select(func.coalesce(func.sum(Payment.amount), 0)).where(
-                Payment.status == "completed"
-            )
+            select(func.coalesce(func.sum(SubscriptionPlan.price), 0))
+            .select_from(Subscription)
+            .join(SubscriptionPlan, SubscriptionPlan.id == Subscription.plan_id)
+            .where(Subscription.status != "trial")
         )
         or 0
     )
-    # Recently expired count — uses the SAME subscription-aware expired
-    # condition as the list filter (not latest.c.status == "expired" which
-    # only counts hotels whose DB status was explicitly flipped).
+    # Recently expired count — uses the EXACT same subscription-aware condition
+    # as list_hotels(status="expired", recent_days=30), including grace period.
     thirty_days_ago = today - timedelta(days=30)
     _re_latest = _latest_sub_sq()
     _re_expired_cond = or_(
         Hotel.status == "expired",
         _sub_expired_cond(_re_latest),
     )
+    _re_recently_expired = and_(
+        _re_expired_cond,
+        or_(
+            _re_latest.c.expiry_date.is_(None),
+            _re_latest.c.expiry_date >= thirty_days_ago,
+        ),
+    )
+    _re_in_grace = and_(
+        _re_latest.c.status != "suspended",
+        _re_latest.c.expiry_date < func.current_date(),
+        _re_latest.c.expiry_date + _re_latest.c.grace_days >= func.current_date(),
+        _re_latest.c.expiry_date >= thirty_days_ago,
+    )
     recently_expired = int(
         await db.scalar(
             select(func.count())
             .select_from(Hotel)
             .outerjoin(_re_latest, _re_latest.c.hotel_id == Hotel.id)
-            .where(
-                _re_expired_cond,  # type: ignore[arg-type]
-                or_(
-                    _re_latest.c.expiry_date.is_(None),
-                    _re_latest.c.expiry_date >= thirty_days_ago,
-                ),
-            )
+            .where(or_(_re_recently_expired, _re_in_grace))  # type: ignore[arg-type]
         )
         or 0
     )

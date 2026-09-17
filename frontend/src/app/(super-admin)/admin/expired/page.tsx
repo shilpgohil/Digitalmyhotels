@@ -13,6 +13,7 @@ import { RenewDialog } from "@/components/admin/renew-dialog";
 import { ExtendDialog } from "@/components/admin/extend-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { FilterBar } from "@/components/ui/filter-bar";
+import { HotelStatusBadge } from "@/components/admin/admin-list-state";
 
 const PAGE_SIZE = 10;
 
@@ -117,15 +118,13 @@ function ExpiredContent() {
                 <span className="inline-flex rounded-full bg-warning-bg px-2.5 py-0.5 text-xs font-medium text-warning">
                   {(() => {
                     const days = daysUntilExpiry(h.expiry_date);
-                    if (days === 0) return "Expires today";
+                    if (days === 0) return "Expires Today";
                     if (days !== null && days > 0) return `Expires in ${days}d`;
-                    return "Expiring soon";
+                    return "Expiring Soon";
                   })()}
                 </span>
               ) : (
-                <span className="inline-flex rounded-full bg-danger-bg px-2.5 py-0.5 text-xs font-medium text-danger">
-                  Expired
-                </span>
+                <HotelStatusBadge hotel={h} />
               )}
             </td>
             <td className="px-4 py-3">
