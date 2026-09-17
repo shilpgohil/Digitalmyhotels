@@ -284,7 +284,10 @@ async def billing_history(
                     func.sum(
                         case(
                             (
-                                func.date(Subscription.created_at) >= month_start,
+                                and_(
+                                    func.date(Subscription.created_at) >= month_start,
+                                    func.date(Subscription.created_at) <= today,
+                                ),
                                 SubscriptionPlan.price,
                             )
                         )

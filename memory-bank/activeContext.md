@@ -1,5 +1,35 @@
 # Active Context — DigitalMyHotels
 
+## 18/09/2026 — FEAT: BILLING HISTORY / TOTAL REVENUE SCREEN UPGRADE (COMPLETE)
+- **Task**: Upgrade Super Admin "Total Revenue" page (`/admin/revenue`) to a full Billing History ledger matching the reference design.
+- **Previous session completed** (backend):
+  - Alembic migration `a9f3c1e7b820`: added `payment_mode VARCHAR(32)` (nullable) + CHECK constraint to `subscriptions` table.
+  - `backend/app/models/platform.py`: `Subscription.payment_mode` field.
+  - `backend/app/schemas/platform.py`: `BillingHistorySummaryOut`, `BillingHistoryRowOut`, `BillingHistoryListOut`.
+  - `backend/app/services/super_admin.py`: `billing_history()` service with all-time summary stat aggregation and filterable paginated rows.
+  - `backend/app/api/v1/super_admin.py`: `GET /api/v1/super-admin/billing-history` endpoint (already existed from previous session — a mistaken duplicate was added and then removed in this session).
+- **This session completed** (frontend + i18n):
+  - `frontend/src/types/money.ts`: Added `SuperAdminBillingHistorySummary`, `SuperAdminBillingHistoryRow`, `SuperAdminBillingHistoryList` interfaces.
+  - `frontend/src/app/(super-admin)/admin/revenue/page.tsx`: Full rewrite as Billing History ledger:
+    - 6 stat cards (all-time: Total Collected, This Month, Cash, UPI, Card, Others) — always unfiltered; responsive grid (2-3-6 cols).
+    - Quick-period tabs: All Time | Today | Last 5 Days | This Month | This Year.
+    - Custom date-range pickers with draft state (applied on "Apply" click, cleared on "Clear"), payment mode dropdown, hotel search.
+    - Table: Hotel Name | Owner | Contact | Payment Date | Plan Amount | Plan | Expiry Date | Mode | Actions.
+    - Expiry date coloured: red=past, amber=≤7 days.
+    - Eye → `/admin/hotels/{id}/edit`. Trash intentionally disabled (financial records immutable).
+  - Backend refinement: `this_month` aggregation bounded `<= today`.
+  - `frontend/src/i18n/messages/en.json` + `hi.json`: 31 `billingHistory*` keys added. Parity: 1903 both.
+- **7-Stage Verification**: All PASS.
+  1. Blast-radius: Financial records (subscriptions) read-only; no write paths touched.
+  2. `npx tsc --noEmit` → 0 errors.
+  3. `ruff check app` → All checks passed!
+  4. `mypy app` → 0 errors (106 files).
+  5. `pytest tests/unit/` → 68/68 passed.
+  6. `check_api_limits.py` → 0 violations; `check_i18n_usage.py` → all resolve; i18n parity 1903/1903.
+  7. Clean diff: 14 files changed — commit `f142a2a`.
+- **Remaining**: DB migration `a9f3c1e7b820` not yet applied to production Neon. Run `alembic upgrade head` on Render before deploying backend.
+- **Next**: Continue backlog from `bugfixMasterPlan-2026-09-15.md`. Q1-Q6 client decisions still open.
+
 ## 18/09/2026 — BUGFIX: SUPER ADMIN EXPIRED / EXPIRING SOON LOGIC UNIFICATION
 - **Issue**: Dashboard "Recently Expired" stat card count did NOT match the number of rows on `/admin/expired`. Root cause: the page was secretly sending `expiring_within=5` which caused the backend to return ACTIVE (not-yet-expired) hotels alongside truly-expired ones, but the dashboard stat card (`recently_expired`) only counted truly-expired hotels.
 - **Also**: The "Expired Hotels" stat card (amber, all-time expired count) was the least actionable card — it linked to all-time expired but gave no urgency signal.

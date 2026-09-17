@@ -103,28 +103,40 @@ export default function AdminBillingHistoryPage() {
   const tc = useTranslations("common");
 
   // ── Filter state ────────────────────────────────────────────────────────
-  const [period, setPeriod] = useState<Period>("all");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo]     = useState("");
-  const [mode, setMode]         = useState("");
-  const [search, setSearch]     = useState("");
-  const [page, setPage]         = useState(0);
+  const [period, setPeriod]         = useState<Period>("all");
+  // Draft date state — only committed to the query on Apply/Clear
+  const [draftFrom, setDraftFrom]   = useState("");
+  const [draftTo, setDraftTo]       = useState("");
+  // Committed date state — drives the actual API call
+  const [dateFrom, setDateFrom]     = useState("");
+  const [dateTo, setDateTo]         = useState("");
+  const [mode, setMode]             = useState("");
+  const [search, setSearch]         = useState("");
+  const [page, setPage]             = useState(0);
 
-  // Custom dates override period selection; selecting a period clears custom dates.
+  // Selecting a period tab clears any custom date draft and committed dates.
   const handlePeriodChange = useCallback((p: Period) => {
     setPeriod(p);
+    setDraftFrom("");
+    setDraftTo("");
     setDateFrom("");
     setDateTo("");
     setPage(0);
   }, []);
 
+  // Apply commits the draft dates into the query state.
   const handleApply = useCallback(() => {
-    if (dateFrom || dateTo) setPeriod("all"); // custom dates take precedence
+    // Custom dates override period tabs
+    if (draftFrom || draftTo) setPeriod("all");
+    setDateFrom(draftFrom);
+    setDateTo(draftTo);
     setPage(0);
-  }, [dateFrom, dateTo]);
+  }, [draftFrom, draftTo]);
 
   const handleClear = useCallback(() => {
     setPeriod("all");
+    setDraftFrom("");
+    setDraftTo("");
     setDateFrom("");
     setDateTo("");
     setMode("");
@@ -132,7 +144,7 @@ export default function AdminBillingHistoryPage() {
     setPage(0);
   }, []);
 
-  // ── Query ────────────────────────────────────────────────────────────────
+  // ── Query — only depends on committed state ──────────────────────────────
   const query = useQuery({
     queryKey: ["admin-billing-history", period, dateFrom, dateTo, mode, search, page],
     queryFn: () => {
@@ -140,7 +152,7 @@ export default function AdminBillingHistoryPage() {
         limit:  String(PAGE_SIZE),
         offset: String(page * PAGE_SIZE),
       });
-      // Period only sent when no custom dates
+      // Period only sent when no custom committed dates
       if (!dateFrom && !dateTo && period !== "all") params.set("period", period);
       if (dateFrom) params.set("date_from", dateFrom);
       if (dateTo)   params.set("date_to",   dateTo);
@@ -198,7 +210,8 @@ export default function AdminBillingHistoryPage() {
       </div>
 
       {/* ── 6 Summary stat cards (always ALL-TIME) ─────────────────────── */}
-      <StatCardGrid cols={3}>
+      {/* cols=6: 2 cols mobile → 3 cols sm → 6 cols xl */}
+      <StatCardGrid cols={6}>
         {STAT_CARDS.map(({ labelKey, icon: Icon, tone, value }) =>
           query.isLoading ? (
             <Skeleton key={labelKey} className="h-24 rounded-xl" />
@@ -238,24 +251,24 @@ export default function AdminBillingHistoryPage() {
 
         {/* Custom date range + Mode + Search */}
         <div className="flex flex-wrap items-end gap-3">
-          {/* From */}
+          {/* From — writes to draftFrom (committed on Apply) */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-muted-foreground">{t("billingFrom")}</label>
             <input
               type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
+              value={draftFrom}
+              onChange={(e) => setDraftFrom(e.target.value)}
               className="h-[42px] rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
             />
           </div>
-          {/* To */}
+          {/* To — writes to draftTo (committed on Apply) */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-muted-foreground">{t("billingTo")}</label>
             <input
               type="date"
-              value={dateTo}
-              min={dateFrom || undefined}
-              onChange={(e) => setDateTo(e.target.value)}
+              value={draftTo}
+              min={draftFrom || undefined}
+              onChange={(e) => setDraftTo(e.target.value)}
               className="h-[42px] rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
             />
           </div>
