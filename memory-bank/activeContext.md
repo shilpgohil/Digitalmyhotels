@@ -1,5 +1,26 @@
 # Active Context — DigitalMyHotels
 
+## 18/09/2026 — BUGFIX: SUPER ADMIN EXPIRED / EXPIRING SOON LOGIC UNIFICATION
+- **Issue**: Dashboard "Recently Expired" stat card count did NOT match the number of rows on `/admin/expired`. Root cause: the page was secretly sending `expiring_within=5` which caused the backend to return ACTIVE (not-yet-expired) hotels alongside truly-expired ones, but the dashboard stat card (`recently_expired`) only counted truly-expired hotels.
+- **Also**: The "Expired Hotels" stat card (amber, all-time expired count) was the least actionable card — it linked to all-time expired but gave no urgency signal.
+- **Solution — 3 Clean Semantic Buckets**:
+  - 🔴 **Recently Expired** (red card, `/admin/expired`): hotels that actually expired in the last 30 days. `expiring_within` removed → count exactly matches list rows.
+  - 🟡 **Expiring Soon** (amber card, `/admin/expired?filter=expiring`): active hotels whose subscription expires within 7 days. Replaced the previous all-time "Expired Hotels" card.
+  - 📋 **All Expired** (accessible via "View All" links, `/admin/expired?filter=all`): all-time expired hotels.
+- **Changes** (commit `dcda31c`):
+  - `frontend/src/app/(super-admin)/admin/expired/page.tsx`: Added 3-mode logic (`filter=expiring` → `status=expired&recent_days=0&expiring_within=7`; default → `status=expired&recent_days=30` NO expiring_within; `filter=all` → `status=expired` only). Updated page titles per mode.
+  - `frontend/src/app/(super-admin)/admin/page.tsx`: Replaced `expiredHotelsCard` stat with `expiringSoonCard` (`expiring_soon` from backend), linked to `?filter=expiring`. Updated `statValues` mapping. Added comment explaining count→rows alignment.
+  - `frontend/src/i18n/messages/en.json` + `hi.json`: Added `expiringTitle` key (en: "Expiring Soon Hotels", hi: "जल्द समाप्त होने वाले होटल"). Key parity: 1875 keys each.
+- **7-Stage Verification**:
+  1. Blast-radius: Pricing, GST, rooms, check-in, payments, auth — unaffected (pure UI routing/query param change, no backend changes).
+  2. `npx tsc --noEmit` → 0 errors.
+  3. `ruff check app` → All checks passed!
+  4. `pytest tests/unit/` → 68/68 passed.
+  5. `check_api_limits.py` → 0 violations; `check_i18n_usage.py` → all keys resolved; parity 1875/1875.
+  6. Collateral: recently-expired table on dashboard now shows only expired rows; "Expiring Soon" card shows active-but-lapsing hotels.
+  7. Clean diff: 4 files changed, 52 insertions / 35 deletions.
+- **Current State**: All 5 phases deployed + title-case sweep + expired/expiring logic fix pushed to master. Next: continue backlog from `bugfixMasterPlan-2026-09-15.md`.
+
 ## 18/09/2026 — BUGFIX: PLATFORM-WIDE TITLE CASE & GRAMMATICAL CAPITALIZATION SWEEP
 - **Issue**: Across both the frontend UI and backend services, grammatical capitalization rules were inconsistently applied:
   - Action buttons, menu items, table headers, and modal actions had mixed sentence-casing or lowercasing (e.g. "Take a tour", "add room", "Missed arrival").

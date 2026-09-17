@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -17,6 +18,7 @@ from app.schemas.platform import (
     AdminHotelDetailOut,
     AdminHotelUpdate,
     AdminRevenueListOut,
+    BillingHistoryListOut,
     CreateHotelRequest,
     HotelAdminListOut,
     PlatformDashboardOut,
@@ -72,6 +74,62 @@ async def revenue_summary(
     (client 09/2026)."""
     data = await admin_service.revenue_summary(db, q=q, limit=limit, offset=offset)
     return AdminRevenueListOut(**data)
+
+
+@router.get("/billing-history", response_model=BillingHistoryListOut)
+async def billing_history(
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+    # mode: cash|upi|credit_card|debit_card|other|card (card = both card subtypes)
+    mode: str | None = Query(default=None, max_length=32),
+    q: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=10, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    # Convenience period shortcuts — overridden by explicit date_from/date_to
+    period: str | None = Query(default=None),  # today|last5|this_month|this_year
+    _user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> BillingHistoryListOut:
+    """Billing History for the Total Revenue screen.
+
+    Each row is one Subscription (SaaS payment from hotel owner to platform).
+    The summary stat cards are always all-time totals; table rows are filtered.
+    """
+    from datetime import date as _date
+    from datetime import timedelta
+
+    # Resolve convenience period to date range (explicit dates take precedence)
+    if period and not (date_from or date_to):
+        today = _date.today()
+        if period == "today":
+            date_from = today
+            date_to = today
+        elif period == "last5":
+            date_from = today - timedelta(days=4)
+            date_to = today
+        elif period == "this_month":
+            date_from = today.replace(day=1)
+            date_to = today
+        elif period == "this_year":
+            date_from = today.replace(month=1, day=1)
+            date_to = today
+
+    if date_from and date_to and date_from > date_to:
+        from app.core.errors import ValidationAppError
+        raise ValidationAppError(
+            "date_from must not be after date_to", code="invalid_date_range"
+        )
+
+    data = await admin_service.billing_history(
+        db,
+        date_from=date_from,
+        date_to=date_to,
+        mode=mode,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+    return BillingHistoryListOut(**data)
 
 
 @router.get("/hotels", response_model=HotelAdminListOut)

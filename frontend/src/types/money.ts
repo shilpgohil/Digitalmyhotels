@@ -337,3 +337,38 @@ export interface SubscriptionPaymentInfoOut {
   upi_id: string | null;
   payee_name: string | null;
 }
+
+// ── Super Admin — Billing History (Subscription SaaS Revenue) ─────────────
+
+/** All-time platform-wide payment breakdown shown in the 6 summary stat cards. */
+export interface SuperAdminBillingHistorySummary {
+  total_collected: string;
+  this_month: string;
+  cash: string;
+  upi: string;
+  card: string;       // credit_card + debit_card combined
+  other: string;
+}
+
+/** One row in the Billing History table (= one Subscription record). */
+export interface SuperAdminBillingHistoryRow {
+  subscription_id: string;
+  hotel_id: string;
+  hotel_name: string;
+  owner_name: string | null;
+  owner_phone: string | null;
+  payment_date: string;          // YYYY-MM-DD
+  plan_amount: string;
+  plan_name: string;
+  plan_duration_days: number;
+  expiry_date: string;           // YYYY-MM-DD
+  payment_mode: string | null;   // null → shown as "—" in UI
+}
+
+/** Full response from GET /super-admin/billing-history. */
+export interface SuperAdminBillingHistoryList {
+  summary: SuperAdminBillingHistorySummary;
+  items: SuperAdminBillingHistoryRow[];
+  total: number;
+}
+

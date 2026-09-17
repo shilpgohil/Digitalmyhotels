@@ -232,6 +232,185 @@ async def revenue_summary(
     }
 
 
+async def billing_history(
+    db: AsyncSession,
+    *,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    mode: str | None = None,
+    q: str | None = None,
+    limit: int = 10,
+    offset: int = 0,
+) -> dict:
+    """Billing History for the Total Revenue screen.
+
+    Each row = one Subscription row (platform SaaS payment by hotel owner).
+    Summary stat cards are ALWAYS all-time (unfiltered) so they reflect true
+    platform health regardless of any date or mode filter the admin applies.
+    The table rows respect all filters.
+    """
+    # ── Owner subquery: latest owner membership per hotel ──────────────────
+    # Use DISTINCT ON (hotel_id) ordered by membership created_at to get the
+    # current owner for each hotel.
+    owner_role_sq = (
+        select(Role.id)
+        .where(Role.code == RoleCode.OWNER)
+        .scalar_subquery()
+    )
+    owner_sq = (
+        select(
+            HotelMembership.hotel_id,
+            User.full_name.label("owner_name"),
+            User.phone.label("owner_phone"),
+        )
+        .join(User, User.id == HotelMembership.user_id)
+        .where(
+            HotelMembership.role_id == owner_role_sq,
+        )
+        .distinct(HotelMembership.hotel_id)
+        .order_by(HotelMembership.hotel_id, HotelMembership.created_at.desc())
+        .subquery()
+    )
+
+    # ── Summary (all-time, never filtered) ─────────────────────────────────
+    today = date.today()
+    month_start = today.replace(day=1)
+
+    summary_row = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(SubscriptionPlan.price), 0).label("total_collected"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (
+                                func.date(Subscription.created_at) >= month_start,
+                                SubscriptionPlan.price,
+                            )
+                        )
+                    ),
+                    0,
+                ).label("this_month"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (Subscription.payment_mode == "cash", SubscriptionPlan.price)
+                        )
+                    ),
+                    0,
+                ).label("cash"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (Subscription.payment_mode == "upi", SubscriptionPlan.price)
+                        )
+                    ),
+                    0,
+                ).label("upi"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (
+                                Subscription.payment_mode.in_(
+                                    ["credit_card", "debit_card"]
+                                ),
+                                SubscriptionPlan.price,
+                            )
+                        )
+                    ),
+                    0,
+                ).label("card"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (Subscription.payment_mode == "other", SubscriptionPlan.price)
+                        )
+                    ),
+                    0,
+                ).label("other"),
+            )
+            .select_from(Subscription)
+            .join(SubscriptionPlan, SubscriptionPlan.id == Subscription.plan_id)
+            # Only count non-trial subscriptions that have been actively assigned.
+            .where(Subscription.status != "trial")
+        )
+    ).one()
+
+    summary = {
+        "total_collected": money(summary_row.total_collected),
+        "this_month": money(summary_row.this_month),
+        "cash": money(summary_row.cash),
+        "upi": money(summary_row.upi),
+        "card": money(summary_row.card),
+        "other": money(summary_row.other),
+    }
+
+    # ── List query (filtered) ───────────────────────────────────────────────
+    base = (
+        select(
+            Subscription.id.label("subscription_id"),
+            Hotel.id.label("hotel_id"),
+            Hotel.name.label("hotel_name"),
+            owner_sq.c.owner_name,
+            owner_sq.c.owner_phone,
+            func.date(Subscription.created_at).label("payment_date"),
+            SubscriptionPlan.price.label("plan_amount"),
+            SubscriptionPlan.name.label("plan_name"),
+            SubscriptionPlan.duration_days.label("plan_duration_days"),
+            Subscription.expiry_date,
+            Subscription.payment_mode,
+        )
+        .select_from(Subscription)
+        .join(SubscriptionPlan, SubscriptionPlan.id == Subscription.plan_id)
+        .join(Hotel, Hotel.id == Subscription.hotel_id)
+        .outerjoin(owner_sq, owner_sq.c.hotel_id == Subscription.hotel_id)
+        .where(Subscription.status != "trial")
+        .order_by(Subscription.created_at.desc())
+    )
+
+    if date_from:
+        base = base.where(func.date(Subscription.created_at) >= date_from)
+    if date_to:
+        base = base.where(func.date(Subscription.created_at) <= date_to)
+    if mode:
+        if mode in ("credit_card", "debit_card"):
+            # Allow filtering by either card subtype
+            base = base.where(Subscription.payment_mode == mode)
+        elif mode == "card":
+            base = base.where(
+                Subscription.payment_mode.in_(["credit_card", "debit_card"])
+            )
+        else:
+            base = base.where(Subscription.payment_mode == mode)
+    if q:
+        like = f"%{q.lower()}%"
+        base = base.where(func.lower(Hotel.name).like(like))
+
+    total_count = int(
+        (await db.scalar(select(func.count()).select_from(base.subquery()))) or 0
+    )
+    rows = (await db.execute(base.limit(limit).offset(offset))).all()
+
+    items = [
+        {
+            "subscription_id": r.subscription_id,
+            "hotel_id": r.hotel_id,
+            "hotel_name": r.hotel_name,
+            "owner_name": r.owner_name,
+            "owner_phone": r.owner_phone,
+            "payment_date": r.payment_date,
+            "plan_amount": money(r.plan_amount),
+            "plan_name": r.plan_name,
+            "plan_duration_days": int(r.plan_duration_days),
+            "expiry_date": r.expiry_date,
+            "payment_mode": r.payment_mode,
+        }
+        for r in rows
+    ]
+
+    return {"summary": summary, "items": items, "total": total_count}
+
+
 async def list_hotels(
     db: AsyncSession,
     *,
