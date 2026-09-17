@@ -4329,7 +4329,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               className={`size-4 shrink-0 text-gold-600 transition-transform duration-200 ${draftsCollapsed ? "" : "rotate-180"}`}
               aria-hidden
             />
-          </button>
+                </button>
 
           {/* Draft rows — hidden when collapsed */}
           {!draftsCollapsed && (
@@ -4368,7 +4368,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                         {!d.guest?.full_name && d.selectedRooms?.length
                           ? ` — ${d.selectedRooms.length} room(s)` : ""}
                       </span>
-                    </div>
+              </div>
                     <div
                       className="flex shrink-0 gap-2"
                       onClick={(e) => e.stopPropagation()}

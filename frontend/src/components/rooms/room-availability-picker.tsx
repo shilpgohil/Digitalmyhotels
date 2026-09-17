@@ -25,9 +25,16 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Info,
   Wrench,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { cn } from "@/lib/utils";
@@ -132,85 +139,129 @@ function AvailableChip({
   readonly dayUse: boolean;
 }) {
   const hint = statusHint(room.status);
-  // Same-day (day-use) bookings are charged hourly when the room type has an
-  // hourly rate; otherwise the backend falls back to the nightly base price.
   const hourlyRate = dayUse ? room.room_type_hourly_rate : null;
+
+  // ── Build the ⓘ tooltip lines ─────────────────────────────────────────────
+  const infoLines: { icon?: "clock" | "check"; text: string; colour?: string }[] = [];
+
+  if (hint) {
+    infoLines.push({ text: hint.label });
+  }
+  if (room.status === "occupied" && room.current_checkout_time) {
+    const freeAt = room.current_checkout_date
+      ? `Free ${fmtApiDateTime(room.current_checkout_date, room.current_checkout_time)}`
+      : `Free at ${room.current_checkout_time}`;
+    infoLines.push({ icon: "clock", text: freeAt, colour: "text-emerald-300" });
+  }
+  if (room.next_booking_date) {
+    infoLines.push({
+      icon: "clock",
+      text: `Booked from ${fmtApiDateTime(room.next_booking_date, room.next_booking_time)} — free for your dates`,
+      colour: "text-yellow-300",
+    });
+  }
+
+  const hasInfo = infoLines.length > 0;
+
   return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onClick}
-      className={cn(
-        "relative flex flex-col rounded-xl border-2 px-3 py-2.5 text-left transition-all min-w-[90px]",
-        selected
-          ? "border-gold-500 bg-gold-50 shadow-sm"
-          : "border-border hover:border-gold-300 hover:bg-muted/40",
-      )}
-    >
-      <div className="flex items-center gap-1.5">
-        <span className="font-semibold text-sm">{room.room_number}</span>
-        {selected && (
-          <span className="size-4 rounded-full bg-gold-500 flex items-center justify-center shrink-0">
-            <Check className="size-2.5 text-navy-900" aria-hidden />
+    <div className="relative">
+      <button
+        type="button"
+        aria-pressed={selected}
+        onClick={onClick}
+        className={cn(
+          "flex flex-col rounded-xl border-2 px-3 py-2.5 text-left transition-all min-w-[90px] w-full",
+          selected
+            ? "border-gold-500 bg-gold-50 shadow-sm"
+            : "border-border hover:border-gold-300 hover:bg-muted/40",
+          // Reserve top-right corner for the ⓘ button when there's info
+          hasInfo ? "pr-7" : "",
+        )}
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="font-semibold text-sm">{room.room_number}</span>
+          {selected && (
+            <span className="size-4 rounded-full bg-gold-500 flex items-center justify-center shrink-0">
+              <Check className="size-2.5 text-navy-900" aria-hidden />
+            </span>
+          )}
+        </div>
+        <span className="text-xs text-muted-foreground leading-tight mt-0.5">
+          {room.room_type_name ?? "—"}
+        </span>
+        {room.bed_type && (
+          <span className="flex items-center gap-0.5 text-micro text-muted-foreground mt-0.5">
+            <BedDouble className="size-2.5" aria-hidden />
+            {room.bed_type}
           </span>
         )}
-      </div>
-      <span className="text-xs text-muted-foreground leading-tight mt-0.5">
-        {room.room_type_name ?? "—"}
-      </span>
-      {room.bed_type && (
-        <span className="flex items-center gap-0.5 text-micro text-muted-foreground mt-0.5">
-          <BedDouble className="size-2.5" aria-hidden />
-          {room.bed_type}
+        <span className="mt-1 text-xs font-semibold text-navy-900">
+          {hourlyRate != null ? (
+            <>
+              {fmtINR(hourlyRate)}
+              <span className="font-normal text-muted-foreground">/hr</span>
+            </>
+          ) : (
+            <>
+              {fmtINR(room.room_type_base_price)}
+              <span className="font-normal text-muted-foreground">/night</span>
+            </>
+          )}
         </span>
+      </button>
+
+      {/* ⓘ info button — only when there are hints; sits in top-right corner
+          outside the main button so it doesn't interfere with card selection. */}
+      {hasInfo && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger
+              onClick={(e) => e.stopPropagation()}
+              className={cn(
+                "absolute top-1.5 right-1.5 z-10 flex size-5 items-center justify-center rounded-full transition-colors",
+                selected
+                  ? "text-gold-600 hover:bg-gold-200"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+              aria-label="Room status details"
+            >
+              <Info className="size-3.5" aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent side="top" align="end" className="max-w-[220px] space-y-1 p-2.5 text-xs">
+              {infoLines.map((line, i) => (
+                <p key={i} className={cn("flex items-start gap-1.5", line.colour)}>
+                  {line.icon === "clock" && (
+                    <Clock className="mt-0.5 size-3 shrink-0" aria-hidden />
+                  )}
+                  {line.text}
+                </p>
+              ))}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
-      <span className="mt-1 text-xs font-semibold text-navy-900">
-        {hourlyRate != null ? (
-          <>
-            {fmtINR(hourlyRate)}
-            <span className="font-normal text-muted-foreground">/hr</span>
-          </>
-        ) : (
-          <>
-            {fmtINR(room.room_type_base_price)}
-            <span className="font-normal text-muted-foreground">/night</span>
-          </>
-        )}
-      </span>
-      {/* Show current status as a small hint — room is still bookable */}
-      {hint && (
-        <span className={cn("mt-1 rounded px-1.5 py-0.5 text-micro font-semibold", hint.colour)}>
-          {hint.label}
-        </span>
-      )}
-      {/* Free-at hint: date + time so staff know WHICH DAY the room frees up
-          (client 09/2026 — time alone was confusing). */}
-      {room.status === "occupied" && room.current_checkout_time && (
-        <span className="mt-0.5 flex items-center gap-0.5 text-micro font-medium text-success">
-          <Clock className="size-2.5" aria-hidden />
-          {room.current_checkout_date
-            ? `Free ${fmtApiDateTime(room.current_checkout_date, room.current_checkout_time)}`
-            : `Free at ${room.current_checkout_time}`}
-        </span>
-      )}
-      {/* Upcoming-booking hint (redesign 15/09): the room is free for the
-          REQUESTED dates but has a confirmed booking afterwards — spell it
-          out so a "busy-looking" room being offered never reads as a bug. */}
-      {room.next_booking_date && (
-        <span className="mt-0.5 flex items-center gap-0.5 text-micro font-medium text-gold-600">
-          <Clock className="size-2.5" aria-hidden />
-          {`Booked from ${fmtApiDateTime(room.next_booking_date, room.next_booking_time)} — free for your dates`}
-        </span>
-      )}
-    </button>
+    </div>
   );
 }
 
 function UnavailableCard({ room }: { readonly room: RoomUnavailableItem }) {
   const { label, colour } = reasonMeta(room.unavailable_reason);
+
+  // Build tooltip content for the unavailable card
+  const infoLines: string[] = [];
+  if (room.occupied_until) {
+    infoLines.push(
+      `Free from ${fmtDate(room.occupied_until)}${room.occupied_until_time ? ` at ${room.occupied_until_time}` : ""}`,
+    );
+  } else if (room.unavailable_reason === "cleaning") {
+    infoLines.push("Cleaning in progress — will be available soon");
+  } else if (room.unavailable_reason === "maintenance") {
+    infoLines.push("Under maintenance");
+  }
+
   return (
-    <div className="flex items-start justify-between rounded-xl border px-3 py-2.5 opacity-70">
-      <div className="min-w-0">
+    <div className="relative flex items-center rounded-xl border px-3 py-2.5 opacity-70">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-sm text-foreground">{room.room_number}</span>
           <span className={cn("rounded-full border px-2 py-0.5 text-micro font-semibold", colour)}>
@@ -219,26 +270,27 @@ function UnavailableCard({ room }: { readonly room: RoomUnavailableItem }) {
         </div>
         <p className="text-xs text-muted-foreground mt-0.5">{room.room_type_name ?? "—"}</p>
       </div>
-      {room.occupied_until && (
-        <div className="ml-3 shrink-0 text-right">
-          <p className="text-micro text-muted-foreground">Free from</p>
-          <p className="text-xs font-semibold text-foreground">{fmtDate(room.occupied_until)}</p>
-          {room.occupied_until_time && (
-            <p className="text-micro text-success font-medium flex items-center justify-end gap-0.5 mt-0.5">
-              <Clock className="size-2.5" aria-hidden />
-              {room.occupied_until_time}
-            </p>
-          )}
-        </div>
-      )}
-      {!room.occupied_until && room.unavailable_reason === "cleaning" && (
-        <div className="ml-3 shrink-0 flex items-center gap-1 text-info text-xs">
-          <Clock className="size-3" aria-hidden />
-          <span>Soon</span>
-        </div>
-      )}
-      {!room.occupied_until && room.unavailable_reason === "maintenance" && (
-        <Wrench className="size-4 ml-3 shrink-0 text-yellow-600" aria-hidden />
+
+      {/* ⓘ info button — only rendered when there is something to say */}
+      {infoLines.length > 0 && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger
+              className="ml-2 flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="Room availability details"
+            >
+              <Info className="size-3.5" aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent side="top" align="end" className="max-w-[220px] space-y-1 p-2.5 text-xs">
+              {infoLines.map((line, i) => (
+                <p key={i} className="flex items-start gap-1.5">
+                  <Clock className="mt-0.5 size-3 shrink-0 text-emerald-300" aria-hidden />
+                  {line}
+                </p>
+              ))}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
     </div>
   );
