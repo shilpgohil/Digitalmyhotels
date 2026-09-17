@@ -352,8 +352,11 @@ function CheckoutContent() {
 
   /** Totals for display — server quote verbatim, no client arithmetic. */
   const totals = {
+    nights: quote?.nights ?? actualNights(entry?.checked_in_at ?? ""),
     roomSubtotal: money(quote?.room_subtotal),
     gst: money(quote?.gst_amount),
+    existingCharges: money(quote?.existing_charges_total),
+    proposedCharges: money(quote?.proposed_charges_total),
     chargesTotal: money(quote?.charges_total),
     lateFee: lateFeeNum,
     discount: money(quote?.discount),
@@ -908,8 +911,7 @@ function CheckoutContent() {
                       </div>
                       {lateFeeNum > 0 && (
                         <div className="col-span-full rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-sm font-medium text-warning">
-                          Late checkout by {lateHoursNum} hr{lateHoursNum !== 1 ? "s" : ""} —{" "}
-                          {fmtINR(lateFeeNum)} late fee added
+                          {tp("lateCheckoutBanner", { hrs: lateHoursNum, amount: fmtINR(lateFeeNum) })}
                         </div>
                       )}
                     </div>
@@ -1032,6 +1034,17 @@ function CheckoutContent() {
                       </p>
                     ) : (
                       <div className="rounded-xl border text-sm divide-y">
+                        {/* Nights row */}
+                        {totals.nights > 0 && (
+                          <div className="flex justify-between px-3 py-2 text-xs">
+                            <span className="text-muted-foreground">
+                              {totals.nights} {totals.nights === 1 ? tp("night") : tp("nights")}
+                            </span>
+                            <span className="tabular-nums text-muted-foreground">
+                              {fmtMoney(totals.roomSubtotal)}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex justify-between px-3 py-2">
                           <span className="text-muted-foreground">{tp("roomSubtotal")}</span>
                           <span className="font-medium tabular-nums">
@@ -1046,11 +1059,20 @@ function CheckoutContent() {
                             <span className="font-medium tabular-nums">{fmtMoney(totals.gst)}</span>
                           </div>
                         )}
-                        {totals.chargesTotal > 0 && (
+                        {/* Expanded per-category charge lines (always visible when > 0) */}
+                        {totals.existingCharges > 0 && (
                           <div className="flex justify-between px-3 py-2">
-                            <span className="text-muted-foreground">{tp("additionalCharges")}</span>
+                            <span className="text-muted-foreground">{tp("existingCharges")}</span>
                             <span className="font-medium tabular-nums">
-                              {fmtMoney(totals.chargesTotal)}
+                              {fmtMoney(totals.existingCharges)}
+                            </span>
+                          </div>
+                        )}
+                        {totals.proposedCharges > 0 && (
+                          <div className="flex justify-between px-3 py-2">
+                            <span className="text-muted-foreground">{tp("newChargesAtCheckout")}</span>
+                            <span className="font-medium tabular-nums">
+                              {fmtMoney(totals.proposedCharges)}
                             </span>
                           </div>
                         )}

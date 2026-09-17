@@ -139,17 +139,26 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
         )
         or 0
     )
-    # Recently expired: hotels whose subscription expired in the last 30 days.
-    # Distinct from total expired_hotels (all-time count).
+    # Recently expired count — uses the SAME subscription-aware expired
+    # condition as the list filter (not latest.c.status == "expired" which
+    # only counts hotels whose DB status was explicitly flipped).
     thirty_days_ago = today - timedelta(days=30)
+    _re_latest = _latest_sub_sq()
+    _re_expired_cond = or_(
+        Hotel.status == "expired",
+        _sub_expired_cond(_re_latest),
+    )
     recently_expired = int(
         await db.scalar(
             select(func.count())
-            .select_from(latest)
-            .join(Hotel, Hotel.id == latest.c.hotel_id)
+            .select_from(Hotel)
+            .outerjoin(_re_latest, _re_latest.c.hotel_id == Hotel.id)
             .where(
-                latest.c.status == "expired",
-                latest.c.expiry_date >= thirty_days_ago,
+                _re_expired_cond,  # type: ignore[arg-type]
+                or_(
+                    _re_latest.c.expiry_date.is_(None),
+                    _re_latest.c.expiry_date >= thirty_days_ago,
+                ),
             )
         )
         or 0
@@ -259,6 +268,17 @@ async def list_hotels(
                         latest.c.expiry_date >= cutoff,
                     ),
                 )
+                # Grace-period hotels: subscription lapsed (expiry_date < today)
+                # but still within the grace window (expiry + grace_days >= today).
+                # These need admin attention and belong in "Recently Expired".
+                # (Q5 answered: show them here, not in a separate section.)
+                in_grace = and_(
+                    latest.c.status != "suspended",
+                    latest.c.expiry_date < func.current_date(),
+                    latest.c.expiry_date + latest.c.grace_days >= func.current_date(),
+                    latest.c.expiry_date >= cutoff,
+                )
+                recently_expired_or_grace = or_(recently_expired, in_grace)
                 if expiring_within is not None:
                     soon = date.today() + timedelta(days=expiring_within)
                     about_to_expire = and_(
@@ -266,9 +286,9 @@ async def list_hotels(
                         latest.c.expiry_date >= func.current_date(),
                         latest.c.expiry_date <= soon,
                     )
-                    base = base.where(or_(recently_expired, about_to_expire))
+                    base = base.where(or_(recently_expired_or_grace, about_to_expire))
                 else:
-                    base = base.where(recently_expired)
+                    base = base.where(recently_expired_or_grace)
             else:
                 base = base.where(expired_cond)
         else:

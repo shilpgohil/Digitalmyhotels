@@ -346,8 +346,21 @@ function InvoicesContent() {
             </div>
             <div
               id="invoice-print-area"
-              className="mx-auto max-w-3xl overflow-hidden rounded-lg border bg-card shadow-sm"
+              className="relative mx-auto max-w-3xl overflow-hidden rounded-lg border bg-card shadow-sm"
             >
+              {/* Cancelled watermark — diagonal stamp across the invoice */}
+              {invoice.status === "cancelled" && (
+                <div
+                  className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+                  aria-hidden
+                >
+                  <p
+                    className="rotate-[-15deg] whitespace-nowrap rounded border-4 border-danger/60 px-6 py-2 text-4xl font-black uppercase tracking-widest text-danger/50 opacity-70"
+                  >
+                    {tp("cancelledWatermark")}
+                  </p>
+                </div>
+              )}
               {/* Header */}
               <div className="bg-navy-900 p-6 text-white">
                 <div className="flex flex-wrap items-start justify-between gap-4">
@@ -462,11 +475,39 @@ function InvoicesContent() {
                       )}
                     </span>
                   </div>
-                  {gst.data?.gst_mode === "included_by_customer" && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">{tp("gst")}</span>
-                      <span className="tabular-nums">{fmtINR(gstTotal)}</span>
-                    </div>
+                  {gst.data?.gst_mode === "included_by_customer" && gstTotal > 0 && (
+                    <>
+                      {/* Show CGST + SGST (or IGST) separately when non-zero */}
+                      {Number(invoice.cgst_amount) > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">
+                            {tp("cgst")}{gst.data?.default_cgst_rate ? ` (${gst.data.default_cgst_rate}%)` : ""}
+                          </span>
+                          <span className="tabular-nums">{fmtINR(invoice.cgst_amount)}</span>
+                        </div>
+                      )}
+                      {Number(invoice.sgst_amount) > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">
+                            {tp("sgst")}{gst.data?.default_sgst_rate ? ` (${gst.data.default_sgst_rate}%)` : ""}
+                          </span>
+                          <span className="tabular-nums">{fmtINR(invoice.sgst_amount)}</span>
+                        </div>
+                      )}
+                      {Number(invoice.igst_amount) > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">{tp("igst")}</span>
+                          <span className="tabular-nums">{fmtINR(invoice.igst_amount)}</span>
+                        </div>
+                      )}
+                      {/* Fallback combined GST row when split data is missing */}
+                      {Number(invoice.cgst_amount) === 0 && Number(invoice.igst_amount) === 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">{tp("gst")}</span>
+                          <span className="tabular-nums">{fmtINR(gstTotal)}</span>
+                        </div>
+                      )}
+                    </>
                   )}
                   {Number(invoice.discount_amount) > 0 && (
                     <div className="flex justify-between">
@@ -478,6 +519,12 @@ function InvoicesContent() {
                     <span>{tp("advancePaid")}</span>
                     <span className="tabular-nums">−{fmtINR(invoice.paid_amount)}</span>
                   </div>
+                  {/* Cancelled reason note */}
+                  {invoice.status === "cancelled" && invoice.cancel_reason && (
+                    <div className="mt-1 rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-xs text-danger">
+                      {tp("cancelledReason", { reason: invoice.cancel_reason })}
+                    </div>
+                  )}
                   <div className="mt-2 flex items-center justify-between border-t pt-2">
                     <span className="text-xs font-semibold uppercase tracking-widest">
                       {tp("totalDue")}

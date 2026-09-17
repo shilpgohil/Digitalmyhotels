@@ -1467,31 +1467,34 @@ function AdditionalGuestEntry({
     }
   };
 
-  /** Pre-fill the guest form when editing a resolved co-guest. */
+  /** Pre-fill the guest form when editing a resolved co-guest.
+   *
+   * Priority: _newForm (pending guest) → autofill (fetched profile) → resolved
+   * fields (safe fallback so the form is never empty even while autofill loads).
+   * The ID number is intentionally masked — show "••••XXXX" as placeholder
+   * (security: only last-4 returned by API; full number re-entered if changed).
+   */
   const buildEditInitial = (): Partial<GuestCreatePayload> => {
     if (resolved?.guest_id.startsWith("__new__")) {
       const nf = (resolved as ResolvedCoGuest & { _newForm?: GuestCreatePayload })._newForm;
       if (nf) return { ...nf };
     }
-    if (autofill) {
-      return {
-        full_name: autofill.full_name,
-        phone: autofill.phone,
-        email: autofill.email ?? "",
-        address: autofill.address ?? "",
-        city: autofill.city ?? "",
-        state: autofill.state ?? "",
-        country: autofill.country ?? "India",
-        postal_code: autofill.postal_code ?? "",
-        gender: autofill.gender ?? "",
-        date_of_birth: autofill.date_of_birth ?? "",
-        id_proof_type: autofill.id_proof_type ?? "Aadhar Card",
-        // Full ID number is never returned by the API (only last4) — leave
-        // blank; it is only PATCHed when staff types a new one.
-        id_number: "",
-      };
-    }
-    return { full_name: resolved?.full_name ?? "" };
+    const base = autofill ?? null;
+    return {
+      full_name:   base?.full_name   ?? resolved?.full_name ?? "",
+      phone:       base?.phone       ?? resolved?.phone    ?? "",
+      email:       base?.email       ?? "",
+      address:     base?.address     ?? "",
+      city:        base?.city        ?? "",
+      state:       base?.state       ?? "",
+      country:     base?.country     ?? "India",
+      postal_code: base?.postal_code ?? "",
+      gender:      base?.gender      ?? "",
+      date_of_birth: base?.date_of_birth ?? "",
+      id_proof_type: base?.id_proof_type ?? "Aadhar Card",
+      // Show masked placeholder if we know the last-4; never pre-fill the real number.
+      id_number: base?.id_last4 ? `••••${base.id_last4}` : "",
+    };
   };
 
   /**
@@ -1594,7 +1597,11 @@ function AdditionalGuestEntry({
             {tc("cancel")}
           </button>
         </div>
+        {/* key remounts the form when autofill data arrives after the
+            edit is opened — prevents the empty-form race condition.
+            We also pass existingDocs so the photo tiles show saved images. */}
         <NewGuestForm
+          key={`edit-${resolved.guest_id}-${autofill ? "loaded" : "pending"}`}
           initial={buildEditInitial()}
           confirmLabel={t("updateGuest")}
           pending={saving}
@@ -1646,6 +1653,22 @@ function AdditionalGuestEntry({
             </div>
         </div>
           <div className="flex items-center gap-2">
+            {/* Auto-fill — re-fetch profile from server (mirrors primary guest UX).
+                Shows when autofill has not loaded yet or profile may have updated. */}
+            {!autofill && !resolved.guest_id.startsWith("__new__") && (
+              <button
+                type="button"
+                onClick={() => {
+                  void api<GuestAutofill>(
+                    `/api/v1/guests/${resolved.guest_id}/autofill`,
+                    { method: "POST" },
+                  ).then(setAutofill).catch(() => {});
+                }}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gold-400 bg-gold-50 px-2.5 text-xs font-semibold text-gold-700 transition-colors hover:bg-gold-100"
+              >
+                {t("autofillLabel")}
+              </button>
+            )}
             {/* Labeled Edit (plan §5.1) — the icon-only pencil read as "no
                 update button" (client). Opens the form; saving shows Update. */}
             <button
@@ -3008,11 +3031,11 @@ function CheckinForm({
                 hotels (client 16/09 screenshot). */}
             <div className={cn("grid grid-cols-2 gap-2 rounded-lg border bg-background px-3 py-3", hotelGstRate > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4")}>
               <div className="space-y-1 text-center">
-                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Room Rent</p>
+                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">{t("roomRentLabel")}</p>
                 <p className="text-sm font-bold tabular-nums">{fmtINR(bookingTotal)}</p>
               </div>
               <div className="space-y-1 text-center">
-                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Extra Charges</p>
+                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">{t("extraChargesLabel")}</p>
                 {/* Auto-filled: service chips + early fee + the manual entry below. */}
                 <p className="text-sm font-bold tabular-nums">{fmtINR(displayExtra)}</p>
                 <Input
@@ -4852,13 +4875,13 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               (client 16/09 screenshot). */}
           <div className={cn("grid grid-cols-2 gap-2 rounded-lg border bg-background px-3 py-3", hotelGstRate > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4")}>
             <div className="space-y-1 text-center">
-              <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Room Rent</p>
+              <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">{t("roomRentLabel")}</p>
               <p className={cn("text-sm font-bold tabular-nums", roomRentWalkIn === 0 ? "text-muted-foreground" : "")}>
                 {roomRentWalkIn === 0 ? "—" : fmtINR(roomRentWalkIn)}
               </p>
             </div>
             <div className="space-y-1 text-center">
-              <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Extra Charges</p>
+              <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">{t("extraChargesLabel")}</p>
               {/* Auto-filled: selected service chips + the manual entry below. */}
               <p className="text-sm font-bold tabular-nums">{fmtINR(displayExtraWI)}</p>
               <Input

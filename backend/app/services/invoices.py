@@ -489,7 +489,22 @@ async def render_invoice_pdf(
     )
     summary_row("Subtotal", inr(display_subtotal))
     if show_gst_row:
-        summary_row("GST", inr(gst_total))
+        # Client 17/09: show CGST + SGST separately; fall back to combined if
+        # only IGST is present (inter-state) or if both CGST/SGST are zero.
+        _cgst_rate = float(gst.default_cgst_rate or 0)
+        _sgst_rate = float(gst.default_sgst_rate or 0)
+        _igst_rate = float(gst.default_igst_rate or 0)
+        if invoice.cgst_amount > 0:
+            _lbl = f"CGST ({_cgst_rate:g}%)" if _cgst_rate else "CGST"
+            summary_row(_lbl, inr(invoice.cgst_amount))
+        if invoice.sgst_amount > 0:
+            _lbl = f"SGST ({_sgst_rate:g}%)" if _sgst_rate else "SGST"
+            summary_row(_lbl, inr(invoice.sgst_amount))
+        if invoice.igst_amount > 0:
+            _lbl = f"IGST ({_igst_rate:g}%)" if _igst_rate else "IGST"
+            summary_row(_lbl, inr(invoice.igst_amount))
+        if invoice.cgst_amount == 0 and invoice.igst_amount == 0 and gst_total > 0:
+            summary_row("GST", inr(gst_total))
     if invoice.discount_amount > 0:
         summary_row("Discount", f"-{inr(invoice.discount_amount)}")
     if invoice.paid_amount > 0:
