@@ -1653,9 +1653,10 @@ function AdditionalGuestEntry({
             </div>
         </div>
           <div className="flex items-center gap-2">
-            {/* Auto-fill — re-fetch profile from server (mirrors primary guest UX).
-                Shows when autofill has not loaded yet or profile may have updated. */}
-            {!autofill && !resolved.guest_id.startsWith("__new__") && (
+            {/* Auto-fill — always visible for existing guests; re-fetches the
+                saved profile from the server so the Edit form is never empty,
+                even when autofill data loaded from a previous session. */}
+            {!resolved.guest_id.startsWith("__new__") && (
               <button
                 type="button"
                 onClick={() => {

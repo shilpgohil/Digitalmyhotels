@@ -83,7 +83,7 @@ export function DataTable({
   errorMessage = "Something went wrong.",
   onRetry,
   isEmpty = false,
-  emptyTitle = "No records found",
+  emptyTitle = "No Records Found",
   emptySubtitle,
   emptyAction,
   children,

@@ -392,7 +392,7 @@ export default function DashboardPage() {
               title={t("arrivingTodayTitle")}
               icon={BookOpen}
               action={d?.arrivals_today ? (
-                <span className="text-xs font-bold text-gold-700">{d.arrivals_today} total</span>
+                <span className="text-xs font-bold text-gold-700">{d.arrivals_today} Total</span>
               ) : undefined}
             >
               {dash.isLoading && <Skeleton className="h-24" />}
@@ -518,8 +518,8 @@ export default function DashboardPage() {
                   <XAxis dataKey="dow" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
                   <YAxis tickFormatter={fmtRev} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={44} />
                   <Tooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="revenue" name="avg revenue" fill="#a08236" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                  <Bar dataKey="checkins" name="avg checkins" fill="#1e3a5f" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey="revenue" name="Avg Revenue" fill="#a08236" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey="checkins" name="Avg Checkins" fill="#1e3a5f" radius={[3, 3, 0, 0]} maxBarSize={28} />
                 </BarChart>
               </ResponsiveContainer>
             )}

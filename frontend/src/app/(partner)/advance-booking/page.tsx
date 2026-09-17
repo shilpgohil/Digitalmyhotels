@@ -400,11 +400,11 @@ function AdvanceBookingContent() {
       // Cross-page room-state invalidation (plan Part 6): a new advance
       // booking reserves rooms — the check-in picker must see it.
       invalidateRoomState(queryClient);
-      toast.success(`Advance booking created — ${booking.booking_number}`);
+      toast.success(`Advance Booking Created — ${booking.booking_number}`);
       router.push("/advance-bookings");
     },
     onError: (e) => {
-      const msg = e instanceof ApiError ? e.message : "Failed to create booking";
+      const msg = e instanceof ApiError ? e.message : "Failed to Create Booking";
       setError(msg);
       if (e instanceof ApiError && e.code === "double_booking") {
         setSelectedRooms([]);

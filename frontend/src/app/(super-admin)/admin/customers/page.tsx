@@ -107,7 +107,7 @@ export default function AdminCustomersPage() {
       a.download = "all-customers.csv";
       a.click();
       URL.revokeObjectURL(url);
-      toast.success("CSV downloaded");
+      toast.success("CSV Downloaded");
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : tc("error"));
     }

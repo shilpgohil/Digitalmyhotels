@@ -106,7 +106,7 @@ function reasonMeta(reason: string): { label: string; colour: string } {
     case "occupied":       return { label: "Occupied",         colour: "text-danger   bg-danger-bg   border-danger/30"   };
     case "cleaning":       return { label: "Cleaning",         colour: "text-info     bg-info-bg     border-info/30"     };
     case "maintenance":    return { label: "Maintenance",      colour: "text-warning  bg-warning-bg  border-warning/30"  };
-    case "out_of_service": return { label: "Out of service",   colour: "text-muted-foreground bg-muted border-border"    };
+    case "out_of_service": return { label: "Out of Service",   colour: "text-muted-foreground bg-muted border-border"    };
     default:               return { label: reason,             colour: "text-muted-foreground bg-muted border-border"    };
   }
 }
@@ -116,9 +116,9 @@ function reasonMeta(reason: string): { label: string; colour: string } {
 /** Map room status to a small hint label + colour for the chip. */
 function statusHint(status: string): { label: string; colour: string } | null {
   switch (status) {
-    case "occupied":             return { label: "Occupied now",  colour: "text-danger  bg-danger-bg"  };
+    case "occupied":             return { label: "Occupied Now",  colour: "text-danger  bg-danger-bg"  };
     case "reserved":             return { label: "Reserved",      colour: "text-info    bg-info-bg"    };
-    case "cleaning_required":    return { label: "Cleaning soon", colour: "text-info    bg-info-bg"    };
+    case "cleaning_required":    return { label: "Cleaning Soon", colour: "text-info    bg-info-bg"    };
     case "cleaning_in_progress": return { label: "Cleaning",      colour: "text-info    bg-info-bg"    };
     case "clean_ready":          return null; // same as available — no hint needed
     case "inspection_required":  return { label: "Inspection",    colour: "text-warning bg-warning-bg" };
@@ -156,7 +156,7 @@ function AvailableChip({
   if (room.next_booking_date) {
     infoLines.push({
       icon: "clock",
-      text: `Booked from ${fmtApiDateTime(room.next_booking_date, room.next_booking_time)} — free for your dates`,
+      text: `Booked from ${fmtApiDateTime(room.next_booking_date, room.next_booking_time)} — Free for Your Dates`,
       colour: "text-yellow-300",
     });
   }
@@ -254,9 +254,9 @@ function UnavailableCard({ room }: { readonly room: RoomUnavailableItem }) {
       `Free from ${fmtDate(room.occupied_until)}${room.occupied_until_time ? ` at ${room.occupied_until_time}` : ""}`,
     );
   } else if (room.unavailable_reason === "cleaning") {
-    infoLines.push("Cleaning in progress — will be available soon");
+    infoLines.push("Cleaning in Progress — Will Be Available Soon");
   } else if (room.unavailable_reason === "maintenance") {
-    infoLines.push("Under maintenance");
+    infoLines.push("Under Maintenance");
   }
 
   return (

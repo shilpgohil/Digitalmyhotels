@@ -451,7 +451,7 @@ function PaymentsContent() {
             </p>
           )}
           {payments.data && payments.data.items.length === 0 && (
-            <EmptyState icon={Wallet} title={t("noPayments")} subtitle="Individual payments collected from guests appear here." />
+            <EmptyState icon={Wallet} title={t("noPayments")} subtitle="Individual Payments Collected from Guests Appear Here." />
           )}
           {payments.data && payments.data.items.length > 0 && (
             <Table>

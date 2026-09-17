@@ -308,7 +308,7 @@ export default function AdminEditHotelPage({
         body: { new_password: ownerNewPassword },
       }),
     onSuccess: () => {
-      toast.success("Owner password reset — they must change it at next login");
+      toast.success("Owner Password Reset — They Must Change It at Next Login");
       setOwnerNewPassword("");
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),

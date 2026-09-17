@@ -695,7 +695,7 @@ export default function AddHotelPage() {
                   {tc("delete")}
                 </button>
               )}
-              <p className="mt-1 text-label text-muted-foreground">PNG, JPG, WebP • max 5 MB</p>
+              <p className="mt-1 text-label text-muted-foreground">PNG, JPG, WebP • Max 5 MB</p>
             </div>
           </div>
           <input

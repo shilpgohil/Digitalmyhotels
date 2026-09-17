@@ -1163,10 +1163,10 @@ function CheckoutContent() {
                           <p className="text-label text-info flex items-center gap-1">
                             <span>ℹ</span>
                             {payMethod === "credit_card" || payMethod === "debit_card"
-                              ? "Collect via card machine, then record here"
+                              ? tp("manualRecordCard")
                               : payMethod === "bank_transfer"
-                              ? "Collect via net banking, then record here"
-                              : "Collect externally, then record here"}
+                              ? tp("manualRecordBank")
+                              : tp("manualRecordOther")}
                           </p>
                         )}
 
