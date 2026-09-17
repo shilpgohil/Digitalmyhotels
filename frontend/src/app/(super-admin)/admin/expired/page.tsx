@@ -73,15 +73,18 @@ function ExpiredContent() {
 
   const cols = [t("hotelName"), t("owner"), t("city"), t("expiryDate"), t("subscriptionPlan"), "Status", tc("actions")];
 
+  let pageTitle = t("recentlyExpired");
+  if (isExpiring) {
+    pageTitle = t("expiringTitle");
+  } else if (isAll) {
+    pageTitle = t("allExpiredTitle");
+  }
+
   return (
     <main className="p-4 space-y-6 sm:p-6">
       <div>
         <h1 className="text-xl font-bold text-foreground sm:text-2xl">
-          {isExpiring
-            ? t("expiringTitle")
-            : isAll
-            ? t("allExpiredTitle")
-            : t("recentlyExpired")}
+          {pageTitle}
         </h1>
         <p className="mt-0.5 text-sm text-muted-foreground">{t("dashboardSubtitle")}</p>
       </div>

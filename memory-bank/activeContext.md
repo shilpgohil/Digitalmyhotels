@@ -1,5 +1,22 @@
 # Active Context — DigitalMyHotels
 
+## 18/09/2026 — REFACTOR: RESOLVE PYREFLY TYPE WARNINGS, SONAR DIAGNOSTICS & FRONTEND PERFORMANCE
+- **Issues Resolved**:
+  1. **Pyrefly Redundant Type Conversions**: Removed redundant `int(...)` conversions around `(await db.scalar(...)) or 0` (which is already `int`) in `super_admin.py` across `dashboard()`, `revenue_summary()`, `billing_history()`, `list_hotels()`, and `search_customers()`.
+  2. **Pyrefly Redundant String Conversions**: Removed redundant `str(...)` calls on `body.email` and `body.owner_email` (which are already `str` / `EmailStr`).
+  3. **Sonar S1192 Duplicate Literals**: Defined module-level constant `HOTEL_NOT_FOUND = "Hotel not found"` and replaced 3 duplicate occurrences in `get_hotel_detail()`, `update_hotel_admin()`, and `set_hotel_status()`.
+  4. **Sonar S3358 Nested Ternary**: Refactored nested ternary for `pageTitle` in `/admin/expired/page.tsx` into an explicit `if / else if / else` statement.
+  5. **Sonar S7773 & S8786 Regex & Number Parsing**: Updated `fmtRevenue` in `/admin/page.tsx` to use `Number.parseFloat` and replaced regex backtracking with `Number(val.toFixed(...))`.
+  6. **Sonar S6479 & S1874 Recharts Cell Key**: Replaced array index key on Recharts `<Cell key={entry.name} />` with unique entry name.
+- **Verification Gates**:
+  - `ruff check app`: 0 errors.
+  - `mypy app`: 0 issues in 106 source files.
+  - `pytest tests/unit/`: 68/68 passed.
+  - `npx tsc --noEmit`: 0 errors.
+  - `npm run build`: Compiled 57/57 pages with 0 errors.
+  - API limits: 0 violations.
+  - i18n parity: 1,903 keys intact.
+
 ## 18/09/2026 — BUGFIX: SUPER ADMIN DASHBOARD CARDS & EXPIRED HOTELS COMPLETE LOGICAL ALIGNMENT
 - **Issues Resolved**:
   1. **Total Revenue Card vs. Page Disconnect**: Card 4 on `/admin` computed guest check-in receipts (`SUM(Payment.amount)`), but linked to `/admin/revenue` (Billing History) which shows SaaS subscription fees. Replaced backend `dashboard()` `total_revenue` with `SUM(SubscriptionPlan.price) WHERE status != 'trial'`, making the dashboard card and the `/admin/revenue` top card 100% mathematically identical.

@@ -27,6 +27,8 @@ from app.services.audit import write_audit
 from app.services.auth import create_user
 from app.services.subscriptions import assign_plan, get_plan_by_code, refresh_status
 
+HOTEL_NOT_FOUND = "Hotel not found"
+
 
 def _slugify(name: str) -> str:
     slug = "".join(ch.lower() if ch.isalnum() else "-" for ch in name).strip("-")
@@ -95,7 +97,7 @@ async def _hotel_status_counts(db: AsyncSession) -> dict[str, int]:
 async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
     counts = await _hotel_status_counts(db)
 
-    users = int(await db.scalar(select(func.count()).select_from(User)) or 0)
+    users = (await db.scalar(select(func.count()).select_from(User))) or 0
     # Expiring soon: latest subscription per hotel inside the warning window
     # (expiry within 7 days, grace period not yet over) — mirrors
     # subscriptions.refresh_status's "expiring_soon" state. Counting every
@@ -104,7 +106,7 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
     today = date.today()
     soon = today + timedelta(days=7)
     latest = _latest_sub_sq()
-    expiring = int(
+    expiring = (
         await db.scalar(
             select(func.count())
             .select_from(latest)
@@ -123,7 +125,7 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
     # (UTC midnight is 05:30 IST and mislabels early-morning check-ins).
     ist_now = datetime.now(ZoneInfo("Asia/Kolkata"))
     today_start = ist_now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
-    today_checkins = int(
+    today_checkins = (
         await db.scalar(
             select(func.count()).select_from(CheckIn).where(
                 CheckIn.checked_in_at >= today_start
@@ -163,7 +165,7 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
         _re_latest.c.expiry_date + _re_latest.c.grace_days >= func.current_date(),
         _re_latest.c.expiry_date >= thirty_days_ago,
     )
-    recently_expired = int(
+    recently_expired = (
         await db.scalar(
             select(func.count())
             .select_from(Hotel)
@@ -211,7 +213,7 @@ async def revenue_summary(
         like = f"%{q.lower()}%"
         base = base.where(func.lower(Hotel.name).like(like))
 
-    total_count = int(
+    total_count = (
         (await db.scalar(select(func.count()).select_from(base.subquery()))) or 0
     )
     rows = (await db.execute(base.limit(limit).offset(offset))).all()
@@ -397,7 +399,7 @@ async def billing_history(
         like = f"%{q.lower()}%"
         base = base.where(func.lower(Hotel.name).like(like))
 
-    total_count = int(
+    total_count = (
         (await db.scalar(select(func.count()).select_from(base.subquery()))) or 0
     )
     rows = (await db.execute(base.limit(limit).offset(offset))).all()
@@ -499,7 +501,7 @@ async def list_hotels(
         like = f"%{q.lower()}%"
         base = base.where(func.lower(Hotel.name).like(like))
 
-    total_count = int((await db.scalar(select(func.count()).select_from(base.subquery()))) or 0)
+    total_count = (await db.scalar(select(func.count()).select_from(base.subquery()))) or 0
     hotels = list((await db.execute(base.limit(limit).offset(offset))).scalars().all())
 
     # Batch-load subscriptions, owner memberships, and plans for the current page.
@@ -608,7 +610,7 @@ async def create_hotel_with_owner(
         city=body.city,
         state=body.state,
         phone=body.phone,
-        email=str(body.email) if body.email else None,
+        email=body.email if body.email else None,
         address_line1=address_line1,
         status="trial",
         total_rooms=body.total_rooms,
@@ -644,7 +646,7 @@ async def create_hotel_with_owner(
 
     owner = await create_user(
         db,
-        email=str(body.owner_email),
+        email=body.owner_email,
         password=body.owner_password,
         full_name=body.owner_full_name,
         phone=body.owner_phone or None,
@@ -703,7 +705,7 @@ async def get_hotel_detail(db: AsyncSession, hotel_id: UUID) -> dict:
     always sees the complete, up-to-date picture (client 9-10 rows 13/14)."""
     hotel = (await db.execute(select(Hotel).where(Hotel.id == hotel_id))).scalar_one_or_none()
     if hotel is None:
-        raise NotFoundError("Hotel not found")
+        raise NotFoundError(HOTEL_NOT_FOUND)
     owner = await _owner_for_hotel(db, hotel_id)
 
     # GST settings (for GSTIN display)
@@ -790,7 +792,7 @@ async def update_hotel_admin(
     """
     hotel = (await db.execute(select(Hotel).where(Hotel.id == hotel_id))).scalar_one_or_none()
     if hotel is None:
-        raise NotFoundError("Hotel not found")
+        raise NotFoundError(HOTEL_NOT_FOUND)
 
     owner_phone = changes.pop("owner_phone", None)
     gstin = changes.pop("gstin", None)
@@ -911,11 +913,9 @@ async def search_customers(
         if normalized:
             conditions.append(Guest.normalized_phone.contains(normalized))
         stmt = stmt.where(or_(*conditions))
-    total = int(
-        (
-            await db.execute(select(func.count()).select_from(stmt.subquery()))
-        ).scalar_one()
-    )
+    total = (
+        await db.execute(select(func.count()).select_from(stmt.subquery()))
+    ).scalar_one()
     rows = (
         await db.execute(
             stmt.order_by(Guest.full_name).limit(limit).offset(offset)
@@ -1065,7 +1065,7 @@ async def set_hotel_status(
     result = await db.execute(select(Hotel).where(Hotel.id == hotel_id))
     hotel = result.scalar_one_or_none()
     if hotel is None:
-        raise NotFoundError("Hotel not found")
+        raise NotFoundError(HOTEL_NOT_FOUND)
     before = hotel.status
     hotel.status = status
     await write_audit(

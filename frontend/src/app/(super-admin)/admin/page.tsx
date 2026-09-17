@@ -70,9 +70,9 @@ const ADMIN_STATS: AdminStatDef[] = [
 ];
 
 function fmtRevenue(v: number | string): string {
-  const n = typeof v === "string" ? parseFloat(v) : v;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(2).replace(/\.?0+$/, "")}L`;
-  if (n >= 1000)   return `₹${(n / 1000).toFixed(1).replace(/\.?0+$/, "")}K`;
+  const n = typeof v === "string" ? Number.parseFloat(v) : v;
+  if (n >= 100000) return `₹${Number((n / 100000).toFixed(2))}L`;
+  if (n >= 1000)   return `₹${Number((n / 1000).toFixed(1))}K`;
   return fmtINR(n);
 }
 
@@ -211,8 +211,8 @@ export default function AdminDashboardPage() {
                         { name: t("trialHotels"), value: dash.data.trial_hotels, fill: "#a08236" },
                         { name: t("expiredHotels"), value: dash.data.expired_hotels, fill: "#991b1b" },
                         { name: t("suspendedHotels"), value: dash.data.inactive_hotels, fill: "#475569" },
-                      ].filter((d) => d.value > 0).map((entry, idx) => (
-                        <Cell key={idx} fill={entry.fill} />
+                      ].filter((d) => d.value > 0).map((entry) => (
+                        <Cell key={entry.name} fill={entry.fill} />
                       ))}
                     </Pie>
                     <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
