@@ -1955,6 +1955,7 @@
     "extraIncludesServices": "Includes {amount} from selected services",
     "otherHotelBadge": "Other hotel",
     "guestImported": "Guest imported from another hotel — details and ID photos copied",
+    "importAction": "Import",
     "abBookingDetails": "Booking Details",
     "abBookingDetailsSub": "Stay dates and guest type",
     "abGuest": "Guest",

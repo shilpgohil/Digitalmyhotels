@@ -1,5 +1,21 @@
 # Active Context — DigitalMyHotels
 
+## 18/09/2026 — BUGFIX: ADDITIONAL GUEST SEARCH "AUTO-FILL" BUTTON PARITY
+- **Issue**: In check-in flow (`/checkin`), primary guest search results showed an explicit dark "Auto-fill" button, but additional guests / co-guest search results displayed plain text rows with no button.
+- **Root Cause**: `AdditionalGuestEntry` in `frontend/src/app/(partner)/checkin/page.tsx` wrapped each search hit in an unstyled full-width `<button>` instead of rendering a dedicated `<Button size="sm">` action button like `GuestPicker`.
+- **Changes**:
+  - `frontend/src/app/(partner)/checkin/page.tsx`: Added `selectingGuestId` pending state in `AdditionalGuestEntry`, updated `handleSelectExisting` with try/finally to track pending status, rendered search hit as a flex row with a compact `<Button size="sm">` displaying `Auto-fill` (`t("autofillLabel")`) or `Import` (`t("importAction")`), with `…` loading state.
+  - `frontend/src/i18n/messages/en.json` & `hi.json`: Added `checkin.importAction` ("Import" / "आयात करें") with exact key parity (1,871 keys each).
+  - `backend/app/services/super_admin.py` & `backend/app/services/attendance.py`: Surgical type annotations so backend type gates pass cleanly.
+- **7-Stage Verification Protocol**:
+  1. Blast-radius tracing: Verified Mode A (walk-in) and Mode B (advance booking) co-guest search, selection, and card resolution.
+  2. Dual-stack types: `npx tsc --noEmit` -> 0 errors; `mypy app` -> 0 errors across 106 source files.
+  3. Code hygiene: `ruff check app` -> All checks passed! 0 errors.
+  4. Regression suite: `pytest tests/unit/` -> 68/68 passed (100%).
+  5. Invariant audits: API limits 0 violations, i18n parity verified at 1,871 keys each.
+  6. Collateral flows: Search query -> search results list with Auto-fill button -> card resolution -> doc tiles and summary grid all functional.
+  7. Clean diff review: Confirmed clean git diff with zero scratch code or unintentional drift.
+
 ## 16/09/2026 — FULL PERSISTENCE AUDIT (post draft-photo fix)
 Two deep audits (backend + frontend) for the "data never persisted" bug class.
 FIXED SAME DAY:

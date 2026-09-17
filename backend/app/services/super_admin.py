@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
+from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -44,7 +45,7 @@ def _latest_sub_sq():
     )
 
 
-def _sub_expired_cond(latest) -> object:
+def _sub_expired_cond(latest) -> Any:
     """Latest subscription is past its grace period (and not suspended).
 
     Hotel.status is never flipped automatically when a subscription lapses,
