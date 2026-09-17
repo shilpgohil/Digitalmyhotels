@@ -1,5 +1,37 @@
 # Active Context — DigitalMyHotels
 
+## 18/09/2026 — BUGFIX: PLATFORM-WIDE TITLE CASE & GRAMMATICAL CAPITALIZATION SWEEP
+- **Issue**: Across both the frontend UI and backend services, grammatical capitalization rules were inconsistently applied:
+  - Action buttons, menu items, table headers, and modal actions had mixed sentence-casing or lowercasing (e.g. "Take a tour", "add room", "Missed arrival").
+  - Status badges and chips rendered raw lowercase/snake_case enums or unformatted text in several screens (e.g. `{adminDetail.data.status}` in admin edit hotel).
+  - Status toasters and alert feedback toasts lacked consistent Title Case formatting.
+  - Backend validation exception messages in some services started with lowercase letters.
+- **Root Cause & Scope**:
+  - UI labels and messages route through `frontend/src/i18n/messages/en.json`. Over 540 user-facing string tokens (buttons, action triggers, column headers, dialog titles, toast messages, and badges) lacked proper Title Case.
+  - Two JSX instances had hardcoded lowercase text or unformatted raw status values.
+  - Backend validation errors in `booking.py`, `attendance.py`, `guests.py`, `reports.py`, and `stay.py` had lowercase lead letters.
+- **Changes**:
+  - `frontend/src/i18n/messages/en.json`: Standardized 545 keys to Title Case while strictly preserving acronyms (UPI, GST, ID, QR, PAN, SMS, CSV, PDF, DOB, INR, API, GPS, GSTIN, IGST), placeholders, and exact 1:1 key parity with `hi.json` (1,874 keys each).
+  - `frontend/src/app/(partner)/advance-bookings/page.tsx`: Fixed hardcoded badge `"Missed arrival"` -> `"Missed Arrival"`.
+  - `frontend/src/app/(super-admin)/admin/hotels/[id]/edit/page.tsx`:
+    - Replaced ad-hoc orange status badge with `HotelStatusBadge` (`@/components/admin/admin-list-state`) ensuring unified `Active` / `Inactive` / `Expired` / `Trial` status display consistent with all admin lists.
+    - Added `statusMutation` and direct `Activate` / `Deactivate` toggle button for super admins to change hotel status directly from the edit page.
+    - Standardized admin info card section headers from all-caps (`uppercase`) to clean Title Case (`Hotel Status`, `Subscription`, `Owner`).
+    - Standardized field labels and placeholders: `Owner Phone (Editable by Admin)`, `Max Team Members (Excluding Owner)`, `New Temporary Password (Min. 8 Chars)`.
+  - `backend/app/schemas/booking.py`: Capitalized `"Rate overrides may only reference rooms in room_ids"`.
+  - `backend/app/services/attendance.py`: Capitalized `"Month must be YYYY-MM"`.
+  - `backend/app/services/guests.py`: Capitalized `"Side must be front, back, or selfie"`.
+  - `backend/app/services/reports.py`: Capitalized `"To date must be on or after from date"`.
+  - `backend/app/services/stay.py`: Capitalized `"Payment method is required when collect payment is true"`.
+- **7-Stage Verification Protocol**:
+  1. Blast-radius tracing: Traced pricing, GST modes, room statuses, check-in, payments, tenant boundaries, and staff attendance.
+  2. Dual-stack types: `npx tsc --noEmit` -> 0 errors; `mypy app` -> 0 errors across 106 source files.
+  3. Code hygiene: `ruff check app` -> All checks passed! 0 errors.
+  4. Regression suite: `pytest tests/unit/` -> 68/68 passed (100%).
+  5. Invariant audits: API limits 0 violations (`check_api_limits.py`), i18n usage 0 violations (`check_i18n_usage.py`), exact 1:1 parity (1,874 keys each in `en.json` & `hi.json`). Production build `npm run build` compiled all 57 pages successfully with zero errors.
+  6. Collateral flows: Nav bar, dialogs, toasters, buttons, and status chips verified.
+  7. Clean diff review: Confirmed clean git diff across 11 files with zero scratch code or formatting drift.
+
 ## 18/09/2026 — BUGFIX: ADDITIONAL GUEST SEARCH "AUTO-FILL" BUTTON PARITY
 - **Issue**: In check-in flow (`/checkin`), primary guest search results showed an explicit dark "Auto-fill" button, but additional guests / co-guest search results displayed plain text rows with no button.
 - **Root Cause**: `AdditionalGuestEntry` in `frontend/src/app/(partner)/checkin/page.tsx` wrapped each search hit in an unstyled full-width `<button>` instead of rendering a dedicated `<Button size="sm">` action button like `GuestPicker`.

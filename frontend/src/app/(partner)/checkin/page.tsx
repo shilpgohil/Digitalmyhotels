@@ -2045,6 +2045,7 @@ function CheckinForm({
   const tg = useTranslations("guestPicker");
   const ti = useTranslations("invoices");
   const tr = useTranslations("rooms");
+  const tco = useTranslations("checkoutPage");
   const api = useApi();
   const { activeHotelId } = useAuth();
   const queryClient = useQueryClient();
@@ -3119,10 +3120,10 @@ function CheckinForm({
                   <p className="mt-1 text-label text-info flex items-center gap-1">
                     <span>ℹ</span>
                     {paymentMode === "credit_card" || paymentMode === "debit_card"
-                      ? t("manualRecordCard")
+                      ? tco("manualRecordCard")
                       : paymentMode === "bank_transfer"
-                      ? t("manualRecordBank")
-                      : t("manualRecordOther")}
+                      ? tco("manualRecordBank")
+                      : tco("manualRecordOther")}
                   </p>
                 )}
                 {showQrCheckin && (

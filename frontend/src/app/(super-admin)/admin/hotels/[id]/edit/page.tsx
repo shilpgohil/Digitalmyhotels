@@ -39,6 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, ApiError, API_BASE, apiUpload } from "@/lib/api/client";
 import { formatStatus } from "@/lib/format-status";
+import { HotelStatusBadge } from "@/components/admin/admin-list-state";
 import { getAccessToken } from "@/lib/auth/session";
 import { compressImage, compressLogo } from "@/lib/compress-image";
 import { useImageEditor } from "@/components/media/image-editor";
@@ -312,6 +313,20 @@ export default function AdminEditHotelPage({
       setOwnerNewPassword("");
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: (next: string) =>
+      apiFetch(`/api/v1/super-admin/hotels/${hotelId}/status?status=${next}`, { method: "POST" }),
+    onSuccess: () => {
+      toast.success(ta("statusUpdated"));
+      queryClient.invalidateQueries({ queryKey: ["admin-hotel-detail", hotelId] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels-list"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-hotels-expired"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-dashboard"] });
+    },
+    onError: (e) => toast.error(errMsg(e, tc("error"))),
   });
 
   useEffect(() => {
@@ -751,25 +766,45 @@ export default function AdminEditHotelPage({
           {/* 0. Admin Info (read-only overview) */}
           {adminDetail.data && (
             <div className="rounded-xl border bg-muted/30 p-5 space-y-4">
-              <div className="flex flex-wrap items-start gap-4">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+              <div className="flex flex-wrap items-start gap-6">
+                <div className="min-w-0 space-y-1.5">
+                  <p className="text-xs font-semibold tracking-wide text-muted-foreground">
                     Hotel Status
                   </p>
-                  <span className={cn(
-                    "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                    {
-                      "bg-success-bg text-success": adminDetail.data.status === "active",
-                      "bg-danger-bg text-danger": adminDetail.data.status === "expired",
-                      "bg-orange-100 text-orange-700": !["active", "expired"].includes(adminDetail.data.status),
-                    },
-                  )}>
-                    {adminDetail.data.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <HotelStatusBadge
+                      hotel={{
+                        status: adminDetail.data.status,
+                        subscription_status: adminDetail.data.subscription_status,
+                        expiry_date: adminDetail.data.subscription_expiry,
+                      }}
+                    />
+                    {adminDetail.data.status === "suspended" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-6 px-2 text-xs bg-success text-white hover:bg-success/90"
+                        disabled={statusMutation.isPending}
+                        onClick={() => statusMutation.mutate("active")}
+                      >
+                        {ta("activate")}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-6 px-2 text-xs bg-danger text-white hover:bg-danger/90"
+                        disabled={statusMutation.isPending}
+                        onClick={() => statusMutation.mutate("suspended")}
+                      >
+                        {ta("deactivate")}
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {adminDetail.data.subscription_plan_name && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold tracking-wide text-muted-foreground">
                       Subscription
                     </p>
                     <p className="text-sm font-medium text-foreground">
@@ -785,8 +820,8 @@ export default function AdminEditHotelPage({
                     )}
                   </div>
                 )}
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold tracking-wide text-muted-foreground">
                     Owner
                   </p>
                   <p className="text-sm font-medium text-foreground">
@@ -799,7 +834,7 @@ export default function AdminEditHotelPage({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="admin-owner-phone" className="text-xs">
-                  Owner Phone (editable by admin)
+                  Owner Phone (Editable by Admin)
                 </Label>
                 <Input
                   id="admin-owner-phone"
@@ -816,7 +851,7 @@ export default function AdminEditHotelPage({
                   here per hotel when the client pays for more seats. */}
               <div className="space-y-1.5">
                 <Label htmlFor="admin-team-limit" className="text-xs">
-                  Max Team Members (excluding owner)
+                  Max Team Members (Excluding Owner)
                 </Label>
                 <Input
                   id="admin-team-limit"
@@ -847,7 +882,7 @@ export default function AdminEditHotelPage({
                       type="password"
                       value={ownerNewPassword}
                       onChange={(e) => setOwnerNewPassword(e.target.value)}
-                      placeholder="New temporary password (min. 8)"
+                      placeholder="New Temporary Password (Min. 8 Chars)"
                       minLength={8}
                       className="max-w-xs"
                       autoComplete="new-password"

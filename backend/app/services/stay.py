@@ -954,7 +954,7 @@ async def check_out(
         )
     if body.collect_payment and not body.payment_method:
         raise ValidationAppError(
-            "payment_method is required when collect_payment is true",
+            "Payment method is required when collect payment is true",
             code="payment_method_required",
         )
 

@@ -161,7 +161,7 @@ async def add_document(
     from app.models.guest import GuestDocument
 
     if side not in DOCUMENT_SIDES:
-        raise ValidationAppError("side must be front, back or selfie", code="invalid_side")
+        raise ValidationAppError("Side must be front, back, or selfie", code="invalid_side")
     if content_type not in ALLOWED_DOCUMENT_TYPES:
         raise ValidationAppError(
             "Document must be PNG, JPEG or WebP", code="invalid_document_type"

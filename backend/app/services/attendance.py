@@ -812,7 +812,7 @@ async def calendar(
         year, mon = (int(x) for x in month.split("-"))
         first = date(year, mon, 1)
     except (ValueError, TypeError) as exc:
-        raise ValidationAppError("month must be YYYY-MM") from exc
+        raise ValidationAppError("Month must be YYYY-MM") from exc
     last = (first.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
 
     recs = (

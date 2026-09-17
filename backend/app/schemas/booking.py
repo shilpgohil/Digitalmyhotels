@@ -136,7 +136,7 @@ class BookingCreate(BaseModel):
         if self.rate_overrides:
             override_ids = {o.room_id for o in self.rate_overrides}
             if not override_ids.issubset(set(self.room_ids)):
-                raise ValueError("rate_overrides may only reference rooms in room_ids")
+                raise ValueError("Rate overrides may only reference rooms in room_ids")
             if len(override_ids) != len(self.rate_overrides):
                 raise ValueError("Duplicate room in rate_overrides")
         return self
