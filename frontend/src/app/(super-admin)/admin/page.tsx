@@ -66,7 +66,7 @@ const ADMIN_STATS: AdminStatDef[] = [
   { key: "todayCheckins",       icon: Calendar,      tone: "info" },
   { key: "totalRevenue",        icon: IndianRupee,   tone: "gold",    format: "currency", href: "/admin/revenue" },
   { key: "recentlyExpiredCard", icon: XCircle,       tone: "danger",  href: "/admin/expired" },
-  { key: "expiredHotelsCard",   icon: AlertTriangle, tone: "warning", href: "/admin/expired?filter=all" },
+  { key: "expiringSoonCard",    icon: AlertTriangle, tone: "warning", href: "/admin/expired?filter=expiring" },
 ];
 
 function fmtRevenue(v: number | string): string {
@@ -96,6 +96,8 @@ export default function AdminDashboardPage() {
   const expired = useQuery({
     queryKey: ["admin-hotels", "expired"],
     queryFn: () =>
+      // Fetch recently expired — matches the dashboard stat card exactly.
+      // NO expiring_within: we must not mix active hotels into this list.
       apiFetch<HotelAdminListOut>("/api/v1/super-admin/hotels?status=expired&recent_days=30&limit=5"),
   });
   const recent = useQuery({
@@ -144,10 +146,12 @@ export default function AdminDashboardPage() {
         activeHotels:        dash.data.active_hotels,
         todayCheckins:       dash.data.today_checkins,
         totalRevenue:        dash.data.total_revenue,
-        // Recently Expired = hotels expired in the last 30 days (new field)
+        // Recently Expired = hotels that actually expired in the last 30 days.
+        // Count matches /admin/expired list rows exactly (no expiring_within mixing).
         recentlyExpiredCard: dash.data.recently_expired ?? 0,
-        // Expired Hotels = all-time total expired (replaces "Expiring Soon")
-        expiredHotelsCard:   dash.data.expired_hotels,
+        // Expiring Soon = active hotels whose subscription expires within 7 days.
+        // Replaces the less-actionable all-time "Expired Hotels" card.
+        expiringSoonCard:    dash.data.expiring_soon ?? 0,
       }
     : {};
 

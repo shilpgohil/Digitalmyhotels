@@ -1591,7 +1591,8 @@
     "totalRevenueSubtitle": "प्लेटफ़ॉर्म-व्यापी राजस्व (पूर्ण भुगतान)",
     "noRevenueYet": "अभी कोई राजस्व दर्ज नहीं",
     "paymentsCol": "भुगतान",
-    "revenueCol": "राजस्व"
+    "revenueCol": "राजस्व",
+    "expiringTitle": "जल्द समाप्त होने वाले होटल"
   },
   "roomPicker": {
     "filterLabel": "कमरों को स्थिति के अनुसार फ़िल्टर करें",

@@ -22,22 +22,34 @@ function ExpiredContent() {
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
-  const isAll = searchParams.get("filter") === "all";
+
+  const filter = searchParams.get("filter");
+  const isAll = filter === "all";
+  const isExpiring = filter === "expiring";
 
   const hotels = useQuery({
-    queryKey: ["admin-hotels-expired", search, page, isAll],
+    queryKey: ["admin-hotels-expired", search, page, filter],
     queryFn: () => {
       const params = new URLSearchParams({
-        status: "expired",
         limit: String(PAGE_SIZE),
         offset: String(page * PAGE_SIZE),
       });
       if (search) params.set("q", search);
-      if (!isAll) {
+
+      if (isExpiring) {
+        // "Expiring Soon" mode: active hotels whose subscription expires within 7 days.
+        // The backend processes expiring_within only inside the status="expired" branch,
+        // so we must pass status=expired. recent_days=0 sets cutoff=today, which means
+        // the recently_expired sub-condition matches nothing (no lapsed hotels yet) and
+        // ONLY the about_to_expire condition (expiry >= today AND expiry <= today+7) fires.
+        params.set("status", "expired");
+        params.set("recent_days", "0");
+        params.set("expiring_within", "7");
+      } else if (isAll) {
+        params.set("status", "expired");
+      } else {
+        params.set("status", "expired");
         params.set("recent_days", "30");
-        // Also surface hotels lapsing within 5 days — "about to expire"
-        // (client 09/2026: "if 5 days left then show wisely").
-        params.set("expiring_within", "5");
       }
       return apiFetch<HotelAdminListOut>(`/api/v1/super-admin/hotels?${params}`);
     },
@@ -64,7 +76,11 @@ function ExpiredContent() {
     <main className="p-4 space-y-6 sm:p-6">
       <div>
         <h1 className="text-xl font-bold text-foreground sm:text-2xl">
-          {isAll ? t("allExpiredTitle") : t("recentlyExpired")}
+          {isExpiring
+            ? t("expiringTitle")
+            : isAll
+            ? t("allExpiredTitle")
+            : t("recentlyExpired")}
         </h1>
         <p className="mt-0.5 text-sm text-muted-foreground">{t("dashboardSubtitle")}</p>
       </div>
@@ -81,7 +97,7 @@ function ExpiredContent() {
         isError={hotels.isError}
         onRetry={() => hotels.refetch()}
         isEmpty={!hotels.isLoading && !hotels.isError && (hotels.data?.items ?? []).length === 0}
-        emptyTitle={t("noneExpired")}
+        emptyTitle={isExpiring ? "No Hotels Expiring Soon" : t("noneExpired")}
         columns={cols}
       >
         {!hotels.isLoading && !hotels.isError && (hotels.data?.items ?? []).map((h) => (
@@ -97,22 +113,20 @@ function ExpiredContent() {
             </td>
             <td className="px-4 py-3 text-muted-foreground capitalize">{h.subscription_plan_name ?? "—"}</td>
             <td className="px-4 py-3">
-              {(() => {
-                const days = daysUntilExpiry(h.expiry_date);
-                if (days !== null && days >= 0) {
-                  // Not yet lapsed — "about to expire" amber badge
-                  return (
-                    <span className="inline-flex rounded-full bg-warning-bg px-2.5 py-0.5 text-xs font-medium text-warning">
-                      {days === 0 ? "Expires today" : `Expires in ${days}d`}
-                    </span>
-                  );
-                }
-                return (
-                  <span className="inline-flex rounded-full bg-danger-bg px-2.5 py-0.5 text-xs font-medium text-danger">
-                    Expired
-                  </span>
-                );
-              })()}
+              {isExpiring ? (
+                <span className="inline-flex rounded-full bg-warning-bg px-2.5 py-0.5 text-xs font-medium text-warning">
+                  {(() => {
+                    const days = daysUntilExpiry(h.expiry_date);
+                    if (days === 0) return "Expires today";
+                    if (days !== null && days > 0) return `Expires in ${days}d`;
+                    return "Expiring soon";
+                  })()}
+                </span>
+              ) : (
+                <span className="inline-flex rounded-full bg-danger-bg px-2.5 py-0.5 text-xs font-medium text-danger">
+                  Expired
+                </span>
+              )}
             </td>
             <td className="px-4 py-3">
               <div className="flex items-center gap-2">
@@ -173,6 +187,3 @@ export default function ExpiredHotelsPage() {
     </Suspense>
   );
 }
-
-
-

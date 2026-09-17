@@ -1591,7 +1591,8 @@
     "totalRevenueSubtitle": "Platform-Wide Revenue (Completed Payments)",
     "noRevenueYet": "No Revenue Recorded Yet",
     "paymentsCol": "Payments",
-    "revenueCol": "Revenue"
+    "revenueCol": "Revenue",
+    "expiringTitle": "Expiring Soon Hotels"
   },
   "roomPicker": {
     "filterLabel": "Filter Rooms by Status",
