@@ -793,6 +793,8 @@
     "primaryGuestLabel": "Primary",
     "idProofLabel": "ID Proof",
     "addressLabel": "Address",
+    "altContactPhone": "Alt. Contact",
+    "altContactNote": "(this booking only)",
     "paymentHistory": "Payment History",
     "totalPaid": "Total Paid",
     "noPaymentsYet": "No payments recorded yet",

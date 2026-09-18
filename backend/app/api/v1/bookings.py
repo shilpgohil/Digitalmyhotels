@@ -123,6 +123,7 @@ async def list_booking_guests(
             registration_number=reg.registration_number,
             purpose_of_visit=reg.purpose_of_visit,
             company_name=reg.company_name,
+            alternate_contact_phone=reg.alternate_contact_phone,
             id_proof_type=guest.id_proof_type,
             documents=[
                 BookingGuestDocOut(

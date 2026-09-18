@@ -184,8 +184,9 @@ async def check_in(
 
     # Guest registrations: primary + co-guests, each with a registration number.
     registration_numbers: list[str] = []
-    guest_entries: list[tuple[UUID, bool, str | None, str | None]] = [
-        (booking.primary_guest_id, True, body.purpose_of_visit, body.company_name)
+    # Tuple: (guest_id, is_primary, purpose_of_visit, company_name, alternate_contact_phone)
+    guest_entries: list[tuple[UUID, bool, str | None, str | None, str | None]] = [
+        (booking.primary_guest_id, True, body.purpose_of_visit, body.company_name, None)
     ]
     seen = {booking.primary_guest_id}
     for co_guest in body.co_guests:
@@ -198,11 +199,17 @@ async def check_in(
         if result.scalar_one_or_none() is None:
             raise NotFoundError("Co-guest not found")
         guest_entries.append(
-            (co_guest.guest_id, False, co_guest.purpose_of_visit, co_guest.company_name)
+            (
+                co_guest.guest_id,
+                False,
+                co_guest.purpose_of_visit,
+                co_guest.company_name,
+                co_guest.alternate_contact_phone,
+            )
         )
         seen.add(co_guest.guest_id)
 
-    for guest_id, is_primary, purpose, company in guest_entries:
+    for guest_id, is_primary, purpose, company, alt_phone in guest_entries:
         reg_number = await _next_registration_number(db, hotel_id)
         db.add(
             GuestRegistration(
@@ -213,6 +220,7 @@ async def check_in(
                 is_primary=is_primary,
                 purpose_of_visit=purpose,
                 company_name=company,
+                alternate_contact_phone=alt_phone,
                 acknowledged_at=_now() if body.terms_acknowledged else None,
             )
         )

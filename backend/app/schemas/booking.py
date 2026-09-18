@@ -74,6 +74,8 @@ class BookingGuestOut(BaseModel):
     registration_number: str
     purpose_of_visit: str | None
     company_name: str | None
+    # Booking-specific alternate contact phone (does not change master record).
+    alternate_contact_phone: str | None = None
     id_proof_type: str | None
     documents: list[BookingGuestDocOut]
 

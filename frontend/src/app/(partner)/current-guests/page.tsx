@@ -486,6 +486,7 @@ function StayDetailDialog({
         ${b.emergency_contact_name ? `<tr><td>${t("emergencyContact")}</td><td>${b.emergency_contact_name} (${b.emergency_contact_relation ?? ""}) ${b.emergency_contact_phone ?? ""}</td></tr>` : ""}
         ${b.vehicle_number ? `<tr><td>${t("vehicleDetails")}</td><td>${b.vehicle_number} · ${b.vehicle_type ?? ""} · ${b.parking_slot ?? ""}</td></tr>` : ""}
         ${b.special_requests ? `<tr><td>${tb("specialRequests")}</td><td>${b.special_requests}</td></tr>` : ""}
+        ${(registeredGuests.data ?? []).filter(g => !g.is_primary && g.alternate_contact_phone).map(g => `<tr><td>${g.full_name} (${t("altContactPhone")})</td><td>${g.alternate_contact_phone}</td></tr>`).join("")}
       </table>
       ${paymentsBlock}
       <div class="sign"><div>${t("guestSignature")}</div><div>${t("frontDeskSignature")}</div></div>
@@ -747,6 +748,19 @@ function RegisteredGuestCard({
           <div>
             <span className="text-muted-foreground">{t("idProofLabel")}: </span>
             <span className="font-medium">{guest.id_proof_type}</span>
+          </div>
+        )}
+        {/* Booking-only alternate contact phone (family visit / phone-change scenario) */}
+        {guest.alternate_contact_phone && (
+          <div className="col-span-2">
+            <span className="text-muted-foreground">{t("altContactPhone")}: </span>
+            <a
+              href={`tel:${guest.alternate_contact_phone}`}
+              className="font-medium tabular-nums hover:underline"
+            >
+              {guest.alternate_contact_phone}
+            </a>
+            <span className="ml-1 text-muted-foreground">{t("altContactNote")}</span>
           </div>
         )}
         {guest.address && (

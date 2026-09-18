@@ -793,6 +793,8 @@
     "primaryGuestLabel": "प्राथमिक",
     "idProofLabel": "आईडी प्रमाण",
     "addressLabel": "पता",
+    "altContactPhone": "वैकल्पिक संपर्क",
+    "altContactNote": "(केवल इस बुकिंग के लिए)",
     "paymentHistory": "भुगतान इतिहास",
     "totalPaid": "कुल भुगतान",
     "noPaymentsYet": "अभी तक कोई भुगतान दर्ज नहीं",

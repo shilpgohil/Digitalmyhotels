@@ -117,6 +117,8 @@ export interface BookingGuestOut {
   registration_number: string;
   purpose_of_visit: string | null;
   company_name: string | null;
+  /** Booking-specific contact phone — does not change the guest's master record. */
+  alternate_contact_phone: string | null;
   id_proof_type: string | null;
   documents: BookingGuestDocOut[];
 }
@@ -222,6 +224,9 @@ export interface ForeignGuestIn {
 export interface CoGuestIn {
   guest_id: string;
   foreign_guest?: ForeignGuestIn | null;
+  /** Booking-only contact phone — does NOT change the guest's master record.
+   *  Used when a family member wants a different phone for this stay. */
+  alternate_contact_phone?: string;
 }
 
 /** Extra charge applied atomically inside the check-in transaction. */

@@ -101,6 +101,10 @@ class GuestRegistration(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     is_primary: Mapped[bool] = mapped_column(default=False, nullable=False)
     purpose_of_visit: Mapped[str | None] = mapped_column(String(200), nullable=True)
     company_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Alternate contact phone for this booking only — does NOT change the guest's
+    # master phone record. Used when a family member wants a different number
+    # registered for this stay (client 19/09: "booking-only contact override").
+    alternate_contact_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 

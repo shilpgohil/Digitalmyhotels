@@ -120,6 +120,9 @@ interface ResolvedCoGuest {
   full_name: string;
   /** Resolved phone — shown on the guest card (client 9-08 item 9). */
   phone?: string;
+  /** Booking-only contact phone override — does NOT change master guest record.
+   *  Used when a family member wants a different phone registered for this stay. */
+  alternate_contact_phone?: string;
   /** Docs queued for upload after guest is created/resolved.
    *  `key` is set when the file already lives in draft storage — re-save
    *  reuses it instead of uploading a second copy. */
@@ -1348,6 +1351,19 @@ function AdditionalGuestEntry({
   // After selection — optional contact phone override (does NOT change master record).
   // Stored as a note so family can use a different phone for THIS booking only.
   const [contactPhoneOverride, setContactPhoneOverride] = useState("");
+
+  // Sync the alternate_contact_phone override into the resolved guest object
+  // so the parent receives it when building the check-in payload.
+  useEffect(() => {
+    if (!resolved) return;
+    const phone = contactPhoneOverride.trim() || undefined;
+    // Only update when the value actually changed to avoid re-render loops.
+    if (phone === resolved.alternate_contact_phone) return;
+    const updated = { ...resolved, alternate_contact_phone: phone };
+    setResolved(updated);
+    onResolved(updated);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contactPhoneOverride]);
   const [resolved, setResolved] = useState<ResolvedCoGuest | null>(initial ?? null);
   const [mode, setMode] = useState<"search" | "form">("search");
   // Seed from a restored draft's docs — otherwise the tiles render blank and
@@ -2590,6 +2606,7 @@ function CheckinForm({
           resolvedCoGuests.push({
             guest_id: created.id,
             foreign_guest: cg.foreign_guest ?? null,
+            alternate_contact_phone: cg.alternate_contact_phone || undefined,
           });
         } else {
           // Existing guest — upload queued docs (non-blocking; failures just warn)
@@ -2605,6 +2622,7 @@ function CheckinForm({
           resolvedCoGuests.push({
             guest_id: cg.guest_id,
             foreign_guest: cg.foreign_guest ?? null,
+            alternate_contact_phone: cg.alternate_contact_phone || undefined,
           });
         }
       }
@@ -4274,6 +4292,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           resolvedCoGuests.push({
             guest_id: created.id,
             foreign_guest: cg.foreign_guest ?? null,
+            alternate_contact_phone: cg.alternate_contact_phone || undefined,
           });
         } else {
           for (const doc of cg.docs) {
@@ -4290,6 +4309,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           resolvedCoGuests.push({
             guest_id: cg.guest_id,
             foreign_guest: cg.foreign_guest ?? null,
+            alternate_contact_phone: cg.alternate_contact_phone || undefined,
           });
         }
       }

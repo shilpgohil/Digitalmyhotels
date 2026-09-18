@@ -33,6 +33,10 @@ class CoGuestIn(BaseModel):
     guest_id: UUID
     purpose_of_visit: str | None = Field(default=None, max_length=200)
     company_name: str | None = Field(default=None, max_length=200)
+    # Booking-specific contact phone — does NOT change the guest's master phone
+    # record. Used when a family member wants a different number for THIS stay
+    # (e.g. registering with Aadhaar but using mom's phone as booking contact).
+    alternate_contact_phone: str | None = Field(default=None, max_length=20)
     # Form C data when this co-guest is a foreign national (client: additional
     # guests were missing the passport/visa section).
     foreign_guest: ForeignGuestIn | None = None
