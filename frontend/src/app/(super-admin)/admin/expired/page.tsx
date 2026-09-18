@@ -22,22 +22,32 @@ function ExpiredContent() {
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
-  const isAll = searchParams.get("filter") === "all";
+  const filter = searchParams.get("filter");
+  // "expiring" → About to Expire view (future expiry ≤ 7d)
+  // default    → Expired Hotels view (lapsed + in-grace)
+  // "all"      → All expired ever
+  const isExpiring = filter === "expiring";
+  const isAll = filter === "all";
 
   const hotels = useQuery({
-    queryKey: ["admin-hotels-expired", search, page, isAll],
+    queryKey: ["admin-hotels-expired", search, page, filter],
     queryFn: () => {
       const params = new URLSearchParams({
-        status: "expired",
         limit: String(PAGE_SIZE),
         offset: String(page * PAGE_SIZE),
       });
       if (search) params.set("q", search);
-      if (!isAll) {
-        params.set("recent_days", "30");
-        // Surface hotels lapsing within 7 days — "Expiring Soon" window
-        // (client 17/09: changed from 5 → 7 days).
+      if (isExpiring) {
+        // "About to Expire": hotels whose plan lapses within 7 days
+        params.set("status", "expiring_soon");
         params.set("expiring_within", "7");
+      } else {
+        // "Expired Hotels": truly expired (past grace) + in-grace hotels
+        params.set("status", "expired");
+        if (!isAll) {
+          // Limit to last 30 days for the default view (show recent only)
+          params.set("recent_days", "30");
+        }
       }
       return apiFetch<HotelAdminListOut>(`/api/v1/super-admin/hotels?${params}`);
     },
@@ -58,17 +68,27 @@ function ExpiredContent() {
   const total = hotels.data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  // Expiry date column only shown in "All Expired" view or for expiring-soon
-  // hotels (client 17/09: remove expiry date from the main recently-expired list).
-  const cols = [t("hotelName"), t("owner"), t("city"), t("subscriptionPlan"), "Status", tc("actions")];
+  // "About to Expire" shows the expiry date since that's the key info;
+  // "Expired Hotels" omits it (the badge already signals expiry).
+  const cols = [
+    t("hotelName"), t("owner"), t("city"),
+    ...(isExpiring ? [t("expiryDate")] : []),
+    t("subscriptionPlan"), "Status", tc("actions"),
+  ];
+
+  const pageTitle = isExpiring
+    ? t("aboutToExpireTitle")
+    : isAll
+      ? t("allExpiredTitle")
+      : t("expiredHotelsNav");
 
   return (
     <main className="p-4 space-y-6 sm:p-6">
       <div>
-        <h1 className="text-xl font-bold text-foreground sm:text-2xl">
-          {isAll ? t("allExpiredTitle") : t("recentlyExpired")}
-        </h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">{t("dashboardSubtitle")}</p>
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">{pageTitle}</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          {isExpiring ? t("aboutToExpireSubtitle") : t("dashboardSubtitle")}
+        </p>
       </div>
 
       <FilterBar
@@ -83,7 +103,7 @@ function ExpiredContent() {
         isError={hotels.isError}
         onRetry={() => hotels.refetch()}
         isEmpty={!hotels.isLoading && !hotels.isError && (hotels.data?.items ?? []).length === 0}
-        emptyTitle={t("noneExpired")}
+        emptyTitle={isExpiring ? t("noneExpiring") : t("noneExpired")}
         columns={cols}
       >
         {!hotels.isLoading && !hotels.isError && (hotels.data?.items ?? []).map((h) => (
@@ -94,22 +114,38 @@ function ExpiredContent() {
               {h.owner_email && <p className="text-xs text-muted-foreground">{h.owner_email}</p>}
             </td>
             <td className="px-4 py-3 text-muted-foreground">{h.city ?? "—"}</td>
+            {/* Expiry date column — only in "About to Expire" mode */}
+            {isExpiring && (
+              <td className="px-4 py-3 whitespace-nowrap text-muted-foreground tabular-nums">
+                {h.expiry_date ? fmtApiDate(h.expiry_date) : "—"}
+              </td>
+            )}
             <td className="px-4 py-3 text-muted-foreground capitalize">{h.subscription_plan_name ?? "—"}</td>
             <td className="px-4 py-3">
               {(() => {
                 const days = daysUntilExpiry(h.expiry_date);
-                if (days !== null && days >= 0) {
-                  // Not yet lapsed — "Expiring Soon" amber badge with days + date
+                if (isExpiring) {
+                  // "About to Expire" view — always future, show countdown
+                  const d = days ?? 0;
                   return (
-                    <div className="space-y-0.5">
-                      <span className="inline-flex rounded-full bg-warning-bg px-2.5 py-0.5 text-xs font-semibold text-warning">
-                        {days === 0 ? "Expires Today" : `Expiring Soon — ${days}d`}
-                      </span>
-                      {h.expiry_date && (
-                        <p className="text-xs text-muted-foreground">{fmtApiDate(h.expiry_date)}</p>
-                      )}
-                    </div>
+                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      d === 0 ? "bg-danger-bg text-danger" : d <= 3 ? "bg-warning-bg text-warning" : "bg-amber-50 text-amber-700"
+                    }`}>
+                      {d === 0 ? "Expires Today" : `${d}d left`}
+                    </span>
                   );
+                }
+                // "Expired Hotels" view — already lapsed (in grace or past grace)
+                if (days !== null && days < 0 && h.expiry_date) {
+                  // Check if in grace: expiry + grace_days >= today
+                  // We don't have grace_days in the list payload, so infer from sub status
+                  if (h.subscription_status === "expiring_soon") {
+                    return (
+                      <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                        In Grace Period
+                      </span>
+                    );
+                  }
                 }
                 return (
                   <span className="inline-flex rounded-full bg-danger-bg px-2.5 py-0.5 text-xs font-semibold text-danger">

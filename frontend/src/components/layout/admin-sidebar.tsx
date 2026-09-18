@@ -30,9 +30,9 @@ const NAV_ITEMS = [
   { href: "/admin/add-hotel", labelKey: "addNewHotel", icon: PlusCircle },
   { href: "/admin/hotels?filter=all", labelKey: "totalHotelsNav", icon: Hotel },
   { href: "/admin/hotels", labelKey: "activeHotelsNav", icon: CheckCircle },
-  { href: "/admin/expired", labelKey: "recentlyExpiredNav", icon: Clock },
+  { href: "/admin/expired?filter=expiring", labelKey: "aboutToExpireNav", icon: Clock },
   { href: "/admin/registrations", labelKey: "recentRegistrationsNav", icon: UserPlus },
-  { href: "/admin/expired?filter=all", labelKey: "expiredHotelsNav", icon: XCircle },
+  { href: "/admin/expired", labelKey: "expiredHotelsNav", icon: XCircle },
   { href: "/admin/revenue", labelKey: "totalRevenueNav", icon: IndianRupee },
   { href: "/admin/password-requests", labelKey: "passwordRequestsNav", icon: KeyRound },
 ] as const;
@@ -43,9 +43,15 @@ function hrefIsActive(pathname: string, filter: string | null, href: string): bo
 
   if (path === "/admin") return pathname === "/admin";
   if (pathname !== path) return false;
-  if (path === "/admin/hotels" || path === "/admin/expired") {
+  if (path === "/admin/hotels") {
     if (hrefFilter === "all") return filter === "all";
     return filter !== "all";
+  }
+  if (path === "/admin/expired") {
+    // Match each expired sub-view to its correct nav item
+    if (hrefFilter === "expiring") return filter === "expiring";
+    // Default expired view — active when no special filter
+    return filter !== "expiring" && filter !== "all";
   }
   return true;
 }

@@ -374,10 +374,22 @@ async def list_hotels(
     # Active + expired lists are subscription-aware: Hotel.status is never
     # flipped automatically when a plan lapses, so Active must exclude
     # lapsed hotels and Expired must include them.
-    if status in {"expired", "active"}:
+    if status in {"expired", "active", "expiring_soon"}:
         latest = _latest_sub_sq()
         base = base.outerjoin(latest, latest.c.hotel_id == Hotel.id)
-        if status == "expired":
+        if status == "expiring_soon":
+            # "About to Expire" view: hotels whose subscription lapses within
+            # the next `expiring_within` days (default 7) but NOT yet lapsed.
+            days = expiring_within if expiring_within is not None else 7
+            soon = date.today() + timedelta(days=days)
+            base = base.where(
+                and_(
+                    latest.c.status != "suspended",
+                    latest.c.expiry_date >= func.current_date(),
+                    latest.c.expiry_date <= soon,
+                )
+            )
+        elif status == "expired":
             expired_cond = or_(Hotel.status == "expired", _sub_expired_cond(latest))  # type: ignore[arg-type]
             if recent_days is not None:
                 # "Recently Expired" view (client 09/2026):

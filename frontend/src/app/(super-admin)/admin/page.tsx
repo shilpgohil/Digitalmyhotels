@@ -20,6 +20,7 @@ import {
   LayoutGrid,
   CheckCircle,
   Calendar,
+  Clock,
   IndianRupee,
   AlertTriangle,
   XCircle,
@@ -65,8 +66,8 @@ const ADMIN_STATS: AdminStatDef[] = [
   { key: "activeHotels",        icon: CheckCircle,   tone: "success", href: "/admin/hotels" },
   { key: "todayCheckins",       icon: Calendar,      tone: "info" },
   { key: "totalRevenue",        icon: IndianRupee,   tone: "gold",    format: "currency", href: "/admin/revenue" },
-  { key: "recentlyExpiredCard", icon: XCircle,       tone: "danger",  href: "/admin/expired" },
-  { key: "expiredHotelsCard",   icon: AlertTriangle, tone: "warning", href: "/admin/expired?filter=all" },
+  { key: "aboutToExpireCard",   icon: Clock,         tone: "warning", href: "/admin/expired?filter=expiring" },
+  { key: "expiredHotelsCard",   icon: XCircle,       tone: "danger",  href: "/admin/expired" },
 ];
 
 function fmtRevenue(v: number | string): string {
@@ -96,6 +97,7 @@ export default function AdminDashboardPage() {
   const expired = useQuery({
     queryKey: ["admin-hotels", "expired"],
     queryFn: () =>
+      // Expired Hotels section on dashboard: only truly expired / in-grace hotels (not expiring-soon)
       apiFetch<HotelAdminListOut>("/api/v1/super-admin/hotels?status=expired&recent_days=30&limit=5"),
   });
   const recent = useQuery({
@@ -144,9 +146,9 @@ export default function AdminDashboardPage() {
         activeHotels:        dash.data.active_hotels,
         todayCheckins:       dash.data.today_checkins,
         totalRevenue:        dash.data.total_revenue,
-        // Recently Expired = hotels expired in the last 30 days (new field)
-        recentlyExpiredCard: dash.data.recently_expired ?? 0,
-        // Expired Hotels = all-time total expired (replaces "Expiring Soon")
+        // About to Expire = hotels expiring within 7 days
+        aboutToExpireCard:   dash.data.expiring_soon ?? 0,
+        // Expired Hotels = all-time total expired
         expiredHotelsCard:   dash.data.expired_hotels,
       }
     : {};
@@ -331,9 +333,9 @@ export default function AdminDashboardPage() {
         )}
       </SectionPanel>
 
-      {/* Recently Expired Hotels table */}
+      {/* Expired Hotels table (shows recently lapsed + in-grace) */}
       <SectionPanel
-        title={t("recentlyExpired")}
+        title={t("expiredHotelsNav")}
         icon={XCircle}
         action={<Link href="/admin/expired" className="text-sm text-gold-600 font-medium hover:underline">{t("viewAll")}</Link>}
         noPadding
@@ -488,7 +490,7 @@ export default function AdminDashboardPage() {
           {[
             { label: t("addHotel"), icon: Plus, href: "/admin/add-hotel" },
             { label: t("viewHotels"), icon: Eye, href: "/admin/hotels" },
-            { label: t("renewSubscriptions"), icon: RefreshCw, href: "/admin/expired" },
+            { label: t("renewSubscriptions"), icon: RefreshCw, href: "/admin/expired?filter=expiring" },
             // Fixed targets (client 09/2026: "clicking then go plan page") —
             // both of these wrongly pointed at /admin/plans.
             { label: t("generateReport"), icon: FileBarChart2, href: "/admin/revenue" },
