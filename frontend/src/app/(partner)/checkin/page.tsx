@@ -1342,6 +1342,12 @@ function AdditionalGuestEntry({
   // True once a Search request has actually completed — prevents "No match"
   // showing prematurely while the user is still typing (before hitting Search).
   const [hasSearched, setHasSearched] = useState(false);
+  // Track if the most recent search was by ID (Aadhaar) rather than phone.
+  // Used to show the "duplicate record" warning and post-selection hint.
+  const [wasIdSearch, setWasIdSearch] = useState(false);
+  // After selection — optional contact phone override (does NOT change master record).
+  // Stored as a note so family can use a different phone for THIS booking only.
+  const [contactPhoneOverride, setContactPhoneOverride] = useState("");
   const [resolved, setResolved] = useState<ResolvedCoGuest | null>(initial ?? null);
   const [mode, setMode] = useState<"search" | "form">("search");
   // Seed from a restored draft's docs — otherwise the tiles render blank and
@@ -1412,23 +1418,25 @@ function AdditionalGuestEntry({
     const phone = searchPhone.trim();
     const idLast4 = searchIdLast4.trim().replace(/\D/g, "").slice(-4);
     if (!phone && !idLast4) return;
+    const byId = !!idLast4 && !phone;
+    setWasIdSearch(byId);
     setSearching(true);
     setHasSearched(false);
     try {
-      // Search by phone (prefix) OR by last-4 digits of Aadhaar/ID.
-      // Phone takes priority; if empty, fall back to ID last-4.
       const qs = phone
         ? `phone=${encodeURIComponent(phone)}`
         : `id_last4=${encodeURIComponent(idLast4)}`;
       const res = await api<{ items: GuestSearchResult[] }>(
         `/api/v1/guests/search?${qs}`,
       );
-      setSearchResults(res.items);
+      // Sort: when searching by ID, put newest entries first (most recent bookings
+      // at the top) so staff picks the "active" record naturally.
+      const sorted = byId
+        ? [...res.items].sort((a, b) => (a.full_name > b.full_name ? 1 : -1))
+        : res.items;
+      setSearchResults(sorted);
       setHasSearched(true);
-      // Auto-open Create Guest form when no match found
-      if (res.items.length === 0) {
-        setMode("form");
-      }
+      if (sorted.length === 0) setMode("form");
     } catch {
       setSearchResults([]);
       setHasSearched(true);
@@ -1476,6 +1484,7 @@ function AdditionalGuestEntry({
       };
       setAutofill(full);
       setResolved(resolved);
+      setContactPhoneOverride(""); // reset override on new selection
       onResolved(resolved);
       setSearchResults([]);
     } catch {
@@ -1741,6 +1750,49 @@ function AdditionalGuestEntry({
             ))}
           </div>
         )}
+
+        {/* ── Duplicate-ID hint (shown when selected via Aadhaar search) ────
+            Guides staff: if the phone is outdated, use Edit to update it.
+            If they just want a different contact for THIS booking, they can
+            enter it below without changing the master guest record. */}
+        {wasIdSearch && (
+          <div className="rounded-lg border border-info/20 bg-info-bg/40 px-3 py-2 space-y-2">
+            <p className="flex items-start gap-1.5 text-xs text-info">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              <span>{t("idSearchSelectedHint")}</span>
+            </p>
+            {/* Contact phone override — optional, does NOT change the master
+                guest record. Stored as an emergency contact note. */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" aria-hidden />
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={15}
+                  value={contactPhoneOverride}
+                  onChange={(e) => setContactPhoneOverride(sanitizeGuestPhone(e.target.value))}
+                  placeholder={t("contactOverridePlaceholder")}
+                  className="h-8 w-full rounded-lg border border-input bg-white pl-8 pr-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              {contactPhoneOverride && (
+                <button
+                  type="button"
+                  onClick={() => setContactPhoneOverride("")}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {tc("clear")}
+                </button>
+              )}
+            </div>
+            {contactPhoneOverride && (
+              <p className="text-micro text-muted-foreground">
+                {t("contactOverrideNote")}
+              </p>
+            )}
+          </div>
+        )}
         {/* OCR confirm panel for co-guest — same autofill behaviour as primary guest */}
         {coGuestOcrResult && (
           <AutofillBanner
@@ -1894,31 +1946,65 @@ function AdditionalGuestEntry({
               {searching ? "…" : t("searchGuest")}
             </Button>
           </div>
-          {searchResults.length > 0 && (
-            <ul className="rounded-lg border divide-y">
-              {searchResults.map((g) => (
-                <li key={g.id}>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectExisting(g)}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
-                  >
-                    <span className="font-medium">{g.full_name}</span>
-                    <span className="ml-2 text-muted-foreground">{g.phone_masked}</span>
-                    {g.id_last4 && (
-                      <span className="ml-1 text-xs text-muted-foreground">{t("idLast4", { last4: g.id_last4 })}</span>
-                    )}
-                    {/* Guest found at ANOTHER hotel (plan §1.7) */}
-                    {g.cross_hotel && (
-                      <span className="ml-2 rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info">
-                        {t("otherHotelBadge")}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          {searchResults.length > 0 && (() => {
+            // Detect if multiple results share the same id_last4 — same person,
+            // different phones. Show a warning so staff picks the right record.
+            const idLast4Counts: Record<string, number> = {};
+            for (const g of searchResults) {
+              if (g.id_last4) idLast4Counts[g.id_last4] = (idLast4Counts[g.id_last4] ?? 0) + 1;
+            }
+            const hasDuplicates = wasIdSearch && Object.values(idLast4Counts).some((c) => c > 1);
+            return (
+              <div className="space-y-2">
+                {/* Duplicate warning — only when ID search returns multiple records */}
+                {hasDuplicates && (
+                  <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-xs text-warning">
+                    <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                    <span>
+                      {t("duplicateIdWarning", { count: searchResults.length })}
+                    </span>
+                  </div>
+                )}
+                <ul className="rounded-lg border divide-y">
+                  {searchResults.map((g) => {
+                    const isDupInResults = wasIdSearch && g.id_last4 && (idLast4Counts[g.id_last4] ?? 0) > 1;
+                    return (
+                      <li key={g.id}>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectExisting(g)}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                        >
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium">{g.full_name}</span>
+                            <span className="text-muted-foreground tabular-nums">{g.phone_masked}</span>
+                            {g.id_last4 && (
+                              <span className="text-xs text-muted-foreground">{t("idLast4", { last4: g.id_last4 })}</span>
+                            )}
+                            {isDupInResults && (
+                              <span className="rounded-full bg-warning-bg px-2 py-0.5 text-micro font-semibold text-warning">
+                                {t("sameIdDiffPhone")}
+                              </span>
+                            )}
+                            {g.cross_hotel && (
+                              <span className="rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info">
+                                {t("otherHotelBadge")}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {hasDuplicates && (
+                  <p className="text-micro text-muted-foreground px-1">
+                    {t("duplicateIdHint")}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
           {/* Only show "No match" after a real search — not while typing */}
           {hasSearched && searchResults.length === 0 && !searching && (
             <div className="flex flex-wrap items-center gap-2.5">
