@@ -1336,6 +1336,7 @@ function AdditionalGuestEntry({
   const tc = useTranslations("common");
   const api = useApi();
   const [searchPhone, setSearchPhone] = useState("");
+  const [searchIdLast4, setSearchIdLast4] = useState("");
   const [searchResults, setSearchResults] = useState<GuestSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   // True once a Search request has actually completed — prevents "No match"
@@ -1408,18 +1409,23 @@ function AdditionalGuestEntry({
   };
 
   const handleSearch = async () => {
-    if (!searchPhone.trim()) return;
+    const phone = searchPhone.trim();
+    const idLast4 = searchIdLast4.trim().replace(/\D/g, "").slice(-4);
+    if (!phone && !idLast4) return;
     setSearching(true);
     setHasSearched(false);
     try {
-      // Bug fix: backend /guests/search accepts ?phone= (not ?q= which was
-      // always returning empty results — the root cause of "search not working").
+      // Search by phone (prefix) OR by last-4 digits of Aadhaar/ID.
+      // Phone takes priority; if empty, fall back to ID last-4.
+      const qs = phone
+        ? `phone=${encodeURIComponent(phone)}`
+        : `id_last4=${encodeURIComponent(idLast4)}`;
       const res = await api<{ items: GuestSearchResult[] }>(
-        `/api/v1/guests/search?phone=${encodeURIComponent(searchPhone.trim())}`,
+        `/api/v1/guests/search?${qs}`,
       );
       setSearchResults(res.items);
       setHasSearched(true);
-      // Auto-open Create Guest form when no match found (item 4 / item 23)
+      // Auto-open Create Guest form when no match found
       if (res.items.length === 0) {
         setMode("form");
       }
@@ -1856,27 +1862,37 @@ function AdditionalGuestEntry({
 
       {mode === "search" ? (
         <div className="space-y-3">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
+          {/* Search row — matches Primary Guest layout: phone + ID last4 + Search Guest button */}
+          <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+            <div className="relative flex-1 min-w-[120px]">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" aria-hidden />
               <Input
                 value={searchPhone}
-                onChange={(e) => { setSearchPhone(sanitizeGuestPhone(e.target.value)); setHasSearched(false); }}
+                onChange={(e) => { setSearchPhone(sanitizeGuestPhone(e.target.value)); setSearchIdLast4(""); setHasSearched(false); }}
                 placeholder={t("searchByPhone")}
                 className="pl-9"
-                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleSearch())}
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void handleSearch())}
               />
             </div>
-            {/* Client spec 09/2026: NavyBlue solid, 42px height — matches fields + primary guest search */}
+            <div className="w-full sm:w-[130px]">
+              <Input
+                value={searchIdLast4}
+                onChange={(e) => { setSearchIdLast4(e.target.value.replace(/\D/g, "").slice(0, 4)); setSearchPhone(""); setHasSearched(false); }}
+                placeholder={t("last4DigitsId")}
+                maxLength={4}
+                inputMode="numeric"
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void handleSearch())}
+              />
+            </div>
             <Button
               type="button"
-              className="h-[42px] bg-navy-900 text-white hover:bg-navy-800 px-4"
-              onClick={handleSearch}
-              disabled={searching}
+              className="h-[42px] bg-navy-900 text-white hover:bg-navy-800 px-4 w-full sm:w-auto"
+              onClick={() => void handleSearch()}
+              disabled={searching || (!searchPhone.trim() && !searchIdLast4.trim())}
             >
               <Search className="size-4" aria-hidden />
-              {searching ? "…" : tc("search")}
-                      </Button>
+              {searching ? "…" : t("searchGuest")}
+            </Button>
           </div>
           {searchResults.length > 0 && (
             <ul className="rounded-lg border divide-y">

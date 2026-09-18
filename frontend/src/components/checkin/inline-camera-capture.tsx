@@ -116,13 +116,15 @@ export function InlineCameraCapture({ onCapture, onClose, initialFacing = "user"
         className="hidden"
         onChange={handleFileSelected}
       />
-      <div className="flex gap-2">
-        {/* Capture */}
+      {/* flex-wrap ensures buttons don't overflow the camera widget on
+          narrow mobile screens — they wrap to a second line if needed. */}
+      <div className="flex flex-wrap gap-2">
+        {/* Capture — takes full remaining width on its row */}
         <button
           type="button"
           onClick={capture}
           disabled={!ready}
-          className="flex-1 inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-navy-900 px-2 text-xs font-semibold text-white hover:bg-navy-900/90 disabled:opacity-50"
+          className="flex-1 min-w-[80px] inline-flex h-[42px] items-center justify-center gap-1.5 rounded-lg bg-navy-900 px-3 text-xs font-semibold text-white hover:bg-navy-900/90 disabled:opacity-50"
         >
           <Camera className="size-3.5" aria-hidden />
           {t("capture")}
@@ -134,9 +136,9 @@ export function InlineCameraCapture({ onCapture, onClose, initialFacing = "user"
           onClick={() => setFacing((f) => (f === "user" ? "environment" : "user"))}
           title={t("switchCamera")}
           aria-label={t("switchCamera")}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs hover:bg-muted"
+          className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-lg border text-xs hover:bg-muted"
         >
-          <FlipHorizontal className="size-3.5" aria-hidden />
+          <FlipHorizontal className="size-4" aria-hidden />
         </button>
 
         {/* Upload from gallery */}
@@ -145,16 +147,16 @@ export function InlineCameraCapture({ onCapture, onClose, initialFacing = "user"
           onClick={() => uploadRef.current?.click()}
           title={t("uploadPhoto")}
           aria-label={t("uploadPhoto")}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs hover:bg-muted"
+          className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-lg border text-xs hover:bg-muted"
         >
-          <Upload className="size-3.5" aria-hidden />
+          <Upload className="size-4" aria-hidden />
         </button>
 
         {/* Cancel */}
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-8 items-center justify-center rounded-lg border px-2 text-xs font-medium hover:bg-muted"
+          className="inline-flex h-[42px] items-center justify-center rounded-lg border px-3 text-xs font-medium hover:bg-muted"
         >
           {tc("cancel")}
         </button>

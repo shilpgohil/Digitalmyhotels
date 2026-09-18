@@ -1837,6 +1837,8 @@
     "searchExisting": "मौजूदा खोजें",
     "createNew": "नया बनाएँ",
     "searchByPhone": "फ़ोन नंबर से खोजें",
+    "last4DigitsId": "आईडी के अंतिम 4 अंक",
+    "searchGuest": "अतिथि खोजें",
     "idLast4": "पहचान: ••••{last4}",
     "noMatchFound": "कोई मिलान नहीं मिला।",
     "createNewGuest": "नया अतिथि बनाएँ",

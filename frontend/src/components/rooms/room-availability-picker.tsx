@@ -473,7 +473,7 @@ export function RoomAvailabilityPicker({
     return (
       <div className="space-y-2">
         <Skeleton className="h-4 w-40" />
-        <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))" }}>
+        <div className="grid gap-2 grid-cols-3 sm:grid-cols-4 lg:grid-cols-5">
           {Array.from({ length: 8 }).map((_, i) => (
             <Skeleton key={i} className="h-[88px] rounded-xl" />
           ))}
@@ -572,8 +572,7 @@ export function RoomAvailabilityPicker({
             )}
           </div>
         ) : (
-          <div className="grid gap-2"
-               style={{ gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))" }}>
+          <div className="grid gap-2 grid-cols-3 sm:grid-cols-4 lg:grid-cols-5">
             {filteredAvailable.map((room) => (
               <AvailableChip
                 key={room.id}
