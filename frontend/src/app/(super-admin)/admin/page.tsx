@@ -62,9 +62,16 @@ interface AdminStatDef {
   href?: string;
 }
 const ADMIN_STATS: AdminStatDef[] = [
+  // Redirections are aligned with what each card's count represents:
+  // totalHotels → all hotels list
+  // activeHotels → active-only filtered list
+  // todayCheckins → recent registrations (closest available drill-down)
+  // totalRevenue → Billing History (shows the same subscription revenue sum)
+  // aboutToExpireCard → About to Expire page (future expiry ≤ 7d)
+  // expiredHotelsCard → Expired Hotels page (grace + past-grace — same count)
   { key: "totalHotels",         icon: LayoutGrid,    tone: "gold",    href: "/admin/hotels?filter=all" },
   { key: "activeHotels",        icon: CheckCircle,   tone: "success", href: "/admin/hotels" },
-  { key: "todayCheckins",       icon: Calendar,      tone: "info" },
+  { key: "todayCheckins",       icon: Calendar,      tone: "info",    href: "/admin/registrations" },
   { key: "totalRevenue",        icon: IndianRupee,   tone: "gold",    format: "currency", href: "/admin/revenue" },
   { key: "aboutToExpireCard",   icon: Clock,         tone: "warning", href: "/admin/expired?filter=expiring" },
   { key: "expiredHotelsCard",   icon: XCircle,       tone: "danger",  href: "/admin/expired" },

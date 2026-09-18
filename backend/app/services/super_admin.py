@@ -62,22 +62,40 @@ def _sub_expired_cond(latest) -> object:
 
 
 async def _hotel_status_counts(db: AsyncSession) -> dict[str, int]:
-    """Single-pass hotel counts with subscription-aware expiry semantics."""
+    """Single-pass hotel counts with subscription-aware expiry semantics.
+
+    expired_cond_for_count intentionally includes grace-period hotels
+    (subscription lapsed but grace_days not yet over) so the dashboard's
+    "Expired Hotels" card count matches what the /admin/expired page shows.
+    """
     latest = _latest_sub_sq()
     sub_expired = _sub_expired_cond(latest)
-    expired_cond = or_(Hotel.status == "expired", sub_expired)  # type: ignore[arg-type]
+    # Strict "past grace" condition — hotel.status or DB date math
+    strictly_expired_cond = or_(Hotel.status == "expired", sub_expired)  # type: ignore[arg-type]
+    # Broader "needs attention" condition — includes grace-period hotels.
+    # Used for the dashboard "Expired Hotels" card so its count matches the page.
+    in_grace = func.coalesce(
+        and_(
+            latest.c.status != "suspended",
+            latest.c.expiry_date < func.current_date(),
+            latest.c.expiry_date + latest.c.grace_days >= func.current_date(),
+        ),
+        False,
+    )
+    expired_for_count = or_(strictly_expired_cond, in_grace)  # type: ignore[arg-type]
+
     one: object = literal_column("1")
     row = (await db.execute(
         select(
             func.count().label("total"),
             func.count(
-                case((and_(Hotel.status == "active", not_(expired_cond)), one))
+                case((and_(Hotel.status == "active", not_(strictly_expired_cond)), one))
             ).label("active"),
             func.count(case((Hotel.status == "suspended", one))).label("suspended"),
             func.count(
-                case((and_(Hotel.status == "trial", not_(expired_cond)), one))
+                case((and_(Hotel.status == "trial", not_(strictly_expired_cond)), one))
             ).label("trial"),
-            func.count(case((expired_cond, one))).label("expired"),
+            func.count(case((expired_for_count, one))).label("expired"),
         )
         .select_from(Hotel)
         .outerjoin(latest, latest.c.hotel_id == Hotel.id)
@@ -95,11 +113,10 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
     counts = await _hotel_status_counts(db)
 
     users = int(await db.scalar(select(func.count()).select_from(User)) or 0)
-    # Expiring soon: latest subscription per hotel inside the warning window
-    # (expiry within 7 days, grace period not yet over) — mirrors
-    # subscriptions.refresh_status's "expiring_soon" state. Counting every
-    # subscription row would double-count hotels with superseded rows and
-    # include long-expired ones.
+    # "About to Expire" count — ONLY hotels with a FUTURE expiry within 7 days.
+    # Intentionally excludes grace-period hotels (expiry already past) so the
+    # count matches what the /admin/expired?filter=expiring page shows.
+    # Grace-period hotels are counted in expired_hotels instead.
     today = date.today()
     soon = today + timedelta(days=7)
     latest = _latest_sub_sq()
@@ -111,8 +128,8 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
             .where(
                 Hotel.status != "suspended",
                 latest.c.status != "suspended",
+                latest.c.expiry_date >= func.current_date(),   # future only
                 latest.c.expiry_date <= soon,
-                latest.c.expiry_date + latest.c.grace_days >= today,
             )
         )
         or 0
@@ -130,12 +147,16 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
         )
         or 0
     )
-    # Total revenue: all completed payments across all hotels.
+    # Total revenue: platform SaaS subscription income (what hotels paid to
+    # use DigitalMyHotels). Excludes trial subscriptions. Matches the "Total
+    # Collected" stat on the /admin/revenue Billing History page so clicking
+    # the card shows the same number as the page.
     total_revenue = money(
         await db.scalar(
-            select(func.coalesce(func.sum(Payment.amount), 0)).where(
-                Payment.status == "completed"
-            )
+            select(func.coalesce(func.sum(SubscriptionPlan.price), 0))
+            .select_from(Subscription)
+            .join(SubscriptionPlan, SubscriptionPlan.id == Subscription.plan_id)
+            .where(Subscription.status != "trial")
         )
         or 0
     )
