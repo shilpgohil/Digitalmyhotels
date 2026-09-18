@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { AlertOctagon, CalendarX2, Clock, LogOut, Phone } from "lucide-react";
+import { AlertOctagon, CalendarX2, Clock, LogOut, Phone, AlertTriangle } from "lucide-react";
 import { fmtApiDate } from "@/lib/formatting";
 import {
   Dialog,
@@ -124,6 +124,27 @@ export function SubscriptionGate() {
   const status = sub.data?.status;
   const blocked = status === "expired" || status === "suspended";
   const expiring = status === "expiring_soon";
+
+  // ── Grace-period detection ──────────────────────────────────────────────
+  // When sub.status = "expiring_soon" but expiry_date is already in the past,
+  // the hotel is in the grace window (plan lapsed but grace_days not yet over).
+  // This means login is still allowed but staff need a clear warning with
+  // a countdown — NOT the generic "expires soon" banner (client 17/09).
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const expiryDate = sub.data?.expiry_date ?? "";
+  const isInGrace = expiring && !!expiryDate && expiryDate < todayStr;
+  const graceDaysLeft = isInGrace
+    ? Math.max(
+        0,
+        Math.ceil(
+          (new Date(expiryDate).getTime() +
+            (sub.data?.grace_days ?? 7) * 86_400_000 -
+            Date.now()) /
+            86_400_000,
+        ),
+      )
+    : 0;
+
   const [detailOpen, setDetailOpen] = useState(false);
 
   // Pending renewal request → surfaced on the blocking panel (client:
@@ -143,53 +164,92 @@ export function SubscriptionGate() {
 
   return (
     <>
+      {/* ── Top banner — three distinct states ──────────────────────────── */}
       {(blocked || expiring) && (
         <div
           className={cn(
-            "flex flex-wrap items-center justify-between gap-2 px-6 py-2 text-sm",
-            blocked ? "bg-danger-bg text-danger" : "bg-warning-bg text-warning",
+            "flex flex-wrap items-center justify-between gap-2 px-6 py-2.5 text-sm",
+            blocked
+              ? "bg-danger-bg text-danger border-b border-danger/20"
+              : isInGrace
+                ? "bg-amber-50 text-amber-800 border-b border-amber-200"
+                : "bg-warning-bg text-warning border-b border-warning/20",
           )}
         >
-          {/* Client request: clicking the banner shows expiry details in a popup. */}
           <button
             type="button"
-            className="text-left hover:underline"
+            className="flex min-w-0 items-center gap-2 text-left hover:underline"
             onClick={() => setDetailOpen(true)}
           >
-            {blocked
-              ? t("expiredBanner", { date: fmtApiDate(sub.data.expiry_date) })
-              : t("expiringBanner", { date: fmtApiDate(sub.data.expiry_date) })}
+            {isInGrace && (
+              <AlertTriangle className="size-4 shrink-0 text-amber-600" aria-hidden />
+            )}
+            <span>
+              {blocked
+                ? t("expiredBanner", { date: fmtApiDate(expiryDate) })
+                : isInGrace
+                  ? t("graceBanner", { date: fmtApiDate(expiryDate), days: graceDaysLeft })
+                  : t("expiringBanner", { date: fmtApiDate(expiryDate) })}
+            </span>
+            {/* Grace countdown chip */}
+            {isInGrace && graceDaysLeft <= 3 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-600 px-2 py-0.5 text-micro font-bold text-white">
+                <Clock className="size-2.5" aria-hidden />
+                {t("graceDaysLeft", { days: graceDaysLeft })}
+              </span>
+            )}
           </button>
-          <Link href="/plan" className="font-semibold underline">
-            {t("viewPlans")}
+          <Link href="/plan" className="shrink-0 font-semibold underline">
+            {t("renewPlan")}
           </Link>
         </div>
       )}
 
-      {/* Expiry-detail popup (banner click) — reuses the expired-modal layout. */}
+      {/* Expiry-detail popup (banner click) */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="items-center text-center">
             <div
               className={cn(
                 "flex size-12 items-center justify-center rounded-full",
-                blocked ? "bg-danger-bg" : "bg-warning-bg",
+                blocked ? "bg-danger-bg" : isInGrace ? "bg-amber-100" : "bg-warning-bg",
               )}
             >
-              <CalendarX2
-                className={cn("size-6", blocked ? "text-danger" : "text-warning")}
-                aria-hidden
-              />
+              {isInGrace ? (
+                <AlertTriangle className="size-6 text-amber-600" aria-hidden />
+              ) : (
+                <CalendarX2
+                  className={cn("size-6", blocked ? "text-danger" : "text-warning")}
+                  aria-hidden
+                />
+              )}
             </div>
             <DialogTitle className="font-display text-xl">
-              {blocked ? t("expiredTitle") : t("viewPlans")}
+              {blocked
+                ? t("expiredTitle")
+                : isInGrace
+                  ? t("graceTitle")
+                  : t("viewPlans")}
             </DialogTitle>
           </DialogHeader>
           <p className="text-center text-sm text-muted-foreground">
             {blocked
-              ? t("expiredBody", { date: fmtApiDate(sub.data.expiry_date) })
-              : t("expiringBanner", { date: fmtApiDate(sub.data.expiry_date) })}
+              ? t("expiredBody", { date: fmtApiDate(expiryDate) })
+              : isInGrace
+                ? t("graceBody", { date: fmtApiDate(expiryDate), days: graceDaysLeft })
+                : t("expiringBanner", { date: fmtApiDate(expiryDate) })}
           </p>
+          {/* Grace countdown bar */}
+          {isInGrace && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center">
+              <p className="text-2xl font-bold tabular-nums text-amber-700">
+                {graceDaysLeft}
+              </p>
+              <p className="text-xs font-medium text-amber-600">
+                {graceDaysLeft === 1 ? "day" : "days"} until access is paused
+              </p>
+            </div>
+          )}
           <Link
             href="/plan"
             onClick={() => setDetailOpen(false)}
@@ -200,6 +260,15 @@ export function SubscriptionGate() {
           >
             {t("renewPlan")}
           </Link>
+          {isInGrace && (
+            <Link
+              href="/checkout"
+              onClick={() => setDetailOpen(false)}
+              className="inline-flex w-full items-center justify-center rounded-lg border border-input py-2 text-sm font-medium hover:bg-muted"
+            >
+              {t("goToCheckouts")}
+            </Link>
+          )}
         </DialogContent>
       </Dialog>
 
