@@ -96,7 +96,9 @@ export function StatCard({
   onClick,
 }: StatCardProps) {
   const baseClasses = cn(
-    "relative overflow-hidden rounded-xl p-4 transition-all duration-200 select-none",
+    // h-full ensures every card stretches to the tallest sibling in the grid row
+    // so the 6-card room-status grid is always uniform height (client 17/09).
+    "relative overflow-hidden rounded-xl p-4 transition-all duration-200 select-none h-full",
     TONE_CLASSES[tone] ?? TONE_CLASSES.navy,
     (href || onClick) && "cursor-pointer hover:brightness-110 hover:-translate-y-0.5 hover:shadow-elevated active:scale-[0.98] active:translate-y-0",
     active && (ACTIVE_RING[tone] ?? ACTIVE_RING.navy),

@@ -35,9 +35,9 @@ function ExpiredContent() {
       if (search) params.set("q", search);
       if (!isAll) {
         params.set("recent_days", "30");
-        // Also surface hotels lapsing within 5 days — "about to expire"
-        // (client 09/2026: "if 5 days left then show wisely").
-        params.set("expiring_within", "5");
+        // Surface hotels lapsing within 7 days — "Expiring Soon" window
+        // (client 17/09: changed from 5 → 7 days).
+        params.set("expiring_within", "7");
       }
       return apiFetch<HotelAdminListOut>(`/api/v1/super-admin/hotels?${params}`);
     },
@@ -58,7 +58,9 @@ function ExpiredContent() {
   const total = hotels.data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  const cols = [t("hotelName"), t("owner"), t("city"), t("expiryDate"), t("subscriptionPlan"), "Status", tc("actions")];
+  // Expiry date column only shown in "All Expired" view or for expiring-soon
+  // hotels (client 17/09: remove expiry date from the main recently-expired list).
+  const cols = [t("hotelName"), t("owner"), t("city"), t("subscriptionPlan"), "Status", tc("actions")];
 
   return (
     <main className="p-4 space-y-6 sm:p-6">
@@ -92,23 +94,25 @@ function ExpiredContent() {
               {h.owner_email && <p className="text-xs text-muted-foreground">{h.owner_email}</p>}
             </td>
             <td className="px-4 py-3 text-muted-foreground">{h.city ?? "—"}</td>
-            <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-              {h.expiry_date ? fmtApiDate(h.expiry_date) : "—"}
-            </td>
             <td className="px-4 py-3 text-muted-foreground capitalize">{h.subscription_plan_name ?? "—"}</td>
             <td className="px-4 py-3">
               {(() => {
                 const days = daysUntilExpiry(h.expiry_date);
                 if (days !== null && days >= 0) {
-                  // Not yet lapsed — "about to expire" amber badge
+                  // Not yet lapsed — "Expiring Soon" amber badge with days + date
                   return (
-                    <span className="inline-flex rounded-full bg-warning-bg px-2.5 py-0.5 text-xs font-medium text-warning">
-                      {days === 0 ? "Expires today" : `Expires in ${days}d`}
-                    </span>
+                    <div className="space-y-0.5">
+                      <span className="inline-flex rounded-full bg-warning-bg px-2.5 py-0.5 text-xs font-semibold text-warning">
+                        {days === 0 ? "Expires Today" : `Expiring Soon — ${days}d`}
+                      </span>
+                      {h.expiry_date && (
+                        <p className="text-xs text-muted-foreground">{fmtApiDate(h.expiry_date)}</p>
+                      )}
+                    </div>
                   );
                 }
                 return (
-                  <span className="inline-flex rounded-full bg-danger-bg px-2.5 py-0.5 text-xs font-medium text-danger">
+                  <span className="inline-flex rounded-full bg-danger-bg px-2.5 py-0.5 text-xs font-semibold text-danger">
                     Expired
                   </span>
                 );

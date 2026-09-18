@@ -241,6 +241,11 @@ interface CheckinDraft {
   serviceAmounts?: Record<string, string>;
   /** Staff-edited room rates, keyed by room id. */
   rateEdits?: Record<string, string>;
+  /** Snapshot of room prices at draft-save time (room_id → displayed amount).
+   *  Used as fallback when the availability query can't price rooms at restore
+   *  time (e.g. draft has past dates, or rooms are now occupied). Without this
+   *  the "Room Rent" cell shows "—" after restoring. */
+  roomPriceSnapshot?: Record<string, number>;
   terms?: boolean;
   emName: string;
   emRelation: string;
@@ -1094,6 +1099,7 @@ function NewGuestForm({
   pending = false,
   onConfirm,
   beforeConfirm,
+  existingDocs = {},
 }: {
   /** Seeds the mobile field (e.g. the phone that was searched with no match). */
   readonly initialPhone?: string;
@@ -1110,6 +1116,10 @@ function NewGuestForm({
    *  the Foreign Guest (Form C) section so the confirm button always sits
    *  BELOW all guest inputs (client UX request 09/2026). */
   readonly beforeConfirm?: React.ReactNode;
+  /** Existing saved document IDs per side — passed in edit mode so the photo
+   *  tiles show the already-uploaded Aadhaar/passport images instead of
+   *  appearing blank (client 17/09: photos missing when editing co-guest). */
+  readonly existingDocs?: Partial<Record<DocSide, string>>;
 }) {
   const t = useTranslations("checkin");
   const tc = useTranslations("common");
@@ -1166,13 +1176,17 @@ function NewGuestForm({
         />
       </div>
 
-      {/* Doc uploads — front triggers OCR */}
+      {/* Doc uploads — front triggers OCR.
+          existingDocId pre-fills the tile with the already-saved B2 image
+          so edit mode shows the Aadhaar/passport instead of a blank tile
+          (client 17/09: photos missing when editing co-guest). */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         <QueuedDocUpload
           side="front"
           label={t("uploadFront")}
           onQueued={handleQueueDoc}
           idType={form.id_proof_type}
+          existingDocId={existingDocs.front}
           onOriginal={(_side, original) => {
             // OCR runs on the ORIGINAL (full-resolution) image.
             import("@/lib/id-ocr").then(({ parseIdDocument }) =>
@@ -1185,6 +1199,7 @@ function NewGuestForm({
           label={t("uploadBack")}
           onQueued={handleQueueDoc}
           idType={form.id_proof_type}
+          existingDocId={existingDocs.back}
           onOriginal={(_side, original) => {
             // Back face → dedicated Aadhaar address/pincode parser.
             import("@/lib/id-ocr").then(({ parseIdDocument }) =>
@@ -1207,7 +1222,12 @@ function NewGuestForm({
             );
           }}
         />
-        <QueuedDocUpload side="selfie" label={t("selfieCapture")} onQueued={handleQueueDoc} />
+        <QueuedDocUpload
+          side="selfie"
+          label={t("selfieCapture")}
+          onQueued={handleQueueDoc}
+          existingDocId={existingDocs.selfie}
+        />
       </div>
 
       {/* OCR autofill banner */}
@@ -1599,10 +1619,13 @@ function AdditionalGuestEntry({
         </div>
         {/* key remounts the form when autofill data arrives after the
             edit is opened — prevents the empty-form race condition.
-            We also pass existingDocs so the photo tiles show saved images. */}
+            existingDocs passes the saved B2 document IDs so the photo
+            tiles (front/back/selfie) pre-load the existing Aadhaar/passport
+            images instead of showing blank (client 17/09). */}
         <NewGuestForm
           key={`edit-${resolved.guest_id}-${autofill ? "loaded" : "pending"}`}
           initial={buildEditInitial()}
+          existingDocs={existingDocs}
           confirmLabel={t("updateGuest")}
           pending={saving}
           onConfirm={(form, formDocs) => void handleEditConfirm(form, formDocs)}
@@ -3589,6 +3612,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const resolveGuest = (key: number, g: ResolvedCoGuest) =>
     setCoGuests(resolveCoGuestUpdater(guestKeys, key, g));
 
+  // Room price snapshot from the most recently restored draft — used as
+  // fallback when selectedAvailRooms can't be priced (past dates etc.).
+  const [draftRoomPriceSnapshot, setDraftRoomPriceSnapshot] = useState<Record<string, number>>({});
+
   // ── 4. Rooms + occupancy ──
   const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
   const [availRefreshKey, setAvailRefreshKey] = useState(0);
@@ -3678,15 +3705,26 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     return defaultRoomRate(r);
   };
   const roomRentWalkIn = useMemo(() => {
-    if (selectedAvailRooms.length === 0) return 0;
-    // Day-use rates are whole-stay totals; overnight rates are per night.
     const factor = isSameDay ? 1 : nights;
-    return selectedAvailRooms.reduce(
-      (sum, r) => sum + effectiveRoomRate(r) * factor,
-      0,
-    );
+    if (selectedAvailRooms.length > 0) {
+      // Normal path: availability data loaded — compute from live prices.
+      return selectedAvailRooms.reduce(
+        (sum, r) => sum + effectiveRoomRate(r) * factor,
+        0,
+      );
+    }
+    // Fallback path (draft restore with past/unavailable rooms): use the
+    // price snapshot saved at draft-save time so the amount isn't "—".
+    const snapshotRooms = selectedRooms.filter((id) => draftRoomPriceSnapshot[id] !== undefined);
+    if (snapshotRooms.length > 0) {
+      return snapshotRooms.reduce(
+        (sum, id) => sum + (draftRoomPriceSnapshot[id] ?? 0) * factor,
+        0,
+      );
+    }
+    return 0;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAvailRooms, nights, isSameDay, dayUseHours, rateEdits]);
+  }, [selectedAvailRooms, selectedRooms, draftRoomPriceSnapshot, nights, isSameDay, dayUseHours, rateEdits]);
   const extraChargesNumWI = Number.parseFloat(extraCharges || "0") || 0;
   // Sum of the selected service chips (staff-edited amount when present).
   // DISPLAY ONLY — the atomic payload still sends each chip as its own charge
@@ -3856,6 +3894,13 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         toast.warning(t("draftPhotoUploadFailed", { count: failedPhotos }));
       }
 
+      // Snapshot room prices so restore can show amounts even when the
+      // availability query can't run (past dates / rooms now occupied).
+      const roomPriceSnapshot: Record<string, number> = {};
+      for (const r of selectedAvailRooms) {
+        roomPriceSnapshot[r.id] = effectiveRoomRate(r);
+      }
+
       const d: CheckinDraft = {
         id: draftId(),
         savedAt: new Date().toISOString(),
@@ -3876,6 +3921,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         extraCharges,
         serviceAmounts,
         rateEdits,
+        roomPriceSnapshot: Object.keys(roomPriceSnapshot).length > 0 ? roomPriceSnapshot : undefined,
         terms,
         emName,
         emRelation,
@@ -3960,6 +4006,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     setExtraCharges(d.extraCharges ?? "0");
     setServiceAmounts(d.serviceAmounts ?? {});
     setRateEdits(d.rateEdits ?? {});
+    // Restore the price snapshot so room amounts show immediately, even
+    // before the availability query refetches (or when dates are in the past).
+    setDraftRoomPriceSnapshot(d.roomPriceSnapshot ?? {});
     setTerms(d.terms ?? false);
     setEmName(d.emName ?? "");
     setEmRelation(d.emRelation ?? "");
