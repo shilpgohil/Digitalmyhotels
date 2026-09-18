@@ -45,7 +45,7 @@ from app.schemas.ops import (
 
 def _range(from_date: date, to_date: date) -> tuple[date, date]:
     if to_date < from_date:
-        raise ValidationAppError("To date must be on or after from date")
+        raise ValidationAppError("to_date must be on or after from_date")
     return from_date, to_date
 
 

@@ -162,11 +162,7 @@ def _early_out_minutes(profile: StaffProfile, checkout_local: datetime) -> int |
     # Overnight shift: the end belongs to the NEXT day relative to check-in;
     # when the checkout happens after midnight the same-day end is correct,
     # so only push the end forward while we're still before the shift start.
-    if (
-        _is_overnight(profile)
-        and profile.shift_start is not None
-        and checkout_local.time() >= profile.shift_start
-    ):
+    if _is_overnight(profile) and checkout_local.time() >= profile.shift_start:
         shift_dt += timedelta(days=1)
     delta = (shift_dt - checkout_local).total_seconds() / 60
     return int(delta) if delta > 0 else None
@@ -812,7 +808,7 @@ async def calendar(
         year, mon = (int(x) for x in month.split("-"))
         first = date(year, mon, 1)
     except (ValueError, TypeError) as exc:
-        raise ValidationAppError("Month must be YYYY-MM") from exc
+        raise ValidationAppError("month must be YYYY-MM") from exc
     last = (first.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
 
     recs = (

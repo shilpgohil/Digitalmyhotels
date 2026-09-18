@@ -1323,7 +1323,6 @@ function AdditionalGuestEntry({
   const [hasSearched, setHasSearched] = useState(false);
   const [resolved, setResolved] = useState<ResolvedCoGuest | null>(initial ?? null);
   const [mode, setMode] = useState<"search" | "form">("search");
-  const [selectingGuestId, setSelectingGuestId] = useState<string | null>(null);
   // Seed from a restored draft's docs — otherwise the tiles render blank and
   // queuing ONE new photo would wipe the restored ones (docs replace, not merge).
   const [docs, setDocs] = useState<{ side: DocSide; file: File; key?: string }[]>(
@@ -1413,7 +1412,6 @@ function AdditionalGuestEntry({
   };
 
   const handleSelectExisting = async (g: GuestSearchResult) => {
-    setSelectingGuestId(g.id);
     try {
       // Cross-hotel hit (plan §1.7): IMPORT the guest into this hotel first
       // (explicit, phone-proofed, audited — copies base data + ID photos),
@@ -1456,8 +1454,6 @@ function AdditionalGuestEntry({
       setSearchResults([]);
     } catch {
       toast.error(t("guestLoadFailed"));
-    } finally {
-      setSelectingGuestId(null);
     }
   };
 
@@ -1862,31 +1858,24 @@ function AdditionalGuestEntry({
           {searchResults.length > 0 && (
             <ul className="rounded-lg border divide-y">
               {searchResults.map((g) => (
-                <li key={g.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-                  <span className="font-medium">{g.full_name}</span>
-                  <span className="text-muted-foreground">{g.phone_masked}</span>
-                  {g.id_last4 && (
-                    <span className="text-xs text-muted-foreground">{t("idLast4", { last4: g.id_last4 })}</span>
-                  )}
-                  {/* Guest found at ANOTHER hotel (plan §1.7) */}
-                  {g.cross_hotel && (
-                    <span className="rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info">
-                      {t("otherHotelBadge")}
-                    </span>
-                  )}
-                  <Button
+                <li key={g.id}>
+                  <button
                     type="button"
-                    size="sm"
-                    className="ml-auto shrink-0"
-                    disabled={selectingGuestId !== null}
-                    onClick={() => void handleSelectExisting(g)}
+                    onClick={() => handleSelectExisting(g)}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
                   >
-                    {selectingGuestId === g.id
-                      ? "…"
-                      : g.cross_hotel
-                        ? t("importAction")
-                        : t("autofillLabel")}
-                  </Button>
+                    <span className="font-medium">{g.full_name}</span>
+                    <span className="ml-2 text-muted-foreground">{g.phone_masked}</span>
+                    {g.id_last4 && (
+                      <span className="ml-1 text-xs text-muted-foreground">{t("idLast4", { last4: g.id_last4 })}</span>
+                    )}
+                    {/* Guest found at ANOTHER hotel (plan §1.7) */}
+                    {g.cross_hotel && (
+                      <span className="ml-2 rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info">
+                        {t("otherHotelBadge")}
+                      </span>
+                    )}
+                  </button>
                 </li>
               ))}
             </ul>
@@ -2045,7 +2034,6 @@ function CheckinForm({
   const tg = useTranslations("guestPicker");
   const ti = useTranslations("invoices");
   const tr = useTranslations("rooms");
-  const tco = useTranslations("checkoutPage");
   const api = useApi();
   const { activeHotelId } = useAuth();
   const queryClient = useQueryClient();
@@ -3120,10 +3108,10 @@ function CheckinForm({
                   <p className="mt-1 text-label text-info flex items-center gap-1">
                     <span>ℹ</span>
                     {paymentMode === "credit_card" || paymentMode === "debit_card"
-                      ? tco("manualRecordCard")
+                      ? t("manualRecordCard")
                       : paymentMode === "bank_transfer"
-                      ? tco("manualRecordBank")
-                      : tco("manualRecordOther")}
+                      ? t("manualRecordBank")
+                      : t("manualRecordOther")}
                   </p>
                 )}
                 {showQrCheckin && (

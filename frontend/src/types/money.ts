@@ -331,44 +331,39 @@ export interface RenewalRequestAdminListOut {
   total: number;
 }
 
-/** Platform collection UPI details for the renewal payment modal. */
-export interface SubscriptionPaymentInfoOut {
-  configured: boolean;
-  upi_id: string | null;
-  payee_name: string | null;
-}
-
-// ── Super Admin — Billing History (Subscription SaaS Revenue) ─────────────
-
-/** All-time platform-wide payment breakdown shown in the 6 summary stat cards. */
-export interface SuperAdminBillingHistorySummary {
-  total_collected: string;
-  this_month: string;
-  cash: string;
-  upi: string;
-  card: string;       // credit_card + debit_card combined
-  other: string;
-}
-
-/** One row in the Billing History table (= one Subscription record). */
+/** Super-admin billing history row — one subscription/payment per hotel. */
 export interface SuperAdminBillingHistoryRow {
   subscription_id: string;
   hotel_id: string;
   hotel_name: string;
   owner_name: string | null;
   owner_phone: string | null;
-  payment_date: string;          // YYYY-MM-DD
+  payment_date: string;
   plan_amount: string;
   plan_name: string;
   plan_duration_days: number;
-  expiry_date: string;           // YYYY-MM-DD
-  payment_mode: string | null;   // null → shown as "—" in UI
+  expiry_date: string;
+  payment_mode: string | null;
 }
 
-/** Full response from GET /super-admin/billing-history. */
+export interface SuperAdminBillingHistorySummary {
+  total_collected: string;
+  this_month: string;
+  cash: string;
+  upi: string;
+  card: string;
+  other: string;
+}
+
 export interface SuperAdminBillingHistoryList {
   summary: SuperAdminBillingHistorySummary;
   items: SuperAdminBillingHistoryRow[];
   total: number;
 }
 
+/** Platform collection UPI details for the renewal payment modal. */
+export interface SubscriptionPaymentInfoOut {
+  configured: boolean;
+  upi_id: string | null;
+  payee_name: string | null;
+}

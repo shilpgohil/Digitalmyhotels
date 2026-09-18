@@ -41,11 +41,6 @@ class Subscription(Base, UUIDPrimaryKeyMixin, TimestampMixin):
             "status IN ('trial','active','expiring_soon','expired','suspended')",
             name="subscription_status",
         ),
-        CheckConstraint(
-            "payment_mode IN ('cash','upi','credit_card','debit_card','other') "
-            "OR payment_mode IS NULL",
-            name="subscription_payment_mode",
-        ),
     )
 
     hotel_id: Mapped[uuid.UUID] = mapped_column(
@@ -63,11 +58,6 @@ class Subscription(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     block_transactions_after_expiry: Mapped[bool] = mapped_column(
         Boolean, default=True, nullable=False
     )
-    # How the hotel owner paid the platform for this subscription period.
-    # Nullable: existing rows predating this field are shown as "—" in the UI.
-    # Constrained by the subscription_payment_mode CHECK above.
-    payment_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
-
 
 
 class SubscriptionRenewalRequest(Base, UUIDPrimaryKeyMixin, TimestampMixin):

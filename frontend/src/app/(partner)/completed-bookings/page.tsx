@@ -736,7 +736,7 @@ function CompletedBookingsContent() {
           columns={[
             t("bookingNumber"), t("guest"), t("roomsCol"),
             t("dates"), t("total"), t("statusCol"), t("payment"),
-            <span key="act" className="sr-only">{tc("actions")}</span>,
+            <span key="act" className="sr-only">{t("actions")}</span>,
           ]}
         >
           {/* No <TableBody> wrapper — DataTable provides it (nested tbody breaks layout) */}

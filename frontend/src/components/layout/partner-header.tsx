@@ -40,7 +40,7 @@ function initials(name: string | undefined): string {
  * not invalidate queries on switch.
  */
 function HotelSwitcher({ className }: { readonly className?: string }) {
-  const tn = useTranslations("nav");
+  const t = useTranslations("nav");
   const { memberships, activeHotelId, setActiveHotelId } = useAuth();
   const queryClient = useQueryClient();
 
@@ -60,7 +60,7 @@ function HotelSwitcher({ className }: { readonly className?: string }) {
 
   const nameOf = (hotelId: string): string => {
     const idx = memberships.findIndex((m) => m.hotel_id === hotelId);
-    return hotelQueries[idx]?.data?.name ?? `${tn("hotel")} ${idx + 1}`;
+    return hotelQueries[idx]?.data?.name ?? `${t("hotel")} ${idx + 1}`;
   };
 
   const switchTo = (hotelId: string) => {
@@ -78,17 +78,17 @@ function HotelSwitcher({ className }: { readonly className?: string }) {
           "flex h-9 items-center gap-2 rounded-md border px-2.5 text-sm",
           className,
         )}
-        aria-label={tn("switchHotel")}
-        title={tn("switchHotel")}
+        aria-label={t("switchHotel")}
+        title={t("switchHotel")}
       >
         <Building2 className="size-4 shrink-0 opacity-70" aria-hidden />
         <span className="max-w-36 truncate">
-          {activeHotelId ? nameOf(activeHotelId) : tn("switchHotel")}
+          {activeHotelId ? nameOf(activeHotelId) : t("switchHotel")}
         </span>
         <ChevronsUpDown className="size-3 shrink-0 opacity-60" aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuLabel>{tn("switchHotel")}</DropdownMenuLabel>
+        <DropdownMenuLabel>{t("switchHotel")}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {memberships.map((m) => (
           <DropdownMenuItem key={m.hotel_id} onClick={() => switchTo(m.hotel_id)}>
@@ -105,7 +105,7 @@ function HotelSwitcher({ className }: { readonly className?: string }) {
 
 /** Hamburger + slide-in drawer with the same nav as the desktop sidebar. */
 function MobileNavDrawer() {
-  const tn = useTranslations("nav");
+  const t = useTranslations("nav");
   const [open, setOpen] = useState(false);
 
   return (
@@ -114,8 +114,8 @@ function MobileNavDrawer() {
         type="button"
         onClick={() => setOpen(true)}
         className="flex size-9 shrink-0 items-center justify-center rounded-md border text-muted-foreground hover:text-foreground lg:hidden"
-        aria-label={tn("openMenu")}
-        title={tn("openMenu")}
+        aria-label={t("openMenu")}
+        title={t("openMenu")}
       >
         <Menu className="size-5" aria-hidden />
       </button>
@@ -125,9 +125,9 @@ function MobileNavDrawer() {
         <SheetContent
           side="left"
           className="!w-64 gap-0 sidebar-navy p-0 text-sidebar-foreground overflow-y-auto"
-          aria-label={tn("openMenu")}
+          aria-label={t("openMenu")}
         >
-          <SheetTitle className="sr-only">{tn("openMenu")}</SheetTitle>
+          <SheetTitle className="sr-only">{t("openMenu")}</SheetTitle>
           <PartnerBrand />
           <div className="px-3 pb-1">
             <HotelSwitcher className="w-full border-white/15 text-sidebar-foreground" />

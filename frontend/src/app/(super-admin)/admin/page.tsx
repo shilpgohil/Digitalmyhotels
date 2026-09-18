@@ -70,9 +70,9 @@ const ADMIN_STATS: AdminStatDef[] = [
 ];
 
 function fmtRevenue(v: number | string): string {
-  const n = typeof v === "string" ? Number.parseFloat(v) : v;
-  if (n >= 100000) return `₹${Number((n / 100000).toFixed(2))}L`;
-  if (n >= 1000)   return `₹${Number((n / 1000).toFixed(1))}K`;
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(2).replace(/\.?0+$/, "")}L`;
+  if (n >= 1000)   return `₹${(n / 1000).toFixed(1).replace(/\.?0+$/, "")}K`;
   return fmtINR(n);
 }
 
@@ -96,8 +96,6 @@ export default function AdminDashboardPage() {
   const expired = useQuery({
     queryKey: ["admin-hotels", "expired"],
     queryFn: () =>
-      // Fetch recently expired — matches the dashboard stat card exactly.
-      // NO expiring_within: we must not mix active hotels into this list.
       apiFetch<HotelAdminListOut>("/api/v1/super-admin/hotels?status=expired&recent_days=30&limit=5"),
   });
   const recent = useQuery({
@@ -146,12 +144,10 @@ export default function AdminDashboardPage() {
         activeHotels:        dash.data.active_hotels,
         todayCheckins:       dash.data.today_checkins,
         totalRevenue:        dash.data.total_revenue,
-        // Recently Expired = hotels that lapsed in the last 30 days (including grace period).
-        // Count matches /admin/expired list rows exactly.
+        // Recently Expired = hotels expired in the last 30 days (new field)
         recentlyExpiredCard: dash.data.recently_expired ?? 0,
-        // Expired Hotels = all-time total expired hotels.
-        // Matches the Donut chart "Expired Hotels" slice and /admin/expired?filter=all.
-        expiredHotelsCard:   dash.data.expired_hotels ?? 0,
+        // Expired Hotels = all-time total expired (replaces "Expiring Soon")
+        expiredHotelsCard:   dash.data.expired_hotels,
       }
     : {};
 
@@ -211,8 +207,8 @@ export default function AdminDashboardPage() {
                         { name: t("trialHotels"), value: dash.data.trial_hotels, fill: "#a08236" },
                         { name: t("expiredHotels"), value: dash.data.expired_hotels, fill: "#991b1b" },
                         { name: t("suspendedHotels"), value: dash.data.inactive_hotels, fill: "#475569" },
-                      ].filter((d) => d.value > 0).map((entry) => (
-                        <Cell key={entry.name} fill={entry.fill} />
+                      ].filter((d) => d.value > 0).map((entry, idx) => (
+                        <Cell key={idx} fill={entry.fill} />
                       ))}
                     </Pie>
                     <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />

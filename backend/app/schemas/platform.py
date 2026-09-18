@@ -174,8 +174,6 @@ class SubscriptionOut(ORMModel):
     payment_status: str
     allow_view_after_expiry: bool
     block_transactions_after_expiry: bool
-    # nullable — NULL for subscriptions created before this field was added
-    payment_mode: str | None = None
 
 
 class RenewalRequestCreate(BaseModel):
@@ -323,35 +321,29 @@ class AdminRevenueListOut(BaseModel):
 # ── Billing History ───────────────────────────────────────────────────────────
 
 class BillingHistorySummaryOut(BaseModel):
-    """All-time platform-wide payment breakdown for summary stat cards."""
-
     total_collected: Decimal
     this_month: Decimal
     cash: Decimal
     upi: Decimal
-    card: Decimal    # credit_card + debit_card combined
+    card: Decimal
     other: Decimal
 
 
 class BillingHistoryRowOut(BaseModel):
-    """One subscription row for the Billing History table."""
-
     subscription_id: UUID
     hotel_id: UUID
     hotel_name: str
     owner_name: str | None = None
     owner_phone: str | None = None
-    payment_date: date            # Subscription.created_at (activation date)
-    plan_amount: Decimal          # SubscriptionPlan.price at time of listing
-    plan_name: str                # SubscriptionPlan.name, e.g. "1 Month"
-    plan_duration_days: int       # SubscriptionPlan.duration_days
-    expiry_date: date             # Subscription.expiry_date
-    payment_mode: str | None = None  # NULL shown as "—" in UI
+    payment_date: date
+    plan_amount: Decimal
+    plan_name: str
+    plan_duration_days: int
+    expiry_date: date
+    payment_mode: str | None = None
 
 
 class BillingHistoryListOut(BaseModel):
-    """Response for GET /super-admin/billing-history."""
-
     summary: BillingHistorySummaryOut
     items: list[BillingHistoryRowOut]
     total: int

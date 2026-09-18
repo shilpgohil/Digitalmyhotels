@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
-from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -27,8 +26,6 @@ from app.services.audit import write_audit
 from app.services.auth import create_user
 from app.services.subscriptions import assign_plan, get_plan_by_code, refresh_status
 
-HOTEL_NOT_FOUND = "Hotel not found"
-
 
 def _slugify(name: str) -> str:
     slug = "".join(ch.lower() if ch.isalnum() else "-" for ch in name).strip("-")
@@ -47,7 +44,7 @@ def _latest_sub_sq():
     )
 
 
-def _sub_expired_cond(latest) -> Any:
+def _sub_expired_cond(latest) -> object:
     """Latest subscription is past its grace period (and not suspended).
 
     Hotel.status is never flipped automatically when a subscription lapses,
@@ -97,7 +94,7 @@ async def _hotel_status_counts(db: AsyncSession) -> dict[str, int]:
 async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
     counts = await _hotel_status_counts(db)
 
-    users = (await db.scalar(select(func.count()).select_from(User))) or 0
+    users = int(await db.scalar(select(func.count()).select_from(User)) or 0)
     # Expiring soon: latest subscription per hotel inside the warning window
     # (expiry within 7 days, grace period not yet over) — mirrors
     # subscriptions.refresh_status's "expiring_soon" state. Counting every
@@ -106,7 +103,7 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
     today = date.today()
     soon = today + timedelta(days=7)
     latest = _latest_sub_sq()
-    expiring = (
+    expiring = int(
         await db.scalar(
             select(func.count())
             .select_from(latest)
@@ -125,7 +122,7 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
     # (UTC midnight is 05:30 IST and mislabels early-morning check-ins).
     ist_now = datetime.now(ZoneInfo("Asia/Kolkata"))
     today_start = ist_now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
-    today_checkins = (
+    today_checkins = int(
         await db.scalar(
             select(func.count()).select_from(CheckIn).where(
                 CheckIn.checked_in_at >= today_start
@@ -133,44 +130,36 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
         )
         or 0
     )
-    # Total revenue: all SaaS subscription revenue collected by platform.
-    # Exactly matches the Total Collected metric on /admin/revenue (Billing History).
+    # Total revenue: all completed payments across all hotels.
     total_revenue = money(
         await db.scalar(
-            select(func.coalesce(func.sum(SubscriptionPlan.price), 0))
-            .select_from(Subscription)
-            .join(SubscriptionPlan, SubscriptionPlan.id == Subscription.plan_id)
-            .where(Subscription.status != "trial")
+            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+                Payment.status == "completed"
+            )
         )
         or 0
     )
-    # Recently expired count — uses the EXACT same subscription-aware condition
-    # as list_hotels(status="expired", recent_days=30), including grace period.
+    # Recently expired count — uses the SAME subscription-aware expired
+    # condition as the list filter (not latest.c.status == "expired" which
+    # only counts hotels whose DB status was explicitly flipped).
     thirty_days_ago = today - timedelta(days=30)
     _re_latest = _latest_sub_sq()
     _re_expired_cond = or_(
         Hotel.status == "expired",
         _sub_expired_cond(_re_latest),
     )
-    _re_recently_expired = and_(
-        _re_expired_cond,
-        or_(
-            _re_latest.c.expiry_date.is_(None),
-            _re_latest.c.expiry_date >= thirty_days_ago,
-        ),
-    )
-    _re_in_grace = and_(
-        _re_latest.c.status != "suspended",
-        _re_latest.c.expiry_date < func.current_date(),
-        _re_latest.c.expiry_date + _re_latest.c.grace_days >= func.current_date(),
-        _re_latest.c.expiry_date >= thirty_days_ago,
-    )
-    recently_expired = (
+    recently_expired = int(
         await db.scalar(
             select(func.count())
             .select_from(Hotel)
             .outerjoin(_re_latest, _re_latest.c.hotel_id == Hotel.id)
-            .where(or_(_re_recently_expired, _re_in_grace))  # type: ignore[arg-type]
+            .where(
+                _re_expired_cond,  # type: ignore[arg-type]
+                or_(
+                    _re_latest.c.expiry_date.is_(None),
+                    _re_latest.c.expiry_date >= thirty_days_ago,
+                ),
+            )
         )
         or 0
     )
@@ -213,7 +202,7 @@ async def revenue_summary(
         like = f"%{q.lower()}%"
         base = base.where(func.lower(Hotel.name).like(like))
 
-    total_count = (
+    total_count = int(
         (await db.scalar(select(func.count()).select_from(base.subquery()))) or 0
     )
     rows = (await db.execute(base.limit(limit).offset(offset))).all()
@@ -252,113 +241,38 @@ async def billing_history(
     limit: int = 10,
     offset: int = 0,
 ) -> dict:
-    """Billing History for the Total Revenue screen.
+    """Billing History — one row per Subscription, with all-time summary cards."""
+    from datetime import date as _date
+    from decimal import Decimal as _Dec
 
-    Each row = one Subscription row (platform SaaS payment by hotel owner).
-    Summary stat cards are ALWAYS all-time (unfiltered) so they reflect true
-    platform health regardless of any date or mode filter the admin applies.
-    The table rows respect all filters.
-    """
-    # ── Owner subquery: latest owner membership per hotel ──────────────────
-    # Use DISTINCT ON (hotel_id) ordered by membership created_at to get the
-    # current owner for each hotel.
-    owner_role_sq = (
-        select(Role.id)
-        .where(Role.code == RoleCode.OWNER)
-        .scalar_subquery()
-    )
+    from sqlalchemy import String, cast
+
+    from app.models.platform import SubscriptionPlan
+    from app.models.user import HotelMembership
+    from app.models.user import User as _User
+
+    # ── Owner subquery ──────────────────────────────────────────────────────
+    owner_role = (
+        await db.execute(
+            select(Role).where(Role.code == "owner").limit(1)
+        )
+    ).scalar_one_or_none()
+    owner_role_id = owner_role.id if owner_role else None
+
     owner_sq = (
         select(
             HotelMembership.hotel_id,
-            User.full_name.label("owner_name"),
-            User.phone.label("owner_phone"),
+            _User.full_name.label("owner_name"),
+            _User.phone.label("owner_phone"),
         )
-        .join(User, User.id == HotelMembership.user_id)
-        .where(
-            HotelMembership.role_id == owner_role_sq,
-        )
+        .join(_User, _User.id == HotelMembership.user_id)
+        .where(HotelMembership.role_id == owner_role_id)
         .distinct(HotelMembership.hotel_id)
-        .order_by(HotelMembership.hotel_id, HotelMembership.created_at.desc())
+        .order_by(HotelMembership.hotel_id, HotelMembership.created_at)
         .subquery()
     )
 
-    # ── Summary (all-time, never filtered) ─────────────────────────────────
-    today = date.today()
-    month_start = today.replace(day=1)
-
-    summary_row = (
-        await db.execute(
-            select(
-                func.coalesce(func.sum(SubscriptionPlan.price), 0).label("total_collected"),
-                func.coalesce(
-                    func.sum(
-                        case(
-                            (
-                                and_(
-                                    func.date(Subscription.created_at) >= month_start,
-                                    func.date(Subscription.created_at) <= today,
-                                ),
-                                SubscriptionPlan.price,
-                            )
-                        )
-                    ),
-                    0,
-                ).label("this_month"),
-                func.coalesce(
-                    func.sum(
-                        case(
-                            (Subscription.payment_mode == "cash", SubscriptionPlan.price)
-                        )
-                    ),
-                    0,
-                ).label("cash"),
-                func.coalesce(
-                    func.sum(
-                        case(
-                            (Subscription.payment_mode == "upi", SubscriptionPlan.price)
-                        )
-                    ),
-                    0,
-                ).label("upi"),
-                func.coalesce(
-                    func.sum(
-                        case(
-                            (
-                                Subscription.payment_mode.in_(
-                                    ["credit_card", "debit_card"]
-                                ),
-                                SubscriptionPlan.price,
-                            )
-                        )
-                    ),
-                    0,
-                ).label("card"),
-                func.coalesce(
-                    func.sum(
-                        case(
-                            (Subscription.payment_mode == "other", SubscriptionPlan.price)
-                        )
-                    ),
-                    0,
-                ).label("other"),
-            )
-            .select_from(Subscription)
-            .join(SubscriptionPlan, SubscriptionPlan.id == Subscription.plan_id)
-            # Only count non-trial subscriptions that have been actively assigned.
-            .where(Subscription.status != "trial")
-        )
-    ).one()
-
-    summary = {
-        "total_collected": money(summary_row.total_collected),
-        "this_month": money(summary_row.this_month),
-        "cash": money(summary_row.cash),
-        "upi": money(summary_row.upi),
-        "card": money(summary_row.card),
-        "other": money(summary_row.other),
-    }
-
-    # ── List query (filtered) ───────────────────────────────────────────────
+    # ── Base query ──────────────────────────────────────────────────────────
     base = (
         select(
             Subscription.id.label("subscription_id"),
@@ -366,17 +280,16 @@ async def billing_history(
             Hotel.name.label("hotel_name"),
             owner_sq.c.owner_name,
             owner_sq.c.owner_phone,
-            func.date(Subscription.created_at).label("payment_date"),
+            Subscription.created_at.label("payment_date"),
             SubscriptionPlan.price.label("plan_amount"),
             SubscriptionPlan.name.label("plan_name"),
             SubscriptionPlan.duration_days.label("plan_duration_days"),
             Subscription.expiry_date,
-            Subscription.payment_mode,
+            cast(None, String).label("payment_mode"),
         )
-        .select_from(Subscription)
-        .join(SubscriptionPlan, SubscriptionPlan.id == Subscription.plan_id)
         .join(Hotel, Hotel.id == Subscription.hotel_id)
-        .outerjoin(owner_sq, owner_sq.c.hotel_id == Subscription.hotel_id)
+        .join(SubscriptionPlan, SubscriptionPlan.id == Subscription.plan_id)
+        .outerjoin(owner_sq, owner_sq.c.hotel_id == Hotel.id)
         .where(Subscription.status != "trial")
         .order_by(Subscription.created_at.desc())
     )
@@ -385,43 +298,66 @@ async def billing_history(
         base = base.where(func.date(Subscription.created_at) >= date_from)
     if date_to:
         base = base.where(func.date(Subscription.created_at) <= date_to)
-    if mode:
-        if mode in ("credit_card", "debit_card"):
-            # Allow filtering by either card subtype
-            base = base.where(Subscription.payment_mode == mode)
-        elif mode == "card":
-            base = base.where(
-                Subscription.payment_mode.in_(["credit_card", "debit_card"])
-            )
-        else:
-            base = base.where(Subscription.payment_mode == mode)
     if q:
         like = f"%{q.lower()}%"
         base = base.where(func.lower(Hotel.name).like(like))
 
-    total_count = (
+    total_count = int(
         (await db.scalar(select(func.count()).select_from(base.subquery()))) or 0
     )
     rows = (await db.execute(base.limit(limit).offset(offset))).all()
 
-    items = [
-        {
-            "subscription_id": r.subscription_id,
-            "hotel_id": r.hotel_id,
-            "hotel_name": r.hotel_name,
-            "owner_name": r.owner_name,
-            "owner_phone": r.owner_phone,
-            "payment_date": r.payment_date,
-            "plan_amount": money(r.plan_amount),
-            "plan_name": r.plan_name,
-            "plan_duration_days": int(r.plan_duration_days),
-            "expiry_date": r.expiry_date,
-            "payment_mode": r.payment_mode,
-        }
-        for r in rows
-    ]
+    # ── Summary (all-time, unfiltered) ──────────────────────────────────────
+    total_collected = money(
+        await db.scalar(
+            select(func.coalesce(func.sum(SubscriptionPlan.price), 0))
+            .select_from(Subscription)
+            .join(SubscriptionPlan, SubscriptionPlan.id == Subscription.plan_id)
+            .where(Subscription.status != "trial")
+        ) or 0
+    )
+    today_first = _date.today().replace(day=1)
+    this_month = money(
+        await db.scalar(
+            select(func.coalesce(func.sum(SubscriptionPlan.price), 0))
+            .select_from(Subscription)
+            .join(SubscriptionPlan, SubscriptionPlan.id == Subscription.plan_id)
+            .where(
+                Subscription.status != "trial",
+                func.date(Subscription.created_at) >= today_first,
+            )
+        ) or 0
+    )
 
-    return {"summary": summary, "items": items, "total": total_count}
+    return {
+        "summary": {
+            "total_collected": total_collected,
+            "this_month": this_month,
+            "cash": _Dec("0"),
+            "upi": _Dec("0"),
+            "card": _Dec("0"),
+            "other": _Dec("0"),
+        },
+        "items": [
+            {
+                "subscription_id": str(r.subscription_id),
+                "hotel_id": str(r.hotel_id),
+                "hotel_name": r.hotel_name,
+                "owner_name": r.owner_name,
+                "owner_phone": r.owner_phone,
+                "payment_date": (
+                    r.payment_date.date() if hasattr(r.payment_date, "date") else r.payment_date
+                ),
+                "plan_amount": r.plan_amount,
+                "plan_name": r.plan_name,
+                "plan_duration_days": r.plan_duration_days,
+                "expiry_date": r.expiry_date,
+                "payment_mode": r.payment_mode,
+            }
+            for r in rows
+        ],
+        "total": total_count,
+    }
 
 
 async def list_hotels(
@@ -501,7 +437,7 @@ async def list_hotels(
         like = f"%{q.lower()}%"
         base = base.where(func.lower(Hotel.name).like(like))
 
-    total_count = (await db.scalar(select(func.count()).select_from(base.subquery()))) or 0
+    total_count = int((await db.scalar(select(func.count()).select_from(base.subquery()))) or 0)
     hotels = list((await db.execute(base.limit(limit).offset(offset))).scalars().all())
 
     # Batch-load subscriptions, owner memberships, and plans for the current page.
@@ -610,7 +546,7 @@ async def create_hotel_with_owner(
         city=body.city,
         state=body.state,
         phone=body.phone,
-        email=body.email if body.email else None,
+        email=str(body.email) if body.email else None,
         address_line1=address_line1,
         status="trial",
         total_rooms=body.total_rooms,
@@ -646,7 +582,7 @@ async def create_hotel_with_owner(
 
     owner = await create_user(
         db,
-        email=body.owner_email,
+        email=str(body.owner_email),
         password=body.owner_password,
         full_name=body.owner_full_name,
         phone=body.owner_phone or None,
@@ -705,7 +641,7 @@ async def get_hotel_detail(db: AsyncSession, hotel_id: UUID) -> dict:
     always sees the complete, up-to-date picture (client 9-10 rows 13/14)."""
     hotel = (await db.execute(select(Hotel).where(Hotel.id == hotel_id))).scalar_one_or_none()
     if hotel is None:
-        raise NotFoundError(HOTEL_NOT_FOUND)
+        raise NotFoundError("Hotel not found")
     owner = await _owner_for_hotel(db, hotel_id)
 
     # GST settings (for GSTIN display)
@@ -792,7 +728,7 @@ async def update_hotel_admin(
     """
     hotel = (await db.execute(select(Hotel).where(Hotel.id == hotel_id))).scalar_one_or_none()
     if hotel is None:
-        raise NotFoundError(HOTEL_NOT_FOUND)
+        raise NotFoundError("Hotel not found")
 
     owner_phone = changes.pop("owner_phone", None)
     gstin = changes.pop("gstin", None)
@@ -913,9 +849,11 @@ async def search_customers(
         if normalized:
             conditions.append(Guest.normalized_phone.contains(normalized))
         stmt = stmt.where(or_(*conditions))
-    total = (
-        await db.execute(select(func.count()).select_from(stmt.subquery()))
-    ).scalar_one()
+    total = int(
+        (
+            await db.execute(select(func.count()).select_from(stmt.subquery()))
+        ).scalar_one()
+    )
     rows = (
         await db.execute(
             stmt.order_by(Guest.full_name).limit(limit).offset(offset)
@@ -1065,7 +1003,7 @@ async def set_hotel_status(
     result = await db.execute(select(Hotel).where(Hotel.id == hotel_id))
     hotel = result.scalar_one_or_none()
     if hotel is None:
-        raise NotFoundError(HOTEL_NOT_FOUND)
+        raise NotFoundError("Hotel not found")
     before = hotel.status
     hotel.status = status
     await write_audit(

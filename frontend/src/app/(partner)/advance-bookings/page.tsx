@@ -319,7 +319,7 @@ function AdvanceBookingsContent() {
                         {/* Missed arrival: confirmed booking past check-in by ≥ 2h (item 23) */}
                         {isMissedArrival(booking) && (
                           <span className="inline-flex items-center rounded-full bg-warning-bg px-2 py-0.5 text-micro font-semibold text-warning">
-                            Missed Arrival
+                            Missed arrival
                           </span>
                         )}
                       </div>
