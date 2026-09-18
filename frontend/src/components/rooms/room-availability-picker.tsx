@@ -272,9 +272,9 @@ function AvailableChip({
         {infoOpen ? <X className="size-3" aria-hidden /> : <Info className="size-3.5" aria-hidden />}
       </button>
 
-      {/* ── Info panel — click-toggled, works on both desktop and mobile ─── */}
+      {/* ── Info panel — opens ABOVE the card so it doesn't overlap content below ─── */}
       {infoOpen && hasInfo && (
-        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50
+        <div className="absolute left-0 right-0 bottom-[calc(100%+4px)] z-50
                         rounded-xl border bg-foreground px-3 py-2 text-xs text-background
                         shadow-lg space-y-1.5"
         >
@@ -286,8 +286,8 @@ function AvailableChip({
               <span>{line.text}</span>
             </p>
           ))}
-          {/* Small arrow pointing up */}
-          <div className="absolute -top-1.5 right-3 size-3 rotate-45 rounded-sm bg-foreground border-l border-t border-foreground" />
+          {/* Arrow pointing DOWN toward the card */}
+          <div className="absolute -bottom-1.5 right-3 size-3 rotate-45 rounded-sm bg-foreground border-r border-b border-foreground" />
         </div>
       )}
     </div>
@@ -349,9 +349,9 @@ function UnavailableCard({ room }: { readonly room: RoomUnavailableItem }) {
         </button>
       )}
 
-      {/* Click-toggled info panel */}
+      {/* Click-toggled info panel — opens ABOVE */}
       {infoOpen && hasInfo && (
-        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50
+        <div className="absolute left-0 right-0 bottom-[calc(100%+4px)] z-50
                         rounded-xl border bg-foreground px-3 py-2 text-xs text-background
                         shadow-lg space-y-1.5">
           {infoLines.map((line, i) => (
@@ -360,7 +360,7 @@ function UnavailableCard({ room }: { readonly room: RoomUnavailableItem }) {
               <span>{line}</span>
             </p>
           ))}
-          <div className="absolute -top-1.5 right-4 size-3 rotate-45 rounded-sm bg-foreground" />
+          <div className="absolute -bottom-1.5 right-4 size-3 rotate-45 rounded-sm bg-foreground border-r border-b" />
         </div>
       )}
     </div>
