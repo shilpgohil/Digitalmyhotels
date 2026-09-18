@@ -761,10 +761,12 @@ export default function AdminEditHotelPage({
                     {
                       "bg-success-bg text-success": adminDetail.data.status === "active",
                       "bg-danger-bg text-danger": adminDetail.data.status === "expired",
-                      "bg-orange-100 text-orange-700": !["active", "expired"].includes(adminDetail.data.status),
+                      "bg-warning-bg text-warning": adminDetail.data.status === "suspended",
+                      "bg-info-bg text-info": adminDetail.data.status === "trial",
+                      "bg-orange-100 text-orange-700": !["active", "expired", "suspended", "trial"].includes(adminDetail.data.status),
                     },
                   )}>
-                    {adminDetail.data.status}
+                    {formatStatus(adminDetail.data.status)}
                   </span>
                 </div>
                 {adminDetail.data.subscription_plan_name && (

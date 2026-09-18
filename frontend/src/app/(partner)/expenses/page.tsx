@@ -149,7 +149,7 @@ function ExpensesContent() {
     queryKey: ["expense-vendors", activeHotelId],
     queryFn: () => api<VendorOut[]>("/api/v1/expenses/vendors"),
     enabled: !!activeHotelId,
-    staleTime: 5 * 60_000,
+    staleTime: 60_000, // reduced so invalidation takes effect quickly
   });
   const vendorById = (id: string | null | undefined) =>
     allVendors.data?.find((v) => v.id === id)?.name ?? null;
@@ -160,6 +160,9 @@ function ExpensesContent() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["expenses", activeHotelId] });
     queryClient.invalidateQueries({ queryKey: ["recurring", activeHotelId] });
+    // Refresh vendor list so newly-added vendors appear in the dropdown
+    // immediately without requiring a page reload (client 17/09 report).
+    queryClient.invalidateQueries({ queryKey: ["expense-vendors", activeHotelId] });
   };
 
   const act = useMutation({
