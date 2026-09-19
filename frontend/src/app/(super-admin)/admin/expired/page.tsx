@@ -108,9 +108,9 @@ function ExpiredContent() {
       >
         {!hotels.isLoading && !hotels.isError && (hotels.data?.items ?? []).map((h) => (
           <tr key={h.id} className="border-t hover:bg-muted/20 transition-colors">
-            <td className="px-4 py-3 font-medium">{h.name}</td>
+            <td className="px-4 py-3 font-medium capitalize">{h.name}</td>
             <td className="px-4 py-3">
-              <p className="text-foreground">{h.owner_name ?? "—"}</p>
+              <p className="text-foreground capitalize">{h.owner_name ?? "—"}</p>
               {h.owner_email && <p className="text-xs text-muted-foreground">{h.owner_email}</p>}
             </td>
             <td className="px-4 py-3 text-muted-foreground">{h.city ?? "—"}</td>

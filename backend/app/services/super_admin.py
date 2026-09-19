@@ -573,8 +573,9 @@ async def create_hotel_with_owner(
     if body.address:
         address_line1 = body.address[:255]
 
+    from app.schemas.guest import title_case_name as _tc
     hotel = Hotel(
-        name=body.name.strip(),
+        name=_tc(body.name.strip()),
         slug=slug,
         city=body.city,
         state=body.state,
@@ -779,6 +780,10 @@ async def update_hotel_admin(
     before = {k: str(getattr(hotel, k)) for k in changes if hasattr(hotel, k)}
     for key, value in changes.items():
         if hasattr(hotel, key):
+            # Auto-capitalize hotel name on edit (same as creation).
+            if key == "name" and isinstance(value, str):
+                from app.schemas.guest import title_case_name as _tc_edit
+                value = _tc_edit(value.strip())
             setattr(hotel, key, value)
 
     # Update GSTIN in the hotel's GST settings row (client 9-10 rows 13/14)

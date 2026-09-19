@@ -144,11 +144,12 @@ function HotelRow({
           <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
             <span className="text-xs font-semibold">{hotel.name.slice(0, 1).toUpperCase()}</span>
           </div>
-          <span className="font-medium">{hotel.name}</span>
+          {/* capitalize ensures display is Title Case even for legacy lowercase names */}
+          <span className="font-medium capitalize">{hotel.name}</span>
         </div>
       </td>
-      <td className="px-4 py-3 text-muted-foreground">{hotel.owner_name ?? "—"}</td>
-      <td className="px-4 py-3 text-muted-foreground">{hotel.city ?? "—"}</td>
+      <td className="px-4 py-3 text-muted-foreground capitalize">{hotel.owner_name ?? "—"}</td>
+      <td className="px-4 py-3 text-muted-foreground capitalize">{hotel.city ?? "—"}</td>
       <td className="px-4 py-3 text-muted-foreground tabular-nums">{hotel.phone ?? "—"}</td>
       {showMeta && (
         <>
