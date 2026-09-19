@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { useApi } from "@/lib/api/use-api";
 import { ApiError } from "@/lib/api/client";
 import type { GuestAutofill, GuestOut, GuestSearchResult } from "@/types/stay";
-import { sanitizeGuestPhone } from "@/lib/input-discipline";
+import { sanitizeGuestPhone, sanitizeAadhaarOcr } from "@/lib/input-discipline";
 
 interface GuestPickerProps {
   onSelected: (guest: { id: string; full_name: string; phone: string }) => void;
@@ -107,7 +107,13 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
           full_name: String(form.get("full_name")).trim(),
           phone: String(form.get("phone")).trim(),
           id_proof_type: String(form.get("id_proof_type") || "").trim() || null,
-          id_number: String(form.get("id_number") || "").trim() || null,
+          // Strip internal spaces from Aadhaar (OCR/paste: "1234 5678 9012" → "123456789012").
+          id_number: (() => {
+            const raw = String(form.get("id_number") || "").trim();
+            if (!raw) return null;
+            const idType = String(form.get("id_proof_type") || "").trim();
+            return idType === "Aadhar Card" ? sanitizeAadhaarOcr(raw) : raw;
+          })(),
         },
       }),
     onSuccess: (guest) => {
@@ -274,7 +280,8 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
             </div>
             <div className="space-y-1">
               <Label htmlFor="gp-idnum">{t("idNumber")}</Label>
-              <Input id="gp-idnum" data-guest-field="id_number" />
+              {/* maxLength 20 covers all ID types (Aadhaar 12, PAN 10, DL 16, etc.) */}
+              <Input id="gp-idnum" data-guest-field="id_number" maxLength={20} />
             </div>
           </div>
           <Button

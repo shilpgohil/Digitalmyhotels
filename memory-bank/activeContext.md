@@ -777,6 +777,71 @@ Still open / next items:
 - Polish tier: current-guests View drawer + printable registration card (window.print), rooms grid view w/ status filter chips + table toggle, bookings date-range filters (backend from/to on list), global header search (debounced bookings+guests), super-admin dashboard expired/recent tables. Dark mode intentionally skipped per product owner.
 - BUG FIX: ledger "latest entry" ordering was non-deterministic on created_at ties (random UUID tiebreak) — added monotonic `seq` Identity column (migration 788a534e7bb2); current_balance/list_entries order by seq.
 
+## 19/09/2026 — Bug batch resolved (13 items, commit d6be851)
+
+### Decisions confirmed by client:
+- **Delete icon on room types**: keep `text-danger` RED (intentional destructive UX)
+- **Advance paid color**: BLUE (`text-info`) — distinct from discount (warning/orange) and paid totals (success/green)
+
+### Fixes implemented:
+
+**#27 Advance color → blue/info (3 locations)**
+- `invoices/page.tsx`: advance paid row `text-gold-600 → text-info`
+- `checkout/page.tsx`: advance payment `text-success → text-info`
+- `payments/page.tsx`: billing history advance cell `text-info`, discount cell `text-warning`
+
+**#14 Room status card text centering**
+- `rooms/page.tsx`: `RoomStatusCell` changed `items-start → items-center text-center`
+- Applies to both grid tiles and table rows without breaking layout
+
+**#20 Modal close button neutral color**
+- `dialog.tsx`: close X explicitly `text-gray-500 hover:text-gray-900 hover:bg-gray-100`
+- Prevents `#e10000` red from inheriting in Firefox/Edge computed style
+
+**#16 Housekeeping task notes in list row**
+- `housekeeping/page.tsx`: `task.notes` shown as `text-muted-foreground text-xs` below status badge
+
+**#18 File remove button in expenses**
+- `expenses/page.tsx`: plain `×` char replaced with `XIcon size-4` in a proper 20px touch target
+
+**#21 Staff CSV Excel-safe**
+- `staff/page.tsx`: phone + joining_date wrapped with `="<value>"` formula; UTF-8 BOM added
+
+**#22 Attendance CSV full columns**
+- `staff.py` API endpoint: added Designation + Phone columns via extra JOIN on `StaffProfile + User`
+- Timestamps formatted as `YYYY-MM-DD HH:MM:SS`; phone prefixed with `\t` for Excel text preservation
+
+**#23 Invoice PDF `?` character fixed**
+- `invoices.py`: `latin1()` now transliterates em/en dash (`—` U+2014 → `-`) and smart quotes before encoding
+- Root cause: `"Room 103 — 1 night(s)"` em dash is outside Latin-1 range
+
+**#25 Foreign co-guest in Stay Details (current-guests)**
+- `current-guests/page.tsx`: added `foreignGuests` query (`/bookings/{id}/foreign-guests`)
+- `RegisteredGuestCard`: new `foreignGuest` prop; collapsible Form C section (passport/visa/nationality)
+
+**#26 Admin notifications tab dot invisible**
+- `notifications/page.tsx`: `DOT.admin: bg-navy-600 → bg-sky-400` (was invisible on selected navy-900 bg)
+- Same for `platform` dot and corresponding `ROW_BG` colors
+
+**#11 SA profile edit missing invalidation**
+- `settings/page.tsx`: calls `setCachedUser(null)` before `window.location.reload()`
+- Root cause: reload re-applied stale sessionStorage user cache, showing old name
+
+**#3 GST column in payments billing history**
+- Already implemented (showGstCol) — confirmed correct; added advance/discount colors for consistency
+
+**#7 Shift Handover Title Case**
+- Confirmed already correct in i18n keys ("Opening Cash", "Closing Cash", "Create Handover")
+
+**#13 Room type dropdown after add**
+- Confirmed already handled: `__new__:KEY` resolution at save + `refetchQueries`
+
+### Verification:
+- `tsc --noEmit`: 0 errors
+- `ruff check`: 0 warnings
+- `pytest tests/unit/ -x -q`: 68 passed
+- Committed d6be851, pushed to master
+
 ## Previous focus (Figma gap batch complete)
 The prioritized Figma gap list is closed (see figmaCoverage.md "Gap closure status"): subscription surface, dashboard in-house table, payments summary/filters/billing table, GST by booking, check-in depth (docs/T&C/emergency/vehicle/service chips), super-admin renew. 71 backend tests + full frontend build green. Remaining work is polish tier (view drawer/print, room grid, dark mode, global search) and production provisioning (Neon/Render/Vercel/R2 credentials, Resend).
 

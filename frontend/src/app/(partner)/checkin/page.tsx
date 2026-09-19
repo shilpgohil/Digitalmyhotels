@@ -1599,7 +1599,13 @@ function AdditionalGuestEntry({
       if (form.gender?.trim()) body.gender = form.gender.trim();
       if (form.date_of_birth?.trim()) body.date_of_birth = form.date_of_birth.trim();
       if (form.id_proof_type?.trim()) body.id_proof_type = form.id_proof_type.trim();
-      if (form.id_number?.trim()) body.id_number = form.id_number.trim();
+      // Strip internal spaces from Aadhaar ("1234 5678 9012" → "123456789012") before PATCH.
+      if (form.id_number?.trim()) {
+        const rawId = form.id_number.trim();
+        body.id_number = form.id_proof_type === "Aadhar Card"
+          ? sanitizeAadhaarOcr(rawId)
+          : rawId;
+      }
       await api(`/api/v1/guests/${resolved.guest_id}`, { method: "PATCH", body });
 
       const updated = {
