@@ -40,7 +40,7 @@ import { compressReceipt } from "@/lib/compress-image";
 import { useImageEditor } from "@/components/media/image-editor";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PERMISSIONS } from "@/lib/permissions";
-import { sanitizePhone } from "@/lib/input-discipline";
+import { sanitizePhone, liveNameCase } from "@/lib/input-discipline";
 import type { ListOut } from "@/types/hotel";
 import type {
   ExpenseCategoryOut,
@@ -501,7 +501,12 @@ function AddVendorDialog({ onDone }: { onDone: () => void }) {
         <div className="grid gap-3">
           <div>
             <Label htmlFor="vendor-name">{t("vendorName")}</Label>
-            <Input id="vendor-name" className="mt-1" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input
+              id="vendor-name"
+              className="mt-1"
+              value={name}
+              onChange={(e) => setName(liveNameCase(e.target.value))}
+            />
           </div>
           <div>
             <Label htmlFor="vendor-phone">{t("vendorPhone")}</Label>

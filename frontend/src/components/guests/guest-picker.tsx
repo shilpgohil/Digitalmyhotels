@@ -190,29 +190,30 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
       {results && results.length > 0 && (
         <ul className="divide-y rounded-md border">
           {results.map((hit) => (
-            <li key={hit.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-              <span className="font-medium">{hit.full_name}</span>
-              <span className="text-muted-foreground">{hit.phone_masked}</span>
-              {hit.id_last4 && (
-                <span className="text-xs text-muted-foreground">ID ••{hit.id_last4}</span>
-              )}
-              {/* Guest found at ANOTHER hotel (plan §1.7) */}
-              {hit.cross_hotel && (
-                <span className="rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info">
-                  {t("otherHotelBadge")}
-                </span>
-              )}
-              <Button
+            /* Clicking the entire row selects the guest — the separate "Auto Fill"
+               button was removed at client request ("Again remove Auto-Fill"). The
+               row is keyboard-focusable so accessibility is preserved. */
+            <li key={hit.id}>
+              <button
                 type="button"
-                size="sm"
-                className="ml-auto"
+                className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted transition-colors disabled:opacity-60"
                 disabled={autofill.isPending || importGuest.isPending}
                 onClick={() =>
                   hit.cross_hotel ? importGuest.mutate(hit.id) : autofill.mutate(hit.id)
                 }
               >
-                {hit.cross_hotel ? t("importAction") : t("autofill")}
-              </Button>
+                <span className="font-medium">{hit.full_name}</span>
+                <span className="text-muted-foreground">{hit.phone_masked}</span>
+                {hit.id_last4 && (
+                  <span className="text-xs text-muted-foreground">ID ••{hit.id_last4}</span>
+                )}
+                {/* Guest found at ANOTHER hotel (plan §1.7) */}
+                {hit.cross_hotel && (
+                  <span className="rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info">
+                    {t("otherHotelBadge")}
+                  </span>
+                )}
+              </button>
             </li>
           ))}
         </ul>

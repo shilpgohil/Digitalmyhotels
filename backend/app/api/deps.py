@@ -27,6 +27,9 @@ _EXPIRED_ALLOWED_PREFIXES = (
     "/api/v1/invoices",
     "/api/v1/charges",
     "/api/v1/subscriptions",
+    # Guest reads (autofill + documents) — needed so expired hotels can still
+    # access existing guest data during wind-down check-outs.
+    "/api/v1/guests",
 )
 
 
