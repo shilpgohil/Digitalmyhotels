@@ -74,6 +74,8 @@ export interface InvoiceItemOut {
 export interface InvoiceOut {
   id: string;
   booking_id: string;
+  /** Booking number (e.g. "BH-0013") returned alongside invoice number for display. */
+  booking_number?: string | null;
   invoice_number: string;
   invoice_date: string;
   status: string;

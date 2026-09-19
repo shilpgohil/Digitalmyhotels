@@ -265,7 +265,10 @@ function InvoicesContent() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {/* Booking No. alongside Invoice No. so staff can correlate
+                      INV-00013 ↔ BH-0013 (ss12: "Invoice ID wrong") */}
                   <TableHead>{t("invoiceNumber")}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t("bookingNo")}</TableHead>
                   <TableHead>{t("guest")}</TableHead>
                   <TableHead>{t("total")}</TableHead>
                   <TableHead>{t("due")}</TableHead>
@@ -280,6 +283,9 @@ function InvoicesContent() {
                     className={inv.id === selectedId ? "bg-muted/50" : undefined}
                   >
                     <TableCell className="font-medium">{inv.invoice_number}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
+                      {inv.booking_number ?? "—"}
+                    </TableCell>
                     <TableCell>{inv.guest_name}</TableCell>
                     <TableCell className="tabular-nums">{fmtINR(inv.total_amount)}</TableCell>
                     <TableCell className="tabular-nums">{fmtINR(inv.due_amount)}</TableCell>

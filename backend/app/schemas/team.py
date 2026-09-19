@@ -1,7 +1,9 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+
+from app.schemas.guest import title_case_name
 
 
 class TeamMemberOut(BaseModel):
@@ -23,6 +25,12 @@ class TeamMemberOut(BaseModel):
 
 class TeamMemberCreate(BaseModel):
     full_name: str = Field(min_length=2, max_length=200)
+
+    @field_validator("full_name")
+    @classmethod
+    def cap_name(cls, value: str) -> str:
+        """Auto-capitalize team member names (e.g. 'ranjit' → 'Ranjit')."""
+        return title_case_name(value.strip())
     # Phone-first accounts: email is optional, but at least one of
     # email/phone must be provided (client Figma has no email field).
     email: EmailStr | None = None
@@ -41,6 +49,11 @@ class TeamMemberCreate(BaseModel):
 
 class TeamMemberUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=2, max_length=200)
+
+    @field_validator("full_name")
+    @classmethod
+    def cap_name(cls, value: str | None) -> str | None:
+        return title_case_name(value.strip()) if value else value
     phone: str | None = Field(default=None, max_length=32)
     role_code: str | None = Field(
         default=None,

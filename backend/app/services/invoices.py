@@ -270,7 +270,15 @@ async def list_invoices(
     query: str | None = None,
     limit: int = 50,
     offset: int = 0,
-) -> tuple[list[Invoice], int]:
+) -> tuple[list[dict], int]:
+    """Returns (items_as_dicts_with_booking_number, total).
+
+    dict contains the Invoice ORM object + booking_number so the API can
+    construct InvoiceOut(booking_number=...) without a second query round-trip
+    (ss12: "Invoice ID wrong" — staff need to see BH-0013 next to INV-00013).
+    """
+    from app.models.booking import Booking as _Booking
+
     hotel_id = tenant.require_hotel()
     stmt = select(Invoice).where(Invoice.hotel_id == hotel_id)
     if status:
@@ -284,7 +292,25 @@ async def list_invoices(
         .limit(limit)
         .offset(offset)
     )
-    return list(result.scalars().all()), total
+    invoices = list(result.scalars().all())
+
+    # Batch-fetch booking numbers for all invoices in one query.
+    booking_ids = [inv.booking_id for inv in invoices if inv.booking_id]
+    booking_num_map: dict = {}
+    if booking_ids:
+        rows = (
+            await db.execute(
+                select(_Booking.id, _Booking.booking_number).where(
+                    _Booking.id.in_(booking_ids)
+                )
+            )
+        ).all()
+        booking_num_map = dict(rows)
+
+    return [
+        {"invoice": inv, "booking_number": booking_num_map.get(inv.booking_id)}
+        for inv in invoices
+    ], total
 
 
 async def cancel_invoice(

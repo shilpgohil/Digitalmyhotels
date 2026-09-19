@@ -52,6 +52,7 @@ import { RequirePermission } from "@/components/auth/require-permission";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import { fmtMoney, money } from "@/components/stay/checkout-summary";
 import type { ListOut, HotelOut, HotelSettingsOut } from "@/types/hotel";
+import type { ChargeOut } from "@/types/money";
 import type {
   BookingOut,
   CheckOutOut,
@@ -196,6 +197,17 @@ function CheckoutContent() {
     enabled: !!entry?.booking_id,
     staleTime: 0,
   });
+
+  // Existing charges recorded during the stay (ss7: "Additional charges not
+  // shown" — staff need to see prior charges ABOVE the at-checkout inputs).
+  const existingChargesQuery = useQuery({
+    queryKey: ["charges-for-checkout", entry?.booking_id],
+    queryFn: () =>
+      api<ListOut<ChargeOut>>(`/api/v1/charges?booking_id=${entry!.booking_id}&limit=50`),
+    enabled: !!entry?.booking_id && !checkoutResult,
+    staleTime: 0,
+  });
+  const priorCharges = existingChargesQuery.data?.items ?? [];
 
   const hotelQuery = useQuery({
     queryKey: ["hotel-profile", activeHotelId],
@@ -935,6 +947,34 @@ function CheckoutContent() {
                     <p className="text-sm text-muted-foreground">{tp("loadGuestForCharges")}</p>
                   ) : (
                     <>
+                      {/* ── Previously recorded charges (read-only, ss7 fix) ── */}
+                      {priorCharges.length > 0 && (
+                        <div className="mb-4 rounded-lg border border-border bg-muted/30 p-3">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            {tp("priorChargesLabel")}
+                          </p>
+                          <ul className="space-y-1 text-sm">
+                            {priorCharges.map((c) => (
+                              <li key={c.id} className="flex justify-between gap-4">
+                                <span className="text-muted-foreground truncate">
+                                  {c.description || c.category}
+                                  {c.quantity > 1 && ` ×${c.quantity}`}
+                                </span>
+                                <span className="tabular-nums font-medium shrink-0">
+                                  {fmtMoney(Number(c.total_amount))}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                          <div className="mt-1.5 flex justify-between border-t pt-1.5 text-sm font-semibold">
+                            <span>{tp("priorChargesTotal")}</span>
+                            <span className="tabular-nums">
+                              {fmtMoney(priorCharges.reduce((s, c) => s + Number(c.total_amount), 0))}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      {/* ── Add NEW charges at checkout ── */}
                       <div className="grid gap-4 sm:grid-cols-3">
                         {EXTRA_CHARGE_FIELDS.map((field) => (
                           <div key={field.key} className="space-y-1.5">

@@ -37,7 +37,13 @@ async def list_invoices(
         db, tenant, status=status, query=q, limit=limit, offset=offset
     )
     return InvoiceListOut(
-        items=[InvoiceOut.model_validate(i) for i in items], total=total
+        items=[
+            InvoiceOut.model_validate(row["invoice"]).model_copy(
+                update={"booking_number": row["booking_number"]}
+            )
+            for row in items
+        ],
+        total=total,
     )
 
 

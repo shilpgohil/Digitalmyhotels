@@ -22,6 +22,9 @@ class InvoiceItemOut(ORMModel):
 class InvoiceOut(ORMModel):
     id: UUID
     booking_id: UUID
+    # Booking number shown alongside invoice number in the invoices list
+    # (ss12: "Invoice ID wrong" — client needs to correlate INV-00013 ↔ BH-0013).
+    booking_number: str | None = None
     invoice_number: str
     invoice_date: date
     status: str

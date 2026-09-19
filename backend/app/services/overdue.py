@@ -215,7 +215,19 @@ async def sweep_auto_checkouts(
             ).scalar_one_or_none()
             if booking is None or booking.status != "checked_in":
                 continue
-            settlement = await compute_settlement(db, booking, late_fee=Decimal("0.00"))
+            # Guard: impossible date range (checkout < checkin) — skip compute_settlement
+            # which would return nonsense; still attempt checkout so the booking
+            # doesn't stay stuck forever (ss20: BK-0002 Karma, co_date 10/6 < ci 15/6).
+            if booking.check_out_date < booking.check_in_date:
+                logger.warning(
+                    "auto-checkout: booking %s has check_out_date %s < check_in_date %s "
+                    "— forcing checkout without settlement check",
+                    number, booking.check_out_date, booking.check_in_date,
+                )
+                # Treat as fully paid (force checkout regardless of due amount).
+                settlement = {"due": Decimal("0.00")}
+            else:
+                settlement = await compute_settlement(db, booking, late_fee=Decimal("0.00"))
             if settlement["due"] > 0:
                 continue  # outstanding dues — humans collect money, not cron
             tenant = TenantContext(
