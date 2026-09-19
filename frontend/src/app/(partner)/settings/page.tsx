@@ -537,11 +537,21 @@ function GstForm() {
         // message. GSTIN is exactly 15 chars: 2-digit state code + 10-char
         // PAN + entity digit + 'Z' + checksum.
         const gstin = ((form.get("gstin") as string | null) ?? "").trim().toUpperCase();
-        if (gstin && gstin.length !== 15) {
+        // Skip GSTIN length validation when the user hasn't changed it from
+        // the stored value — this lets GST MODE changes save even if the
+        // existing GSTIN is invalid/legacy (ss25: "GST Update not working").
+        const gstinChanged = gstin !== (data.gstin ?? "").toUpperCase();
+        if (gstin && gstinChanged && gstin.length !== 15) {
           toast.error(t("gstinLengthError"));
           return;
         }
-        form.set("gstin", gstin);
+        // If the stored GSTIN was invalid but user didn't change it, send null
+        // so the backend doesn't re-validate the old broken value.
+        if (gstin && !gstinChanged && gstin.length !== 15) {
+          form.set("gstin", ""); // will be sent as null via || null
+        } else {
+          form.set("gstin", gstin);
+        }
         mutation.mutate(form);
       }}
     >

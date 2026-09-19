@@ -172,7 +172,8 @@ function ImageEditorDialog({
     if (typeof window === "undefined") return base;
     const maxW = Math.min(window.innerWidth - 48, 760);
     const maxH = window.innerHeight - 240; // toolbar + footer allowance
-    const growth = Math.min(1.8, Math.max(1, Math.min(maxW / base.w, maxH / base.h)));
+    // Client wants ≈2× readability; allow up to 2.0× (was 1.8).
+    const growth = Math.min(2.0, Math.max(1, Math.min(maxW / base.w, maxH / base.h)));
     return { w: Math.round(base.w * growth), h: Math.round(base.h * growth) };
   }, [aspect]);
 

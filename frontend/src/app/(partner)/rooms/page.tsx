@@ -299,10 +299,17 @@ function RoomsContent() {
                   previously only visible in grid mode, causing inconsistency). */}
               {/* Platform segmented chip pattern (client 09/2026) */}
               <SegmentedChips
-                options={GRID_FILTERS.map((filter) => ({
-                  value: filter,
-                  label: filter === "all" ? t("filterAll") : t(`bucket_${filter}`),
-                }))}
+                options={GRID_FILTERS.map((filter) => {
+                  const count = filter === "all"
+                    ? (rooms.data?.items.length ?? 0)
+                    : (bucketCounts[filter as RoomBucket] ?? 0);
+                  const label = filter === "all" ? t("filterAll") : t(`bucket_${filter}`);
+                  return {
+                    value: filter,
+                    // Show count next to label so it always matches the grid (ss4)
+                    label: count > 0 ? `${label} (${count})` : label,
+                  };
+                })}
                 value={gridFilter}
                 onChange={setGridFilter}
               />

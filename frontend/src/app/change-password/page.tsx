@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { apiFetch, ApiError } from "@/lib/api/client";
+import { setCachedUser } from "@/lib/auth/session";
 
 function ChangePasswordForm() {
   const t = useTranslations("auth");
@@ -29,7 +30,13 @@ function ChangePasswordForm() {
         body: { current_password: current, new_password: next },
       });
       toast.success(t("passwordChanged"));
-      router.replace(user?.is_super_admin ? "/admin" : "/dashboard");
+      // Clear the stale cached user (still has must_reset_password: true).
+      // Without this, the API client would intercept the first dashboard API
+      // call with a 403 and redirect back here — an infinite loop.
+      setCachedUser(null);
+      // Hard navigate so the auth context re-fetches /me with the fresh user
+      // (must_reset_password is now false on the server).
+      window.location.href = user?.is_super_admin ? "/admin" : "/dashboard";
     } catch (e) {
       setError(e instanceof ApiError ? e.message : tc("error"));
     } finally {

@@ -13,6 +13,8 @@ import {
   Printer,
   ChevronUp,
   ChevronDown,
+  CreditCard,
+  FileText,
 } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
@@ -282,6 +284,28 @@ function CurrentGuestsContent() {
                             <DropdownMenuItem onClick={() => setTransferTarget(entry)}>
                               <ArrowLeftRight className="size-4" aria-hidden />
                               {t("roomTransfer")}
+                            </DropdownMenuItem>
+                          )}
+                          {/* Quick links to Payment Details + Invoices for this booking
+                              (client ss17: "Add Below Payment Details BK-0023 / Invoices BK-0023") */}
+                          {can(PERMISSIONS.financialReports) && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                router.push(`/payments?booking_id=${entry.booking_id}`)
+                              }
+                            >
+                              <CreditCard className="size-4" aria-hidden />
+                              {t("viewPayments")}
+                            </DropdownMenuItem>
+                          )}
+                          {can(PERMISSIONS.financialReports) && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                router.push(`/invoices?booking_invoice=${entry.booking_id}`)
+                              }
+                            >
+                              <FileText className="size-4" aria-hidden />
+                              {t("viewInvoice")}
                             </DropdownMenuItem>
                           )}
                           {can(PERMISSIONS.checkout) && (
@@ -664,7 +688,12 @@ function StayDetailDialog({
           <DialogClose className="inline-flex h-[42px] items-center rounded-lg bg-[#d1d1d1] px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors">
             {tc("cancel")}
           </DialogClose>
-          <Button onClick={printRegistration} disabled={!b}>
+          {/* Close dialog THEN print — prevents two overlapping windows
+              (ss21: "Currently open 2 models this is wrong") */}
+          <Button
+            onClick={() => { onClose(); printRegistration(); }}
+            disabled={!b}
+          >
             <Printer className="size-4" aria-hidden />
             {t("printRegistration")}
           </Button>

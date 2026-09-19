@@ -788,6 +788,8 @@
     "mobile": "Mobile",
     "roomStatus": "Room Status",
     "printAction": "Print",
+    "viewPayments": "Payment Details",
+    "viewInvoice": "View Invoice",
     "showingActiveGuests": "Showing {shown} of {total} active guests",
     "registeredGuestsLabel": "Registered Guests & ID Documents",
     "primaryGuestLabel": "Primary",

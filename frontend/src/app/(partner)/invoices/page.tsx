@@ -61,7 +61,12 @@ function InvoicesContent() {
   const cancelConfirm = useConfirmDialog();
   // Selected invoice for the styled preview card (single proper invoice —
   // client 09/2026: merged the old separate "Invoice Preview" page in here).
-  const [selectedId, setSelectedId] = useState("");
+  // ?booking=<id> deep-link: auto-select the first invoice for that booking
+  // (ss17: client wants "Invoices BK-0023" link from Current Guests page).
+  const [selectedId, setSelectedId] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("booking_invoice") ?? "";
+  });
   const [sharingPdf, setSharingPdf] = useState(false);
   /** Scroll target for the preview card (client 15/09: "View button click →
    *  scroll down" — the preview renders below the fold and clicking View
@@ -95,11 +100,27 @@ function InvoicesContent() {
     retry: false,
   });
 
-  // Auto-select the first invoice once the list loads.
+  // Auto-select invoice once the list loads — prefer a booking-specific one
+  // when deep-linked from Current Guests (?booking=<booking_id>).
   useEffect(() => {
-    if (!selectedId && invoices.data && invoices.data.items.length > 0) {
-      setSelectedId(invoices.data.items[0].id);
+    if (!invoices.data) return;
+    if (invoices.data.items.length === 0) return;
+    if (selectedId) {
+      // If the selected ID is a BOOKING ID (deep link), find its invoice.
+      const byBookingId = invoices.data.items.find(
+        (inv) => inv.booking_id === selectedId,
+      );
+      if (byBookingId) {
+        setSelectedId(byBookingId.id);
+        const url = new URL(window.location.href);
+        url.searchParams.delete("booking");
+        window.history.replaceState(null, "", url.toString());
+        return;
+      }
+      // Otherwise keep the selected invoice ID as-is.
+      return;
     }
+    setSelectedId(invoices.data.items[0].id);
   }, [invoices.data, selectedId]);
 
   const invoice = invoices.data?.items.find((inv) => inv.id === selectedId);

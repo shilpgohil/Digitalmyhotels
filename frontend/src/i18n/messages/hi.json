@@ -788,6 +788,8 @@
     "mobile": "मोबाइल",
     "roomStatus": "कमरे की स्थिति",
     "printAction": "प्रिंट करें",
+    "viewPayments": "Payment Details",
+    "viewInvoice": "Invoice देखें",
     "showingActiveGuests": "{total} सक्रिय अतिथियों में से {shown} दिखाए जा रहे हैं",
     "registeredGuestsLabel": "पंजीकृत अतिथि और आईडी दस्तावेज़",
     "primaryGuestLabel": "प्राथमिक",

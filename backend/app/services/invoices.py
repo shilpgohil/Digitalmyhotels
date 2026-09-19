@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.errors import NotFoundError, ValidationAppError
 from app.core.tenant import TenantContext
 from app.domain.gst import GstRates, calculate_gst, money
 from app.models.booking import Booking
@@ -64,10 +64,13 @@ async def generate_invoice(
             Invoice.status.notin_(("cancelled",)),
         )
     )
-    if existing.scalars().first():
-        raise ConflictError(
-            "An active invoice already exists for this booking", code="invoice_exists"
-        )
+    existing_invoice = existing.scalars().first()
+    if existing_invoice:
+        # Return the existing invoice instead of 409 — idempotent behaviour
+        # prevents "Invoice generation error" when clicking the button a
+        # second time (e.g. after checkout auto-generated one).
+        await db.refresh(existing_invoice, ["items"])
+        return existing_invoice
 
     gst, gst_registered, gst_inclusive = await get_gst_context(db, hotel_id)
     rates = GstRates(
