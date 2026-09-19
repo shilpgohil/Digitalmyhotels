@@ -1102,6 +1102,7 @@ function NewGuestForm({
   onConfirm,
   beforeConfirm,
   existingDocs = {},
+  guestId = null,
 }: {
   /** Seeds the mobile field (e.g. the phone that was searched with no match). */
   readonly initialPhone?: string;
@@ -1122,10 +1123,17 @@ function NewGuestForm({
    *  tiles show the already-uploaded Aadhaar/passport images instead of
    *  appearing blank (client 17/09: photos missing when editing co-guest). */
   readonly existingDocs?: Partial<Record<DocSide, string>>;
+  /**
+   * DB guest ID for the person being edited. When provided, the "Show"
+   * checkbox on the ID field decrypts the full ID from the server instead
+   * of just toggling the masked placeholder (replaces RevealIdButton).
+   */
+  readonly guestId?: string | null;
 }) {
   const t = useTranslations("checkin");
   const tc = useTranslations("common");
   const tg = useTranslations("guestPicker");
+  const api = useApi();
   const [docs, setDocs] = useState<{ side: DocSide; file: File }[]>([]);
   const [ocrResult, setOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
   const [form, setForm] = useState<GuestCreatePayload>({
@@ -1175,6 +1183,17 @@ function NewGuestForm({
           idType={form.id_proof_type}
           onChange={(v) => set("id_number", v)}
           placeholder={t("last4Min")}
+          onReveal={
+            guestId && !guestId.startsWith("__new__")
+              ? async () => {
+                  const res = await api<{ id_number: string | null }>(
+                    `/api/v1/guests/${guestId}/reveal-id`,
+                    { method: "POST" },
+                  );
+                  return res.id_number;
+                }
+              : undefined
+          }
         />
       </div>
 
@@ -1668,6 +1687,7 @@ function AdditionalGuestEntry({
           key={`edit-${resolved.guest_id}-${autofill ? "loaded" : "pending"}`}
           initial={buildEditInitial()}
           existingDocs={existingDocs}
+          guestId={resolved.guest_id}
           confirmLabel={t("updateGuest")}
           pending={saving}
           onConfirm={(form, formDocs) => void handleEditConfirm(form, formDocs)}
@@ -2901,7 +2921,17 @@ function CheckinForm({
                 value={pgIdNumber}
                 onChange={setPgIdNumber}
                 placeholder={t("enterIdNumber", { type: pgIdType })}
-                
+                onReveal={
+                  booking.primary_guest_id
+                    ? async () => {
+                        const res = await api<{ id_number: string | null }>(
+                          `/api/v1/guests/${booking.primary_guest_id}/reveal-id`,
+                          { method: "POST" },
+                        );
+                        return res.id_number;
+                      }
+                    : undefined
+                }
               />
             </div>
           </div>
@@ -4790,7 +4820,17 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                     value={pgIdNumber}
                     onChange={setPgIdNumber}
                     placeholder={t("enterIdNumber", { type: pgIdType })}
-                    
+                    onReveal={
+                      guest?.id
+                        ? async () => {
+                            const res = await api<{ id_number: string | null }>(
+                              `/api/v1/guests/${guest.id}/reveal-id`,
+                              { method: "POST" },
+                            );
+                            return res.id_number;
+                          }
+                        : undefined
+                    }
                   />
                 </div>
               </div>
