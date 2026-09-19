@@ -369,6 +369,14 @@ function StayDetailDialog({
     enabled: !!entry,
   });
 
+  // Hotel profile for registration card print header (client 17/09: missing hotel detail)
+  const hotelProfile = useQuery({
+    queryKey: ["hotel-profile-cg", activeHotelId],
+    queryFn: () => api<{ name: string; address_line1?: string | null; city?: string | null; phone?: string | null }>("/api/v1/hotels/me"),
+    enabled: !!activeHotelId,
+    staleTime: 5 * 60_000,
+  });
+
   // Registered guests with ID documents (full identity view).
   const registeredGuests = useQuery({
     queryKey: ["booking-guests", entry?.booking_id, "stay-dialog"],
@@ -462,6 +470,9 @@ function StayDetailDialog({
     win.document.write(`<!doctype html><html><head><title>${b.booking_number}</title>
       <style>
         body{font-family:Georgia,serif;margin:40px;color:#111}
+        .hotel-header{text-align:center;margin-bottom:16px;border-bottom:3px double #0a1128;padding-bottom:12px}
+        .hotel-header h2{font-size:22px;font-weight:bold;color:#0a1128;margin:0 0 4px}
+        .hotel-header p{font-size:13px;color:#555;margin:2px 0}
         h1{font-size:20px;border-bottom:2px solid #0a1128;padding-bottom:8px}
         table{width:100%;border-collapse:collapse;margin-top:16px}
         td{padding:6px 8px;border-bottom:1px solid #ddd;font-size:13px}
@@ -469,6 +480,11 @@ function StayDetailDialog({
         .sign{margin-top:60px;display:flex;justify-content:space-between}
         .sign div{border-top:1px solid #333;padding-top:6px;width:200px;text-align:center;font-size:12px}
       </style></head><body>
+      ${hotelProfile.data ? `<div class="hotel-header">
+        <h2>${hotelProfile.data.name}</h2>
+        ${hotelProfile.data.address_line1 ? `<p>${hotelProfile.data.address_line1}${hotelProfile.data.city ? ', ' + hotelProfile.data.city : ''}</p>` : ""}
+        ${hotelProfile.data.phone ? `<p>Tel: ${hotelProfile.data.phone}</p>` : ""}
+      </div>` : ""}
       <h1>${t("registrationCard")} — ${b.booking_number}</h1>
       <table>
         <tr><td>${tb("guest")}</td><td>${b.primary_guest_name ?? ""}</td></tr>
@@ -622,7 +638,7 @@ function StayDetailDialog({
           </div>
         )}
         <DialogFooter>
-          <DialogClose className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm">
+          <DialogClose className="inline-flex h-[42px] items-center rounded-lg bg-[#d1d1d1] px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors">
             {tc("cancel")}
           </DialogClose>
           <Button onClick={printRegistration} disabled={!b}>
@@ -1315,7 +1331,7 @@ function EditStayForm({
         </div>
       )}
       <DialogFooter>
-        <DialogClose className="inline-flex h-8 items-center rounded-lg border border-border px-2.5 text-sm hover:bg-muted">
+        <DialogClose className="inline-flex h-[42px] items-center rounded-lg bg-[#d1d1d1] px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors">
           {tc("cancel")}
         </DialogClose>
         <Button type="submit" disabled={mutation.isPending}>
@@ -1435,7 +1451,7 @@ function TransferDialog({
             </p>
           )}
           <DialogFooter>
-            <DialogClose className="inline-flex h-8 items-center rounded-lg border border-border px-2.5 text-sm hover:bg-muted">
+            <DialogClose className="inline-flex h-[42px] items-center rounded-lg bg-[#d1d1d1] px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors">
               {tc("cancel")}
             </DialogClose>
             <Button type="submit" disabled={mutation.isPending}>
@@ -1455,3 +1471,4 @@ export default function CurrentGuestsPage() {
     </RequirePermission>
   );
 }
+

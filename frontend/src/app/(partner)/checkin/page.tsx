@@ -99,7 +99,7 @@ import type { GuestType } from "@/types/stay";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
 import { MaskedIdInput } from "@/components/checkin/masked-id-input";
-import { liveNameCase, sanitizeGuestPhone } from "@/lib/input-discipline";
+import { liveNameCase, sanitizeGuestPhone, sanitizeAadhaarOcr, isIdMask } from "@/lib/input-discipline";
 import { InlineCameraCapture } from "@/components/checkin/inline-camera-capture";
 import { UpiQrBlock } from "@/components/checkin/upi-qr-block";
 import { CollapsibleSection } from "@/components/checkin/collapsible-section";
@@ -1239,7 +1239,13 @@ function NewGuestForm({
           result={ocrResult}
           onAccept={(fields) => {
             if (fields.name) set("full_name", fields.name);
-            if (fields.id_number) set("id_number", fields.id_number);
+            if (fields.id_number && !isIdMask(fields.id_number)) {
+              // Strip spaces (OCR returns "1234 5678 9012" — spaces inflate length past 12)
+              const rawId = fields.id_number;
+              const idType = fields.id_type_detected ?? form.id_proof_type ?? "Aadhar Card";
+              const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(rawId) : rawId.trim();
+              set("id_number", cleaned);
+            }
             if (fields.gender) set("gender", fields.gender);
             if (fields.date_of_birth) set("date_of_birth", fields.date_of_birth);
             if (fields.address) set("address", fields.address);
@@ -2554,8 +2560,8 @@ function CheckinForm({
         if (pgState) body.state = pgState;
         if (pgCountry) body.country = pgCountry;
         if (pgIdType) body.id_proof_type = pgIdType;
-        // Skip sending the masked placeholder (saved hint) as an id_number update.
-        if (pgIdNumber && !pgIdNumber.startsWith("••••••••")) body.id_number = pgIdNumber;
+        // Skip masked placeholder and strip any OCR whitespace before sending.
+        if (pgIdNumber && !isIdMask(pgIdNumber)) body.id_number = pgIdNumber.replace(/\s/g, "");
         if (Object.keys(body).length > 0) {
           await api(`/api/v1/guests/${booking.primary_guest_id}`, {
             method: "PATCH",
@@ -2918,7 +2924,11 @@ function CheckinForm({
               result={pgOcrResult}
               onAccept={(fields) => {
                 if (fields.name) setPgName(fields.name);
-                if (fields.id_number) setPgIdNumber(fields.id_number);
+                if (fields.id_number && !isIdMask(fields.id_number)) {
+                  const idType = fields.id_type_detected ?? pgIdType ?? "Aadhar Card";
+                  const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(fields.id_number) : fields.id_number.trim();
+                  setPgIdNumber(cleaned);
+                }
                 if (fields.gender) setPgGender(fields.gender);
                 if (fields.date_of_birth) setPgDob(fields.date_of_birth);
                 if (fields.address) setPgAddress(fields.address);
@@ -4237,10 +4247,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       if (pgCity && pgCity !== (pgBaseline?.city ?? "")) patch.city = pgCity;
       if (pgState && pgState !== (pgBaseline?.state ?? "")) patch.state = pgState;
       if (pgCountry && pgCountry !== (pgBaseline?.country ?? "India")) patch.country = pgCountry;
-      // Only send id_number if the desk actually typed a real number
-      // (not the masked "••••••••XXXX" saved-ID placeholder).
-      if (pgIdNumber.trim() && !pgIdNumber.startsWith("••••••••")) {
-        patch.id_number = pgIdNumber.trim();
+      // Only send id_number if the desk typed a real number (not the mask).
+      // Strip OCR whitespace before sending.
+      if (pgIdNumber.trim() && !isIdMask(pgIdNumber)) {
+        patch.id_number = pgIdNumber.trim().replace(/\s/g, "");
         patch.id_proof_type = pgIdType;
       }
       if (Object.keys(patch).length > 0) {
@@ -4805,7 +4815,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   result={pgOcrResult}
                   onAccept={(fields) => {
                     if (fields.name) setPgName(fields.name);
-                    if (fields.id_number) setPgIdNumber(fields.id_number);
+                    if (fields.id_number && !isIdMask(fields.id_number)) {
+                      const idType = fields.id_type_detected ?? pgIdType ?? "Aadhar Card";
+                      const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(fields.id_number) : fields.id_number.trim();
+                      setPgIdNumber(cleaned);
+                    }
                     if (fields.gender) setPgGender(fields.gender);
                     if (fields.date_of_birth) setPgDob(fields.date_of_birth);
                     if (fields.address) setPgAddress(fields.address);

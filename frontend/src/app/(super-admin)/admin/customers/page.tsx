@@ -256,7 +256,7 @@ function CustomerDetailDialog({
           </dl>
         )}
         <DialogFooter>
-          <DialogClose className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm hover:bg-muted">
+          <DialogClose className="inline-flex h-[42px] items-center rounded-lg bg-[#d1d1d1] px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors">
             {tc("close")}
           </DialogClose>
         </DialogFooter>
@@ -264,4 +264,5 @@ function CustomerDetailDialog({
     </Dialog>
   );
 }
+
 

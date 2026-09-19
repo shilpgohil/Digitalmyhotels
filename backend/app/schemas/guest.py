@@ -50,15 +50,19 @@ _ID_LIMITS: dict[str, tuple[int, bool]] = {
 def validate_id_number(id_proof_type: str | None, id_number: str | None) -> None:
     if not id_proof_type or not id_number:
         return
+    # Strip whitespace first (OCR often produces "1234 5678 9012" with spaces
+    # that inflate len() and fail the ≤12 check even for a valid Aadhaar).
+    # If the caller already stripped non-digits this is a no-op.
+    cleaned = id_number.strip().replace(" ", "").replace("\u00a0", "")
     limit = _ID_LIMITS.get(id_proof_type)
     if limit is None:
         return
     max_len, digits_only = limit
-    if len(id_number) > max_len:
+    if len(cleaned) > max_len:
         raise ValueError(
             f"{id_proof_type} number must be at most {max_len} characters"
         )
-    if digits_only and not id_number.isdigit():
+    if digits_only and not cleaned.isdigit():
         raise ValueError(f"{id_proof_type} number must contain digits only")
 
 

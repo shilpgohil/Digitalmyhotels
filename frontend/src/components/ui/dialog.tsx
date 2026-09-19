@@ -70,13 +70,13 @@ function DialogContent({
             render={
               <Button
                 variant="ghost"
-                className="absolute top-2 right-2"
-                size="icon-sm"
+                // Larger touch target (client 17/09: increase font/size of close btn)
+                className="absolute top-2 right-2 size-9 text-muted-foreground hover:text-foreground"
+                size="icon"
               />
             }
           >
-            <XIcon
-            />
+            <XIcon className="size-5" />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}
@@ -114,7 +114,7 @@ function DialogFooter({
     >
       {children}
       {showCloseButton && (
-        <DialogPrimitive.Close render={<Button variant="outline" />}>
+        <DialogPrimitive.Close render={<Button variant="cancel" />}>
           Close
         </DialogPrimitive.Close>
       )}

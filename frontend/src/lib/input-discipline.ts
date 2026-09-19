@@ -102,6 +102,24 @@ export const ID_RULES: Record<string, IdRule> = {
   },
 };
 
+/**
+ * Strip whitespace and non-digit characters from a raw Aadhaar string.
+ * OCR often produces "1234 5678 9012" (with spaces) which inflates len()
+ * past the 12-char limit. Call this before setting the id_number in state
+ * when the ID type is digits-only (Aadhaar).
+ */
+export function sanitizeAadhaarOcr(raw: string): string {
+  return raw.replace(/\s/g, "").replace(/\D/g, "").slice(0, 12);
+}
+
+/**
+ * Return true if the value is a masked placeholder (contains bullet chars).
+ * When true, the id_number should NOT be sent to the backend — treat as unchanged.
+ */
+export function isIdMask(value: string | undefined | null): boolean {
+  return !!(value && value.includes("•"));
+}
+
 /** Rule lookup tolerant of unknown/legacy type labels. */
 export function idRuleFor(idType: string | null | undefined): IdRule {
   return (

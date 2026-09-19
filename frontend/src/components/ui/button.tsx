@@ -21,6 +21,10 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
+        // Platform-wide cancel/close secondary action (client 17/09: bg #d1d1d1).
+        // Use variant="cancel" on ALL cancel, close, go-back buttons across every
+        // dialog, modal, form, and page to keep them visually consistent.
+        cancel: "bg-[#d1d1d1] text-foreground hover:bg-[#bebebe] active:bg-[#adadad] border-transparent",
       },
       size: {
         // Platform standard (client, repeated 09/2026 requests): primary

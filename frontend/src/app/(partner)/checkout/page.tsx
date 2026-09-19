@@ -1087,7 +1087,8 @@ function CheckoutContent() {
                         {totals.discount > 0 && (
                           <div className="flex justify-between px-3 py-2">
                             <span className="text-muted-foreground">{tp("discount")}</span>
-                            <span className="font-medium text-success tabular-nums">
+                            {/* warning color: discount is a manager override, not a payment */}
+                            <span className="font-medium text-warning tabular-nums">
                               −{fmtMoney(totals.discount)}
                             </span>
                           </div>
