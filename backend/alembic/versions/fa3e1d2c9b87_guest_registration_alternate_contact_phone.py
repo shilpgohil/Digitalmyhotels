@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "fa3e1d2c9b87"
-down_revision: str | None = "dd48e2f5ab34"
+down_revision: str | None = "a9f3c1e7b820"  # production head (adds payment_mode)
 branch_labels: Sequence[str] | None = None
 depends_on: Sequence[str] | None = None
 
