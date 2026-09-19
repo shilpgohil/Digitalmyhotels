@@ -1,6 +1,6 @@
 """Capitalize hotel names stored in all-lowercase (e.g. 'rakhi' → 'Rakhi').
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: g7h8i9j0k1l2
 Revises: f5a6b7c8d9e0
 Create Date: 2026-09-19
 
@@ -12,7 +12,7 @@ already-correct names like 'Hotel Shilp Gohil'.
 from alembic import op
 
 
-revision = "a1b2c3d4e5f6"
+revision = "g7h8i9j0k1l2"
 down_revision = "f5a6b7c8d9e0"
 branch_labels = None
 depends_on = None
