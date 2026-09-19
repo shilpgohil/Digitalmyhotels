@@ -15,6 +15,15 @@ export interface MembershipOut {
   role_code: string;
   role_name: string;
   status: string;
+  /**
+   * Hotel-level feature gate (plan §feature-modes):
+   *   "checkin_only"    → check-in / check-out only
+   *   "checkin_expense" → all financial features, no staff/attendance
+   *   "full"            → all features including staff management
+   *
+   * Returned by /auth/me so the sidebar never needs a separate settings call.
+   */
+  access_mode: "checkin_only" | "checkin_expense" | "full";
 }
 
 export interface TokenResponse {

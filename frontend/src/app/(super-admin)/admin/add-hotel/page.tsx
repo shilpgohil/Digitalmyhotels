@@ -205,8 +205,8 @@ export default function AddHotelPage() {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const { edit } = useImageEditor();
 
-  // --- Section 1: Access Permissions ---
-  const [accessMode, setAccessMode] = useState<"full" | "checkin_only">("full");
+  // --- Section 1: Access Permissions (3-tier: checkin_only | checkin_expense | full) ---
+  const [accessMode, setAccessMode] = useState<"checkin_only" | "checkin_expense" | "full">("full");
 
   // --- Section 2: Property Identity ---
   const [hotelName, setHotelName] = useState("");
@@ -536,14 +536,18 @@ export default function AddHotelPage() {
         <p className="mt-0.5 text-sm text-muted-foreground">{t("dashboardSubtitle")}</p>
       </div>
 
-      {/* 1. Access Permissions */}
+      {/* 1. Access Permissions — 3-tier matching Figma (plan §feature-modes) */}
       <Section icon={Shield} title={t("accessPermissions")} defaultOpen>
         <p className="text-xs text-muted-foreground mb-4">{t("accessPermissionsHint")}</p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {(["checkin_only", "full"] as const).map((mode) => {
+        <div className="grid gap-3 sm:grid-cols-3">
+          {(
+            [
+              { mode: "checkin_only",    labelKey: "checkinOnlyLabel",    descKey: "checkinOnlyDesc"    },
+              { mode: "checkin_expense", labelKey: "checkinExpenseLabel",  descKey: "checkinExpenseDesc" },
+              { mode: "full",            labelKey: "fullAccessLabel",      descKey: "fullAccessDesc"     },
+            ] as const
+          ).map(({ mode, labelKey, descKey }) => {
             const isSelected = accessMode === mode;
-            const label = mode === "checkin_only" ? t("checkinOnlyLabel") : t("checkinExpenseLabel");
-            const desc = mode === "checkin_only" ? t("checkinOnlyDesc") : t("checkinExpenseDesc");
             return (
               <button
                 key={mode}
@@ -566,8 +570,8 @@ export default function AddHotelPage() {
                     {isSelected && <div className="size-1.5 rounded-full bg-white" />}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold">{label}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{desc}</p>
+                    <p className="text-sm font-semibold">{t(labelKey)}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{t(descKey)}</p>
                   </div>
                 </div>
               </button>

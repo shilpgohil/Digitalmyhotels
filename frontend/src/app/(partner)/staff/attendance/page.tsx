@@ -37,6 +37,7 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { AttendanceStatusBadge } from "@/components/staff/attendance-status-badge";
 import { RecordDetailDialog } from "@/components/staff/record-detail-dialog";
 import { RequirePermission } from "@/components/auth/require-permission";
+import { RequireAccessMode } from "@/components/auth/require-access-mode";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE } from "@/lib/api/client";
@@ -358,8 +359,10 @@ function TodaysAttendanceContent() {
 
 export default function TodaysAttendancePage() {
   return (
-    <RequirePermission permission={PERMISSIONS.staffAttendanceView}>
+    <RequireAccessMode mode="full">
+      <RequirePermission permission={PERMISSIONS.staffAttendanceView}>
       <TodaysAttendanceContent />
     </RequirePermission>
+    </RequireAccessMode>
   );
 }

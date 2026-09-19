@@ -24,6 +24,7 @@ import { AttendanceStatusBadge } from "@/components/staff/attendance-status-badg
 import { CheckInCard } from "@/components/staff/check-in-card";
 import { StaffForm } from "@/components/staff/staff-form";
 import { RequirePermission } from "@/components/auth/require-permission";
+import { RequireAccessMode } from "@/components/auth/require-access-mode";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -323,8 +324,10 @@ export default function StaffProfilePage({
 }) {
   const { id } = use(params);
   return (
-    <RequirePermission permission={PERMISSIONS.staffView}>
-      <StaffProfileContent staffId={id} />
-    </RequirePermission>
+    <RequireAccessMode mode="full">
+      <RequirePermission permission={PERMISSIONS.staffView}>
+        <StaffProfileContent staffId={id} />
+      </RequirePermission>
+    </RequireAccessMode>
   );
 }

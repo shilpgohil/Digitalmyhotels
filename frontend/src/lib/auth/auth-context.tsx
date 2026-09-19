@@ -24,6 +24,16 @@ interface AuthState {
   /** Role code for the currently active hotel (e.g. "owner", "manager",
    *  "admin", "housekeeping"). Empty string when no hotel is active. */
   activeRoleCode: string;
+  /**
+   * Feature gate for the currently active hotel (plan §feature-modes):
+   *   "checkin_only"    → check-in / check-out only (no expenses, no staff)
+   *   "checkin_expense" → all financial features, no staff/attendance
+   *   "full"            → all features including staff management
+   *
+   * Defaults to "full" so super-admins, loading states, and legacy
+   * cached sessions are never accidentally locked out.
+   */
+  accessMode: "checkin_only" | "checkin_expense" | "full";
   login: (email: string, password: string) => Promise<UserOut>;
   logout: () => Promise<void>;
   setActiveHotelId: (hotelId: string) => void;
@@ -163,6 +173,18 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     [memberships, activeHotelId],
   );
 
+  // Derive the feature-gate mode for the currently active hotel.
+  // Falls back to "full" so loading states and super-admin contexts are
+  // never accidentally restricted.
+  const accessMode = useMemo(
+    (): "checkin_only" | "checkin_expense" | "full" =>
+      (memberships.find((m) => m.hotel_id === activeHotelId)?.access_mode as
+        | "checkin_only"
+        | "checkin_expense"
+        | "full") ?? "full",
+    [memberships, activeHotelId],
+  );
+
   const value = useMemo<AuthState>(
     () => ({
       status,
@@ -171,12 +193,13 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
       permissions,
       activeHotelId,
       activeRoleCode,
+      accessMode,
       login,
       logout,
       setActiveHotelId,
       can,
     }),
-    [status, user, memberships, permissions, activeHotelId, activeRoleCode, login, logout, setActiveHotelId, can],
+    [status, user, memberships, permissions, activeHotelId, activeRoleCode, accessMode, login, logout, setActiveHotelId, can],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

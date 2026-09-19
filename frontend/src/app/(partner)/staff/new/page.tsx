@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { StaffForm } from "@/components/staff/staff-form";
 import { RequirePermission } from "@/components/auth/require-permission";
+import { RequireAccessMode } from "@/components/auth/require-access-mode";
 import { PERMISSIONS } from "@/lib/permissions";
 
 function AddStaffContent() {
@@ -29,8 +30,10 @@ function AddStaffContent() {
 
 export default function AddStaffPage() {
   return (
-    <RequirePermission permission={PERMISSIONS.staffManage}>
+    <RequireAccessMode mode="full">
+      <RequirePermission permission={PERMISSIONS.staffManage}>
       <AddStaffContent />
     </RequirePermission>
+    </RequireAccessMode>
   );
 }

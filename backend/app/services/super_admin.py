@@ -743,6 +743,15 @@ async def get_hotel_detail(db: AsyncSession, hotel_id: UUID) -> dict:
         "subscription_plan_name": plan_name,
         "subscription_status": sub_status,
         "subscription_expiry": sub_expiry,
+        # Feature gate: load from HotelSettings (plan §feature-modes)
+        "access_mode": (
+            (
+                await db.scalar(
+                    select(HotelSettings.access_mode).where(HotelSettings.hotel_id == hotel_id)
+                )
+            )
+            or "full"
+        ),
     }
 
 
@@ -765,6 +774,8 @@ async def update_hotel_admin(
 
     owner_phone = changes.pop("owner_phone", None)
     gstin = changes.pop("gstin", None)
+    # access_mode is stored in HotelSettings, not Hotel itself.
+    new_access_mode = changes.pop("access_mode", None)
     before = {k: str(getattr(hotel, k)) for k in changes if hasattr(hotel, k)}
     for key, value in changes.items():
         if hasattr(hotel, key):
@@ -784,6 +795,20 @@ async def update_hotel_admin(
             db.add(gst_row)
         gst_row.gstin = gstin.strip().upper() if gstin.strip() else None
         gst_row.is_gst_registered = bool(gst_row.gstin)
+
+    # Update access_mode in HotelSettings if the SA changed it.
+    if new_access_mode is not None:
+        settings_row = (
+            await db.execute(
+                select(HotelSettings).where(HotelSettings.hotel_id == hotel_id)
+            )
+        ).scalar_one_or_none()
+        if settings_row is None:
+            settings_row = HotelSettings(hotel_id=hotel_id)
+            db.add(settings_row)
+        old_mode = settings_row.access_mode
+        settings_row.access_mode = new_access_mode
+        before["access_mode"] = old_mode
 
     if owner_phone is not None:
         owner = await _owner_for_hotel(db, hotel_id)

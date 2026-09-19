@@ -43,6 +43,8 @@ interface NavItem {
   labelKey: string;
   icon: React.ComponentType<{ className?: string }>;
   permission?: PermissionCode;
+  /** When true, this item is hidden unless the hotel's access_mode is "full". */
+  requiresFullAccess?: true;
 }
 
 interface NavSection {
@@ -157,7 +159,8 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
-    // Staff attendance module (client 09/2026 staff check-in flow)
+    // Staff attendance module — ONLY shown when hotel has "full" access_mode.
+    // checkin_only and checkin_expense hotels have this module disabled.
     labelKey: "staffGroup",
     items: [
       {
@@ -165,48 +168,56 @@ const SECTIONS: NavSection[] = [
         labelKey: "myAttendance",
         icon: UserCheck,
         permission: PERMISSIONS.staffAttendanceSelf,
+        requiresFullAccess: true,
       },
       {
         href: "/staff",
         labelKey: "staffList",
         icon: Users,
         permission: PERMISSIONS.staffView,
+        requiresFullAccess: true,
       },
       {
         href: "/staff/attendance",
         labelKey: "todaysAttendance",
         icon: CalendarCheck,
         permission: PERMISSIONS.staffAttendanceView,
+        requiresFullAccess: true,
       },
       {
         href: "/staff/checkin",
         labelKey: "staffCheckin",
         icon: LogIn,
         permission: PERMISSIONS.staffAttendanceRecord,
+        requiresFullAccess: true,
       },
       {
         href: "/staff/leaves",
         labelKey: "leaveRequests",
         icon: CalendarPlus,
         permission: PERMISSIONS.staffAttendanceView,
+        requiresFullAccess: true,
       },
       {
         href: "/staff/attendance/history",
         labelKey: "attendanceHistory",
         icon: ScrollText,
         permission: PERMISSIONS.staffAttendanceView,
+        requiresFullAccess: true,
       },
       {
         href: "/staff/attendance/calendar",
         labelKey: "attendanceCalendar",
         icon: CalendarCheck,
         permission: PERMISSIONS.staffAttendanceView,
+        requiresFullAccess: true,
       },
       {
         href: "/staff/attendance/reports",
         labelKey: "lateEarly",
         icon: CalendarClock,
         permission: PERMISSIONS.staffAttendanceView,
+        requiresFullAccess: true,
       },
     ],
   },
@@ -277,6 +288,8 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
 
   // No-GST hotels hide the whole GST flow (client 09/2026): the GST & Tax
   // page disappears from the menu when the hotel is not GST-registered.
+  const { accessMode } = useAuth();
+
   const gstSettings = useQuery({
     queryKey: ["gst-settings", activeHotelId],
     queryFn: () =>
@@ -303,7 +316,9 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
         const visible = section.items.filter(
           (item) =>
             (!item.permission || can(item.permission)) &&
-            !(hideGst && item.href === "/gst-tax"),
+            !(hideGst && item.href === "/gst-tax") &&
+            // Hide staff/attendance items unless hotel has full access.
+            !(item.requiresFullAccess && accessMode !== "full"),
         );
         if (visible.length === 0) return null;
         return (

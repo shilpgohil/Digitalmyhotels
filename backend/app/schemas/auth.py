@@ -42,6 +42,10 @@ class MembershipOut(ORMModel):
     role_code: str
     role_name: str
     status: str
+    # Hotel-level feature gate returned here so the frontend never needs
+    # a separate /hotels/me/settings round-trip to know which modules to show.
+    # Defaults to "full" for backward-compat with any cached responses.
+    access_mode: str = "full"
 
 
 class MeResponse(BaseModel):

@@ -14,6 +14,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/feedback/status-badge";
 import { RequirePermission } from "@/components/auth/require-permission";
+import { RequireAccessMode } from "@/components/auth/require-access-mode";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -266,8 +267,10 @@ function ReportsContent() {
 
 export default function LateEarlyReportsPage() {
   return (
-    <RequirePermission permission={PERMISSIONS.staffAttendanceView}>
+    <RequireAccessMode mode="full">
+      <RequirePermission permission={PERMISSIONS.staffAttendanceView}>
       <ReportsContent />
     </RequirePermission>
+    </RequireAccessMode>
   );
 }

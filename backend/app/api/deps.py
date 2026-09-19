@@ -149,12 +149,26 @@ async def get_tenant_context(
                 )
 
     role_code = RoleCode(membership.role.code)
+
+    # ── Load hotel's access_mode ──────────────────────────────────────────
+    # access_mode gates feature modules at the hotel level (plan §feature-modes):
+    #   "checkin_only"    → no expenses, no staff
+    #   "checkin_expense" → all financial features, no staff/attendance
+    #   "full"            → all features including staff management
+    from app.models.hotel import HotelSettings as _HS
+
+    raw_mode = await db.scalar(
+        select(_HS.access_mode).where(_HS.hotel_id == membership.hotel_id)
+    )
+    hotel_access_mode: str = raw_mode or "full"
+
     request.state.tenant = TenantContext(
         user_id=user.id,
         hotel_id=membership.hotel_id,
         role=role_code,
         is_super_admin=False,
         membership_id=membership.id,
+        access_mode=hotel_access_mode,
     )
     return request.state.tenant
 
@@ -163,6 +177,30 @@ def require_permissions(*permissions: Permission):
     async def _dep(tenant: TenantContext = Depends(get_tenant_context)) -> TenantContext:
         for perm in permissions:
             tenant.require_permission(perm)
+        return tenant
+
+    return _dep
+
+
+def require_access_mode(*allowed_modes: str):
+    """Block endpoint unless the hotel's access_mode is in allowed_modes.
+
+    Usage:
+        tenant: TenantContext = Depends(require_access_mode("full"))
+        tenant: TenantContext = Depends(require_access_mode("checkin_expense", "full"))
+
+    Super-admins are always permitted (they bypass all access-mode gates).
+    """
+
+    async def _dep(tenant: TenantContext = Depends(get_tenant_context)) -> TenantContext:
+        if tenant.is_super_admin:
+            return tenant
+        if tenant.access_mode not in allowed_modes:
+            raise ForbiddenError(
+                "This feature is not available in your current access plan. "
+                "Contact your platform administrator to upgrade.",
+                code="access_mode_restricted",
+            )
         return tenant
 
     return _dep

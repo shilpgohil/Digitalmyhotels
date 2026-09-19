@@ -19,6 +19,7 @@ import { InlineSpinner } from "@/components/ui/inline-spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RequirePermission } from "@/components/auth/require-permission";
+import { RequireAccessMode } from "@/components/auth/require-access-mode";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
@@ -288,8 +289,10 @@ function StaffCheckinContent() {
 
 export default function StaffCheckinPage() {
   return (
-    <RequirePermission permission={PERMISSIONS.staffAttendanceRecord}>
+    <RequireAccessMode mode="full">
+      <RequirePermission permission={PERMISSIONS.staffAttendanceRecord}>
       <StaffCheckinContent />
     </RequirePermission>
+    </RequireAccessMode>
   );
 }

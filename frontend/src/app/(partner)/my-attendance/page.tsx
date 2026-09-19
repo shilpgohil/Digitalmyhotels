@@ -14,6 +14,7 @@ import { CheckInCard } from "@/components/staff/check-in-card";
 import { LeaveSection } from "@/components/staff/leave-section";
 import { MonthCalendar } from "@/components/staff/month-calendar";
 import { RequirePermission } from "@/components/auth/require-permission";
+import { RequireAccessMode } from "@/components/auth/require-access-mode";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -87,8 +88,10 @@ function MyAttendanceContent() {
 
 export default function MyAttendancePage() {
   return (
-    <RequirePermission permission={PERMISSIONS.staffAttendanceSelf}>
+    <RequireAccessMode mode="full">
+      <RequirePermission permission={PERMISSIONS.staffAttendanceSelf}>
       <MyAttendanceContent />
     </RequirePermission>
+    </RequireAccessMode>
   );
 }

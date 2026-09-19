@@ -105,6 +105,8 @@ interface AdminHotelDetail {
   owner_phone: string | null;
   /** Team size cap (plan §7.1) — super admin adjustable. */
   max_team_members: number;
+  /** Hotel feature gate (plan §feature-modes). */
+  access_mode: "checkin_only" | "checkin_expense" | "full";
   subscription_plan_name: string | null;
   subscription_status: string | null;
   subscription_expiry: string | null;
@@ -295,6 +297,7 @@ export default function AdminEditHotelPage({
   const [mapId, setMapId] = useState("");
   const [ownerPhone, setOwnerPhone] = useState("");
   const [maxTeamMembers, setMaxTeamMembers] = useState("5");
+  const [hotelAccessMode, setHotelAccessMode] = useState<"checkin_only" | "checkin_expense" | "full">("full");
   const [ownerNewPassword, setOwnerNewPassword] = useState("");
   const [identityInit, setIdentityInit] = useState(false);
   const [gstInit, setGstInit] = useState(false);
@@ -329,6 +332,7 @@ export default function AdminEditHotelPage({
     if (adminDetail.data && !identityInit) {
       setOwnerPhone(adminDetail.data.owner_phone ?? "");
       setMaxTeamMembers(String(adminDetail.data.max_team_members ?? 5));
+      setHotelAccessMode(adminDetail.data.access_mode ?? "full");
     }
   }, [adminDetail.data, identityInit]);
 
@@ -556,11 +560,12 @@ export default function AdminEditHotelPage({
         );
       }
 
-      // 1c. Owner phone + team limit (admin only — super-admin PATCH endpoint)
+      // 1c. Owner phone + team limit + access_mode (super-admin PATCH endpoint)
       const teamLimitNum = Math.max(1, Math.min(100, Number.parseInt(maxTeamMembers, 10) || 5));
       const phoneChanged = ownerPhone.trim() !== (adminDetail.data?.owner_phone ?? "");
       const limitChanged = teamLimitNum !== (adminDetail.data?.max_team_members ?? 5);
-      if (phoneChanged || limitChanged) {
+      const modeChanged = hotelAccessMode !== (adminDetail.data?.access_mode ?? "full");
+      if (phoneChanged || limitChanged || modeChanged) {
         await attempt("Owner")(() =>
           apiFetch(`/api/v1/super-admin/hotels/${hotelId}`, {
             method: "PATCH",
@@ -568,6 +573,8 @@ export default function AdminEditHotelPage({
               ...(phoneChanged ? { owner_phone: ownerPhone.trim() || null } : {}),
               // Team size cap (client 15/09, plan §7.1).
               ...(limitChanged ? { max_team_members: teamLimitNum } : {}),
+              // Feature gate (plan §feature-modes).
+              ...(modeChanged ? { access_mode: hotelAccessMode } : {}),
             },
           }),
         );
@@ -831,6 +838,39 @@ export default function AdminEditHotelPage({
                 />
                 <p className="text-label text-muted-foreground">
                   The hotel cannot add active team members beyond this limit.
+                </p>
+              </div>
+
+              {/* Access mode — feature gate controlling which modules are enabled
+                  (plan §feature-modes). SA can upgrade/downgrade at any time. */}
+              <div className="space-y-2">
+                <Label className="text-xs">Access Mode</Label>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {(
+                    [
+                      { mode: "checkin_only",    label: "Check-In Only",          desc: "Check-in / check-out only. No expenses, no staff." },
+                      { mode: "checkin_expense", label: "Check-In & Expense",      desc: "All financial features. No staff / attendance." },
+                      { mode: "full",            label: "Full Access",             desc: "Everything, incl. staff management & attendance." },
+                    ] as const
+                  ).map(({ mode, label, desc }) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setHotelAccessMode(mode)}
+                      className={cn(
+                        "rounded-lg border-2 p-3 text-left text-xs transition-colors",
+                        hotelAccessMode === mode
+                          ? "border-navy-700 bg-navy-900/5 font-semibold text-navy-900"
+                          : "border-border hover:border-navy-400",
+                      )}
+                    >
+                      <p className="font-semibold">{label}</p>
+                      <p className="mt-0.5 text-muted-foreground">{desc}</p>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-label text-muted-foreground">
+                  Changing access mode takes effect on the hotel&apos;s next login.
                 </p>
               </div>
 

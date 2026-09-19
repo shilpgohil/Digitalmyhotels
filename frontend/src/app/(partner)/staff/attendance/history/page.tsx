@@ -15,6 +15,7 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import { AttendanceStatusBadge } from "@/components/staff/attendance-status-badge";
 import { RequirePermission } from "@/components/auth/require-permission";
+import { RequireAccessMode } from "@/components/auth/require-access-mode";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE } from "@/lib/api/client";
@@ -219,8 +220,10 @@ function HistoryContent() {
 
 export default function AttendanceHistoryPage() {
   return (
-    <RequirePermission permission={PERMISSIONS.staffAttendanceView}>
+    <RequireAccessMode mode="full">
+      <RequirePermission permission={PERMISSIONS.staffAttendanceView}>
       <HistoryContent />
     </RequirePermission>
+    </RequireAccessMode>
   );
 }

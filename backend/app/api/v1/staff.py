@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, File, Query, Request, Response, UploadFi
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import require_permissions
+from app.api.deps import require_access_mode, require_permissions
 from app.core.permissions import Permission
 from app.core.tenant import TenantContext
 from app.db.session import get_db
@@ -38,7 +38,15 @@ from app.schemas.staff import (
 from app.services import attendance as attendance_service
 from app.services import staff as staff_service
 
-router = APIRouter(prefix="/staff", tags=["staff"])
+# Router-level dependency: every staff endpoint requires "full" access_mode.
+# Hotels on "checkin_only" or "checkin_expense" cannot access ANY staff or
+# attendance functionality — the feature module is simply not enabled for them.
+# Super-admins bypass this gate (they can always inspect any hotel's data).
+router = APIRouter(
+    prefix="/staff",
+    tags=["staff"],
+    dependencies=[Depends(require_access_mode("full"))],
+)
 
 
 def _correlation(request: Request) -> str | None:

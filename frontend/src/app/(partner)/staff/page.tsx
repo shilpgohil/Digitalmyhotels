@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RequirePermission } from "@/components/auth/require-permission";
+import { RequireAccessMode } from "@/components/auth/require-access-mode";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -263,8 +264,10 @@ function StaffListContent() {
 
 export default function StaffListPage() {
   return (
-    <RequirePermission permission={PERMISSIONS.staffView}>
+    <RequireAccessMode mode="full">
+      <RequirePermission permission={PERMISSIONS.staffView}>
       <StaffListContent />
     </RequirePermission>
+    </RequireAccessMode>
   );
 }

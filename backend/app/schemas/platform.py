@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
@@ -94,6 +97,8 @@ class AdminHotelDetailOut(BaseModel):
     # GST info (client 9-10 rows 13/14: show complete hotel details)
     gstin: str | None = None
     is_gst_registered: bool = False
+    # Feature gate (plan §feature-modes)
+    access_mode: str = "full"
     # Owner
     owner_user_id: UUID | None = None  # enables direct password reset (client 09/2026)
     max_team_members: int = 5  # team cap (plan §7.1)
@@ -121,6 +126,8 @@ class AdminHotelUpdate(BaseModel):
     owner_phone: str | None = Field(default=None, max_length=32)
     # Team size cap — super admin can raise per hotel (plan §7.1).
     max_team_members: int | None = Field(default=None, ge=1, le=100)
+    # Feature module gate — SA can switch hotels between three tiers.
+    access_mode: Literal["checkin_only", "checkin_expense", "full"] | None = None
 
 
 class AdminCustomerSummaryOut(BaseModel):
@@ -276,7 +283,7 @@ class CreateHotelRequest(BaseModel):
     # plan_code is optional; if omitted the hotel is created in "trial" state
     # without a subscription row (admin assigns a plan later via RenewDialog).
     plan_code: str | None = None
-    access_mode: str = "full"
+    access_mode: Literal["checkin_only", "checkin_expense", "full"] = "full"
     # Additional fields per Figma Add-Hotel form
     total_rooms: int | None = Field(default=None, ge=0)
     map_id: str | None = Field(default=None, max_length=255)

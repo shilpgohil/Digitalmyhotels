@@ -40,7 +40,7 @@ export interface HotelSettingsOut {
   late_checkout_grace_minutes: number;
   early_checkin_fee_per_hour: string;
   late_checkout_fee_per_hour: string;
-  access_mode: "full" | "checkin_only";
+  access_mode: "full" | "checkin_expense" | "checkin_only";
   collect_emergency_contact: boolean;
   collect_vehicle_details: boolean;
   /** "Powered by DigitalMyHotels" invoice branding (plan §3.8). */

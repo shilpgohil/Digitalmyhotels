@@ -15,6 +15,7 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/feedback/status-badge";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RequirePermission } from "@/components/auth/require-permission";
+import { RequireAccessMode } from "@/components/auth/require-access-mode";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
@@ -206,8 +207,10 @@ function LeavesContent() {
 
 export default function StaffLeavesPage() {
   return (
-    <RequirePermission permission={PERMISSIONS.staffAttendanceView}>
+    <RequireAccessMode mode="full">
+      <RequirePermission permission={PERMISSIONS.staffAttendanceView}>
       <LeavesContent />
     </RequirePermission>
+    </RequireAccessMode>
   );
 }

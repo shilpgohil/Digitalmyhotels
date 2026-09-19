@@ -14,6 +14,7 @@ import { SectionPanel } from "@/components/ui/section-panel";
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
 import { MonthCalendar } from "@/components/staff/month-calendar";
 import { RequirePermission } from "@/components/auth/require-permission";
+import { RequireAccessMode } from "@/components/auth/require-access-mode";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -138,8 +139,10 @@ function CalendarContent() {
 
 export default function AttendanceCalendarPage() {
   return (
-    <RequirePermission permission={PERMISSIONS.staffAttendanceView}>
+    <RequireAccessMode mode="full">
+      <RequirePermission permission={PERMISSIONS.staffAttendanceView}>
       <CalendarContent />
     </RequirePermission>
+    </RequireAccessMode>
   );
 }
