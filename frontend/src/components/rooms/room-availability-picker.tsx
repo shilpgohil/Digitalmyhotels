@@ -152,6 +152,21 @@ function AvailableChip({
   const [infoOpen, setInfoOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Rooms with these PHYSICAL statuses cannot be assigned right now — even if
+  // the backend confirms they're free for the requested dates (they may be
+  // available date-wise but not yet physically ready). Client explicitly asked:
+  // "Reserved Occupied Cleaning Maintenance — these should NOT be selectable."
+  const NOT_SELECTABLE = new Set([
+    "occupied",
+    "reserved",
+    "cleaning_required",
+    "cleaning_in_progress",
+    "inspection_required",
+    "maintenance",
+    "out_of_service",
+  ]);
+  const isDisabled = NOT_SELECTABLE.has(room.status);
+
   // Close on outside click / scroll
   useEffect(() => {
     if (!infoOpen) return;
@@ -193,16 +208,20 @@ function AvailableChip({
       <button
         type="button"
         aria-pressed={selected}
-        onClick={onClick}
+        onClick={isDisabled ? undefined : onClick}
+        disabled={isDisabled}
+        title={isDisabled && hint ? hint.label + " — Not available right now" : undefined}
         className={cn(
           // Fixed size — ALWAYS the same regardless of content.
           // h-[88px] = room number row + type name + bed type (or spacer) + price.
           // pr-7 is ALWAYS applied (reserves space for the ⓘ slot).
           "relative flex flex-col rounded-xl border-2 px-3 py-2.5 pr-7 text-left",
           "transition-all w-full h-[88px]",
-          selected
-            ? "border-gold-500 bg-gold-50 shadow-sm"
-            : "border-border hover:border-gold-300 hover:bg-muted/40",
+          isDisabled
+            ? "opacity-50 cursor-not-allowed border-border bg-muted/20 pointer-events-auto"
+            : selected
+              ? "border-gold-500 bg-gold-50 shadow-sm"
+              : "border-border hover:border-gold-300 hover:bg-muted/40",
         )}
       >
         {/* Row 1: room number + selected tick */}
@@ -434,7 +453,14 @@ export function RoomAvailabilityPicker({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
+  const NOT_SELECTABLE_STATUSES = new Set([
+    "occupied", "reserved", "cleaning_required", "cleaning_in_progress",
+    "inspection_required", "maintenance", "out_of_service",
+  ]);
   const toggleRoom = (id: string) => {
+    // Guard: rooms in non-ready states cannot be selected (client agreement).
+    const room = data?.available.find((r) => r.id === id);
+    if (room && NOT_SELECTABLE_STATUSES.has(room.status)) return;
     onSelectionChange(
       selectedRooms.includes(id)
         ? selectedRooms.filter((r) => r !== id)
