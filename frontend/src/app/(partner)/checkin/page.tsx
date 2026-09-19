@@ -1202,12 +1202,16 @@ function NewGuestForm({
           so edit mode shows the Aadhaar/passport instead of a blank tile
           (client 17/09: photos missing when editing co-guest). */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {/* guestId + existingDocId both required by QueuedDocUpload to fetch the
+            B2-stored image. Passing guestId (null for new guests) ensures edit
+            mode shows "✓ Saved on file" thumbnails. */}
         <QueuedDocUpload
           side="front"
           label={t("uploadFront")}
           onQueued={handleQueueDoc}
           idType={form.id_proof_type}
           existingDocId={existingDocs.front}
+          guestId={guestId ?? undefined}
           onOriginal={(_side, original) => {
             // OCR runs on the ORIGINAL (full-resolution) image.
             import("@/lib/id-ocr").then(({ parseIdDocument }) =>
@@ -1221,6 +1225,7 @@ function NewGuestForm({
           onQueued={handleQueueDoc}
           idType={form.id_proof_type}
           existingDocId={existingDocs.back}
+          guestId={guestId ?? undefined}
           onOriginal={(_side, original) => {
             // Back face → dedicated Aadhaar address/pincode parser.
             import("@/lib/id-ocr").then(({ parseIdDocument }) =>
@@ -1248,6 +1253,7 @@ function NewGuestForm({
           label={t("selfieCapture")}
           onQueued={handleQueueDoc}
           existingDocId={existingDocs.selfie}
+          guestId={guestId ?? undefined}
         />
       </div>
 
@@ -1404,6 +1410,10 @@ function AdditionalGuestEntry({
   const [autofill, setAutofill] = useState<GuestAutofill | null>(null);
   /** OCR result from a co-guest doc upload — triggers auto-edit (client bug fix). */
   const [coGuestOcrResult, setCoGuestOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
+  /** Full ID number extracted by OCR (stored separately since GuestAutofill
+   *  only carries id_last4). Used to pre-fill the edit form with the real ID
+   *  instead of a masked placeholder (fix: co-guest OCR drops full ID). */
+  const [coGuestOcrId, setCoGuestOcrId] = useState<string | null>(null);
 
   // Foreign guest (Form C) — same fields as the primary guest's section.
   const [fgEnabled, setFgEnabled] = useState(false);
@@ -1567,8 +1577,13 @@ function AdditionalGuestEntry({
       gender:      base?.gender      ?? "",
       date_of_birth: base?.date_of_birth ?? "",
       id_proof_type: base?.id_proof_type ?? "Aadhar Card",
-      // Show masked placeholder if we know the last-4; never pre-fill the real number.
-      id_number: base?.id_last4 ? `••••${base.id_last4}` : "",
+      // Use the full OCR ID if captured (co-guest OCR accept flow).
+      // Otherwise fall back to masked placeholder from last-4, or empty.
+      id_number: coGuestOcrId
+        ? coGuestOcrId
+        : base?.id_last4
+          ? `••••${base.id_last4}`
+          : "",
     };
   };
 
@@ -1617,8 +1632,9 @@ function AdditionalGuestEntry({
       if (form.gender?.trim()) body.gender = form.gender.trim();
       if (form.date_of_birth?.trim()) body.date_of_birth = form.date_of_birth.trim();
       if (form.id_proof_type?.trim()) body.id_proof_type = form.id_proof_type.trim();
-      // Strip internal spaces from Aadhaar ("1234 5678 9012" → "123456789012") before PATCH.
-      if (form.id_number?.trim()) {
+      // Only patch ID if it's a REAL number, not a masked placeholder (••••4777).
+      // Sending a masked value would corrupt the stored ID. Same guard as primary.
+      if (form.id_number?.trim() && !isIdMask(form.id_number)) {
         const rawId = form.id_number.trim();
         body.id_number = form.id_proof_type === "Aadhar Card"
           ? sanitizeAadhaarOcr(rawId)
@@ -1803,11 +1819,12 @@ function AdditionalGuestEntry({
             </button>
             <button
               type="button"
-              onClick={() => {
+                      onClick={() => {
                 setResolved(null);
                 setSearchPhone("");
                 setSearchResults([]);
                 setExistingDocs({});
+                setCoGuestOcrId(null);
                 onRemove();
               }}
               className="p-1 text-danger hover:opacity-70"
@@ -1909,6 +1926,16 @@ function AdditionalGuestEntry({
                 ...(fields.state && { state: fields.state }),
                 ...(fields.id_number && { id_last4: fields.id_number.slice(-4) }),
               }));
+              // Store full OCR ID separately so buildEditInitial can pre-fill
+              // the edit form with the real number (autofill only carries last-4).
+              if (fields.id_number) {
+                const idType = fields.id_type_detected ?? "Aadhar Card";
+                setCoGuestOcrId(
+                  idType === "Aadhar Card"
+                    ? sanitizeAadhaarOcr(fields.id_number)
+                    : fields.id_number.trim(),
+                );
+              }
             }}
             onDismiss={() => setCoGuestOcrResult(null)}
           />
@@ -3704,18 +3731,22 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       setPgState(full.state ?? "");
       setPgCountry(full.country ?? "India");
       if (full.id_proof_type) setPgIdType(full.id_proof_type);
-      // Show saved ID hint (client 9-08 item 8).
-      if (full.id_last4) setPgIdNumber((v) => v || `••••••••${full.id_last4}`);
+      // Always reset the ID field on guest switch so the PREVIOUS guest's
+      // masked ID (••••••••4546) never persists onto the new guest (fix: walk-in
+      // guest switch keeping prior masked ID — audit item #3).
+      setPgIdNumber(full.id_last4 ? `••••••••${full.id_last4}` : "");
     } else {
       setPgBaseline(null);
     }
 
     if (docsResult.status === "fulfilled") {
-      // Pick the most recent document per side.
+      // Keep FIRST match per side (API returns newest-first, so first = newest).
+      // Previously used "later entries overwrite" which kept the OLDEST doc
+      // (last item in newest-first list). Now matches co-guest's logic.
       const docs: Partial<Record<DocSide, string>> = {};
       for (const d of docsResult.value) {
-        if (d.side === "front" || d.side === "back" || d.side === "selfie") {
-          docs[d.side] = d.id; // later entries overwrite — list is newest-first
+        if ((d.side === "front" || d.side === "back" || d.side === "selfie") && !docs[d.side]) {
+          docs[d.side] = d.id;
         }
       }
       setPgExistingDocs(docs);
