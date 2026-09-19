@@ -697,6 +697,7 @@
     "guestCreated": "Guest created",
     "otherHotelBadge": "Other hotel",
     "importAction": "Import",
+    "selectGuest": "Select",
     "guestImported": "Guest imported from another hotel — details and ID photos copied"
   },
   "stay": {

@@ -202,17 +202,22 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
                   hit.cross_hotel ? importGuest.mutate(hit.id) : autofill.mutate(hit.id)
                 }
               >
-                <span className="font-medium">{hit.full_name}</span>
-                <span className="text-muted-foreground">{hit.phone_masked}</span>
+                {/* Guest info */}
+                <span className="font-medium flex-1 min-w-0 truncate">{hit.full_name}</span>
+                <span className="text-muted-foreground tabular-nums shrink-0">{hit.phone_masked}</span>
                 {hit.id_last4 && (
-                  <span className="text-xs text-muted-foreground">ID ••{hit.id_last4}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">ID ••{hit.id_last4}</span>
                 )}
                 {/* Guest found at ANOTHER hotel (plan §1.7) */}
                 {hit.cross_hotel && (
-                  <span className="rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info">
+                  <span className="rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info shrink-0">
                     {t("otherHotelBadge")}
                   </span>
                 )}
+                {/* Clear "Select" button so staff knows tapping this row selects the guest */}
+                <span className="ml-auto shrink-0 inline-flex h-7 items-center rounded-md bg-navy-900 px-2.5 text-xs font-semibold text-white">
+                  {hit.cross_hotel ? t("importAction") : t("selectGuest")}
+                </span>
               </button>
             </li>
           ))}

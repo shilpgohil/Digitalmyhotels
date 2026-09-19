@@ -104,7 +104,6 @@ import { InlineCameraCapture } from "@/components/checkin/inline-camera-capture"
 import { UpiQrBlock } from "@/components/checkin/upi-qr-block";
 import { CollapsibleSection } from "@/components/checkin/collapsible-section";
 import { RoomReplaceControl } from "@/components/checkin/room-replace-control";
-import { RevealIdButton } from "@/components/checkin/reveal-id-button";
 import { SelectedServicesList } from "@/components/checkin/selected-services-list";
 import { ServiceChips } from "@/components/checkin/service-chips";
 import { AutofillBanner } from "@/components/checkin/autofill-banner";
@@ -1726,21 +1725,57 @@ function AdditionalGuestEntry({
               <button
                 type="button"
                 onClick={() => {
-                  void api<GuestAutofill>(
-                    `/api/v1/guests/${resolved.guest_id}/autofill`,
-                    { method: "POST" },
-                  ).then(setAutofill).catch(() => {});
+                  // Fetch latest autofill + documents THEN open the edit form
+                  // so the form is pre-filled AND photo tiles show "Saved on file"
+                  // (image 4: "Auto-fill doesn't do anything", image 5: blank tiles).
+                  void Promise.all([
+                    api<GuestAutofill>(`/api/v1/guests/${resolved.guest_id}/autofill`, { method: "POST" }),
+                    api<{ id: string; side: string | null }[]>(`/api/v1/guests/${resolved.guest_id}/documents`)
+                      .catch(() => [] as { id: string; side: string | null }[]),
+                  ]).then(([full, docsList]) => {
+                    const bySide: Partial<Record<DocSide, string>> = {};
+                    for (const d of docsList) {
+                      if ((d.side === "front" || d.side === "back" || d.side === "selfie") && !bySide[d.side as DocSide]) {
+                        bySide[d.side as DocSide] = d.id;
+                      }
+                    }
+                    setExistingDocs(bySide);
+                    setAutofill(full);
+                    setEditing(true);
+                  }).catch(() => setEditing(true));
                 }}
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gold-400 bg-gold-50 px-2.5 text-xs font-semibold text-gold-700 transition-colors hover:bg-gold-100"
               >
                 {t("autofillLabel")}
               </button>
             )}
-            {/* Labeled Edit (plan §5.1) — the icon-only pencil read as "no
-                update button" (client). Opens the form; saving shows Update. */}
+            {/* Labeled Edit — opens the form pre-filled with latest data.
+                Also re-fetches autofill/docs so photo tiles are never blank
+                (fix image 5: Upload tiles empty when editing co-guest). */}
             <button
               type="button"
-              onClick={() => setEditing(true)}
+              onClick={() => {
+                if (!resolved.guest_id.startsWith("__new__") && !autofill) {
+                  // Fetch autofill + docs before opening so photo tiles are populated
+                  void Promise.all([
+                    api<GuestAutofill>(`/api/v1/guests/${resolved.guest_id}/autofill`, { method: "POST" }),
+                    api<{ id: string; side: string | null }[]>(`/api/v1/guests/${resolved.guest_id}/documents`)
+                      .catch(() => [] as { id: string; side: string | null }[]),
+                  ]).then(([full, docsList]) => {
+                    const bySide: Partial<Record<DocSide, string>> = {};
+                    for (const d of docsList) {
+                      if ((d.side === "front" || d.side === "back" || d.side === "selfie") && !bySide[d.side as DocSide]) {
+                        bySide[d.side as DocSide] = d.id;
+                      }
+                    }
+                    setExistingDocs(bySide);
+                    setAutofill(full);
+                    setEditing(true);
+                  }).catch(() => setEditing(true));
+                } else {
+                  setEditing(true);
+                }
+              }}
               className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-input bg-white px-2.5 text-xs font-semibold transition-colors hover:bg-muted"
             >
               <Pencil className="size-3.5" aria-hidden />
@@ -2868,12 +2903,7 @@ function CheckinForm({
                 value={pgIdNumber}
                 onChange={setPgIdNumber}
                 placeholder={t("enterIdNumber", { type: pgIdType })}
-                trailing={
-                  <RevealIdButton
-                    guestId={booking.primary_guest_id}
-                    onRevealed={setPgIdNumber}
-                  />
-                }
+                
               />
             </div>
           </div>
@@ -4762,9 +4792,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                     value={pgIdNumber}
                     onChange={setPgIdNumber}
                     placeholder={t("enterIdNumber", { type: pgIdType })}
-                    trailing={
-                      <RevealIdButton guestId={guest?.id} onRevealed={setPgIdNumber} />
-                    }
+                    
                   />
                 </div>
               </div>
