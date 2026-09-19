@@ -32,12 +32,16 @@ import { PERMISSIONS, type PermissionCode } from "@/lib/permissions";
  * role is allowed to use, so every hotel member gets a bar that matches
  * their job (client 09/2026: role-respective bottom bar; staff attendance
  * is a priority destination for everyone).
+ *
+ * requiresFullAccess: when true, the tab is hidden unless the hotel's
+ * access_mode is "full" (same gate as the sidebar + route guards).
  */
 const TAB_CANDIDATES: readonly {
   href: string;
   labelKey: string;
   icon: typeof LayoutDashboard;
   permission: PermissionCode | null;
+  requiresFullAccess?: true;
 }[] = [
   {
     href: "/dashboard",
@@ -50,6 +54,8 @@ const TAB_CANDIDATES: readonly {
     labelKey: "myAttendance",
     icon: UserCheck,
     permission: PERMISSIONS.staffAttendanceSelf,
+    // Staff attendance is only available when the hotel has full access mode.
+    requiresFullAccess: true,
   },
   {
     href: "/checkin",
@@ -95,11 +101,12 @@ const MAX_TABS = 5;
 export function PartnerMobileTabBar() {
   const t = useTranslations("nav");
   const pathname = usePathname();
-  const { can } = useAuth();
+  const { can, accessMode } = useAuth();
 
-  // Attendance-only staff (general_staff): their home IS My Attendance —
-  // a Dashboard tab would only bounce them back there.
+  // Attendance-only staff (general_staff) on a FULL-ACCESS hotel: their home
+  // IS My Attendance — a Dashboard tab would only bounce them back there.
   const attendanceOnly =
+    accessMode === "full" &&
     !can(PERMISSIONS.roomsView) &&
     !can(PERMISSIONS.bookingsView) &&
     can(PERMISSIONS.staffAttendanceSelf);
@@ -107,7 +114,12 @@ export function PartnerMobileTabBar() {
   const items = attendanceOnly
     ? TAB_CANDIDATES.filter((item) => item.href === "/my-attendance")
     : TAB_CANDIDATES.filter(
-        (item) => item.permission === null || can(item.permission),
+        (item) =>
+          (item.permission === null || can(item.permission)) &&
+          // Gate staff-attendance tabs by hotel access_mode — mirrors the
+          // sidebar filter so checkin_only/checkin_expense hotels never see
+          // My Attendance in the mobile bottom bar (screenshot 19/09/2026).
+          !(item.requiresFullAccess && accessMode !== "full"),
       ).slice(0, MAX_TABS);
 
   return (
