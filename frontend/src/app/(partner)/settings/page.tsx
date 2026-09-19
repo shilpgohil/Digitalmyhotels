@@ -521,7 +521,13 @@ function GstForm() {
   const data = gst.data;
 
   return (
+    // key={data.gst_mode + (data.gstin ?? "")} forces remount on save so
+    // uncontrolled radio buttons + inputs re-initialize from fresh server data.
+    // Without this, defaultChecked is a ONE-TIME init and doesn't track updates,
+    // causing a second save to silently revert the change (client: "GST Update
+    // not working" — 19/09/2026).
     <form
+      key={`${data.gst_mode}|${data.gstin ?? ""}`}
       className="max-w-2xl space-y-4 rounded-lg border bg-card p-6"
       onSubmit={(e) => {
         e.preventDefault();

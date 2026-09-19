@@ -1079,7 +1079,7 @@ function EditHotelContent() {
                     <button
                       type="button"
                       onClick={() => void removeTypeEntry(entry)}
-                      className="absolute right-3 top-3 text-muted-foreground hover:text-danger"
+                      className="absolute right-3 top-3 text-danger hover:opacity-75"
                       aria-label={t("deleteRoomType")}
                     >
                       <Trash2 className="size-4" aria-hidden />
