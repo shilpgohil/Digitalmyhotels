@@ -1851,6 +1851,7 @@
     "searchExisting": "Search Existing",
     "createNew": "Create New",
     "searchByPhone": "Search by phone number",
+    "searchByPhoneFull": "Phone number (full or partial)",
     "last4DigitsId": "Last 4 digits of ID",
     "searchGuest": "Search Guest",
     "idLast4": "ID: ••••{last4}",

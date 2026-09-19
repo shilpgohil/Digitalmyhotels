@@ -4,9 +4,14 @@
  * with a "Show" checkbox beside the label.
  * Raw value stays in parent state — only display toggles.
  * Focusing the input reveals the raw value so it stays editable.
+ *
+ * When the stored value is a masked placeholder (contains •) and onReveal
+ * is provided, checking "Show" calls onReveal() to decrypt the full ID.
+ * This replaces the separate "Show saved ID" button (image 6 fix).
  */
 import { type ReactNode, useState } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { idRuleFor } from "@/lib/input-discipline";
@@ -21,6 +26,13 @@ interface MaskedIdInputProps {
   /** ID type — applies the per-type digit/char cap and format (plan Phase 5:
    *  Aadhaar 12 digits, PAN 10 uppercase, Passport 8, DL 16, Voter 10). */
   idType?: string | null;
+  /**
+   * Optional async function that decrypts + returns the full ID number.
+   * When provided and the current value is a masked placeholder (contains •),
+   * checking "Show" calls this instead of just toggling display — so the user
+   * sees the actual number, not just ••••4777. Replaces RevealIdButton.
+   */
+  onReveal?: () => Promise<string | null>;
 }
 
 /** Mask an ID number, keeping only the last 4 characters visible. */
@@ -38,10 +50,13 @@ export function MaskedIdInput({
   placeholder,
   trailing,
   idType,
+  onReveal,
 }: MaskedIdInputProps) {
   const t = useTranslations("checkin");
+  const tc = useTranslations("common");
   const [show, setShow] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [revealing, setRevealing] = useState(false);
   const masked = !show && !focused;
   const rule = idRuleFor(idType);
 
@@ -55,6 +70,29 @@ export function MaskedIdInput({
     onChange(idType ? rule.sanitize(raw) : raw);
   };
 
+  const handleShowToggle = async (checked: boolean) => {
+    if (checked && value.includes("•") && onReveal) {
+      // Value is a masked placeholder — call onReveal() to decrypt the full ID.
+      setRevealing(true);
+      try {
+        const full = await onReveal();
+        if (full) {
+          onChange(full);   // replace placeholder with the real ID number
+          setShow(true);    // now show the revealed value
+        } else {
+          toast.info(t("noSavedId"));
+          setShow(true);    // show as-is (still masked)
+        }
+      } catch {
+        toast.error(tc("error"));
+      } finally {
+        setRevealing(false);
+      }
+    } else {
+      setShow(checked);
+    }
+  };
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
@@ -64,8 +102,9 @@ export function MaskedIdInput({
             type="checkbox"
             className="size-3 rounded border-input"
             checked={show}
-            onChange={(e) => setShow(e.target.checked)}
-          />{t("show")}
+            disabled={revealing}
+            onChange={(e) => void handleShowToggle(e.target.checked)}
+          />{revealing ? "…" : t("show")}
         </label>
       </div>
       <div className="flex gap-2">

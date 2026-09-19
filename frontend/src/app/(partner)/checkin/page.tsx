@@ -1977,31 +1977,29 @@ function AdditionalGuestEntry({
 
       {mode === "search" ? (
         <div className="space-y-3">
-          {/* Search row — matches Primary Guest layout: phone + ID last4 + Search Guest button */}
-          <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-            <div className="relative flex-1 min-w-[120px]">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" aria-hidden />
-              <Input
-                value={searchPhone}
-                onChange={(e) => { setSearchPhone(sanitizeGuestPhone(e.target.value)); setSearchIdLast4(""); setHasSearched(false); }}
-                placeholder={t("searchByPhone")}
-                className="pl-9"
-                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void handleSearch())}
-              />
-            </div>
-            <div className="w-full sm:w-[130px]">
-              <Input
-                value={searchIdLast4}
-                onChange={(e) => { setSearchIdLast4(e.target.value.replace(/\D/g, "").slice(0, 4)); setSearchPhone(""); setHasSearched(false); }}
-                placeholder={t("last4DigitsId")}
-                maxLength={4}
-                inputMode="numeric"
-                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void handleSearch())}
-              />
-            </div>
+          {/* Search row — identical layout to GuestPicker (primary guest):
+              grid sm:grid-cols-[1fr_auto_auto], no Phone icon, same widths */}
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+            <Input
+              value={searchPhone}
+              onChange={(e) => { setSearchPhone(sanitizeGuestPhone(e.target.value)); setSearchIdLast4(""); setHasSearched(false); }}
+              placeholder={t("searchByPhoneFull")}
+              inputMode="tel"
+              maxLength={15}
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void handleSearch())}
+            />
+            <Input
+              value={searchIdLast4}
+              onChange={(e) => { setSearchIdLast4(e.target.value.replace(/\D/g, "").slice(0, 4)); setSearchPhone(""); setHasSearched(false); }}
+              placeholder={t("last4DigitsId")}
+              maxLength={4}
+              inputMode="numeric"
+              className="sm:w-36"
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void handleSearch())}
+            />
             <Button
               type="button"
-              className="h-[42px] bg-navy-900 text-white hover:bg-navy-800 px-4 w-full sm:w-auto"
+              className="h-[42px] bg-navy-900 text-white hover:bg-navy-800 px-4"
               onClick={() => void handleSearch()}
               disabled={searching || (!searchPhone.trim() && !searchIdLast4.trim())}
             >
