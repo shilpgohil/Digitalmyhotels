@@ -122,6 +122,10 @@ function HousekeepingContent() {
                   <StatusBadge tone={ROOM_STATUS_TONE[task.status] ?? "neutral"}>
                     {t(`hk_${task.status}`)}
                   </StatusBadge>
+                  {/* Show any notes/reason attached to this task */}
+                  {task.notes && (
+                    <p className="mt-0.5 text-xs text-muted-foreground">{task.notes}</p>
+                  )}
                 </div>
                 <div className="space-x-2">
                   {task.status === "cleaning_required" && (

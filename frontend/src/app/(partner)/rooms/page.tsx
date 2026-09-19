@@ -122,8 +122,9 @@ function RoomStatusCell({ room }: { readonly room: RoomOut }) {
   // Derived reserved: physically free but today's guest is due — show the
   // reservation as the primary badge (this is what "Reserved" now means).
   const derivedReserved = bucket === "reserved";
+  // items-center: grid view centres badges/text; table view also looks clean centered
   return (
-    <div className="flex flex-col items-start gap-0.5">
+    <div className="flex flex-col items-center gap-0.5 text-center">
       {derivedReserved ? (
         <StatusBadge tone={ROOM_STATUS_TONE.reserved}>{t("reservedToday")}</StatusBadge>
       ) : (

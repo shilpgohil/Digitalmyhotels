@@ -8,6 +8,7 @@ from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, Request, Response, UploadFile
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permissions
@@ -170,19 +171,40 @@ async def attendance_history_csv(
     )
     buf = io.StringIO()
     writer = csv.writer(buf)
+    # Enrich CSV with phone — build a map from staff_profile_id → user phone
+    from app.models.staff import StaffProfile as _SP  # noqa: PLC0415
+    from app.models.user import User as _U  # noqa: PLC0415
+    profile_ids = [r.staff_profile_id for r in items]
+    phone_map: dict = {}
+    designation_map: dict = {}
+    if profile_ids:
+        p_rows = (
+            await db.execute(
+                select(_SP.id, _SP.designation, _U.phone)
+                .join(_U, _U.id == _SP.user_id)
+                .where(_SP.id.in_(profile_ids))
+            )
+        ).all()
+        for pid, desig, ph in p_rows:
+            phone_map[pid] = ph or ""
+            designation_map[pid] = desig or ""
     writer.writerow(
-        ["Date", "Staff ID", "Name", "Department", "Check-in", "Check-out",
-         "Working minutes", "Late minutes", "Status"]
+        ["Date", "Staff ID", "Name", "Designation", "Department",
+         "Phone", "Check-in", "Check-out", "Working Minutes", "Late Minutes", "Status"]
     )
     for row in items:
+        ph = phone_map.get(row.staff_profile_id, "")
+        desig = designation_map.get(row.staff_profile_id, "")
         writer.writerow(
             [
                 row.work_date.isoformat(),
                 row.staff_code,
                 row.full_name,
+                desig,
                 row.department,
-                row.check_in_at.isoformat() if row.check_in_at else "",
-                row.check_out_at.isoformat() if row.check_out_at else "",
+                f"\t{ph}" if ph else "",  # tab-prefix keeps Excel treating as text
+                row.check_in_at.strftime("%Y-%m-%d %H:%M:%S") if row.check_in_at else "",
+                row.check_out_at.strftime("%Y-%m-%d %H:%M:%S") if row.check_out_at else "",
                 row.working_minutes or "",
                 row.late_minutes or "",
                 row.status,

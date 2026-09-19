@@ -62,22 +62,29 @@ function StaffListContent() {
     enabled: !!activeHotelId,
   });
 
-  /** Client-side CSV of the currently filtered directory (mockup Export). */
+  /** Client-side CSV of the currently filtered directory. */
   const exportCsv = () => {
     const rows = staff.data?.items ?? [];
     const esc = (v: string | null | undefined) =>
       `"${String(v ?? "").replaceAll('"', '""')}"`;
+    // Force Excel to treat phone numbers and date strings as text by using
+    // the ="value" formula trick — prevents scientific notation / date parsing.
+    const escText = (v: string | null | undefined) => {
+      const s = String(v ?? "");
+      return s ? `"=""${s.replaceAll('"', '""')}"""` : `""`;
+    };
     const csv = [
-      ["Staff ID", "Name", "Role", "Department", "Mobile", "Status", "Joining Date"].join(","),
+      // UTF-8 BOM ensures Excel opens with correct encoding
+      "\uFEFF" + ["Staff ID", "Name", "Role", "Department", "Mobile", "Status", "Joining Date"].join(","),
       ...rows.map((s) =>
         [
           esc(s.staff_code),
           esc(s.full_name),
           esc(s.role_code),
           esc(s.department),
-          esc(s.phone),
+          escText(s.phone),        // phone — keep as text
           esc(s.status),
-          esc(s.joining_date),
+          escText(s.joining_date), // date string — keep as text
         ].join(","),
       ),
     ].join("\n");

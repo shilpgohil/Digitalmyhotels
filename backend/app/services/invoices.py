@@ -354,8 +354,20 @@ async def render_invoice_pdf(
     from fpdf import FPDF
 
     def latin1(text: str) -> str:
-        # Core PDF fonts are Latin-1 only; degrade unsupported characters.
-        return text.encode("latin-1", errors="replace").decode("latin-1")
+        """Core PDF fonts are Latin-1 only. Transliterate common non-latin1
+        chars to safe ASCII equivalents before falling back to '?' replace."""
+        # Transliterate common typographic characters that appear in
+        # invoice descriptions (em/en dash from room-line items, smart quotes).
+        _trans = str.maketrans({
+            "\u2014": "-",   # em dash — → -
+            "\u2013": "-",   # en dash – → -
+            "\u2018": "'",   # left single quote
+            "\u2019": "'",   # right single quote
+            "\u201c": '"',   # left double quote
+            "\u201d": '"',   # right double quote
+            "\u2026": "...", # ellipsis
+        })
+        return text.translate(_trans).encode("latin-1", errors="replace").decode("latin-1")
 
     def inr(value: object) -> str:
         return f"Rs. {value}"

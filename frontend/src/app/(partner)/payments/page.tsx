@@ -341,8 +341,9 @@ function PaymentsContent() {
                         <TableCell>{row.guest_name ?? "—"}</TableCell>
                         <TableCell className="tabular-nums">{fmtINR(row.room_rent)}</TableCell>
                         {showGstCol && <TableCell className="tabular-nums">{fmtINR(row.gst)}</TableCell>}
-                        <TableCell className="tabular-nums">{fmtINR(row.discount)}</TableCell>
-                        <TableCell className="tabular-nums">{fmtINR(row.advance)}</TableCell>
+                        <TableCell className="tabular-nums text-warning">{fmtINR(row.discount)}</TableCell>
+                        {/* blue/info: advance is pre-paid — consistent with checkout + invoices */}
+                        <TableCell className="tabular-nums text-info">{fmtINR(row.advance)}</TableCell>
                         <TableCell
                           className={cn(
                             "tabular-nums font-semibold",

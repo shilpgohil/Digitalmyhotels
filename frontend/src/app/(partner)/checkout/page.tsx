@@ -1095,7 +1095,8 @@ function CheckoutContent() {
                         )}
                         <div className="flex justify-between px-3 py-2">
                           <span className="text-muted-foreground">{tp("advancePayment")}</span>
-                          <span className="font-medium text-success tabular-nums">
+                          {/* info/blue: advance is pre-paid, distinct from discount (warning) */}
+                          <span className="font-medium text-info tabular-nums">
                             {fmtMoney(totals.advancePaid)}
                           </span>
                         </div>

@@ -11,6 +11,8 @@ import {
   Eye,
   Pencil,
   Printer,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
@@ -51,7 +53,7 @@ import { ApiError } from "@/lib/api/client";
 import { API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import type { ListOut, RoomOut } from "@/types/hotel";
-import type { BookingGuestDocOut, BookingGuestOut, BookingOut, CurrentGuestOut, GuestOut } from "@/types/stay";
+import type { BookingGuestDocOut, BookingGuestOut, BookingOut, CurrentGuestOut, ForeignGuestIn, GuestOut } from "@/types/stay";
 import { RequirePermission } from "@/components/auth/require-permission";
 
 /** `DD/MM/YYYY` plus `, HH:MM` when a time is present (no dangling comma). */
@@ -384,6 +386,14 @@ function StayDetailDialog({
     enabled: !!entry,
   });
 
+  // Foreign guest Form C records — passport/visa details for any foreign nationals.
+  type FGOut = ForeignGuestIn & { guest_id: string };
+  const foreignGuests = useQuery({
+    queryKey: ["booking-foreign-guests", entry?.booking_id, "stay-dialog"],
+    queryFn: () => api<FGOut[]>(`/api/v1/bookings/${entry?.booking_id}/foreign-guests`),
+    enabled: !!entry,
+  });
+
   // Latest completed payment → the payment MODE for display (client asked for
   // "Payment Mode: UPI", not just the paid/partial status).
   const payments = useQuery({
@@ -632,7 +642,12 @@ function StayDetailDialog({
             </p>
             <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
               {registeredGuests.data.map((g) => (
-                <RegisteredGuestCard key={g.guest_id} guest={g} hotelId={activeHotelId} />
+                <RegisteredGuestCard
+                  key={g.guest_id}
+                  guest={g}
+                  hotelId={activeHotelId}
+                  foreignGuest={foreignGuests.data?.find((fg) => fg.guest_id === g.guest_id)}
+                />
               ))}
             </div>
           </div>
@@ -736,12 +751,15 @@ function DocThumbnail({
 function RegisteredGuestCard({
   guest,
   hotelId,
+  foreignGuest,
 }: {
   guest: BookingGuestOut;
   hotelId: string | null;
+  foreignGuest?: (ForeignGuestIn & { guest_id: string }) | null;
 }) {
   const t = useTranslations("stay");
   const tb = useTranslations("bookings");
+  const [showFormC, setShowFormC] = useState(false);
   return (
     <div className="rounded-lg border p-3 space-y-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -794,6 +812,59 @@ function RegisteredGuestCard({
           {guest.documents.map((doc) => (
             <DocThumbnail key={doc.id} guestId={guest.guest_id} doc={doc} hotelId={hotelId} />
           ))}
+        </div>
+      )}
+      {/* Foreign guest Form C details (passport/visa) */}
+      {foreignGuest && (
+        <div className="mt-1 border-t pt-2">
+          <button
+            type="button"
+            onClick={() => setShowFormC(!showFormC)}
+            className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wide text-info hover:opacity-80"
+          >
+            {t("foreignGuestDetails")}
+            {showFormC ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+          </button>
+          {showFormC && (
+            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+              {foreignGuest.passport_number && (
+                <div>
+                  <dt className="text-muted-foreground">{t("passportNumber")}</dt>
+                  <dd className="font-medium">{foreignGuest.passport_number}</dd>
+                </div>
+              )}
+              {foreignGuest.passport_place_of_issue && (
+                <div>
+                  <dt className="text-muted-foreground">{t("placeOfIssue")}</dt>
+                  <dd className="font-medium">{foreignGuest.passport_place_of_issue}</dd>
+                </div>
+              )}
+              {foreignGuest.passport_expiry && (
+                <div>
+                  <dt className="text-muted-foreground">{t("passportExpiry")}</dt>
+                  <dd className="font-medium">{foreignGuest.passport_expiry}</dd>
+                </div>
+              )}
+              {foreignGuest.visa_number && (
+                <div>
+                  <dt className="text-muted-foreground">{t("visaNumber")}</dt>
+                  <dd className="font-medium">{foreignGuest.visa_number}</dd>
+                </div>
+              )}
+              {foreignGuest.visa_type && (
+                <div>
+                  <dt className="text-muted-foreground">{t("visaType")}</dt>
+                  <dd className="font-medium">{foreignGuest.visa_type}</dd>
+                </div>
+              )}
+              {foreignGuest.nationality && (
+                <div>
+                  <dt className="text-muted-foreground">{t("nationality")}</dt>
+                  <dd className="font-medium">{foreignGuest.nationality}</dd>
+                </div>
+              )}
+            </dl>
+          )}
         </div>
       )}
     </div>

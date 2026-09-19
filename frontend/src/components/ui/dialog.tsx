@@ -70,8 +70,8 @@ function DialogContent({
             render={
               <Button
                 variant="ghost"
-                // Larger touch target (client 17/09: increase font/size of close btn)
-                className="absolute top-2 right-2 size-9 text-muted-foreground hover:text-foreground"
+                // Larger touch target; explicitly neutral color (prevent #e10000 red from inheriting)
+                className="absolute top-2 right-2 size-9 text-gray-500 hover:text-gray-900 hover:bg-gray-100"
                 size="icon"
               />
             }

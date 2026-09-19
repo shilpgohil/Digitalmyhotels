@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { liveNameCase, sanitizePhone } from "@/lib/input-discipline";
 import { apiFetch, ApiError } from "@/lib/api/client";
+import { setCachedUser } from "@/lib/auth/session";
 import {
   Dialog,
   DialogClose,
@@ -73,7 +74,10 @@ function EditProfileDialog() {
       });
       toast.success(t("profileUpdated"));
       setOpen(false);
-      // The auth context caches the user — reload picks up the new name.
+      // Bust the sessionStorage user cache so reload fetches fresh data,
+      // not stale cached name. (Without this, the reload would re-apply
+      // the old name from the cache — #11 profile edit missing invalidation.)
+      setCachedUser(null);
       window.location.reload();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : tc("error"));

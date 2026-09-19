@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CalendarDays, CalendarRange, ListChecks, Paperclip, Plus, Wallet } from "lucide-react";
+import { CalendarDays, CalendarRange, ListChecks, Paperclip, Plus, Wallet, X as XIcon } from "lucide-react";
 import { fmtApiDate, fmtINR, localToday } from "@/lib/formatting";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
@@ -914,10 +914,12 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
               <span className="truncate max-w-xs">{receiptFile.name}</span>
               <button
                 type="button"
-                className="text-danger hover:opacity-70 ml-1"
+                className="ml-1.5 inline-flex size-5 items-center justify-center rounded text-danger hover:opacity-70"
                 onClick={() => setReceiptFile(null)}
                 aria-label="Remove file"
-              >×</button>
+              >
+                <XIcon className="size-4" aria-hidden />
+              </button>
             </p>
           )}
         </div>

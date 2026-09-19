@@ -515,7 +515,8 @@ function InvoicesContent() {
                       <span className="tabular-nums">−{fmtINR(invoice.discount_amount)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between font-medium text-gold-600">
+                  {/* Advance paid: blue/info — distinct from discount (warning) and paid totals (success) */}
+                  <div className="flex justify-between font-medium text-info">
                     <span>{tp("advancePaid")}</span>
                     <span className="tabular-nums">−{fmtINR(invoice.paid_amount)}</span>
                   </div>

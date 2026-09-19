@@ -33,8 +33,10 @@ const DOT: Record<string, string> = {
   housekeeping:"bg-info",
   finance:     "bg-success",
   operations:  "bg-muted-foreground",
-  admin:       "bg-navy-600",
-  platform:    "bg-navy-700",
+  // admin/platform: use a lighter sky tone so the dot is visible on both
+  // unselected (white bg) and selected (navy-900 bg) tabs.
+  admin:       "bg-sky-400",
+  platform:    "bg-slate-400",
 };
 
 const ROW_BG: Record<string, string> = {
@@ -42,8 +44,8 @@ const ROW_BG: Record<string, string> = {
   housekeeping:"border-l-info",
   finance:     "border-l-success",
   operations:  "border-l-muted-foreground",
-  admin:       "border-l-navy-600",
-  platform:    "border-l-navy-700",
+  admin:       "border-l-sky-400",
+  platform:    "border-l-slate-400",
 };
 
 const DEEP_LINK_PERMISSION: [RegExp, string][] = [
