@@ -240,37 +240,33 @@ function AvailableChip({
         </span>
       </button>
 
-      {/* ── ⓘ button — ALWAYS rendered in the reserved slot ────────────────
-          Invisible when no info so the card layout is identical for all rooms.
-          Touch target is 36×36px (larger than the visible icon) so it's
-          easy to tap on mobile. Click stops propagation so it doesn't
-          trigger card selection. */}
-      <button
-        type="button"
-        aria-label="Room status details"
-        aria-expanded={infoOpen}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (hasInfo) setInfoOpen((v) => !v);
-        }}
-        className={cn(
-          // Always positioned the same — invisible when no info
-          "absolute top-1 right-1 z-10",
-          // 36px touch target with centred icon
-          "flex size-[26px] items-center justify-center rounded-full transition-colors",
-          !hasInfo && "pointer-events-none opacity-0",
-          hasInfo && (
+      {/* ── ⓘ button — only rendered when there is actual info to show.
+          Previously used opacity-0 to "hide" it on no-info cards which
+          caused mobile browsers to render ghost touch artifacts (small
+          colored dots). Conditional rendering is safe because the button
+          is absolute-positioned and does not affect card height. */}
+      {hasInfo && (
+        <button
+          type="button"
+          aria-label="Room status details"
+          aria-expanded={infoOpen}
+          onClick={(e) => {
+            e.stopPropagation();
+            setInfoOpen((v) => !v);
+          }}
+          className={cn(
+            "absolute top-1 right-1 z-10",
+            "flex size-[26px] items-center justify-center rounded-full transition-colors",
             infoOpen
               ? "bg-navy-900 text-white"
               : selected
                 ? "text-gold-600 hover:bg-gold-100 active:bg-gold-200"
-                : "text-muted-foreground hover:bg-muted active:bg-muted/80"
-          ),
-        )}
-        tabIndex={hasInfo ? 0 : -1}
-      >
-        {infoOpen ? <X className="size-3" aria-hidden /> : <Info className="size-3.5" aria-hidden />}
-      </button>
+                : "text-muted-foreground hover:bg-muted active:bg-muted/80",
+          )}
+        >
+          {infoOpen ? <X className="size-3" aria-hidden /> : <Info className="size-3.5" aria-hidden />}
+        </button>
+      )}
 
       {/* ── Info panel — opens ABOVE the card so it doesn't overlap content below ─── */}
       {infoOpen && hasInfo && (
