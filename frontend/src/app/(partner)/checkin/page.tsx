@@ -1367,6 +1367,7 @@ function AdditionalGuestEntry({
 }) {
   const t = useTranslations("checkin");
   const tc = useTranslations("common");
+  const tg = useTranslations("guestPicker");
   const api = useApi();
   const [searchPhone, setSearchPhone] = useState("");
   const [searchIdLast4, setSearchIdLast4] = useState("");
@@ -2081,25 +2082,28 @@ function AdditionalGuestEntry({
                         <button
                           type="button"
                           onClick={() => handleSelectExisting(g)}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                          className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
                         >
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium">{g.full_name}</span>
-                            <span className="text-muted-foreground tabular-nums">{g.phone_masked}</span>
-                            {g.id_last4 && (
-                              <span className="text-xs text-muted-foreground">{t("idLast4", { last4: g.id_last4 })}</span>
-                            )}
-                            {isDupInResults && (
-                              <span className="rounded-full bg-warning-bg px-2 py-0.5 text-micro font-semibold text-warning">
-                                {t("sameIdDiffPhone")}
-                              </span>
-                            )}
-                            {g.cross_hotel && (
-                              <span className="rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info">
-                                {t("otherHotelBadge")}
-                              </span>
-                            )}
-                          </div>
+                          {/* Guest info — mirrors GuestPicker row layout */}
+                          <span className="font-medium flex-1 min-w-0 truncate">{g.full_name}</span>
+                          <span className="text-muted-foreground tabular-nums shrink-0">{g.phone_masked}</span>
+                          {g.id_last4 && (
+                            <span className="text-xs text-muted-foreground shrink-0">{t("idLast4", { last4: g.id_last4 })}</span>
+                          )}
+                          {isDupInResults && (
+                            <span className="rounded-full bg-warning-bg px-2 py-0.5 text-micro font-semibold text-warning shrink-0">
+                              {t("sameIdDiffPhone")}
+                            </span>
+                          )}
+                          {g.cross_hotel && (
+                            <span className="rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info shrink-0">
+                              {t("otherHotelBadge")}
+                            </span>
+                          )}
+                          {/* "Select" chip — mirrors GuestPicker primary-guest rows exactly */}
+                          <span className="ml-auto shrink-0 inline-flex h-7 items-center rounded-md bg-navy-900 px-2.5 text-xs font-semibold text-white">
+                            {g.cross_hotel ? tg("importAction") : tg("selectGuest")}
+                          </span>
                         </button>
                       </li>
                     );
