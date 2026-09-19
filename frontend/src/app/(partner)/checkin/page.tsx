@@ -3679,6 +3679,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   // ── 2. Primary guest ──
   const [guest, setGuest] = useState<{ id: string; full_name: string } | null>(null);
   const [pgBaseline, setPgBaseline] = useState<GuestAutofill | null>(null);
+  /** When true, shows the inline editable form. When false, shows the read-only
+   *  summary card (like CoGuestCard's resolved state). Starts false so a newly
+   *  selected returning guest shows the summary first. */
+  const [pgEditing, setPgEditing] = useState(false);
   const [pgName, setPgName] = useState("");
   const [pgPhone, setPgPhone] = useState("");
   const [pgIdType, setPgIdType] = useState("Aadhar Card");
@@ -3713,6 +3717,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     setPgName(g.full_name);
     setPgPhone(g.phone);
     setPgExistingDocs({});
+    // Show summary card (not edit form) after selecting an existing guest —
+    // same pattern as CoGuestCard. Staff can tap Auto-fill or Edit to open form.
+    setPgEditing(false);
 
     // Parallel fetch: text profile + existing document list.
     const [autofillResult, docsResult] = await Promise.allSettled([
@@ -4826,8 +4833,116 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             </div>
           )}
 
-          {guest && (
+          {/* ── Primary guest SUMMARY CARD (same pattern as CoGuestCard resolved) ─── */}
+          {guest && !pgEditing && (
+            <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
+              {/* Header: name + phone + action buttons */}
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <BadgeCheck className="size-4 text-success" aria-hidden />
+                  <div>
+                    <span className="text-sm font-semibold">{pgName || guest.full_name}</span>
+                    {pgPhone && (
+                      <p className="text-xs text-muted-foreground tabular-nums">{pgPhone}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Auto-fill: re-fetches latest profile + docs then opens edit */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void Promise.all([
+                        api<GuestAutofill>(`/api/v1/guests/${guest.id}/autofill`, { method: "POST" }),
+                        api<{ id: string; side: string | null }[]>(`/api/v1/guests/${guest.id}/documents`)
+                          .catch(() => [] as { id: string; side: string | null }[]),
+                      ]).then(([full, docsList]) => {
+                        const bySide: Partial<Record<DocSide, string>> = {};
+                        for (const d of docsList) {
+                          if ((d.side === "front" || d.side === "back" || d.side === "selfie") && !bySide[d.side as DocSide]) {
+                            bySide[d.side as DocSide] = d.id;
+                          }
+                        }
+                        setPgExistingDocs(bySide);
+                        setPgBaseline(full);
+                        // Update all editable fields with latest data
+                        if (full.full_name) setPgName(full.full_name);
+                        if (full.phone) setPgPhone(full.phone);
+                        setPgGender(full.gender ?? pgGender);
+                        setPgDob(full.date_of_birth ?? pgDob);
+                        setPgAddress(full.address ?? pgAddress);
+                        setPgPostalCode(full.postal_code ?? pgPostalCode);
+                        setPgCity(full.city ?? pgCity);
+                        setPgState(full.state ?? pgState);
+                        if (full.id_proof_type) setPgIdType(full.id_proof_type);
+                        setPgIdNumber(full.id_last4 ? `••••••••${full.id_last4}` : pgIdNumber);
+                        setPgEditing(true);
+                      }).catch(() => setPgEditing(true));
+                    }}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gold-400 bg-gold-50 px-2.5 text-xs font-semibold text-gold-700 transition-colors hover:bg-gold-100"
+                  >
+                    {t("autofillLabel")}
+                  </button>
+                  {/* Edit Guest Details */}
+                  <button
+                    type="button"
+                    onClick={() => setPgEditing(true)}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-input bg-white px-2.5 text-xs font-semibold transition-colors hover:bg-muted"
+                  >
+                    <Pencil className="size-3.5" aria-hidden />
+                    {t("editGuest")}
+                  </button>
+                </div>
+              </div>
+
+              {/* Read-only profile summary grid */}
+              {[
+                { label: t("fieldGender"),  value: pgGender },
+                { label: t("fieldDob"),     value: pgDob },
+                { label: t("fieldAddress"), value: pgAddress },
+                { label: t("fieldCity"),    value: pgCity },
+                { label: t("fieldState"),   value: pgState },
+                { label: t("pincode"),      value: pgPostalCode },
+                { label: t("idType"),       value: pgIdType },
+                { label: t("idNumberShort"), value: pgIdNumber ? `••••${pgIdNumber.slice(-4)}` : null },
+              ].filter((row) => !!row.value).length > 0 && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg border bg-white px-3 py-2.5 sm:grid-cols-3">
+                  {[
+                    { label: t("fieldGender"),  value: pgGender },
+                    { label: t("fieldDob"),     value: pgDob },
+                    { label: t("fieldAddress"), value: pgAddress },
+                    { label: t("fieldCity"),    value: pgCity },
+                    { label: t("fieldState"),   value: pgState },
+                    { label: t("pincode"),      value: pgPostalCode },
+                    { label: t("idType"),       value: pgIdType },
+                    { label: t("idNumberShort"), value: pgIdNumber ? `••••${pgIdNumber.slice(-4)}` : null },
+                  ].filter((row) => !!row.value).map((row) => (
+                    <div key={row.label} className="min-w-0">
+                      <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">{row.label}</p>
+                      <p className="truncate text-xs font-medium" title={row.value ?? ""}>{row.value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Photo tiles (read-only display — same as co-guest summary card) */}
+              <div className="grid grid-cols-3 gap-2">
+                <DocUpload key={`${guest.id}-front`} guestId={guest.id} side="front" label={t("uploadFrontFace")} idType={pgIdType} existingDocId={pgExistingDocs.front} onOcrResult={() => {}} />
+                <DocUpload key={`${guest.id}-back`}  guestId={guest.id} side="back"  label={t("uploadBackFace")}  idType={pgIdType} existingDocId={pgExistingDocs.back}  onOcrResult={() => {}} />
+                <DocUpload key={`${guest.id}-selfie`} guestId={guest.id} side="selfie" label={t("selfieCapture")} existingDocId={pgExistingDocs.selfie} onOcrResult={() => {}} />
+              </div>
+            </div>
+          )}
+
+          {/* ── Primary guest EDIT FORM (shows when pgEditing = true) ─────── */}
+          {guest && pgEditing && (
             <>
+              {/* Edit header with cancel */}
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("editGuest")}</p>
+                <button type="button" onClick={() => setPgEditing(false)} className="text-xs font-medium text-muted-foreground hover:text-foreground">{tc("cancel")}</button>
+              </div>
+
               {/* ID type + number */}
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="space-y-1.5">
