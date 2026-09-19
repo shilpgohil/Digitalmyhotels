@@ -184,6 +184,10 @@ function CheckoutContent() {
     queryKey: ["current-guests", activeHotelId, "for-checkout"],
     queryFn: () => api<ListOut<CurrentGuestOut>>("/api/v1/current-guests?limit=100"),
     enabled: !!activeHotelId,
+    // Always fresh — prevents a checked-out guest from reappearing in the
+    // dropdown after another device completes their checkout (#bug screenshot).
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 
   const bookingQuery = useQuery({

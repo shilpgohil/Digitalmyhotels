@@ -228,9 +228,17 @@ function CurrentGuestsContent() {
                         {entry.check_out_time ? `, ${entry.check_out_time}` : ""}
                       </span>
                       {isCheckoutOverdue(entry.check_out_date, entry.check_out_time) && (
-                        <StatusBadge tone="danger" className="mt-0.5 block w-fit">
-                          {t("overdue")}
-                        </StatusBadge>
+                        <span
+                          title={
+                            Number(entry.due_amount) > 0
+                              ? `Auto-checkout pending — collect ₹${entry.due_amount} first`
+                              : "Auto-checkout pending (sweep runs every 15 min)"
+                          }
+                        >
+                          <StatusBadge tone="danger" className="mt-0.5 block w-fit">
+                            {t("overdue")}
+                          </StatusBadge>
+                        </span>
                       )}
                     </TableCell>
                     <TableCell>
