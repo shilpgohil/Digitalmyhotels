@@ -389,7 +389,7 @@ export default function AdminBillingHistoryPage() {
           </p>
         </div>
         {/* SA can manually record a payment (offline cash / bank transfer) */}
-        <RecordPaymentButton onSuccess={() => queryClient.invalidateQueries({ queryKey: ["admin-billing"] })} />
+        <RecordPaymentButton onSuccess={() => queryClient.invalidateQueries({ queryKey: ["admin-billing-history"] })} />
       </div>
 
       {/* ── 6 Summary stat cards (always ALL-TIME) ─────────────────────── */}

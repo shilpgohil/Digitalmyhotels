@@ -177,10 +177,11 @@ function PlatformPaymentSection() {
     if (!upiId.trim()) return;
     setQrPolling(true);
     try {
-      // Generate a preview QR from the first active plan (just for visual confirmation)
+      // Generate a preview QR from the first active plan (just for visual confirmation).
+      // /subscriptions/plans returns a plain array (not { items: [...] }).
       const token = getAccessToken();
-      const plansResp = await apiFetch<{ items: Array<{ id: string; price: string }> }>("/api/v1/subscriptions/plans");
-      const firstPlan = plansResp.items?.[0];
+      const plansArr = await apiFetch<Array<{ id: string; price: string }>>("/api/v1/subscriptions/plans");
+      const firstPlan = plansArr?.[0];
       if (!firstPlan) { setQrPolling(false); return; }
       const resp = await fetch(
         `${API_BASE}/api/v1/subscriptions/payment-qr?plan_id=${firstPlan.id}`,

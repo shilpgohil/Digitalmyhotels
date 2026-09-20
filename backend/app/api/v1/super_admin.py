@@ -669,7 +669,7 @@ async def record_manual_payment(
     # Renew the subscription immediately
     sub = await sub_service.renew_subscription(db, hotel_id=body.hotel_id, plan=plan)
 
-    # Build a descriptive note
+    # Build human-readable audit note (note_parts joined and used)
     note_parts = [f"Manual payment by SA: {user.full_name}"]
     if body.txn_ref:
         note_parts.append(f"Txn: {body.txn_ref.upper()}")
@@ -677,6 +677,7 @@ async def record_manual_payment(
         note_parts.append(f"Mode: {body.payment_mode.upper()}")
     if body.note:
         note_parts.append(body.note)
+    audit_note = " | ".join(note_parts)
 
     await write_audit(
         db,
@@ -690,21 +691,26 @@ async def record_manual_payment(
             "amount": str(plan.price),
             "payment_mode": body.payment_mode,
             "txn_ref": body.txn_ref,
+            "note": audit_note,
         },
         correlation_id=_correlation(request),
     )
 
     # Notify the hotel owner so they know their plan is renewed
+    notification_body = (
+        f"Your {plan.name} plan has been activated by the platform admin. "
+        "You now have full access to all features."
+    )
+    if body.txn_ref:
+        notification_body += f" Transaction reference: {body.txn_ref.upper()}"
     await create_notification(
         db,
         hotel_id=body.hotel_id,
-        user_id=None,  # broadcast to hotel
+        user_id=None,  # hotel-scoped broadcast → all hotel owners see it
         type="subscription.renewed",
         category="admin",
         title="Subscription Renewed",
-        body=f"Your {plan.name} plan has been activated. "
-             "You now have full access to all features. "
-             + (f"Transaction reference: {body.txn_ref}" if body.txn_ref else ""),
+        body=notification_body,
         payload={"plan_code": plan.code, "payment_mode": body.payment_mode},
     )
 

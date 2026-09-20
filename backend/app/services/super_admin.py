@@ -704,12 +704,23 @@ async def get_hotel_detail(db: AsyncSession, hotel_id: UUID) -> dict:
         )
         plan_obj = plan_result.scalar_one_or_none()
         plan_name = plan_obj.name if plan_obj else None
-        # refresh_status() computes the live subscription status from expiry_date
-        # rather than trusting the stale DB column (which is only updated by
-        # background sweeps). This fixes "subscription shows Active even though
-        # expiry_date is in the past" (client 09/2026).
-        refresh_status(latest_sub)
-        sub_status = latest_sub.status
+        # Derive live subscription status from expiry_date WITHOUT mutating the
+        # ORM object (this is a read-only GET; modifying the object would cause
+        # SQLAlchemy to auto-flush an unintended UPDATE). Instead, compute the
+        # derived status manually using the same logic as refresh_status().
+        today_d = date.today()
+        grace_end = latest_sub.expiry_date + timedelta(days=latest_sub.grace_days or 0)
+        if latest_sub.status == "suspended":
+            sub_status = "suspended"
+        elif today_d <= latest_sub.expiry_date:
+            soon = latest_sub.expiry_date - timedelta(days=7)
+            sub_status = "expiring_soon" if today_d >= soon else (
+                "trial" if latest_sub.status == "trial" else "active"
+            )
+        elif today_d <= grace_end:
+            sub_status = "expiring_soon"
+        else:
+            sub_status = "expired"
         sub_expiry = str(latest_sub.expiry_date) if latest_sub.expiry_date else None
 
     # Effective hotel display status — subscription-aware, matching the list views.
