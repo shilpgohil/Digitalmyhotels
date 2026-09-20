@@ -170,16 +170,20 @@ async def my_renewal_request(
 @router.get("/payment-info", response_model=SubscriptionPaymentInfoOut)
 async def platform_payment_info(
     _tenant: TenantContext = Depends(require_permissions(Permission.HOTEL_VIEW)),
+    db: AsyncSession = Depends(get_db),
 ) -> SubscriptionPaymentInfoOut:
     """Platform collection UPI (for the renewal payment modal). Not a secret —
-    it is the VPA the partner is asked to pay into."""
-    settings = get_settings()
-    if not settings.platform_upi_id:
+    it is the VPA the partner is asked to pay into.
+    Reads DB config first; falls back to PLATFORM_UPI_ID env var."""
+    from app.services.platform_config_service import get_platform_upi
+
+    upi_id, payee_name = await get_platform_upi(db)
+    if not upi_id:
         return SubscriptionPaymentInfoOut(configured=False)
     return SubscriptionPaymentInfoOut(
         configured=True,
-        upi_id=settings.platform_upi_id,
-        payee_name=settings.platform_upi_payee_name or settings.app_name,
+        upi_id=upi_id,
+        payee_name=payee_name or get_settings().app_name,
     )
 
 
@@ -190,18 +194,21 @@ async def platform_payment_qr(
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """UPI QR for paying the platform the exact plan amount. 404 when the
-    platform UPI is not configured (frontend falls back to instructions)."""
-    settings = get_settings()
-    if not settings.platform_upi_id:
+    platform UPI is not configured (frontend falls back to instructions).
+    Reads DB config first; falls back to PLATFORM_UPI_ID env var."""
+    from app.services.platform_config_service import get_platform_upi
+
+    upi_id, payee_name = await get_platform_upi(db)
+    if not upi_id:
         raise NotFoundError(
             "Platform payment UPI is not configured", code="platform_upi_not_configured"
         )
     plan = await sub_service.get_plan(db, plan_id)
-    payee = settings.platform_upi_payee_name or settings.app_name
+    payee = payee_name or get_settings().app_name
     amount = plan.price.quantize(Decimal("0.01"))
     uri = (
         f"upi://pay"
-        f"?pa={quote_plus(settings.platform_upi_id)}"
+        f"?pa={quote_plus(upi_id)}"
         f"&pn={quote_plus(payee)}"
         f"&am={amount}"
         f"&cu=INR"

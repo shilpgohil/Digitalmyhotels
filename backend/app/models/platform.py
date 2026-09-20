@@ -92,6 +92,22 @@ class SubscriptionRenewalRequest(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
 
+class PlatformConfig(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Single-row table holding platform-wide settings that the Super Admin
+    can update from the SA panel (e.g. platform UPI for subscription payments).
+    Exactly one row is created on first write; reads fall back to environment
+    variables when the row does not yet exist (backwards-compat for deploys
+    that already have PLATFORM_UPI_ID set via env).
+    """
+
+    __tablename__ = "platform_config"
+
+    # UPI VPA the hotel owners pay into when purchasing / renewing plans.
+    # NULL = not yet configured (frontend shows "Contact team" fallback).
+    platform_upi_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    platform_upi_payee_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+
 class Notification(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "notifications"
     __table_args__ = (

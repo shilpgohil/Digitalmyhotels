@@ -14,6 +14,7 @@ from app.models.ops import DailyClosing, HousekeepingTask, MaintenanceRecord, Sh
 from app.models.payment import GuestBookingLedger, HotelCharge, Payment, Refund
 from app.models.platform import (
     Notification,
+    PlatformConfig,
     Subscription,
     SubscriptionPlan,
     SubscriptionRenewalRequest,
@@ -65,6 +66,7 @@ __all__ = [
     "Subscription",
     "SubscriptionRenewalRequest",
     "Notification",
+    "PlatformConfig",
     "AuditLog",
     "StaffProfile",
     "AttendanceRecord",

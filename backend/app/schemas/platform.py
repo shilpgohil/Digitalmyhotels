@@ -354,3 +354,37 @@ class BillingHistoryListOut(BaseModel):
     summary: BillingHistorySummaryOut
     items: list[BillingHistoryRowOut]
     total: int
+
+
+# ── Platform Config (SA-managed settings) ────────────────────────────────────
+
+class PlatformConfigOut(BaseModel):
+    """SA-readable platform configuration."""
+    platform_upi_id: str | None = None
+    platform_upi_payee_name: str | None = None
+    configured: bool = False
+
+
+class PlatformConfigUpdate(BaseModel):
+    """SA-writable platform configuration."""
+    platform_upi_id: str | None = Field(default=None, max_length=200)
+    platform_upi_payee_name: str | None = Field(default=None, max_length=200)
+
+
+# ── SA Manual Payment ─────────────────────────────────────────────────────────
+
+class SARecordPaymentRequest(BaseModel):
+    """Super Admin manually records a subscription payment for a hotel.
+
+    Immediately renews/extends the hotel's subscription without requiring
+    the hotel to go through the renewal-request workflow. Used for offline
+    payments (cash, bank transfer) or corrections.
+    """
+    hotel_id: UUID
+    plan_code: str
+    payment_mode: str = Field(
+        default="manual",
+        pattern="^(upi|cash|bank_transfer|card|manual|other)$",
+    )
+    txn_ref: str | None = Field(default=None, max_length=100)
+    note: str | None = Field(default=None, max_length=500)

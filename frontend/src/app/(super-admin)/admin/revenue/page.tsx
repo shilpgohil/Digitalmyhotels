@@ -22,12 +22,14 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
 import {
   IndianRupee,
   CreditCard,
   Banknote,
+  Plus,
   Smartphone,
   MoreHorizontal,
   Eye,
@@ -37,7 +39,17 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch, ApiError } from "@/lib/api/client";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
@@ -95,12 +107,179 @@ function expiryClass(expiryDate: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Record Payment dialog (SA manually records cash/offline payment for a hotel)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function RecordPaymentButton({ onSuccess }: { readonly onSuccess: () => void }) {
+  const tc = useTranslations("common");
+  const [open, setOpen] = useState(false);
+  const [hotelId, setHotelId] = useState("");
+  const [planCode, setPlanCode] = useState("");
+  const [paymentMode, setPaymentMode] = useState("upi");
+  const [txnRef, setTxnRef] = useState("");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  // Load hotels for the dropdown
+  const hotels = useQuery({
+    queryKey: ["admin-hotels-simple"],
+    queryFn: () => apiFetch<{ items: Array<{ id: string; name: string }> }>(
+      "/api/v1/super-admin/hotels?status=active&limit=100"
+    ),
+    enabled: open,
+    staleTime: 60_000,
+  });
+
+  // Load plans for the dropdown
+  const plans = useQuery({
+    queryKey: ["subscription-plans"],
+    queryFn: () => apiFetch<Array<{ code: string; name: string; price: string; duration_days: number }>>(
+      "/api/v1/subscriptions/plans"
+    ),
+    enabled: open,
+    staleTime: 300_000,
+  });
+
+  const submit = useMutation({
+    mutationFn: () => apiFetch("/api/v1/super-admin/record-payment", {
+      method: "POST",
+      body: {
+        hotel_id: hotelId,
+        plan_code: planCode,
+        payment_mode: paymentMode,
+        txn_ref: txnRef.trim() || null,
+        note: note.trim() || null,
+      },
+    }),
+    onSuccess: () => {
+      toast.success("Payment recorded — hotel subscription renewed.");
+      setOpen(false);
+      setHotelId(""); setPlanCode(""); setPaymentMode("upi"); setTxnRef(""); setNote("");
+      setError(null);
+      onSuccess();
+    },
+    onError: (e) => setError(e instanceof ApiError ? e.message : tc("error")),
+  });
+
+  const canSubmit = !!hotelId && !!planCode;
+
+  return (
+    <>
+      <Button
+        type="button"
+        className="h-[42px] gap-1.5 bg-navy-900 text-white hover:bg-navy-800"
+        onClick={() => setOpen(true)}
+      >
+        <Plus className="size-4" aria-hidden />
+        Record Payment
+      </Button>
+
+      <Dialog open={open} onOpenChange={(v) => !v && setOpen(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Manual Payment</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="rp-hotel">Hotel *</Label>
+              <select
+                id="rp-hotel"
+                value={hotelId}
+                onChange={(e) => setHotelId(e.target.value)}
+                className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+              >
+                <option value="">— Select Hotel —</option>
+                {(hotels.data?.items ?? []).map((h) => (
+                  <option key={h.id} value={h.id}>{h.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="rp-plan">Plan *</Label>
+              <select
+                id="rp-plan"
+                value={planCode}
+                onChange={(e) => setPlanCode(e.target.value)}
+                className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+              >
+                <option value="">— Select Plan —</option>
+                {(plans.data ?? []).map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {p.name} — ₹{p.price} / {p.duration_days} days
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="rp-mode">Payment Mode</Label>
+              <select
+                id="rp-mode"
+                value={paymentMode}
+                onChange={(e) => setPaymentMode(e.target.value)}
+                className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+              >
+                <option value="upi">UPI</option>
+                <option value="cash">Cash</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="card">Card</option>
+                <option value="manual">Manual / Other</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="rp-txn">Transaction / Reference ID</Label>
+              <Input
+                id="rp-txn"
+                value={txnRef}
+                onChange={(e) => setTxnRef(e.target.value.toUpperCase())}
+                placeholder="e.g. T2609201234567890"
+                maxLength={100}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="rp-note">Note (optional)</Label>
+              <Input
+                id="rp-note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="e.g. Cash collected at office"
+                maxLength={500}
+              />
+            </div>
+
+            {error && <p className="text-sm text-danger" role="alert">{error}</p>}
+          </div>
+
+          <DialogFooter>
+            <DialogClose className="inline-flex h-[42px] items-center rounded-lg bg-[#d1d1d1] px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors">
+              {tc("cancel")}
+            </DialogClose>
+            <Button
+              type="button"
+              disabled={!canSubmit || submit.isPending}
+              onClick={() => submit.mutate()}
+            >
+              {submit.isPending ? tc("saving") : "Record Payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Page component
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function AdminBillingHistoryPage() {
   const t = useTranslations("admin");
   const tc = useTranslations("common");
+  const queryClient = useQueryClient();
 
   // ── Filter state ────────────────────────────────────────────────────────
   const [period, setPeriod]         = useState<Period>("all");
@@ -200,13 +379,17 @@ export default function AdminBillingHistoryPage() {
   return (
     <main className="overflow-y-auto p-4 space-y-6 sm:p-6">
       {/* Page header */}
-      <div>
-        <h1 className="text-xl font-bold text-foreground sm:text-2xl">
-          {t("billingHistoryTitle")}
-        </h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          {t("billingHistorySubtitle")}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-foreground sm:text-2xl">
+            {t("billingHistoryTitle")}
+          </h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {t("billingHistorySubtitle")}
+          </p>
+        </div>
+        {/* SA can manually record a payment (offline cash / bank transfer) */}
+        <RecordPaymentButton onSuccess={() => queryClient.invalidateQueries({ queryKey: ["admin-billing"] })} />
       </div>
 
       {/* ── 6 Summary stat cards (always ALL-TIME) ─────────────────────── */}

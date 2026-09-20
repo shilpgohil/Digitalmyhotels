@@ -21,9 +21,12 @@ from app.schemas.platform import (
     BillingHistoryListOut,
     CreateHotelRequest,
     HotelAdminListOut,
+    PlatformConfigOut,
+    PlatformConfigUpdate,
     PlatformDashboardOut,
     RenewalRequestAdminListOut,
     RenewalRequestAdminOut,
+    SARecordPaymentRequest,
     SubscriptionAssign,
     SubscriptionExtend,
     SubscriptionOut,
@@ -36,6 +39,7 @@ from app.services import subscriptions as sub_service
 from app.services import super_admin as admin_service
 from app.services.audit import write_audit
 from app.services.notifications import create_notification
+from app.services.platform_config_service import get_platform_config, get_platform_upi, update_platform_upi
 
 router = APIRouter(prefix="/super-admin", tags=["super-admin"])
 
@@ -585,3 +589,123 @@ async def reject_renewal_request(
     return await _decide_renewal(
         db, request_id, approve=False, user=user, correlation_id=_correlation(request)
     )
+
+
+# ── Platform Config (SA UPI Management) ──────────────────────────────────────
+
+@router.get("/platform-config", response_model=PlatformConfigOut)
+async def get_platform_config_endpoint(
+    _user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> PlatformConfigOut:
+    """Return the current platform UPI config (DB row + env-var fallback)."""
+    upi_id, payee_name = await get_platform_upi(db)
+    return PlatformConfigOut(
+        platform_upi_id=upi_id,
+        platform_upi_payee_name=payee_name,
+        configured=bool(upi_id),
+    )
+
+
+@router.put("/platform-config", response_model=PlatformConfigOut)
+async def update_platform_config_endpoint(
+    body: PlatformConfigUpdate,
+    request: Request,
+    user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> PlatformConfigOut:
+    """Super Admin sets the platform collection UPI ID and payee name."""
+    cfg = await update_platform_upi(
+        db,
+        upi_id=body.platform_upi_id,
+        payee_name=body.platform_upi_payee_name,
+    )
+    await write_audit(
+        db,
+        action="platform_config.upi_updated",
+        entity_type="platform_config",
+        entity_id=cfg.id,
+        actor_id=user.id,
+        hotel_id=None,
+        after={"upi_last4": (cfg.platform_upi_id or "")[-4:] or None},
+        correlation_id=_correlation(request),
+    )
+    return PlatformConfigOut(
+        platform_upi_id=cfg.platform_upi_id,
+        platform_upi_payee_name=cfg.platform_upi_payee_name,
+        configured=bool(cfg.platform_upi_id),
+    )
+
+
+# ── SA Manual Payment Recording ───────────────────────────────────────────────
+
+@router.post("/record-payment", response_model=SubscriptionOut)
+async def record_manual_payment(
+    body: SARecordPaymentRequest,
+    request: Request,
+    user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> SubscriptionOut:
+    """Super Admin manually records a subscription payment for a hotel.
+
+    Immediately renews the subscription (no pending state).
+    Used for cash, bank-transfer, or other offline payments.
+    The hotel owner receives a notification about the renewal.
+    """
+    from app.models.hotel import Hotel
+    from sqlalchemy import select as _select
+
+    # Validate hotel exists
+    hotel = (await db.execute(
+        _select(Hotel).where(Hotel.id == body.hotel_id)
+    )).scalar_one_or_none()
+    if hotel is None:
+        from app.core.errors import NotFoundError
+        raise NotFoundError("Hotel not found")
+
+    # Get the plan
+    plan = await sub_service.get_plan_by_code(db, body.plan_code)
+
+    # Renew the subscription immediately
+    sub = await sub_service.renew_subscription(db, hotel_id=body.hotel_id, plan=plan)
+
+    # Build a descriptive note
+    note_parts = [f"Manual payment by SA: {user.full_name}"]
+    if body.txn_ref:
+        note_parts.append(f"Txn: {body.txn_ref.upper()}")
+    if body.payment_mode and body.payment_mode != "manual":
+        note_parts.append(f"Mode: {body.payment_mode.upper()}")
+    if body.note:
+        note_parts.append(body.note)
+
+    await write_audit(
+        db,
+        action="subscriptions.manual_payment_recorded",
+        entity_type="subscription",
+        entity_id=sub.id,
+        actor_id=user.id,
+        hotel_id=body.hotel_id,
+        after={
+            "plan_code": plan.code,
+            "amount": str(plan.price),
+            "payment_mode": body.payment_mode,
+            "txn_ref": body.txn_ref,
+        },
+        correlation_id=_correlation(request),
+    )
+
+    # Notify the hotel owner so they know their plan is renewed
+    await create_notification(
+        db,
+        hotel_id=body.hotel_id,
+        user_id=None,  # broadcast to hotel
+        type="subscription.renewed",
+        category="admin",
+        title="Subscription Renewed",
+        body=f"Your {plan.name} plan has been activated. "
+             "You now have full access to all features. "
+             + (f"Transaction reference: {body.txn_ref}" if body.txn_ref else ""),
+        payload={"plan_code": plan.code, "payment_mode": body.payment_mode},
+    )
+
+    return SubscriptionOut.model_validate(sub)

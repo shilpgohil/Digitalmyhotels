@@ -9,18 +9,21 @@
  *    the API itself stays super-admin-only and audited regardless.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { KeyRound, Pencil, ShieldCheck, Users } from "lucide-react";
+import { CheckCircle, CreditCard, KeyRound, Pencil, QrCode, ShieldCheck, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
 import { SectionPanel } from "@/components/ui/section-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { liveNameCase, sanitizePhone } from "@/lib/input-discipline";
-import { apiFetch, ApiError } from "@/lib/api/client";
+import { apiFetch, ApiError, API_BASE } from "@/lib/api/client";
+import { getAccessToken } from "@/lib/auth/session";
 import { setCachedUser } from "@/lib/auth/session";
 import {
   Dialog,
@@ -136,6 +139,153 @@ function EditProfileDialog() {
   );
 }
 
+/**
+ * SA Platform Payment section — lets the Super Admin configure the platform
+ * collection UPI ID so hotel owners can scan a QR and pay for their plans.
+ * Same pattern as hotel Settings > Payments (UPI) tab.
+ */
+function PlatformPaymentSection() {
+  const tc = useTranslations("common");
+  const queryClient = useQueryClient();
+
+  const config = useQuery({
+    queryKey: ["sa-platform-config"],
+    queryFn: () => apiFetch<{ platform_upi_id: string | null; platform_upi_payee_name: string | null; configured: boolean }>(
+      "/api/v1/super-admin/platform-config"
+    ),
+    staleTime: 60_000,
+  });
+
+  const [upiId, setUpiId] = useState("");
+  const [payeeName, setPayeeName] = useState("");
+  const [qrBlobUrl, setQrBlobUrl] = useState<string | null>(null);
+  const [qrPolling, setQrPolling] = useState(false);
+  const qrBlobRef = useRef<string | null>(null);
+
+  // Seed from DB when loaded
+  useEffect(() => {
+    if (config.data) {
+      setUpiId(config.data.platform_upi_id ?? "");
+      setPayeeName(config.data.platform_upi_payee_name ?? "");
+    }
+  }, [config.data]);
+
+  // Cleanup blob URL on unmount
+  useEffect(() => () => { if (qrBlobRef.current) URL.revokeObjectURL(qrBlobRef.current); }, []);
+
+  const fetchQrPreview = async () => {
+    if (!upiId.trim()) return;
+    setQrPolling(true);
+    try {
+      // Generate a preview QR from the first active plan (just for visual confirmation)
+      const token = getAccessToken();
+      const plansResp = await apiFetch<{ items: Array<{ id: string; price: string }> }>("/api/v1/subscriptions/plans");
+      const firstPlan = plansResp.items?.[0];
+      if (!firstPlan) { setQrPolling(false); return; }
+      const resp = await fetch(
+        `${API_BASE}/api/v1/subscriptions/payment-qr?plan_id=${firstPlan.id}`,
+        { headers: { Authorization: `Bearer ${token ?? ""}` }, credentials: "include" }
+      );
+      if (!resp.ok) { setQrPolling(false); return; }
+      if (qrBlobRef.current) URL.revokeObjectURL(qrBlobRef.current);
+      const url = URL.createObjectURL(await resp.blob());
+      qrBlobRef.current = url;
+      setQrBlobUrl(url);
+    } finally {
+      setQrPolling(false);
+    }
+  };
+
+  const save = useMutation({
+    mutationFn: () => apiFetch("/api/v1/super-admin/platform-config", {
+      method: "PUT",
+      body: {
+        platform_upi_id: upiId.trim() || null,
+        platform_upi_payee_name: payeeName.trim() || null,
+      },
+    }),
+    onSuccess: () => {
+      toast.success("Platform UPI saved — hotel owners can now scan to pay.");
+      queryClient.invalidateQueries({ queryKey: ["sa-platform-config"] });
+      void fetchQrPreview();
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
+  });
+
+  return (
+    <SectionPanel
+      title="Platform Payment (UPI)"
+      icon={CreditCard}
+      subtitle="Hotel owners scan this QR to pay for plan renewals. Enter your platform UPI ID here."
+    >
+      <div className="grid gap-6 sm:grid-cols-[1fr_auto]">
+        <div className="space-y-4">
+          <form
+            className="space-y-4"
+            onSubmit={(e) => { e.preventDefault(); save.mutate(); }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="sa-payee">Payee Name (shown on guest's UPI app)</Label>
+              <Input
+                id="sa-payee"
+                value={payeeName}
+                onChange={(e) => setPayeeName(e.target.value)}
+                placeholder="DigitalMyHotels"
+                maxLength={200}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="sa-upi">Platform UPI ID / VPA *</Label>
+              <Input
+                id="sa-upi"
+                value={upiId}
+                onChange={(e) => setUpiId(e.target.value)}
+                placeholder="business@okhdfc"
+                required
+              />
+              <p className="text-label text-muted-foreground">
+                Hotel owners pay this VPA when upgrading or renewing their plans.
+              </p>
+            </div>
+            <Button type="submit" disabled={save.isPending || !upiId.trim()}>
+              {save.isPending ? "Saving…" : "Save & Generate QR"}
+            </Button>
+          </form>
+        </div>
+
+        {/* QR preview */}
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border bg-muted/20 p-4 text-center min-w-[160px]">
+          {config.isLoading ? (
+            <Skeleton className="size-36 rounded-md" />
+          ) : qrBlobUrl ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qrBlobUrl} alt="Platform UPI QR" className="size-36 rounded-md border" />
+              <p className="text-micro text-success font-semibold flex items-center gap-1">
+                <CheckCircle className="size-3.5" aria-hidden /> QR Ready
+              </p>
+            </>
+          ) : qrPolling ? (
+            <>
+              <Skeleton className="size-36 rounded-md" />
+              <p className="text-micro text-muted-foreground animate-pulse">Generating…</p>
+            </>
+          ) : (
+            <>
+              <QrCode className="size-12 text-muted-foreground/40" aria-hidden />
+              <p className="text-micro text-muted-foreground leading-tight max-w-[120px]">
+                {config.data?.configured
+                  ? "Click Save to regenerate QR"
+                  : "Enter your UPI ID and save to generate QR"}
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </SectionPanel>
+  );
+}
+
 export default function AdminSettingsPage() {
   const t = useTranslations("admin");
   const { user } = useAuth();
@@ -203,6 +353,9 @@ export default function AdminSettingsPage() {
             </Link>
           )}
         </SectionPanel>
+
+        {/* ── Platform UPI (subscription payment QR) ─────────────────── */}
+        <PlatformPaymentSection />
     </main>
   );
 }
