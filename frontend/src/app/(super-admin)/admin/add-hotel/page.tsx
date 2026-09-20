@@ -191,12 +191,29 @@ function RoomRow({
 // ---------------------------------------------------------------------------
 // Additional team member row (created after hotel is set up)
 // ---------------------------------------------------------------------------
+//
+// Three-tier role model (matches the SA Add Hotel Figma + backend permissions):
+//
+//  Manager         → "manager"      — Full hotel management (reports, staff,
+//                                      operations, financials). Their own
+//                                      management portal.
+//
+//  Admin/Reception → "admin"        — Full hotel OPERATIONS (check-in/out,
+//                                      guests, payments, expenses, housekeeping,
+//                                      shift handover, UPI). The backend's own
+//                                      comment literally reads "Admin/Reception".
+//                                      This is what the user means by "admin has
+//                                      full part of that hotel".
+//
+//  Housekeeping    → "housekeeping" — LIMITED to rooms/tasks/maintenance +
+//                                      own attendance. Their own separate portal.
+//
+// More granular roles (receptionist, general_staff) are added LATER by the
+// hotel owner through Team Members after the hotel is live.
 const STAFF_ROLES = [
-  { value: "manager",       label: "Manager"       },
-  { value: "admin",         label: "Admin"         },
-  { value: "receptionist",  label: "Receptionist"  },
-  { value: "housekeeping",  label: "Housekeeping"  },
-  { value: "general_staff", label: "General Staff" },
+  { value: "manager",      label: "Manager"          },
+  { value: "admin",        label: "Admin / Reception" },
+  { value: "housekeeping", label: "Housekeeping"      },
 ] as const;
 
 interface AdditionalMember {
@@ -664,7 +681,8 @@ export default function AddHotelPage() {
   const addMember = () =>
     setAdditionalMembers((prev) => [
       ...prev,
-      { key: nextMemberKey(), full_name: "", phone: "", role_code: "receptionist", password: "" },
+      // Default to "manager" — the first tier in the 3-level dropdown
+      { key: nextMemberKey(), full_name: "", phone: "", role_code: "manager", password: "" },
     ]);
   const removeMember = (idx: number) =>
     setAdditionalMembers((prev) => prev.filter((_, i) => i !== idx));
