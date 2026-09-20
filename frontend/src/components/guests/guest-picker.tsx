@@ -44,6 +44,8 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
   const [showCreate, setShowCreate] = useState(false);
   // Tracks the phone value at the time search was run so it can seed new-guest form.
   const [searchedPhone, setSearchedPhone] = useState("");
+  // Last-4 value at search time — the import proof when the search was by ID.
+  const [searchedLast4, setSearchedLast4] = useState("");
   // Whether the most recent search was by ID last-4 (drives duplicate warning).
   const [wasIdSearch, setWasIdSearch] = useState(false);
 
@@ -59,6 +61,7 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
       setWasIdSearch(!phone && !!last4);
       // Capture the phone at search time so it correctly pre-fills the new guest form.
       setSearchedPhone(phone);
+      setSearchedLast4(!phone && last4 ? last4 : "");
       // Client 9-08 item 4: when nothing matches, open the full Create Guest
       // flow IMMEDIATELY — the extra "Create new guest" click was reported as
       // friction at the desk. The button stays as a fallback for re-opening.
@@ -89,13 +92,16 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
   });
 
   // Cross-hotel import (plan §1.7): copies the guest (base data + ID photos)
-  // into THIS hotel — explicit, phone-proofed, audited — then selects the
-  // fresh LOCAL record like any other pick.
+  // into THIS hotel — explicit, proofed (phone OR ID last-4, whichever was
+  // searched), audited — then selects the fresh LOCAL record like any other
+  // pick.
   const importGuest = useMutation({
     mutationFn: (sourceGuestId: string) =>
       api<GuestOut>("/api/v1/guests/import", {
         method: "POST",
-        body: { source_guest_id: sourceGuestId, phone: searchedPhone },
+        body: searchedPhone
+          ? { source_guest_id: sourceGuestId, phone: searchedPhone }
+          : { source_guest_id: sourceGuestId, id_last4: searchedLast4 },
       }),
     onSuccess: (guest) => {
       toast.success(t("guestImported"));

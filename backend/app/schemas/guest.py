@@ -186,13 +186,28 @@ class GuestSearchResultOut(BaseModel):
 class GuestImportRequest(BaseModel):
     """Import a guest found via cross-hotel search (plan §1.7).
 
-    The FULL phone number is required as a knowledge proof: it must match the
-    source guest exactly, so a guessed/leaked guest UUID alone cannot pull
-    another hotel's guest data.
+    A knowledge proof is required: EITHER the guest's full phone number OR
+    their ID last-4 digits (whichever the staff searched by). It must match
+    the source guest exactly, so a guessed/leaked guest UUID alone cannot
+    pull another hotel's guest data. Exactly one proof must be provided.
     """
 
     source_guest_id: UUID
-    phone: str = Field(min_length=8, max_length=20)
+    phone: str | None = Field(default=None, min_length=8, max_length=20)
+    id_last4: str | None = Field(default=None, min_length=4, max_length=4)
+
+    @field_validator("id_last4")
+    @classmethod
+    def _digits_only(cls, v: str | None) -> str | None:
+        if v is not None and not v.isdigit():
+            raise ValueError("ID last-4 must be 4 digits")
+        return v
+
+    @model_validator(mode="after")
+    def _exactly_one_proof(self) -> "GuestImportRequest":
+        if bool(self.phone) == bool(self.id_last4):
+            raise ValueError("Provide exactly one of phone or id_last4 as import proof")
+        return self
 
 
 class GuestListOut(BaseModel):

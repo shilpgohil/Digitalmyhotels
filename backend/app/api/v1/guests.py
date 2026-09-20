@@ -107,12 +107,14 @@ async def import_guest(
     tenant: TenantContext = Depends(require_permissions(Permission.GUESTS_MANAGE)),
     db: AsyncSession = Depends(get_db),
 ) -> GuestOut:
-    """Cross-hotel guest import (plan §1.7) — explicit, phone-proofed, audited."""
+    """Cross-hotel guest import (plan §1.7) — explicit, proofed (phone or
+    ID last-4), audited."""
     guest = await guests_service.import_guest(
         db,
         tenant,
         body.source_guest_id,
         body.phone,
+        id_last4=body.id_last4,
         correlation_id=_correlation(request),
     )
     return guests_service.to_out(guest)
