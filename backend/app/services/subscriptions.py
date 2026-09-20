@@ -27,21 +27,45 @@ async def get_active_subscription(
     return result.scalar_one_or_none()
 
 
-def refresh_status(sub: Subscription, today: date | None = None) -> str:
+def compute_sub_status(sub: Subscription, today: date | None = None) -> str:
+    """Derive the current subscription status WITHOUT mutating the ORM object.
+
+    Returns one of:
+      'trial'         — within trial window.
+      'active'        — paid plan, more than 7 days left.
+      'expiring_soon' — future expiry within 7 days (still operating normally).
+      'in_grace'      — past expiry_date but within grace window (wind-down mode).
+      'expired'       — past both expiry_date AND grace window (fully blocked).
+      'suspended'     — manually suspended by super admin.
+
+    Use this in READ paths (list views, detail views) to avoid unintended
+    SQLAlchemy auto-flush of a dirty ORM object.
+    """
     today = today or date.today()
-    grace_end = sub.expiry_date + timedelta(days=sub.grace_days)
     if sub.status == "suspended":
         return "suspended"
+    grace_end = sub.expiry_date + timedelta(days=sub.grace_days or 0)
     if today <= sub.expiry_date:
         soon = sub.expiry_date - timedelta(days=7)
-        sub.status = "expiring_soon" if today >= soon else (
-            "trial" if sub.status == "trial" else "active"
-        )
-    elif today <= grace_end:
-        sub.status = "expiring_soon"
-    else:
-        sub.status = "expired"
-    return sub.status
+        if today >= soon:
+            return "expiring_soon"
+        return "trial" if sub.status == "trial" else "active"
+    if today <= grace_end:
+        return "in_grace"
+    return "expired"
+
+
+def refresh_status(sub: Subscription, today: date | None = None) -> str:
+    """Update sub.status in-place and return the new value.
+
+    WARNING: This mutates the ORM object — only call in WRITE contexts
+    (assert_transactions_allowed, extend_subscription, etc.) where the status
+    update should be persisted. For READ-ONLY paths use compute_sub_status()
+    to avoid unintended SQLAlchemy auto-flush writes.
+    """
+    new_status = compute_sub_status(sub, today)
+    sub.status = new_status
+    return new_status
 
 
 async def is_past_grace(db: AsyncSession, hotel_id: UUID) -> bool:

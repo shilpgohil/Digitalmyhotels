@@ -24,7 +24,11 @@ from app.schemas.platform import (
 )
 from app.services.audit import write_audit
 from app.services.auth import create_user
-from app.services.subscriptions import assign_plan, get_plan_by_code, refresh_status
+from app.services.subscriptions import (
+    assign_plan,
+    compute_sub_status,
+    get_plan_by_code,
+)
 
 
 def _slugify(name: str) -> str:
@@ -522,8 +526,12 @@ async def list_hotels(
     items: list[HotelAdminOut] = []
     for hotel in hotels:
         sub: Subscription | None = subs_by_hotel.get(hotel.id)
-        if sub is not None:
-            refresh_status(sub)
+        # Compute subscription status WITHOUT mutating the ORM object.
+        # Calling refresh_status(sub) here would mark the object dirty and
+        # cause SQLAlchemy to auto-flush an unintended UPDATE on every list
+        # request (root cause of the "In Grace Period" vs "Expired" display
+        # inconsistency between pages — client bug 20/09/2026).
+        derived_status: str | None = compute_sub_status(sub) if sub is not None else None
         plan = plans_by_id.get(sub.plan_id) if sub is not None else None
         owner = owners_by_hotel.get(hotel.id)
         items.append(
@@ -536,7 +544,7 @@ async def list_hotels(
                 phone=hotel.phone,
                 status=hotel.status,
                 created_at=hotel.created_at,
-                subscription_status=sub.status if sub else None,
+                subscription_status=derived_status,
                 subscription_plan_name=plan.name if plan else None,
                 expiry_date=sub.expiry_date if sub else None,
                 owner_name=owner.full_name if owner else None,
@@ -710,6 +718,11 @@ async def get_hotel_detail(db: AsyncSession, hotel_id: UUID) -> dict:
         # derived status manually using the same logic as refresh_status().
         today_d = date.today()
         grace_end = latest_sub.expiry_date + timedelta(days=latest_sub.grace_days or 0)
+        # Compute sub_status inline — same logic as compute_sub_status() but
+        # without importing it (avoids circular risk) and explicitly documented.
+        # DO NOT call refresh_status() here — this is a GET/read path and
+        # mutating the ORM would cause an unintended DB write on every edit-page
+        # load (root cause of "Active" badge on an expired hotel, client 20/09).
         if latest_sub.status == "suspended":
             sub_status = "suspended"
         elif today_d <= latest_sub.expiry_date:
@@ -718,17 +731,27 @@ async def get_hotel_detail(db: AsyncSession, hotel_id: UUID) -> dict:
                 "trial" if latest_sub.status == "trial" else "active"
             )
         elif today_d <= grace_end:
-            sub_status = "expiring_soon"
+            # Past expiry_date but within grace window: hotel is in wind-down
+            # mode. Distinct from "expiring_soon" (which means the plan hasn't
+            # lapsed yet). The Edit Hotel page now shows "In Grace" (amber)
+            # instead of the misleading "Active" (green) badge.
+            sub_status = "in_grace"
         else:
             sub_status = "expired"
         sub_expiry = str(latest_sub.expiry_date) if latest_sub.expiry_date else None
 
-    # Effective hotel display status — subscription-aware, matching the list views.
-    # hotel.status column is never flipped automatically when a plan lapses; derive
-    # from the refreshed subscription status instead (client 09/2026).
+    # Effective hotel display status — subscription-aware.
+    # hotel.status is the raw DB column ("active" / "trial" / "suspended" /
+    # "expired") and is NEVER auto-flipped when a plan lapses. Derive the
+    # correct display value from the subscription status computed above.
     effective_status = hotel.status
-    if hotel.status not in ("suspended",) and sub_status == "expired":
-        effective_status = "expired"
+    if hotel.status not in ("suspended",):
+        if sub_status == "expired":
+            effective_status = "expired"
+        elif sub_status == "in_grace":
+            # Show "In Grace" (distinct amber badge) instead of the raw
+            # hotel.status ("active") which is green and misleading.
+            effective_status = "in_grace"
 
     return {
         "id": hotel.id,

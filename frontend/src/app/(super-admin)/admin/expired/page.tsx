@@ -135,17 +135,15 @@ function ExpiredContent() {
                     </span>
                   );
                 }
-                // "Expired Hotels" view — already lapsed (in grace or past grace)
-                if (days !== null && days < 0 && h.expiry_date) {
-                  // Check if in grace: expiry + grace_days >= today
-                  // We don't have grace_days in the list payload, so infer from sub status
-                  if (h.subscription_status === "expiring_soon") {
-                    return (
-                      <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
-                        In Grace Period
-                      </span>
-                    );
-                  }
+                // "Expired Hotels" view — already lapsed (in grace or past grace).
+                // "in_grace" is the explicit status for hotels past expiry_date
+                // but still within the grace window (client fix 20/09/2026).
+                if (h.subscription_status === "in_grace") {
+                  return (
+                    <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                      In Grace Period
+                    </span>
+                  );
                 }
                 return (
                   <span className="inline-flex rounded-full bg-danger-bg px-2.5 py-0.5 text-xs font-semibold text-danger">

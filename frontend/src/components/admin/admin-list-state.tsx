@@ -38,11 +38,17 @@ export function hotelDisplayStatus(hotel: {
   status: string;
   subscription_status: string | null;
   expiry_date?: string | null;
-}): "active" | "expired" | "suspended" | "trial" {
+}): "active" | "expired" | "in_grace" | "suspended" | "trial" {
   if (hotel.status === "suspended") return "suspended";
-  // Expired: stored status, subscription_status, or expiry_date has passed.
-  // The last check guards against background-job lag where subscription_status
-  // wasn't updated but the date is clearly in the past (client item 16).
+
+  // Grace period: past expiry_date but still within the hotel's grace window.
+  // Check this BEFORE the generic 'expired' check because dateExpired would
+  // also be true for in-grace hotels (expiry_date is in the past).
+  if (hotel.subscription_status === "in_grace") return "in_grace";
+
+  // Expired: backend says so, OR expiry_date is simply in the past.
+  // The dateExpired fallback guards against lag where subscription_status
+  // wasn't refreshed but the date is clearly past (client item 16).
   const dateExpired =
     !!hotel.expiry_date && new Date(hotel.expiry_date) < new Date();
   if (
@@ -52,6 +58,7 @@ export function hotelDisplayStatus(hotel: {
   ) {
     return "expired";
   }
+
   if (hotel.status === "trial" || hotel.subscription_status === "trial") return "trial";
   return "active";
 }
@@ -68,12 +75,13 @@ export function HotelStatusBadge({
   const kind = hotelDisplayStatus(hotel);
   const styles: Record<typeof kind, string> = {
     active:    "bg-success-bg text-success",
+    in_grace:  "bg-amber-50   text-amber-700",
     expired:   "bg-danger-bg  text-danger",
     suspended: "bg-muted      text-muted-foreground",
     trial:     "bg-warning-bg text-warning",
   };
   const labels: Record<typeof kind, string> = {
-    active: "Active", expired: "Expired", suspended: "Inactive", trial: "Trial",
+    active: "Active", in_grace: "In Grace", expired: "Expired", suspended: "Inactive", trial: "Trial",
   };
   return (
     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${styles[kind]}`}>

@@ -180,7 +180,7 @@ function HotelRow({
               </Button>
             </>
           )}
-          {kind === "expired" && (
+          {(kind === "expired" || kind === "in_grace") && (
             <>
               <RenewDialog hotel={hotel} />
               {/* Custom N-day grant (client 09/2026) */}

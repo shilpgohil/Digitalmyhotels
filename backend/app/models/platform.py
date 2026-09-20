@@ -38,7 +38,10 @@ class Subscription(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "subscriptions"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('trial','active','expiring_soon','expired','suspended')",
+            # 'expiring_soon' = future expiry within 7 days (still active).
+            # 'in_grace'      = past expiry_date, within grace window (wind-down).
+            # 'expired'       = past both expiry_date and grace window (blocked).
+            "status IN ('trial','active','expiring_soon','in_grace','expired','suspended')",
             name="subscription_status",
         ),
     )
