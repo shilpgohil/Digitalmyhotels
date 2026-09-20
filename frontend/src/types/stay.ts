@@ -247,6 +247,8 @@ export interface BookAndCheckInRequest {
   booking: BookingCreatePayload;
   checked_in_at?: string | null;
   co_guests: CoGuestIn[];
+  /** Alternate contact for primary guest when found by Aadhaar ID. Does not change master phone. */
+  primary_alternate_contact_phone?: string | null;
   purpose_of_visit?: string | null;
   company_name?: string | null;
   notes?: string | null;

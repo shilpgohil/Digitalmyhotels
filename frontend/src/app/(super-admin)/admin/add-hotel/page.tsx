@@ -1200,8 +1200,21 @@ export default function AddHotelPage() {
                       QR not ready — check Settings after creation.
                     </p>
                   )
+                ) : upiId.trim() ? (
+                  // UPI ID is typed but hotel not created yet →
+                  // show a "configured" green indicator so staff knows the UPI is set.
+                  // The real QR (with hotel logo) will appear here after clicking Add Hotel.
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="flex size-14 items-center justify-center rounded-full bg-success-bg border border-success/30">
+                      <CheckCircle className="size-7 text-success" aria-hidden />
+                    </div>
+                    <p className="text-xs font-semibold text-success">UPI Configured</p>
+                    <p className="text-micro text-muted-foreground leading-tight max-w-[120px]">
+                      QR with hotel logo will appear here after clicking Add Hotel
+                    </p>
+                  </div>
                 ) : (
-                  // Static placeholder before hotel is created
+                  // Static placeholder before UPI is entered
                   <>
                     <div className="grid grid-cols-5 gap-0.5 opacity-20 p-1">
                       {[1,1,1,1,1, 1,0,0,0,1, 1,0,1,0,1, 1,0,0,0,1, 1,1,1,1,1].map((fill, i) => (

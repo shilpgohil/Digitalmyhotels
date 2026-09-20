@@ -14,7 +14,13 @@ import type { GuestAutofill, GuestOut, GuestSearchResult } from "@/types/stay";
 import { sanitizeGuestPhone, sanitizeAadhaarOcr } from "@/lib/input-discipline";
 
 interface GuestPickerProps {
-  onSelected: (guest: { id: string; full_name: string; phone: string }) => void;
+  /**
+   * Called when a guest is selected or deselected.
+   * `wasIdSearch` is true when the guest was found via last-4 ID digits
+   * (Aadhaar / PAN etc.) rather than phone — callers can show a "phone may
+   * be outdated" hint and offer an alternate contact field for this booking.
+   */
+  onSelected: (guest: { id: string; full_name: string; phone: string; wasIdSearch?: boolean }) => void;
   selected?: { id: string; full_name: string } | null;
   /**
    * When provided, the "Create new guest" button delegates to the parent
@@ -74,7 +80,8 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
     mutationFn: (guestId: string) =>
       api<GuestAutofill>(`/api/v1/guests/${guestId}/autofill`, { method: "POST" }),
     onSuccess: (guest) => {
-      onSelected({ id: guest.id, full_name: guest.full_name, phone: guest.phone });
+      // Pass wasIdSearch so the parent can show the "phone may be outdated" hint.
+      onSelected({ id: guest.id, full_name: guest.full_name, phone: guest.phone, wasIdSearch });
       toast.success(t("guestSelected"));
     },
     onError: (error) =>
@@ -96,6 +103,7 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
         id: guest.id,
         full_name: guest.full_name,
         phone: guest.normalized_phone,
+        wasIdSearch,
       });
     },
     onError: (error) =>

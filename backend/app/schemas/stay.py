@@ -128,6 +128,10 @@ class BookAndCheckInRequest(BaseModel):
     co_guests: list[CoGuestIn] = Field(default_factory=list, max_length=20)
     purpose_of_visit: str | None = Field(default=None, max_length=200)
     company_name: str | None = Field(default=None, max_length=200)
+    # Booking-specific alternate contact for the PRIMARY GUEST — does NOT
+    # change the guest's master phone record. Shown when found by Aadhaar ID
+    # and staff want to record a different contact number for this stay.
+    primary_alternate_contact_phone: str | None = Field(default=None, max_length=20)
     notes: str | None = Field(default=None, max_length=2000)
     terms_acknowledged: bool = False
     foreign_guest: ForeignGuestIn | None = None

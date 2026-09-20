@@ -186,7 +186,12 @@ async def check_in(
     registration_numbers: list[str] = []
     # Tuple: (guest_id, is_primary, purpose_of_visit, company_name, alternate_contact_phone)
     guest_entries: list[tuple[UUID, bool, str | None, str | None, str | None]] = [
-        (booking.primary_guest_id, True, body.purpose_of_visit, body.company_name, None)
+        (
+            booking.primary_guest_id, True,
+            body.purpose_of_visit, body.company_name,
+            # Alternate contact for primary guest — does NOT overwrite master phone.
+            body.primary_alternate_contact_phone or None,
+        )
     ]
     seen = {booking.primary_guest_id}
     for co_guest in body.co_guests:

@@ -3707,7 +3707,13 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     Partial<Record<DocSide, string>>
   >({});
 
-  const handleGuestSelected = async (g: { id: string; full_name: string; phone: string }) => {
+  // True when the primary guest was found via ID last-4 search (not phone).
+  // Triggers the "Aadhaar found — phone may be outdated" hint + contact override.
+  const [pgWasIdSearch, setPgWasIdSearch] = useState(false);
+  // Optional alternate contact for THIS booking only (does not change master record).
+  const [pgContactOverride, setPgContactOverride] = useState("");
+
+  const handleGuestSelected = async (g: { id: string; full_name: string; phone: string; wasIdSearch?: boolean }) => {
     if (!g.id) {
       // "Edit" / clear-selection clicked — deselect the guest ID so the search
       // box reappears, but KEEP all the pre-filled form data so the desk doesn't
@@ -3721,6 +3727,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     setPgName(g.full_name);
     setPgPhone(g.phone);
     setPgExistingDocs({});
+    // Track how the guest was found so we can show the "Aadhaar — phone may be
+    // outdated" hint (same as co-guest flow).
+    setPgWasIdSearch(g.wasIdSearch ?? false);
+    setPgContactOverride(""); // reset override on new selection
     // Show summary card (not edit form) after selecting an existing guest —
     // same pattern as CoGuestCard. Staff can tap Auto-fill or Edit to open form.
     setPgEditing(false);
@@ -4496,6 +4506,8 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         },
         checked_in_at: null,
         co_guests: resolvedCoGuests,
+        // Alternate contact for primary guest when found by Aadhaar ID search.
+        primary_alternate_contact_phone: pgContactOverride.trim() || null,
         purpose_of_visit: null,
         company_name: guestType === "business" ? pgCompany.trim() || null : null,
         notes: null,
@@ -4926,6 +4938,37 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                       <p className="truncate text-xs font-medium" title={row.value ?? ""}>{row.value}</p>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* ── "Found by Aadhaar ID" hint + contact override (mirrors co-guest) ──
+                  Shown only when the guest was located via last-4 ID digits.
+                  Guides staff: if the phone is outdated, use Edit to update it.
+                  If a different contact is needed for THIS booking only, enter it here. */}
+              {pgWasIdSearch && (
+                <div className="rounded-lg border border-info/20 bg-info-bg/40 px-3 py-2 space-y-2">
+                  <p className="flex items-start gap-1.5 text-xs text-info">
+                    <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                    <span>{t("idSearchSelectedHint")}</span>
+                  </p>
+                  {/* Alternate contact for THIS booking only — does not change master record */}
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" aria-hidden />
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={15}
+                        value={pgContactOverride}
+                        onChange={(e) => setPgContactOverride(sanitizeGuestPhone(e.target.value))}
+                        placeholder={t("contactOverridePlaceholder")}
+                        className="h-8 w-full rounded-lg border border-input bg-white pl-8 pr-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </div>
+                    {pgContactOverride && (
+                      <button type="button" onClick={() => setPgContactOverride("")} className="text-xs text-muted-foreground hover:text-foreground">{tc("clear")}</button>
+                    )}
+                  </div>
                 </div>
               )}
 

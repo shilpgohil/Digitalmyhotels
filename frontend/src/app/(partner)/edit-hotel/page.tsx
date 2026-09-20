@@ -630,7 +630,11 @@ function EditHotelContent() {
       const attemptTypes = attemptIn(t("sectionRoomTypes"));
       for (const entry of typeEntries) {
         const entryName = entry.name.trim();
-        if (!entryName || !entry.base_price.trim()) continue;
+        if (!entryName) continue;
+        // Allow empty base_price — treat as 0 (₹0/night) rather than silently
+        // skipping the entry. Previously a missing price caused the room type
+        // AND any rooms referencing it to be silently dropped on save, making
+        // "room type not displayed" after adding a new type (client 09/2026).
         const basePrice = String(
           Math.max(0, Math.round(Number.parseFloat(entry.base_price) || 0)),
         );
@@ -819,13 +823,15 @@ function EditHotelContent() {
       <PartnerHeader title={t("title")} subtitle={tn("property")} />
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {loading ? (
-          <div className="mx-auto max-w-4xl space-y-4">
+          <div className="mx-auto max-w-5xl space-y-4">
             {GALLERY_SLOTS.map((i) => (
               <Skeleton key={i} className="h-40 w-full" />
             ))}
           </div>
         ) : (
-          <div className="mx-auto max-w-4xl space-y-6 pb-12">
+          // max-w-5xl (1024px) gives more breathing room on desktop
+          // (client 09/2026: "This full screen UI issue").
+          <div className="mx-auto max-w-5xl space-y-6 pb-12">
             {/* ── 1. Property Identity ─────────────────────────────────── */}
             <SectionCard number={1} title={t("propertyIdentity")}>
               <div className="grid gap-6 lg:grid-cols-[1fr_260px]">
