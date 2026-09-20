@@ -49,6 +49,8 @@ class RoomOut(ORMModel):
     max_adults: int | None = None
     max_children: int | None = None
     status: str
+    # Reason shown on the card when the room is in maintenance/out_of_service.
+    status_note: str | None = None
     is_active: bool
     notes: str | None
     room_type_id: UUID

@@ -68,7 +68,8 @@ export function GlobalSearch() {
   if (!can(PERMISSIONS.bookingsView) && !can(PERMISSIONS.guestsView)) return null;
 
   return (
-    <div className="relative hidden w-full max-w-xs md:block" ref={boxRef}>
+    // max-w-sm (~384 px) is ~30% wider than max-w-xs (~320 px) — client request.
+    <div className="relative hidden w-full max-w-sm md:block" ref={boxRef}>
       <Search
         className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
         aria-hidden
@@ -86,7 +87,9 @@ export function GlobalSearch() {
         onFocus={() => setOpen(true)}
       />
       {open && enabled && (
-        <div className="absolute top-11 right-0 left-0 z-50 rounded-lg border bg-card shadow-lg">
+        // Dropdown inherits the wider container; min-w-[360px] prevents it from
+        // shrinking on narrow viewports (client 09/2026: "increase width 30%").
+        <div className="absolute top-11 right-0 left-0 z-50 min-w-[360px] rounded-lg border bg-card shadow-lg">
           {!hasResults && !bookings.isLoading && !guests.isLoading && (
             <p className="px-3 py-4 text-sm text-muted-foreground">{t("noResults")}</p>
           )}
@@ -99,7 +102,7 @@ export function GlobalSearch() {
                 <button
                   key={b.id}
                   type="button"
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted"
+                  className="flex w-full items-center gap-2 overflow-hidden px-3 py-1.5 text-left text-sm hover:bg-muted"
                   onClick={() => {
                     // Route by booking status so the result is actually visible
                     // (audit finding HIGH #7: all statuses were sent to
@@ -116,8 +119,9 @@ export function GlobalSearch() {
                   }}
                 >
                   <CalendarRange className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="font-medium">{b.booking_number}</span>
-                  <span className="truncate text-muted-foreground">
+                  <span className="shrink-0 font-medium">{b.booking_number}</span>
+                  {/* Keep booking info on ONE line — truncate guest name if needed */}
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
                     {b.primary_guest_name ?? ""} · {fmtApiDateTime(b.check_in_date, b.check_in_time)}
                   </span>
                 </button>
@@ -133,12 +137,12 @@ export function GlobalSearch() {
                 <button
                   key={g.id}
                   type="button"
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted"
+                  className="flex w-full items-center gap-2 overflow-hidden px-3 py-1.5 text-left text-sm hover:bg-muted"
                   onClick={() => go("/current-guests")}
                 >
                   <UserRound className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="font-medium">{g.full_name}</span>
-                  <span className="text-muted-foreground">
+                  <span className="min-w-0 flex-1 truncate font-medium">{g.full_name}</span>
+                  <span className="shrink-0 text-muted-foreground tabular-nums">
                     ····{g.normalized_phone.slice(-4)}
                   </span>
                 </button>

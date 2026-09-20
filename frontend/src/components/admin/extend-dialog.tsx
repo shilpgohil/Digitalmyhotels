@@ -67,7 +67,7 @@ export function ExtendDialog({ hotel }: { readonly hotel: HotelAdminOut }) {
         size="sm"
         variant="outline"
         onClick={() => setOpen(true)}
-        className="gap-1 border-gold-500 text-gold-700 hover:bg-gold-50"
+        className="h-8 leading-none gap-1 border-gold-500 text-gold-700 hover:bg-gold-50"
       >
         <CalendarPlus className="size-3.5" aria-hidden />
         {t("extend")}

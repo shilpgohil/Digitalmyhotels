@@ -156,6 +156,7 @@ def _room_out(room: Room, ctx: _BookingContext | None = None) -> RoomOut:
         max_adults=room.max_adults,
         max_children=room.max_children,
         status=room.status,
+        status_note=room.status_note,
         is_active=room.is_active,
         notes=room.notes,
         room_type_id=room.room_type_id,
@@ -530,6 +531,13 @@ async def update_room_status(
             code="room_has_in_house_guest",
         )
     room.status = body.status
+    # Persist the staff-supplied reason on the room so it shows on the card.
+    # Clear it when moving away from a "noteworthy" status.
+    _NOTE_STATUSES = {"maintenance", "out_of_service"}
+    if body.status in _NOTE_STATUSES:
+        room.status_note = (body.reason.strip() if body.reason else None)
+    else:
+        room.status_note = None  # Clear note when room is freed / cleaned
 
     # Manual "needs cleaning" (including stayover) opens a housekeeping task
     # so staff can Start → Complete without a second create step.

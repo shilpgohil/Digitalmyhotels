@@ -75,6 +75,9 @@ class Room(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     status: Mapped[str] = mapped_column(
         String(40), default="available", nullable=False, index=True
     )
+    # Reason shown on the room card when status requires explanation (e.g. maintenance).
+    # Cleared automatically when status changes away from maintenance/out_of_service.
+    status_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 

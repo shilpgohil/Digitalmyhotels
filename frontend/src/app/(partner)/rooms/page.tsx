@@ -154,6 +154,12 @@ function RoomStatusCell({ room }: { readonly room: RoomOut }) {
             : t("departsTodayNoTime")}
         </span>
       )}
+      {/* Staff-supplied reason (maintenance / out_of_service) */}
+      {room.status_note && (
+        <span className="text-micro text-muted-foreground italic truncate max-w-full px-1">
+          {room.status_note}
+        </span>
+      )}
     </div>
   );
 }
@@ -364,14 +370,17 @@ function RoomsContent() {
                     .map((room) => (
                       <div
                         key={room.id}
-                        className="flex flex-col items-center gap-2 rounded-lg border p-4 text-center"
+                        className="relative flex flex-col items-center gap-2 rounded-lg border p-4 text-center"
                       >
-                        <div className="flex w-full items-start justify-between">
-                          <span className="text-lg font-semibold">{room.room_number}</span>
-                          {can(PERMISSIONS.roomsUpdateStatus) && (
+                        {/* Room number — centered; ··· menu is absolutely-positioned
+                            so it doesn't push the number off-centre
+                            (client 09/2026: "All Items Center, room number should also be center"). */}
+                        <span className="w-full text-center text-lg font-semibold">{room.room_number}</span>
+                        {can(PERMISSIONS.roomsUpdateStatus) && (
+                          <div className="absolute top-2 right-2">
                             <DropdownMenu>
                               <DropdownMenuTrigger
-                                className="-mr-1 -mt-1 flex size-6 items-center justify-center rounded hover:bg-muted"
+                                className="flex size-6 items-center justify-center rounded hover:bg-muted"
                                 aria-label={t("changeStatus")}
                               >
                                 <MoreHorizontal className="size-3.5" aria-hidden />
@@ -385,8 +394,8 @@ function RoomsContent() {
                                 />
                               </DropdownMenuContent>
                             </DropdownMenu>
-                          )}
-                        </div>
+                          </div>
+                        )}
                         <RoomStatusCell room={room} />
                         <span className="text-xs text-muted-foreground">
                           {room.room_type_name}

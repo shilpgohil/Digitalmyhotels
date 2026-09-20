@@ -167,7 +167,7 @@ function HotelRow({
           {/* Full-page edit — navigates to /admin/hotels/[id]/edit */}
           <Link
             href={`/admin/hotels/${hotel.id}/edit`}
-            className="inline-flex h-7 items-center gap-1 rounded-lg border border-input px-2.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors"
+            className="inline-flex h-8 items-center gap-1 rounded-lg border border-input px-2.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors leading-none"
           >
             <Pencil className="size-3" aria-hidden />
             {tc("edit")}
@@ -175,7 +175,7 @@ function HotelRow({
           {kind === "suspended" && (
             <>
               {!showMeta && <HotelStatusBadge hotel={hotel} />}
-              <Button size="sm" className="bg-success text-white hover:bg-success/90" onClick={() => onStatus("active")} disabled={pending}>
+              <Button size="sm" className="h-8 leading-none bg-success text-white hover:bg-success/90" onClick={() => onStatus("active")} disabled={pending}>
                 {activateLabel}
               </Button>
             </>
@@ -185,7 +185,7 @@ function HotelRow({
               <RenewDialog hotel={hotel} />
               {/* Custom N-day grant (client 09/2026) */}
               <ExtendDialog hotel={hotel} />
-              <Button size="sm" className="bg-danger text-white hover:bg-danger/90" onClick={() => onStatus("suspended")} disabled={pending}>
+              <Button size="sm" className="h-8 leading-none bg-danger text-white hover:bg-danger/90" onClick={() => onStatus("suspended")} disabled={pending}>
                 {deactivateLabel}
               </Button>
             </>
@@ -193,7 +193,7 @@ function HotelRow({
           {(kind === "active" || kind === "trial") && (
             <>
               {!showMeta && <HotelStatusBadge hotel={hotel} />}
-              <Button size="sm" className="bg-danger text-white hover:bg-danger/90" onClick={() => onStatus("suspended")} disabled={pending}>
+              <Button size="sm" className="h-8 leading-none bg-danger text-white hover:bg-danger/90" onClick={() => onStatus("suspended")} disabled={pending}>
                 {deactivateLabel}
               </Button>
               <RenewDialog hotel={hotel} />

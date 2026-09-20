@@ -4,11 +4,11 @@
  * Add New Hotel — full-page wizard.
  *
  * Sections:
- *  1. Access Permissions   (hotel feature mode: full | checkin_only)
+ *  1. Access Permissions   (hotel feature mode: full | checkin_only | checkin_expense)
  *  2. Property Identity    (name, city, state, phone, address, GSTIN, email, logo, gallery, map_id)
- *  3. GST & Rooms Limits   (gst type + total room count)
- *  4. Create Property User (owner name, phone, email, temp password)
- *  5. Payment Setup        (merchant name, UPI, payment URL)
+ *  3. GST & Rooms Limits   (gst type + total room count + max team members)
+ *  4. Create Property Users (owner + optional additional staff up to max_team_members)
+ *  5. Payment Setup        (merchant name, UPI — QR appears after hotel creation)
  *  6. Room Inventory Setup (optional)
  *  7. Special Requirements (optional)
  *  8. Emergency & Vehicle  (feature toggles)
@@ -21,11 +21,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   AlertTriangle,
+  CheckCircle,
   ChevronDown,
   ChevronUp,
   ImagePlus,
   MapPin,
   Plus,
+  QrCode,
   Trash2,
   Shield,
   Building2,
@@ -40,6 +42,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { liveNameCase, sanitizeLandline, sanitizePhone } from "@/lib/input-discipline";
 import { apiFetch, ApiError, API_BASE, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
@@ -186,6 +189,95 @@ function RoomRow({
 }
 
 // ---------------------------------------------------------------------------
+// Additional team member row (created after hotel is set up)
+// ---------------------------------------------------------------------------
+const STAFF_ROLES = [
+  { value: "manager",       label: "Manager"       },
+  { value: "admin",         label: "Admin"         },
+  { value: "receptionist",  label: "Receptionist"  },
+  { value: "housekeeping",  label: "Housekeeping"  },
+  { value: "general_staff", label: "General Staff" },
+] as const;
+
+interface AdditionalMember {
+  key: string;
+  full_name: string;
+  phone: string;
+  role_code: string;
+  password: string;
+}
+
+function AdditionalMemberRow({
+  entry,
+  idx,
+  onChange,
+  onRemove,
+}: {
+  readonly entry: AdditionalMember;
+  readonly idx: number;
+  readonly onChange: (idx: number, field: keyof AdditionalMember, value: string) => void;
+  readonly onRemove: (idx: number) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border p-4 space-y-3 relative">
+      <button
+        type="button"
+        onClick={() => onRemove(idx)}
+        className="absolute right-3 top-3 text-muted-foreground hover:text-danger"
+        aria-label="Remove member"
+      >
+        <Trash2 className="size-4" aria-hidden />
+      </button>
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pr-8">
+        Account #{idx + 2} {/* idx 0 = second account after the owner */}
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Full Name *</Label>
+          <Input
+            value={entry.full_name}
+            onChange={(e) => onChange(idx, "full_name", liveNameCase(e.target.value))}
+            placeholder="Full Name"
+            maxLength={200}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Phone *</Label>
+          <Input
+            value={entry.phone}
+            onChange={(e) => onChange(idx, "phone", sanitizePhone(e.target.value))}
+            placeholder="+91 XXXXXXXXXX"
+            inputMode="tel"
+            maxLength={10}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Role *</Label>
+          <select
+            value={entry.role_code}
+            onChange={(e) => onChange(idx, "role_code", e.target.value)}
+            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+          >
+            {STAFF_ROLES.map((r) => (
+              <option key={r.value} value={r.value}>{r.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Temporary Password *</Label>
+          <PasswordInput
+            value={entry.password}
+            onChange={(e) => onChange(idx, "password", e.target.value)}
+            placeholder="Min. 8 characters"
+            minLength={8}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Special requirement row
 // ---------------------------------------------------------------------------
 interface ServiceItem {
@@ -236,24 +328,43 @@ export default function AddHotelPage() {
   const [ownerPhone, setOwnerPhone] = useState("");
   const [ownerPassword, setOwnerPassword] = useState("");
 
+  // --- Section 4b: Additional team members (phone-first, no email required) ---
+  const [additionalMembers, setAdditionalMembers] = useState<AdditionalMember[]>([]);
+
   // --- Section 5: Payment Setup (optional) ---
   const [merchantName, setMerchantName] = useState("");
   const [upiId, setUpiId] = useState("");
-  const [paymentUrl, setPaymentUrl] = useState("");
+  // paymentUrl intentionally removed (not in Figma, client 09/2026)
 
-  // --- Section 5: Rooms ---
+  // --- QR state: populated after hotel creation + UPI config ---
+  // The QR is generated server-side (with hotel logo composited in center)
+  // and only available after the hotel has been created and UPI configured.
+  const [createdHotelId, setCreatedHotelId] = useState<string | null>(null);
+  const [qrPolling, setQrPolling] = useState(false);
+  const [qrBlobUrl, setQrBlobUrl] = useState<string | null>(null);
+  // Ref for cleanup on unmount to avoid memory leaks with blob URLs.
+  const qrBlobUrlRef = useRef<string | null>(null);
+
+  // --- Section 6: Rooms ---
   const [rooms, setRooms] = useState<RoomEntry[]>([
     { room_number: "101", room_type: "", bed_type: "", max_adults: 2, max_children: 1 },
   ]);
 
-  // --- Section 6: Special requirements ---
+  // --- Section 7: Special requirements ---
   const [services, setServices] = useState<ServiceItem[]>([]);
 
-  // --- Section 7: Feature toggles (restored — client 9-10 feedback) ---
+  // --- Section 8: Feature toggles (restored — client 9-10 feedback) ---
   const [emergencyEnabled, setEmergencyEnabled] = useState(true);
   const [vehicleEnabled, setVehicleEnabled] = useState(true);
 
   const [error, setError] = useState<string | null>(null);
+
+  // Cleanup QR blob URL on unmount.
+  useEffect(() => {
+    return () => {
+      if (qrBlobUrlRef.current) URL.revokeObjectURL(qrBlobUrlRef.current);
+    };
+  }, []);
 
   // Restore draft from localStorage on first mount
   useEffect(() => {
@@ -276,11 +387,59 @@ export default function AddHotelPage() {
       if (d.ownerPhone) setOwnerPhone(d.ownerPhone);
       if (d.merchantName) setMerchantName(d.merchantName);
       if (d.upiId) setUpiId(d.upiId);
-      if (d.paymentUrl) setPaymentUrl(d.paymentUrl);
     } catch {
       // ignore malformed draft
     }
   }, []);
+
+  /**
+   * After hotel creation + UPI config, poll for the server-generated QR code.
+   * Uses the same pattern as UpiConfigPanel in hotel settings:
+   * polls GET /payment-config until qr_version >= 1, then fetches the PNG blob.
+   * Logo (uploaded in Property Identity section → payment-config/logo) is
+   * composited in the QR center automatically by the backend.
+   */
+  const pollAndLoadQr = async (hotelId: string) => {
+    setQrPolling(true);
+    try {
+      for (let i = 0; i < 14; i++) {
+        await new Promise<void>((r) => setTimeout(r, 500));
+        let freshVersion = 0;
+        try {
+          const cfg = await apiFetch<{ qr_version: number }>(
+            "/api/v1/hotels/me/payment-config",
+            { hotelId },
+          );
+          freshVersion = cfg.qr_version;
+        } catch {
+          // transient error — keep polling
+          continue;
+        }
+        if (freshVersion >= 1) {
+          // QR is ready — fetch the blob with explicit auth headers
+          const token = getAccessToken();
+          const headers: Record<string, string> = {};
+          if (token) headers.Authorization = `Bearer ${token}`;
+          headers["X-Hotel-Id"] = hotelId;
+          const resp = await fetch(
+            `${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${freshVersion}`,
+            { headers, credentials: "include", cache: "no-store" },
+          );
+          if (resp.ok) {
+            // Revoke the previous blob URL before creating a new one.
+            if (qrBlobUrlRef.current) URL.revokeObjectURL(qrBlobUrlRef.current);
+            const url = URL.createObjectURL(await resp.blob());
+            qrBlobUrlRef.current = url;
+            setQrBlobUrl(url);
+          }
+          return;
+        }
+      }
+      // Timed out — QR not ready after 7 s; user can view it in hotel Settings.
+    } finally {
+      setQrPolling(false);
+    }
+  };
 
   const mutation = useMutation({
     onMutate: () => setError(null),   // clear stale error banner before each attempt
@@ -308,7 +467,6 @@ export default function AddHotelPage() {
           owner_phone: ownerPhone.trim() || null,
           access_mode: accessMode,
           merchant_name: merchantName.trim() || null,
-          payment_url: paymentUrl.trim() || null,
           // plan_code intentionally omitted → hotel created without subscription
           // Admin assigns plan later via RenewDialog
         },
@@ -337,14 +495,14 @@ export default function AddHotelPage() {
       }
 
       // Step 3 (optional): set UPI / payment config
-      if (upiId.trim() || merchantName.trim() || paymentUrl.trim()) {
+      // This also triggers server-side QR generation (with logo if uploaded in step 2).
+      if (upiId.trim() || merchantName.trim()) {
         try {
           await apiFetch("/api/v1/hotels/me/payment-config", {
             method: "PUT",
             body: {
               ...(upiId.trim() ? { upi_id: upiId.trim() } : {}),
               ...(merchantName.trim() ? { merchant_name: merchantName.trim() } : {}),
-              ...(paymentUrl.trim() ? { payment_url: paymentUrl.trim() } : {}),
             },
             hotelId: hotel.id,
           });
@@ -433,7 +591,30 @@ export default function AddHotelPage() {
       }
       if (serviceFailed) failedSteps.push(t("specialRequirements"));
 
-      // Step 6 (optional): save feature toggle settings
+      // Step 6 (optional): create additional team members
+      // SA bypasses the hotel's team cap (backend: `if not tenant.is_super_admin`).
+      // Phone-first — email is not required for staff accounts.
+      const validMembers = additionalMembers.filter(
+        (m) => m.full_name.trim().length >= 2 && m.phone.trim().length >= 6 && m.password.length >= 8 && m.role_code,
+      );
+      for (const m of validMembers) {
+        try {
+          await apiFetch("/api/v1/team", {
+            method: "POST",
+            body: {
+              full_name: m.full_name.trim(),
+              phone: m.phone.trim(),
+              role_code: m.role_code,
+              password: m.password,
+            },
+            hotelId: hotel.id,
+          });
+        } catch {
+          failedSteps.push(`Staff: ${m.full_name.trim()}`);
+        }
+      }
+
+      // Step 7 (optional): save feature toggle settings
       if (!emergencyEnabled || !vehicleEnabled) {
         try {
           await apiFetch("/api/v1/hotels/me/settings", {
@@ -451,17 +632,22 @@ export default function AddHotelPage() {
 
       return { hotel, failedSteps };
     },
-    onSuccess: ({ failedSteps }) => {
+    onSuccess: ({ hotel, failedSteps }) => {
       toast.success(t("hotelCreated"));
       if (failedSteps.length > 0) {
         toast.warning(`${t("optionalStepsFailed")}: ${failedSteps.join(", ")}`);
       }
-      // Clear draft after successful creation
+      // Clear draft after successful creation.
       try { localStorage.removeItem("dmh.addHotelDraft"); } catch { /* ignore */ }
       queryClient.invalidateQueries({ queryKey: ["admin-hotels-list"] });
       queryClient.invalidateQueries({ queryKey: ["admin-hotels"] });
       queryClient.invalidateQueries({ queryKey: ["platform-dashboard"] });
-      router.push("/admin/hotels");
+      // Stay on this page to show the QR (if UPI was configured).
+      // The action bar swaps to a "View Hotels" button once hotel is created.
+      setCreatedHotelId(hotel.id);
+      if (upiId.trim()) {
+        void pollAndLoadQr(hotel.id);
+      }
     },
     onError: (e) => setError(e instanceof ApiError ? e.message : tc("error")),
   });
@@ -471,6 +657,19 @@ export default function AddHotelPage() {
     ownerName.trim().length >= 2 &&
     ownerEmail.trim().includes("@") &&
     ownerPassword.length >= 8;
+
+  // --- Additional member helpers ---
+  let memberKeySeq = 0;
+  const nextMemberKey = () => `m${++memberKeySeq}`;
+  const addMember = () =>
+    setAdditionalMembers((prev) => [
+      ...prev,
+      { key: nextMemberKey(), full_name: "", phone: "", role_code: "receptionist", password: "" },
+    ]);
+  const removeMember = (idx: number) =>
+    setAdditionalMembers((prev) => prev.filter((_, i) => i !== idx));
+  const updateMember = (idx: number, field: keyof AdditionalMember, value: string) =>
+    setAdditionalMembers((prev) => prev.map((m, i) => (i === idx ? { ...m, [field]: value } : m)));
 
   const updateRoom = (idx: number, field: keyof RoomEntry, value: string | number) => {
     setRooms((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
@@ -889,6 +1088,41 @@ export default function AddHotelPage() {
             </div>
           </div>
         </div>
+
+        {/* Additional staff accounts (optional) — created after hotel is set up.
+            SA bypasses team cap; up to max_team_members are enforceable later. */}
+        <div className="mt-4 border-t pt-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Additional Staff</p>
+              <p className="text-xs text-muted-foreground">
+                Optional — create staff accounts now. Owner is excluded from the count.
+              </p>
+            </div>
+            {additionalMembers.length > 0 && (
+              <span className="text-xs font-medium text-muted-foreground rounded-full border border-border px-2.5 py-1">
+                {additionalMembers.length} of {Math.max(1, Number.parseInt(maxTeam, 10) || 5)} added
+              </span>
+            )}
+          </div>
+          {additionalMembers.map((m, idx) => (
+            <AdditionalMemberRow
+              key={m.key}
+              entry={m}
+              idx={idx}
+              onChange={updateMember}
+              onRemove={removeMember}
+            />
+          ))}
+          <button
+            type="button"
+            onClick={addMember}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
+          >
+            <Plus className="size-4" aria-hidden />
+            Create New Account
+          </button>
+        </div>
       </Section>
 
       {/* 5. UPI Payment Setup (optional) */}
@@ -896,6 +1130,7 @@ export default function AddHotelPage() {
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">
             Optional — the owner can configure payment details later in hotel settings.
+            The hotel logo (uploaded above) will be composited into the QR center automatically.
           </p>
           {/* Merchant Information card — matches Figma layout */}
           <div className="rounded-lg border border-border p-4">
@@ -913,6 +1148,9 @@ export default function AddHotelPage() {
                     onChange={(e) => setMerchantName(e.target.value)}
                     placeholder="e.g. Grand Horizon Hotel"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    This name appears on the guest&apos;s payment app.
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="ah-upi">{t("gpayUpi")}</Label>
@@ -923,35 +1161,62 @@ export default function AddHotelPage() {
                     placeholder="e.g. merchant@okhdfc"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="ah-payment-url">{t("paymentUrl")}</Label>
-                  <Input
-                    id="ah-payment-url"
-                    value={paymentUrl}
-                    onChange={(e) => setPaymentUrl(e.target.value)}
-                    placeholder="https://pay.example.com/hotel"
-                    type="url"
-                  />
-                </div>
-                <p className="text-label text-muted-foreground">
-                  {t("qrAfterCreation")}
-                </p>
+                {/* Note: paymentUrl removed — not required per Figma (client 09/2026) */}
+                {!createdHotelId && (
+                  <p className="text-xs text-muted-foreground">
+                    {t("qrAfterCreation")}
+                  </p>
+                )}
               </div>
-              {/* Right: QR placeholder (generated after hotel creation) */}
-              <div className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-muted/20 p-4 text-center min-w-[100px]">
-                {/* Static QR-like pattern — stable, no Math.random */}
-                <div className="grid grid-cols-5 gap-0.5 opacity-20 p-1">
-                  {[1,1,1,1,1, 1,0,0,0,1, 1,0,1,0,1, 1,0,0,0,1, 1,1,1,1,1].map((fill, i) => (
-                    <div
-                      key={i}
-                      className="size-2.5 rounded-[1px]"
-                      style={{ background: fill ? "var(--foreground)" : "transparent" }}
-                    />
-                  ))}
-                </div>
-                <p className="text-micro text-muted-foreground leading-tight">
-                  {t("qrPreviewHint")}
-                </p>
+
+              {/* Right: QR area
+                  Before creation → static dot-pattern placeholder
+                  After creation + UPI set → live server-generated QR (same as hotel settings) */}
+              <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-muted/20 p-4 text-center min-w-[140px]">
+                {createdHotelId && upiId.trim() ? (
+                  // Live QR — same display as hotel Settings > Payments (UPI)
+                  qrBlobUrl ? (
+                    <>
+                      <img
+                        src={qrBlobUrl}
+                        alt="UPI Payment QR"
+                        className="size-36 rounded-md border object-contain"
+                      />
+                      <p className="text-micro font-semibold text-success flex items-center gap-1">
+                        <CheckCircle className="size-3.5" aria-hidden />
+                        QR Ready
+                      </p>
+                    </>
+                  ) : qrPolling ? (
+                    <>
+                      <Skeleton className="size-36 rounded-md" />
+                      <p className="text-micro text-muted-foreground animate-pulse">
+                        <QrCode className="size-3.5 inline mr-1" aria-hidden />
+                        Generating QR…
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      QR not ready — check Settings after creation.
+                    </p>
+                  )
+                ) : (
+                  // Static placeholder before hotel is created
+                  <>
+                    <div className="grid grid-cols-5 gap-0.5 opacity-20 p-1">
+                      {[1,1,1,1,1, 1,0,0,0,1, 1,0,1,0,1, 1,0,0,0,1, 1,1,1,1,1].map((fill, i) => (
+                        <div
+                          key={i}
+                          className="size-2.5 rounded-[1px]"
+                          style={{ background: fill ? "var(--foreground)" : "transparent" }}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-micro text-muted-foreground leading-tight">
+                      {t("qrPreviewHint")}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -1101,48 +1366,72 @@ export default function AddHotelPage() {
         </div>
       )}
 
-      {/* Sticky bottom action bar — matches Figma: Save Draft + Add Hotel */}
-      {/* On mobile: full-width buttons; on sm+: right-aligned.
-          lg:left-64 keeps the bar inside the content area so it never
-          covers the sidebar's bottom items (Logout) on desktop.
-          safe-area padding stops mobile browser chrome from cutting it. */}
+      {/* Sticky bottom action bar
+          ─ Before creation: Save Draft + Add Hotel
+          ─ After creation : green success banner + View Hotels button
+          lg:left-64 keeps the bar inside the content area on desktop. */}
       <div
-        className="fixed bottom-0 left-0 right-0 lg:left-64 z-10 flex items-center justify-end gap-3 border-t border-border bg-white px-4 py-3 shadow-md sm:px-8"
+        className="fixed bottom-0 left-0 right-0 lg:left-64 z-10 border-t border-border bg-white px-4 py-3 shadow-md sm:px-8"
         style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
       >
-        <Button
-          type="button"
-          variant="outline"
-          className="h-[42px] flex-1 px-4 sm:flex-none"
-          onClick={() => {
-            // Save draft to localStorage for resume later. Image FILES cannot
-            // be serialized — warn so the admin knows to re-attach them.
-            try {
-              localStorage.setItem("dmh.addHotelDraft", JSON.stringify({
-                hotelName, city, state, phone, address, gstin, email, mapId,
-                gstType, totalRooms, ownerName, ownerEmail, ownerPhone,
-                merchantName, upiId, paymentUrl,
-              }));
-              toast.success(t("draftSaved"));
-              if (logoFile || galleryFiles.some(Boolean)) {
-                toast.info(t("draftPhotosNotIncluded"));
-              }
-            } catch {
-              router.push("/admin/hotels");
-            }
-          }}
-          disabled={mutation.isPending}
-        >
-          {t("saveDraft")}
-        </Button>
-        <Button
-          type="button"
-          disabled={mutation.isPending || !canSubmit}
-          onClick={() => mutation.mutate()}
-          className="h-[42px] flex-1 px-4 sm:flex-none bg-navy-900 hover:bg-navy-800 text-white"
-        >
-          {mutation.isPending ? tc("saving") : t("addHotelBtn")}
-        </Button>
+        {createdHotelId ? (
+          /* ── Post-creation state ── */
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 text-sm font-medium text-success">
+              <CheckCircle className="size-4.5 shrink-0" aria-hidden />
+              Hotel created successfully!
+              {upiId.trim() && (
+                <span className="text-xs text-muted-foreground ml-1">
+                  {qrPolling ? "— Generating QR…" : qrBlobUrl ? "— QR ready in Payment Setup section above" : ""}
+                </span>
+              )}
+            </div>
+            <Button
+              type="button"
+              onClick={() => router.push("/admin/hotels")}
+              className="h-[42px] px-6 bg-navy-900 hover:bg-navy-800 text-white"
+            >
+              View Hotels
+            </Button>
+          </div>
+        ) : (
+          /* ── Pre-creation state ── */
+          <div className="flex items-center justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-[42px] flex-1 px-4 sm:flex-none"
+              onClick={() => {
+                // Save draft to localStorage for resume later. Image FILES cannot
+                // be serialized — warn so the admin knows to re-attach them.
+                try {
+                  localStorage.setItem("dmh.addHotelDraft", JSON.stringify({
+                    hotelName, city, state, phone, address, gstin, email, mapId,
+                    gstType, totalRooms, ownerName, ownerEmail, ownerPhone,
+                    merchantName, upiId,
+                  }));
+                  toast.success(t("draftSaved"));
+                  if (logoFile || galleryFiles.some(Boolean)) {
+                    toast.info(t("draftPhotosNotIncluded"));
+                  }
+                } catch {
+                  router.push("/admin/hotels");
+                }
+              }}
+              disabled={mutation.isPending}
+            >
+              {t("saveDraft")}
+            </Button>
+            <Button
+              type="button"
+              disabled={mutation.isPending || !canSubmit}
+              onClick={() => mutation.mutate()}
+              className="h-[42px] flex-1 px-4 sm:flex-none bg-navy-900 hover:bg-navy-800 text-white"
+            >
+              {mutation.isPending ? tc("saving") : t("addHotelBtn")}
+            </Button>
+          </div>
+        )}
       </div>
     </main>
   );

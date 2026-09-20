@@ -171,11 +171,27 @@ function ServicesPanel() {
         </div>
         <div>
           <Label htmlFor="svc-price">{t("servicePrice")}</Label>
-          <Input id="svc-price" className="mt-1 w-32" value={price} onChange={(e) => setPrice(e.target.value)} />
+          {/* Use text input to suppress native browser validation tooltip;
+              validate manually on submit and show a capitalized toast message
+              (client 09/2026: "Price: Input should be a valid decimal"). */}
+          <Input
+            id="svc-price"
+            className="mt-1 w-32"
+            inputMode="decimal"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+          />
         </div>
         <Button
           disabled={name.length < 2 || !price || create.isPending}
-          onClick={() => create.mutate()}
+          onClick={() => {
+            const parsed = Number.parseFloat(price.trim());
+            if (Number.isNaN(parsed) || parsed < 0) {
+              toast.error(t("priceInvalid"));
+              return;
+            }
+            create.mutate();
+          }}
         >
           {t("addService")}
         </Button>

@@ -125,11 +125,13 @@ async def generate_invoice(
                 hotel_id=hotel_id,
                 invoice_id=invoice.id,
                 description=(
-                    f"Room {room.room_number if room else ''} — "
+                    # Use ASCII dash (safe for PDF latin-1 encoding; em/en dashes
+                    # can render as "?" in some PDF viewers via FPDF latin-1 codec).
+                    f"Room {room.room_number if room else ''} - "
                     + (
                         "Day use"
                         + (
-                            f" ({booking.check_in_time}–{booking.check_out_time})"
+                            f" ({booking.check_in_time}-{booking.check_out_time})"
                             if booking.check_in_time and booking.check_out_time
                             else ""
                         )
@@ -575,7 +577,10 @@ async def render_invoice_pdf(
         )
     )
     if settings_row is not False:  # default ON when no settings row exists
-        pdf.ln(6)
+        # Pin "Powered by" to the absolute bottom-centre of the page
+        # (client 09/2026: "keep it in bottom center").  set_y(-N) counts from
+        # the bottom margin so the text sits ~12 mm above the page edge.
+        pdf.set_y(-14)
         pdf.set_x(14)
         pdf.set_font("helvetica", "I", 8)
         pdf.set_text_color(*MUTED)

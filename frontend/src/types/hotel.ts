@@ -104,6 +104,8 @@ export interface RoomOut {
   max_adults: number | null;
   max_children: number | null;
   status: RoomStatus;
+  /** Reason shown on card when status is maintenance/out_of_service. */
+  status_note: string | null;
   is_active: boolean;
   notes: string | null;
   room_type_id: string;

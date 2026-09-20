@@ -18,7 +18,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ImagePlus, MapPin, Plus, Trash2, UploadCloud, X } from "lucide-react";
+import { ChevronDown, ChevronUp, ImagePlus, MapPin, Plus, Trash2, UploadCloud, X } from "lucide-react";
 import { InlineSpinner } from "@/components/ui/inline-spinner";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
@@ -118,24 +118,46 @@ function roomTypeCode(name: string): string {
 // Numbered gold section card (Figma styling)
 // ---------------------------------------------------------------------------
 
+/**
+ * Collapsible numbered section card.
+ * Starts expanded; clicking the header row toggles visibility.
+ * Client 09/2026: "top left section hide and show arrow is also not there in
+ * this whole section".
+ */
 function SectionCard({
   number,
   title,
   children,
+  defaultOpen = true,
 }: {
   readonly number: number;
   readonly title: string;
   readonly children: React.ReactNode;
+  readonly defaultOpen?: boolean;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <section className="rounded-xl border border-t-2 border-t-gold-500 bg-card p-6 shadow-sm">
-      <h2 className="mb-5 flex items-center gap-2.5 font-display text-base font-bold text-foreground">
+    <section className="rounded-xl border border-t-2 border-t-gold-500 bg-card shadow-sm overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2.5 px-6 py-4 text-left"
+        aria-expanded={open}
+      >
         <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gold-100 text-xs font-bold text-gold-700">
           {number}
         </span>
-        {title}
-      </h2>
-      {children}
+        <span className="flex-1 font-display text-base font-bold text-foreground">{title}</span>
+        {open
+          ? <ChevronUp className="size-4 text-muted-foreground" aria-hidden />
+          : <ChevronDown className="size-4 text-muted-foreground" aria-hidden />
+        }
+      </button>
+      {open && (
+        <div className="border-t px-6 pb-6 pt-4">
+          {children}
+        </div>
+      )}
     </section>
   );
 }

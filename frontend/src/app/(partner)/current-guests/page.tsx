@@ -633,11 +633,14 @@ function StayDetailDialog({
             <Detail label={`${tb("adults")} / ${tb("children")}`} value={`${b.adults} / ${b.children}`} />
             <Detail
               label={tb("payment")}
-              value={
-                latestMethod
-                  ? `${b.payment_status} · ${methodLabel(latestMethod)}`
-                  : b.payment_status
-              }
+              value={(() => {
+                // Capitalize and humanize payment_status (e.g. "partial" → "Partial")
+                const fmtStatus = (s: string) =>
+                  s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " ");
+                return latestMethod
+                  ? `${fmtStatus(b.payment_status)} · ${methodLabel(latestMethod)}`
+                  : fmtStatus(b.payment_status);
+              })()}
             />
             <Detail label={tb("total")} value={fmtINR(b.total_amount)} />
             <Detail label={tb("due")} value={fmtINR(b.due_amount)} />

@@ -71,12 +71,13 @@ function DialogContent({
               <Button
                 variant="ghost"
                 // Larger touch target; explicitly neutral color (prevent #e10000 red from inheriting)
-                className="absolute top-2 right-2 size-9 text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                className="absolute top-2 right-2 size-9 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                 size="icon"
               />
             }
           >
-            <XIcon className="size-5" />
+            {/* Larger X icon for better visibility (client 09/2026 common changes) */}
+            <XIcon className="size-6" />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}
@@ -89,7 +90,12 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2", className)}
+      className={cn(
+        // Bottom border separates title from body; consistent across all dialogs
+        // (client 09/2026: "Common changes for header and close button in the model").
+        "flex flex-col gap-1.5 border-b border-[#d1d1d1] pb-3 mb-1",
+        className,
+      )}
       {...props}
     />
   )

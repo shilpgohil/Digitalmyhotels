@@ -1876,7 +1876,7 @@ function AdditionalGuestEntry({
                   placeholder={t("contactOverridePlaceholder")}
                   className="h-8 w-full rounded-lg border border-input bg-white pl-8 pr-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 />
-              </div>
+        </div>
               {contactPhoneOverride && (
                 <button
                   type="button"
