@@ -140,7 +140,7 @@
   },
   "editHotel": {
     "title": "Edit Hotel",
-    "geofenceToggle": "Restrict staff check-in to hotel premises",
+    "geofenceToggle": "Restrict Staff Check-In to Hotel Premises",
     "geofenceToggleHint": "When on, staff can only mark attendance within the radius below. Set the property location first.",
     "latitude": "Latitude",
     "longitude": "Longitude",

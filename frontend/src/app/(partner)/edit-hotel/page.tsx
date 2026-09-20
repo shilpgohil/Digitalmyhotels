@@ -823,15 +823,15 @@ function EditHotelContent() {
       <PartnerHeader title={t("title")} subtitle={tn("property")} />
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {loading ? (
-          <div className="mx-auto max-w-5xl space-y-4">
+          <div className="w-full space-y-4">
             {GALLERY_SLOTS.map((i) => (
               <Skeleton key={i} className="h-40 w-full" />
             ))}
           </div>
         ) : (
-          // max-w-5xl (1024px) gives more breathing room on desktop
-          // (client 09/2026: "This full screen UI issue").
-          <div className="mx-auto max-w-5xl space-y-6 pb-12">
+          // Full-width — client 09/2026: "This full screen UI issue".
+          // No max-w cap so the form uses the entire content area on any screen.
+          <div className="w-full space-y-6 pb-12">
             {/* ── 1. Property Identity ─────────────────────────────────── */}
             <SectionCard number={1} title={t("propertyIdentity")}>
               <div className="grid gap-6 lg:grid-cols-[1fr_260px]">
@@ -897,7 +897,9 @@ function EditHotelContent() {
                   </div>
 
                   {/* ── Staff-attendance geofence (client 09/2026) ── */}
-                  <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+                  {/* sm:col-span-2 so it spans both columns in the left grid,
+                      fixing the asymmetric "UI issue" (client 09/2026). */}
+                  <div className="space-y-3 rounded-lg border bg-muted/30 p-3 sm:col-span-2">
                     <label className="flex cursor-pointer items-start gap-2.5">
                       <input
                         type="checkbox"
