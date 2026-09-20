@@ -191,7 +191,6 @@ export function TimeInput({
         className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
         aria-label={id}
         aria-haspopup="dialog"
-        aria-expanded={open}
       />
 
       {/* Custom 24h clock panel — same columns as DateTimePicker */}

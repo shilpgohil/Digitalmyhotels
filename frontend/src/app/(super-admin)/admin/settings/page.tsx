@@ -226,7 +226,7 @@ function PlatformPaymentSection() {
             onSubmit={(e) => { e.preventDefault(); save.mutate(); }}
           >
             <div className="space-y-1.5">
-              <Label htmlFor="sa-payee">Payee Name (shown on guest's UPI app)</Label>
+              <Label htmlFor="sa-payee">Payee Name (shown on guest&apos;s UPI app)</Label>
               <Input
                 id="sa-payee"
                 value={payeeName}

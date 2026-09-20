@@ -26,7 +26,6 @@ import {
   ChevronUp,
   Clock,
   Info,
-  Wrench,
   X,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";

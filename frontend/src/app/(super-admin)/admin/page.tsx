@@ -22,7 +22,6 @@ import {
   Calendar,
   Clock,
   IndianRupee,
-  AlertTriangle,
   XCircle,
   Plus,
   Eye,

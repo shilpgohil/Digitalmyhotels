@@ -1195,6 +1195,7 @@ export default function AddHotelPage() {
                   // Live QR — same display as hotel Settings > Payments (UPI)
                   qrBlobUrl ? (
                     <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={qrBlobUrl}
                         alt="UPI Payment QR"

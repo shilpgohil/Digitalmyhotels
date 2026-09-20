@@ -151,9 +151,6 @@ function ExpensesContent() {
     enabled: !!activeHotelId,
     staleTime: 60_000, // reduced so invalidation takes effect quickly
   });
-  const vendorById = (id: string | null | undefined) =>
-    allVendors.data?.find((v) => v.id === id)?.name ?? null;
-
   // Vendor detail modal (client 15/09: "Vendor Detail show in Modal popup").
   const [vendorDetail, setVendorDetail] = useState<VendorOut | null>(null);
 
