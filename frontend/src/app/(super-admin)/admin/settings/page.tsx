@@ -176,19 +176,23 @@ function PlatformPaymentSection() {
   // Cleanup blob URL on unmount
   useEffect(() => () => { if (qrBlobRef.current) URL.revokeObjectURL(qrBlobRef.current); }, []);
 
+  // fetchQrPreview adds ?v=timestamp to every URL so the browser never
+  // serves a stale cached image (the backend also returns no-store, but
+  // this guarantees cache-busting at every proxy / CDN layer too).
+  // Defined before the auto-load effect so it is in scope when called.
   const fetchQrPreview = async () => {
-    if (!upiId.trim()) return;
+    if (!config.data?.configured && !upiId.trim()) return;
     setQrPolling(true);
     try {
-      // Generate a preview QR from the first active plan (just for visual confirmation).
-      // /subscriptions/plans returns a plain array (not { items: [...] }).
       const token = getAccessToken();
       const plansArr = await apiFetch<Array<{ id: string; price: string }>>("/api/v1/subscriptions/plans");
       const firstPlan = plansArr?.[0];
       if (!firstPlan) { setQrPolling(false); return; }
+      // ?v=timestamp busts every layer of caching (browser, CDN, etc.)
+      const cacheBuster = Date.now();
       const resp = await fetch(
-        `${API_BASE}/api/v1/subscriptions/payment-qr?plan_id=${firstPlan.id}`,
-        { headers: { Authorization: `Bearer ${token ?? ""}` }, credentials: "include" }
+        `${API_BASE}/api/v1/subscriptions/payment-qr?plan_id=${firstPlan.id}&v=${cacheBuster}`,
+        { headers: { Authorization: `Bearer ${token ?? ""}`, "Cache-Control": "no-cache" }, credentials: "include" }
       );
       if (!resp.ok) { setQrPolling(false); return; }
       if (qrBlobRef.current) URL.revokeObjectURL(qrBlobRef.current);
@@ -199,6 +203,11 @@ function PlatformPaymentSection() {
       setQrPolling(false);
     }
   };
+
+  // Auto-load QR on mount when UPI is already configured so the preview
+  // shows on page load / refresh (not only after "Save & Generate QR" click).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (config.data?.configured) void fetchQrPreview(); }, [config.data?.configured]);
 
   const uploadLogo = useMutation({
     mutationFn: async (file: File) => {

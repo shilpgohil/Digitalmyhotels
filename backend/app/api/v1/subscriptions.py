@@ -221,8 +221,11 @@ async def platform_payment_qr(
     logo_bytes = await get_platform_logo_bytes(db)
 
     png = await render_qr_png_async(uri, logo_bytes)
+    # no-store: logo or UPI changes must be reflected immediately without
+    # a 5-minute browser-cache lag. The hotel QR endpoint uses the same
+    # policy; callers must pass ?v=timestamp to bust any proxy/CDN layer.
     return Response(
         content=png,
         media_type="image/png",
-        headers={"Cache-Control": "private, max-age=300"},
+        headers={"Cache-Control": "private, no-store"},
     )

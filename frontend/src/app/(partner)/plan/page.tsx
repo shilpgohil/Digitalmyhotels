@@ -85,12 +85,16 @@ function PaymentModal({
     queryKey: ["sub-payment-qr", activeHotelId, plan.id],
     queryFn: async () => {
       const token = getAccessToken();
+      // ?v=timestamp + Cache-Control: no-cache ensures every open of the
+      // modal fetches a fresh QR — logo or UPI changes are instant.
+      const cacheBuster = Date.now();
       const resp = await fetch(
-        `${API_BASE}/api/v1/subscriptions/payment-qr?plan_id=${plan.id}`,
+        `${API_BASE}/api/v1/subscriptions/payment-qr?plan_id=${plan.id}&v=${cacheBuster}`,
         {
           headers: {
             Authorization: `Bearer ${token ?? ""}`,
             "X-Hotel-Id": activeHotelId ?? "",
+            "Cache-Control": "no-cache",
           },
           credentials: "include",
         },
@@ -100,7 +104,8 @@ function PaymentModal({
       return URL.createObjectURL(blob);
     },
     enabled: open && !!activeHotelId && info.data?.configured === true,
-    staleTime: 300_000,
+    staleTime: 0,             // always re-fetch when modal opens
+    refetchOnMount: "always",
   });
 
   // UPI transaction/reference id (Part 9, client: "store the Payment ID/
@@ -220,15 +225,22 @@ function PaymentModal({
                   ) : (
                     <Skeleton className="size-44 rounded-lg" />
                   )}
-                  <button
-                    type="button"
-                    onClick={copyUpi}
-                    className="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-3 py-1 text-xs font-medium hover:bg-muted"
-                  >
-                    <span className="text-muted-foreground">{t("upiIdLabel")}:</span>
-                    <span>{info.data.upi_id}</span>
-                    <Copy className="size-3" aria-hidden />
-                  </button>
+                {/* UPI ID pill — styled like the hotel payment QR display */}
+                <button
+                  type="button"
+                  onClick={copyUpi}
+                  className="inline-flex items-center gap-0 rounded-lg border border-gold-400/60 bg-gold-50 hover:bg-gold-100 transition-colors overflow-hidden"
+                >
+                  <span className="bg-gold-500 px-2.5 py-1.5 text-xs font-bold text-navy-900 tracking-wide uppercase select-none">
+                    {t("upiIdLabel")}
+                  </span>
+                  <span className="px-3 py-1.5 text-xs font-semibold text-foreground tabular-nums tracking-tight">
+                    {info.data.upi_id}
+                  </span>
+                  <span className="pr-2.5 text-gold-600">
+                    <Copy className="size-3.5" aria-hidden />
+                  </span>
+                </button>
                 </div>
               ) : (
                 !info.isLoading && (
