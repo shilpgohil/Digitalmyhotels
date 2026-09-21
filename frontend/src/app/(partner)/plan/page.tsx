@@ -513,11 +513,11 @@ function PlanContent() {
                           className="mt-0.5 size-4 shrink-0 text-gold-600"
                           aria-hidden
                         />
-                        {/* parseBold converts *text* / **text** → <strong>;
-                            fi===0 + multi-month first-line still gets bold */}
-                        <span className={cn(fi === 0 && months > 1 && "font-semibold")}>
-                          {parseBold(feature)}
-                        </span>
+                        {/* parseBold converts *text* / **text** → <strong>.
+                            Bold comes ONLY from explicit markers, never from
+                            line position — the old fi===0 hardcoded bold has
+                            been removed (client 21/09/2026). */}
+                        <span>{parseBold(feature)}</span>
                       </li>
                     ))}
                   </ul>

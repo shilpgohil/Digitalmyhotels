@@ -1,10 +1,11 @@
 "use client";
 
 import { type ReactNode, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
-import { Building2, Check, ChevronsUpDown, CircleHelp, LogOut, Menu } from "lucide-react";
+import { Building2, Check, ChevronsUpDown, CircleHelp, LogOut, Menu, Zap } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +18,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/auth-context";
+import { PERMISSIONS } from "@/lib/permissions";
 import type { HotelOut } from "@/types/hotel";
 import { PartnerBrand, PartnerNav } from "@/components/layout/partner-sidebar";
 import { LocaleSwitcher } from "@/components/layout/locale-switcher";
@@ -106,6 +108,7 @@ function HotelSwitcher({ className }: { readonly className?: string }) {
 /** Hamburger + slide-in drawer with the same nav as the desktop sidebar. */
 function MobileNavDrawer() {
   const t = useTranslations("nav");
+  const { can } = useAuth();
   const [open, setOpen] = useState(false);
 
   return (
@@ -133,6 +136,21 @@ function MobileNavDrawer() {
             <HotelSwitcher className="w-full border-white/15 text-sidebar-foreground" />
           </div>
           <PartnerNav onNavigate={() => setOpen(false)} />
+          {/* Upgrade Plan CTA — was present on desktop sidebar but missing
+              from the mobile drawer (client 21/09/2026). Shown only to
+              users with settings permission, same gate as the desktop button. */}
+          {can(PERMISSIONS.hotelManageSettings) && (
+            <div className="px-4 pb-4 pt-2">
+              <Link
+                href="/plan"
+                onClick={() => setOpen(false)}
+                className="flex items-center justify-center gap-1.5 rounded-md bg-gold-500 px-3 py-2.5 text-sm font-semibold text-navy-900 shadow-[0_2px_10px_rgba(192,154,46,0.25)] transition-all duration-200 hover:bg-gold-400 active:scale-[0.98]"
+              >
+                <Zap className="size-3.5" aria-hidden />
+                {t("upgradePlan")}
+              </Link>
+            </div>
+          )}
         </SheetContent>
       </Sheet>
     </>
