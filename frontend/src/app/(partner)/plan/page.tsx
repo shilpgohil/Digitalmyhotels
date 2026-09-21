@@ -236,10 +236,10 @@ function PaymentModal({
                   onClick={copyUpi}
                   className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 hover:bg-amber-100 transition-colors"
                 >
-                  <span className="text-xs font-semibold text-amber-600 shrink-0">
+                  <span className="text-xs font-medium text-amber-600 shrink-0">
                     {t("upiIdLabel")}
                   </span>
-                  <span className="text-sm font-semibold text-foreground tabular-nums">
+                  <span className="text-sm font-normal text-foreground tabular-nums">
                     {info.data.upi_id}
                   </span>
                   <Copy className="size-3.5 text-amber-500 shrink-0" aria-hidden />
