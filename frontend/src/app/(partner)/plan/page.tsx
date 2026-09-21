@@ -185,11 +185,14 @@ function PaymentModal({
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("paymentMode")}
               </p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {/* All 5 buttons same h-[42px] so no row is taller than another.
+                  "Credit/Debit Card" shortened to "Card" here to avoid 2-line
+                  wrapping — the full label is used in billing history only. */}
+              <div className="grid grid-cols-3 gap-2">
                 {(["upi", "cash", "bank_transfer", "card", "other"] as const).map((m) => {
                   const labels: Record<string, string> = {
                     upi: "UPI", cash: "Cash", bank_transfer: "Bank Transfer",
-                    card: "Credit/Debit Card", other: "Others",
+                    card: "Card", other: "Others",
                   };
                   return (
                     <button
@@ -197,7 +200,7 @@ function PaymentModal({
                       type="button"
                       onClick={() => setPayMode(m)}
                       className={[
-                        "rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+                        "h-[42px] rounded-lg border text-xs font-semibold transition-colors",
                         payMode === m
                           ? "bg-navy-900 text-white border-navy-900"
                           : "bg-muted/30 text-foreground border-border hover:bg-muted",
@@ -225,21 +228,21 @@ function PaymentModal({
                   ) : (
                     <Skeleton className="size-44 rounded-lg" />
                   )}
-                {/* UPI ID pill — styled like the hotel payment QR display */}
+                {/* UPI ID pill — matches hotel payment QR style (screenshot ref):
+                    single rounded-border box, 'UPI ID' label in amber text,
+                    VPA in normal text, copy icon on right — no filled block. */}
                 <button
                   type="button"
                   onClick={copyUpi}
-                  className="inline-flex items-center gap-0 rounded-lg border border-gold-400/60 bg-gold-50 hover:bg-gold-100 transition-colors overflow-hidden"
+                  className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 hover:bg-amber-100 transition-colors"
                 >
-                  <span className="bg-gold-500 px-2.5 py-1.5 text-xs font-bold text-navy-900 tracking-wide uppercase select-none">
+                  <span className="text-xs font-semibold text-amber-600 shrink-0">
                     {t("upiIdLabel")}
                   </span>
-                  <span className="px-3 py-1.5 text-xs font-semibold text-foreground tabular-nums tracking-tight">
+                  <span className="text-sm font-semibold text-foreground tabular-nums">
                     {info.data.upi_id}
                   </span>
-                  <span className="pr-2.5 text-gold-600">
-                    <Copy className="size-3.5" aria-hidden />
-                  </span>
+                  <Copy className="size-3.5 text-amber-500 shrink-0" aria-hidden />
                 </button>
                 </div>
               ) : (
