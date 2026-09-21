@@ -105,13 +105,20 @@ function PaymentModal({
 
   // UPI transaction/reference id (Part 9, client: "store the Payment ID/
   // Transaction ID … sent to the Super Admin for verification").
+  // Payment mode selected by hotel staff — drives whether to show QR or not.
+  // Canonical values match the SA billing history: upi|cash|bank_transfer|card|other.
+  const [payMode, setPayMode] = useState<"upi" | "cash" | "bank_transfer" | "card" | "other">("upi");
   const [txnRef, setTxnRef] = useState("");
 
   const submit = useMutation({
     mutationFn: () =>
       api("/api/v1/subscriptions/renewal-requests", {
         method: "POST",
-        body: { plan_id: plan.id, note: `Txn: ${txnRef.trim()}` },
+        body: {
+          plan_id: plan.id,
+          payment_mode: payMode,
+          note: txnRef.trim() ? `Txn: ${txnRef.trim()}` : undefined,
+        },
       }),
     onSuccess: () => {
       setSubmitted(true);
@@ -168,35 +175,76 @@ function PaymentModal({
               </div>
             </div>
 
-            {info.data?.configured ? (
-              <div className="flex flex-col items-center gap-2">
-                <p className="text-sm font-semibold">{t("scanPay")}</p>
-                {qr.data ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={qr.data}
-                    alt={t("scanPay")}
-                    className="size-44 rounded-lg border p-1"
-                  />
-                ) : (
-                  <Skeleton className="size-44 rounded-lg" />
-                )}
-                <button
-                  type="button"
-                  onClick={copyUpi}
-                  className="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-3 py-1 text-xs font-medium hover:bg-muted"
-                >
-                  <span className="text-muted-foreground">{t("upiIdLabel")}:</span>
-                  <span>{info.data.upi_id}</span>
-                  <Copy className="size-3" aria-hidden />
-                </button>
+            {/* ── Payment mode selector ──────────────────────────────── */}
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("paymentMode")}
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {(["upi", "cash", "bank_transfer", "card", "other"] as const).map((m) => {
+                  const labels: Record<string, string> = {
+                    upi: "UPI", cash: "Cash", bank_transfer: "Bank Transfer",
+                    card: "Credit/Debit Card", other: "Others",
+                  };
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setPayMode(m)}
+                      className={[
+                        "rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+                        payMode === m
+                          ? "bg-navy-900 text-white border-navy-900"
+                          : "bg-muted/30 text-foreground border-border hover:bg-muted",
+                      ].join(" ")}
+                    >
+                      {labels[m]}
+                    </button>
+                  );
+                })}
               </div>
-            ) : (
-              !info.isLoading && (
-                <p className="rounded-lg border border-warning/20 bg-warning-bg px-3 py-2 text-center text-sm text-warning">
-                  {t("contactTeam")}
-                </p>
+            </div>
+
+            {/* ── UPI: show QR + UPI ID ──────────────────────────────── */}
+            {payMode === "upi" && (
+              info.data?.configured ? (
+                <div className="flex flex-col items-center gap-2">
+                  <p className="text-sm font-semibold">{t("scanPay")}</p>
+                  {qr.data ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={qr.data}
+                      alt={t("scanPay")}
+                      className="size-44 rounded-lg border p-1"
+                    />
+                  ) : (
+                    <Skeleton className="size-44 rounded-lg" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={copyUpi}
+                    className="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-3 py-1 text-xs font-medium hover:bg-muted"
+                  >
+                    <span className="text-muted-foreground">{t("upiIdLabel")}:</span>
+                    <span>{info.data.upi_id}</span>
+                    <Copy className="size-3" aria-hidden />
+                  </button>
+                </div>
+              ) : (
+                !info.isLoading && (
+                  <p className="rounded-lg border border-warning/20 bg-warning-bg px-3 py-2 text-center text-sm text-warning">
+                    {t("contactTeam")}
+                  </p>
+                )
               )
+            )}
+
+            {/* ── Non-UPI: show transfer instructions ───────────────── */}
+            {payMode !== "upi" && (
+              <div className="rounded-lg border border-info/20 bg-info/5 px-4 py-3 text-sm text-foreground space-y-1">
+                <p className="font-medium">{t("offlinePayNote")}</p>
+                <p className="text-muted-foreground text-xs">{t("offlinePayHint")}</p>
+              </div>
             )}
 
             <div className="flex items-center justify-between border-t pt-3 text-sm">
@@ -206,10 +254,11 @@ function PaymentModal({
               </span>
             </div>
 
-            {/* UPI transaction reference — REQUIRED (Part 9): the super admin
-                verifies this id before activating the plan. */}
+            {/* Transaction / reference ID — helps SA verify the payment */}
             <div className="space-y-1.5">
-              <Label htmlFor="pay-txn-ref">{t("txnRefLabel")} *</Label>
+              <Label htmlFor="pay-txn-ref">
+                {payMode === "upi" ? `${t("txnRefLabel")} *` : t("refLabel")}
+              </Label>
               <Input
                 id="pay-txn-ref"
                 value={txnRef}
@@ -217,10 +266,12 @@ function PaymentModal({
                 onChange={(e) =>
                   setTxnRef(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())
                 }
-                placeholder={t("txnRefPlaceholder")}
+                placeholder={payMode === "upi" ? t("txnRefPlaceholder") : t("refPlaceholder")}
                 autoComplete="off"
               />
-              <p className="text-label text-muted-foreground">{t("txnRefHint")}</p>
+              <p className="text-label text-muted-foreground">
+                {payMode === "upi" ? t("txnRefHint") : t("refHint")}
+              </p>
             </div>
             <p className="text-center text-xs text-muted-foreground">{t("payNote")}</p>
 
@@ -230,7 +281,7 @@ function PaymentModal({
               </Button>
               <Button
                 className="bg-navy-900 text-white hover:bg-navy-800"
-                disabled={submit.isPending || txnRef.trim().length < 6}
+                disabled={submit.isPending || (payMode === "upi" && txnRef.trim().length < 6)}
                 onClick={() => submit.mutate()}
               >
                 {t("completedPayment")}

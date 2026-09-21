@@ -1330,9 +1330,15 @@
     "goToCheckouts": "चेक-आउट पर जाएँ",
     "signOutExpired": "साइन आउट",
     "loggedInAsExpired": "{name} के रूप में साइन इन",
+    "paymentMode": "आप किस तरीके से भुगतान करना चाहते हैं?",
+    "offlinePayNote": "चुने गए तरीके से भुगतान पूरा करें।",
+    "offlinePayHint": "DigitalMyHotels टीम को योजना राशि का भुगतान करें, फिर अनुरोध सबमिट करें। हमारी टीम सत्यापित करके आपकी योजना सक्रिय करेगी।",
     "txnRefLabel": "UPI लेन-देन / संदर्भ आईडी",
     "txnRefPlaceholder": "जैसे 4152XXXXXXXX",
-    "txnRefHint": "भुगतान के बाद आपके UPI ऐप में मिलती है। योजना सक्रिय करने से पहले DigitalMyHotels टीम इसे सत्यापित करती है।"
+    "txnRefHint": "भुगतान के बाद आपके UPI ऐप में मिलती है। योजना सक्रिय करने से पहले DigitalMyHotels टीम इसे सत्यापित करती है।",
+    "refLabel": "संदर्भ / रसीद नंबर (वैकल्पिक)",
+    "refPlaceholder": "जैसे REC20260921001",
+    "refHint": "आपके भुगतान की कोई भी रसीद या संदर्भ संख्या।"
   },
   "notifications": {
     "title": "सूचनाएँ",
@@ -1493,6 +1499,7 @@
     "billingAllModes": "सभी तरीके",
     "billingCash": "नकद",
     "billingUPI": "UPI",
+    "billingBankTransfer": "बैंक ट्रांसफर",
     "billingCardPayment": "क्रेडिट/डेबिट कार्ड",
     "billingOthers": "अन्य",
     "billingApply": "लागू करें",

@@ -353,6 +353,7 @@ export interface SuperAdminBillingHistorySummary {
   this_month: string;
   cash: string;
   upi: string;
+  bank_transfer: string;
   card: string;
   other: string;
 }

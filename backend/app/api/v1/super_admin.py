@@ -39,7 +39,10 @@ from app.services import subscriptions as sub_service
 from app.services import super_admin as admin_service
 from app.services.audit import write_audit
 from app.services.notifications import create_notification
-from app.services.platform_config_service import get_platform_config, get_platform_upi, update_platform_upi
+from app.services.platform_config_service import (
+    get_platform_upi,
+    update_platform_upi,
+)
 
 router = APIRouter(prefix="/super-admin", tags=["super-admin"])
 
@@ -652,8 +655,9 @@ async def record_manual_payment(
     Used for cash, bank-transfer, or other offline payments.
     The hotel owner receives a notification about the renewal.
     """
-    from app.models.hotel import Hotel
     from sqlalchemy import select as _select
+
+    from app.models.hotel import Hotel
 
     # Validate hotel exists
     hotel = (await db.execute(
@@ -666,8 +670,12 @@ async def record_manual_payment(
     # Get the plan
     plan = await sub_service.get_plan_by_code(db, body.plan_code)
 
-    # Renew the subscription immediately
+    # Renew the subscription immediately, storing the normalised payment mode.
+    # "manual" is a legacy alias for "other" — normalise here so billing
+    # history summary cards always aggregate under the canonical 5-value list.
+    normalised_mode = "other" if body.payment_mode == "manual" else body.payment_mode
     sub = await sub_service.renew_subscription(db, hotel_id=body.hotel_id, plan=plan)
+    sub.payment_mode = normalised_mode
 
     # Build human-readable audit note (note_parts joined and used)
     note_parts = [f"Manual payment by SA: {user.full_name}"]

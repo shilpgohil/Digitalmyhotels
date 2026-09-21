@@ -137,6 +137,7 @@ async def create_renewal_request(
         hotel_id=hotel_id,
         plan=plan,
         requested_by_id=tenant.user_id,
+        payment_mode=body.payment_mode or None,
         note=body.note,
     )
     hotel = (await db.execute(select(Hotel).where(Hotel.id == hotel_id))).scalar_one()
@@ -213,7 +214,25 @@ async def platform_payment_qr(
         f"&am={amount}"
         f"&cu=INR"
     )
-    png = await render_qr_png_async(uri)
+    # Try to composite the platform brand logo in the QR centre.
+    # Configured via PLATFORM_LOGO_URL env var (e.g. https://…/logo.png).
+    # Failure is non-fatal — QR is generated without logo if URL is absent or
+    # the download fails (network error, non-image, etc.).
+    logo_bytes: bytes | None = None
+    logo_url = get_settings().platform_logo_url
+    if logo_url:
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(logo_url)
+                if resp.status_code == 200:
+                    ct = resp.headers.get("content-type", "")
+                    if ct.startswith("image/"):
+                        logo_bytes = resp.content
+        except Exception:  # noqa: BLE001
+            pass
+
+    png = await render_qr_png_async(uri, logo_bytes)
     return Response(
         content=png,
         media_type="image/png",

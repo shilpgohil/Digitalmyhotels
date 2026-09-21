@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     # frontend falls back to "contact the DigitalMyHotels team" instructions.
     platform_upi_id: str = ""
     platform_upi_payee_name: str = ""
+    # Optional URL to the DigitalMyHotels brand logo (PNG/JPEG/WebP, ≤512 KB).
+    # When set, the platform subscription payment QR composites this logo in
+    # the centre. Example: https://digitalmyhotels.vercel.app/logo.png
+    platform_logo_url: str = ""
 
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 

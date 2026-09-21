@@ -57,6 +57,10 @@ class Subscription(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     expiry_date: Mapped[date] = mapped_column(Date, nullable=False)
     grace_days: Mapped[int] = mapped_column(Integer, default=7, nullable=False)
     payment_status: Mapped[str] = mapped_column(String(32), default="unpaid", nullable=False)
+    # How the hotel paid for this subscription period.
+    # Canonical values: upi | cash | bank_transfer | card | other
+    # NULL = unknown / not recorded (legacy rows created before this column).
+    payment_mode: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     allow_view_after_expiry: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     block_transactions_after_expiry: Mapped[bool] = mapped_column(
         Boolean, default=True, nullable=False
@@ -85,6 +89,9 @@ class SubscriptionRenewalRequest(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     status: Mapped[str] = mapped_column(
         String(16), default="pending", nullable=False, index=True
     )
+    # Payment mode the hotel used when submitting this request
+    # (upi | cash | bank_transfer | card | other). NULL = not specified.
+    payment_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
     requested_by_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

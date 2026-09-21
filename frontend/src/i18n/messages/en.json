@@ -1330,9 +1330,15 @@
     "goToCheckouts": "Go to Checkouts",
     "signOutExpired": "Sign Out",
     "loggedInAsExpired": "Signed in as {name}",
+    "paymentMode": "How would you like to pay?",
+    "offlinePayNote": "Complete your payment via the selected method.",
+    "offlinePayHint": "Pay the plan amount to the DigitalMyHotels team, then submit your request. Our team will verify and activate your plan.",
     "txnRefLabel": "UPI Transaction / Reference ID",
     "txnRefPlaceholder": "e.g. 4152XXXXXXXX",
-    "txnRefHint": "Found in your UPI app after payment. The DigitalMyHotels team verifies this before activating the plan."
+    "txnRefHint": "Found in your UPI app after payment. The DigitalMyHotels team verifies this before activating the plan.",
+    "refLabel": "Reference / Receipt Number (optional)",
+    "refPlaceholder": "e.g. REC20260921001",
+    "refHint": "Any receipt or reference number from your payment."
   },
   "notifications": {
     "title": "Notifications",
@@ -1493,6 +1499,7 @@
     "billingAllModes": "All Modes",
     "billingCash": "Cash",
     "billingUPI": "UPI",
+    "billingBankTransfer": "Bank Transfer",
     "billingCardPayment": "Credit/Debit Card",
     "billingOthers": "Others",
     "billingApply": "Apply",

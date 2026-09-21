@@ -29,6 +29,7 @@ import {
   IndianRupee,
   CreditCard,
   Banknote,
+  Landmark,
   Plus,
   Smartphone,
   MoreHorizontal,
@@ -73,24 +74,29 @@ const PERIOD_KEYS: { value: Period; labelKey: string }[] = [
   { value: "this_year",  labelKey: "billingThisYear" },
 ];
 
+// Canonical 5-value payment mode list — same values used in the filter,
+// the Record Payment dialog, and the partner plan modal.
 const MODE_OPTIONS = [
-  { value: "",             label: "billingAllModes" },
-  { value: "cash",         label: "billingCash" },
-  { value: "upi",          label: "billingUPI" },
-  { value: "card",         label: "billingCardPayment" },
-  { value: "other",        label: "billingOthers" },
+  { value: "",               label: "billingAllModes" },
+  { value: "upi",            label: "billingUPI" },
+  { value: "cash",           label: "billingCash" },
+  { value: "bank_transfer",  label: "billingBankTransfer" },
+  { value: "card",           label: "billingCardPayment" },
+  { value: "other",          label: "billingOthers" },
 ] as const;
 
-/** Label shown in Mode column */
+/** Label shown in Mode column — normalises legacy values */
 function modeLabel(mode: string | null, t: (k: string) => string): string {
   if (!mode) return "—";
   const map: Record<string, string> = {
-    cash:        t("billingCash"),
-    upi:         t("billingUPI"),
-    credit_card: t("billingCardPayment"),
-    debit_card:  t("billingCardPayment"),
-    card:        t("billingCardPayment"),
-    other:       t("billingOthers"),
+    upi:           t("billingUPI"),
+    cash:          t("billingCash"),
+    bank_transfer: t("billingBankTransfer"),
+    card:          t("billingCardPayment"),
+    credit_card:   t("billingCardPayment"),  // legacy
+    debit_card:    t("billingCardPayment"),  // legacy
+    other:         t("billingOthers"),
+    manual:        t("billingOthers"),       // legacy alias
   };
   return map[mode] ?? mode;
 }
@@ -224,8 +230,8 @@ function RecordPaymentButton({ onSuccess }: { readonly onSuccess: () => void }) 
                 <option value="upi">UPI</option>
                 <option value="cash">Cash</option>
                 <option value="bank_transfer">Bank Transfer</option>
-                <option value="card">Card</option>
-                <option value="manual">Manual / Other</option>
+                <option value="card">Credit/Debit Card</option>
+                <option value="other">Others</option>
               </select>
             </div>
 
@@ -351,15 +357,16 @@ export default function AdminBillingHistoryPage() {
   const total      = data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  // ── Stat card definitions ────────────────────────────────────────────────
+  // ── Stat card definitions (7 cards: total, this month, then 5 modes) ───
   type StatDef = { labelKey: string; icon: LucideIcon; tone: string; value: string | undefined };
   const STAT_CARDS: StatDef[] = [
-    { labelKey: "billingTotalCollected", icon: IndianRupee,  tone: "navy",    value: summary?.total_collected },
-    { labelKey: "billingThisMonthCard",  icon: IndianRupee,  tone: "success", value: summary?.this_month },
-    { labelKey: "billingCash",           icon: Banknote,     tone: "gold",    value: summary?.cash },
-    { labelKey: "billingUPI",            icon: Smartphone,   tone: "info",    value: summary?.upi },
-    { labelKey: "billingCardPayment",    icon: CreditCard,   tone: "navy2",   value: summary?.card },
-    { labelKey: "billingOthers",         icon: MoreHorizontal, tone: "muted", value: summary?.other },
+    { labelKey: "billingTotalCollected", icon: IndianRupee,    tone: "navy",    value: summary?.total_collected },
+    { labelKey: "billingThisMonthCard",  icon: IndianRupee,    tone: "success", value: summary?.this_month },
+    { labelKey: "billingUPI",            icon: Smartphone,     tone: "info",    value: summary?.upi },
+    { labelKey: "billingCash",           icon: Banknote,       tone: "gold",    value: summary?.cash },
+    { labelKey: "billingBankTransfer",   icon: Landmark,       tone: "navy2",   value: summary?.bank_transfer },
+    { labelKey: "billingCardPayment",    icon: CreditCard,     tone: "navy2",   value: summary?.card },
+    { labelKey: "billingOthers",         icon: MoreHorizontal, tone: "muted",   value: summary?.other },
   ];
 
   // ── Table columns ─────────────────────────────────────────────────────────
@@ -392,9 +399,9 @@ export default function AdminBillingHistoryPage() {
         <RecordPaymentButton onSuccess={() => queryClient.invalidateQueries({ queryKey: ["admin-billing-history"] })} />
       </div>
 
-      {/* ── 6 Summary stat cards (always ALL-TIME) ─────────────────────── */}
-      {/* cols=6: 2 cols mobile → 3 cols sm → 6 cols xl */}
-      <StatCardGrid cols={6}>
+      {/* ── 7 Summary stat cards (always ALL-TIME) ─────────────────────── */}
+      {/* cols=7: 2 cols mobile → 4 cols sm → 7 cols xl */}
+      <StatCardGrid cols={7}>
         {STAT_CARDS.map(({ labelKey, icon: Icon, tone, value }) =>
           query.isLoading ? (
             <Skeleton key={labelKey} className="h-24 rounded-xl" />

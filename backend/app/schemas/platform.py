@@ -185,6 +185,12 @@ class SubscriptionOut(ORMModel):
 
 class RenewalRequestCreate(BaseModel):
     plan_id: UUID
+    # How the hotel paid (self-reported, SA verifies before approving).
+    # Canonical values: upi | cash | bank_transfer | card | other
+    payment_mode: str | None = Field(
+        default=None,
+        pattern="^(upi|cash|bank_transfer|card|other|manual)?$",
+    )
     note: str | None = Field(default=None, max_length=500)
 
 

@@ -256,6 +256,7 @@ async def create_renewal_request(
     hotel_id: UUID,
     plan: SubscriptionPlan,
     requested_by_id: UUID,
+    payment_mode: str | None = None,
     note: str | None = None,
 ) -> SubscriptionRenewalRequest:
     pending = await db.scalar(
@@ -274,6 +275,7 @@ async def create_renewal_request(
         plan_id=plan.id,
         amount=plan.price,  # snapshot — plan may be repriced later
         status="pending",
+        payment_mode=payment_mode,
         requested_by_id=requested_by_id,
         note=note,
     )
@@ -339,7 +341,12 @@ async def decide_renewal_request(
         )
     plan = await get_plan(db, req.plan_id)
     if approve:
-        await renew_subscription(db, hotel_id=req.hotel_id, plan=plan)
+        sub = await renew_subscription(db, hotel_id=req.hotel_id, plan=plan)
+        # Carry the hotel's self-reported payment_mode onto the new Subscription
+        # row so the billing-history summary cards reflect the correct mode.
+        if req.payment_mode:
+            normalised = "other" if req.payment_mode == "manual" else req.payment_mode
+            sub.payment_mode = normalised
     req.status = "approved" if approve else "rejected"
     req.decided_at = utcnow()
     req.decided_by_id = decided_by_id
