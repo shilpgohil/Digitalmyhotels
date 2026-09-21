@@ -214,23 +214,11 @@ async def platform_payment_qr(
         f"&am={amount}"
         f"&cu=INR"
     )
-    # Try to composite the platform brand logo in the QR centre.
-    # Configured via PLATFORM_LOGO_URL env var (e.g. https://…/logo.png).
-    # Failure is non-fatal — QR is generated without logo if URL is absent or
-    # the download fails (network error, non-image, etc.).
-    logo_bytes: bytes | None = None
-    logo_url = get_settings().platform_logo_url
-    if logo_url:
-        try:
-            import httpx
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(logo_url)
-                if resp.status_code == 200:
-                    ct = resp.headers.get("content-type", "")
-                    if ct.startswith("image/"):
-                        logo_bytes = resp.content
-        except Exception:  # noqa: BLE001
-            pass
+    # Composite the platform brand logo in the QR centre.
+    # Source priority: B2 (uploaded via SA Settings) → PLATFORM_LOGO_URL env var.
+    # Failure is non-fatal — QR is generated without logo if neither is set.
+    from app.services.platform_config_service import get_platform_logo_bytes
+    logo_bytes = await get_platform_logo_bytes(db)
 
     png = await render_qr_png_async(uri, logo_bytes)
     return Response(

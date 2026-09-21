@@ -116,6 +116,9 @@ class PlatformConfig(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # NULL = not yet configured (frontend shows "Contact team" fallback).
     platform_upi_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     platform_upi_payee_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # B2 object key for the DigitalMyHotels brand logo composited in the
+    # centre of the platform subscription payment QR.  NULL = no logo.
+    platform_logo_object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
 
 class Notification(Base, UUIDPrimaryKeyMixin, TimestampMixin):

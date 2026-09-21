@@ -14,7 +14,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CheckCircle, CreditCard, KeyRound, Pencil, QrCode, ShieldCheck, Users } from "lucide-react";
+import { CheckCircle, CreditCard, ImagePlus, KeyRound, Pencil, QrCode, ShieldCheck, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
 import { SectionPanel } from "@/components/ui/section-panel";
 import { Button } from "@/components/ui/button";
@@ -147,6 +147,9 @@ function EditProfileDialog() {
 function PlatformPaymentSection() {
   const tc = useTranslations("common");
   const queryClient = useQueryClient();
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
 
   const config = useQuery({
     queryKey: ["sa-platform-config"],
@@ -196,6 +199,28 @@ function PlatformPaymentSection() {
       setQrPolling(false);
     }
   };
+
+  const uploadLogo = useMutation({
+    mutationFn: async (file: File) => {
+      const token = getAccessToken();
+      const form = new FormData();
+      form.append("file", file);
+      const resp = await fetch(`${API_BASE}/api/v1/super-admin/platform-logo`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token ?? ""}` },
+        credentials: "include",
+        body: form,
+      });
+      if (!resp.ok) throw new Error("Logo upload failed");
+    },
+    onSuccess: () => {
+      toast.success("Logo uploaded — QR will now show the brand logo in centre.");
+      setLogoFile(null);
+      // Refresh QR preview to reflect new logo
+      void fetchQrPreview();
+    },
+    onError: () => toast.error("Logo upload failed. Please try again."),
+  });
 
   const save = useMutation({
     mutationFn: () => apiFetch("/api/v1/super-admin/platform-config", {
@@ -252,6 +277,63 @@ function PlatformPaymentSection() {
               {save.isPending ? "Saving…" : "Save & Generate QR"}
             </Button>
           </form>
+
+          {/* ── Platform brand logo (composited in QR centre) ─────── */}
+          <div className="space-y-2 border-t pt-4">
+            <p className="text-xs font-semibold text-foreground">
+              Platform Logo (centre of QR)
+            </p>
+            <p className="text-label text-muted-foreground">
+              Upload the DigitalMyHotels brand logo (PNG/JPG, max 512 KB).
+              It appears in the centre of every subscription payment QR.
+            </p>
+            <div className="flex items-center gap-3 flex-wrap">
+              {logoPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logoPreview}
+                  alt="Logo preview"
+                  className="size-12 rounded-md border object-contain bg-white p-0.5"
+                />
+              ) : (
+                <div className="flex size-12 shrink-0 items-center justify-center rounded-md border border-dashed border-muted-foreground/40 bg-muted/20">
+                  <ImagePlus className="size-5 text-muted-foreground/50" aria-hidden />
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => logoInputRef.current?.click()}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-input px-3 text-sm font-medium hover:bg-muted transition-colors"
+              >
+                <ImagePlus className="size-3.5" aria-hidden />
+                {logoFile ? "Change Logo" : "Choose Logo"}
+              </button>
+              {logoFile && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-9 bg-navy-900 text-white hover:bg-navy-800"
+                  disabled={uploadLogo.isPending}
+                  onClick={() => uploadLogo.mutate(logoFile)}
+                >
+                  {uploadLogo.isPending ? "Uploading…" : "Upload Logo"}
+                </Button>
+              )}
+            </div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                setLogoFile(f);
+                if (logoPreview) URL.revokeObjectURL(logoPreview);
+                setLogoPreview(URL.createObjectURL(f));
+              }}
+            />
+          </div>
         </div>
 
         {/* QR preview */}

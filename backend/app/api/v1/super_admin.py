@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_super_admin
@@ -42,6 +43,7 @@ from app.services.notifications import create_notification
 from app.services.platform_config_service import (
     get_platform_upi,
     update_platform_upi,
+    upload_platform_logo,
 )
 
 router = APIRouter(prefix="/super-admin", tags=["super-admin"])
@@ -638,6 +640,36 @@ async def update_platform_config_endpoint(
         platform_upi_payee_name=cfg.platform_upi_payee_name,
         configured=bool(cfg.platform_upi_id),
     )
+
+
+@router.post("/platform-logo", status_code=204)
+async def upload_platform_logo_endpoint(
+    request: Request,
+    file: UploadFile = File(...),
+    user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Upload the DigitalMyHotels brand logo for the platform payment QR.
+
+    Stores the image in B2 and saves the object key in platform_config.
+    The logo is composited in the centre of the subscription payment QR
+    that hotel owners scan when renewing/upgrading their plan.
+    Accepted: PNG, JPEG, WebP — max 512 KB.
+    """
+    data = await file.read()
+    ct = file.content_type or "image/png"
+    cfg = await upload_platform_logo(db, data=data, content_type=ct)
+    await write_audit(
+        db,
+        action="platform_config.logo_uploaded",
+        entity_type="platform_config",
+        entity_id=cfg.id,
+        actor_id=user.id,
+        hotel_id=None,
+        after={"object_key": cfg.platform_logo_object_key},
+        correlation_id=_correlation(request),
+    )
+    return Response(status_code=204)
 
 
 # ── SA Manual Payment Recording ───────────────────────────────────────────────
