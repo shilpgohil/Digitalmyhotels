@@ -127,7 +127,7 @@ function statusHint(status: string): { label: string; colour: string } | null {
  *  - which room number or name length
  *
  * Design decisions (client 19/09):
- *  - All cards: same fixed h-[88px] so rows are always uniform
+ *  - All cards: same fixed h-[96px] so rows are always uniform
  *  - ⓘ button: ALWAYS reserved in top-right (invisible when no info) so
  *    the card layout never shifts — no more width/height inconsistency
  *  - ⓘ touch target: 36×36px (well above 44px guideline via padding) so
@@ -212,10 +212,11 @@ function AvailableChip({
         title={isDisabled && hint ? hint.label + " — Not available right now" : undefined}
         className={cn(
           // Fixed size — ALWAYS the same regardless of content.
-          // h-[88px] = room number row + type name + bed type (or spacer) + price.
+          // h-[96px] = room number row + type name + bed type (or spacer) + price
+          //            with 8px extra headroom so rows never visually collide.
           // pr-7 is ALWAYS applied (reserves space for the ⓘ slot).
           "relative flex flex-col rounded-xl border-2 px-3 py-2.5 pr-7 text-left",
-          "transition-all w-full h-[88px]",
+          "transition-all w-full h-[96px]",
           isDisabled
             ? "opacity-50 cursor-not-allowed border-border bg-muted/20 pointer-events-auto"
             : selected
@@ -238,12 +239,15 @@ function AvailableChip({
           {room.room_type_name ?? "—"}
         </span>
 
-        {/* Row 3: bed type OR invisible spacer — keeps row 4 at fixed position */}
-        <span className="flex items-center gap-0.5 text-micro text-muted-foreground mt-0.5 h-[14px]">
+        {/* Row 3: bed type OR invisible spacer — keeps row 4 at fixed position.
+            mt-1 (4px) instead of mt-0.5 (2px) gives breathing room between the
+            room-type name and the bed-type row so they never visually collide.
+            capitalize ensures "queen" → "Queen", "double" → "Double", etc. */}
+        <span className="flex items-center gap-0.5 text-micro text-muted-foreground mt-1 h-[14px]">
           {room.bed_type ? (
             <>
               <BedDouble className="size-2.5 shrink-0" aria-hidden />
-              <span className="truncate">{room.bed_type}</span>
+              <span className="truncate capitalize">{room.bed_type}</span>
             </>
           ) : null /* spacer height maintained by fixed h-[14px] */}
         </span>
@@ -496,7 +500,7 @@ export function RoomAvailabilityPicker({
         <Skeleton className="h-4 w-40" />
         <div className="grid gap-2 grid-cols-3 sm:grid-cols-4 lg:grid-cols-5">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-[88px] rounded-xl" />
+            <Skeleton key={i} className="h-[96px] rounded-xl" />
           ))}
         </div>
       </div>
