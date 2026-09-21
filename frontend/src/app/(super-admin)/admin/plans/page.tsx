@@ -223,10 +223,15 @@ function EditPlanDialog({
             <Input id="pl-name" name="name" defaultValue={plan?.name ?? ""} required minLength={2} />
           </div>
 
-          {/* Pricing: MRP + Discounted price in same row */}
+          {/* Pricing: MRP + Discounted price side by side.
+              Labels are intentionally short (single line) so both inputs
+              stay at the same vertical position in the grid. */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="pl-mrp" className="text-xs">Original / MRP Price (₹) <span className="text-muted-foreground">(optional)</span></Label>
+              <div className="flex items-center gap-1">
+                <Label htmlFor="pl-mrp">MRP Price (₹)</Label>
+                <span className="text-xs text-muted-foreground">(optional)</span>
+              </div>
               <Input
                 id="pl-mrp"
                 name="mrp_price"
@@ -236,10 +241,10 @@ function EditPlanDialog({
                 placeholder="e.g. 699"
                 defaultValue={plan?.mrp_price ? String(Math.round(Number(plan.mrp_price))) : ""}
               />
-              <p className="text-label text-muted-foreground">Shows as ~~strikethrough~~</p>
+              <p className="text-xs text-muted-foreground">Shown as ~~strikethrough~~</p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="pl-price" className="text-xs">Discounted Price (₹) *</Label>
+              <Label htmlFor="pl-price">Actual Price (₹) *</Label>
               <Input
                 id="pl-price"
                 name="price"
@@ -249,7 +254,7 @@ function EditPlanDialog({
                 defaultValue={plan ? String(Math.round(Number(plan.price))) : ""}
                 required
               />
-              <p className="text-label text-muted-foreground">Actual price to pay</p>
+              <p className="text-xs text-muted-foreground">Price hotel pays</p>
             </div>
           </div>
 
