@@ -282,7 +282,7 @@
   "rooms": {
     "title": "कमरे की स्थिति",
     "statTotal": "कुल",
-    "statBooked": "बुक किए गए",
+    "statBooked": "अधिकृत",
     "roomsTab": "कमरे",
     "typesTab": "कमरे के प्रकार",
     "addRoom": "कमरा जोड़ें",

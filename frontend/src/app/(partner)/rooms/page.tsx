@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -207,17 +208,27 @@ function RoomsContent() {
   const queryClient = useQueryClient();
   const { activeHotelId, can } = useAuth();
   const [view, setView] = useState<"grid" | "table">("grid");
+
   // ?filter=<bucket> deep link — the dashboard's room-status cards land here
   // pre-filtered (client 9-08 item 17). Legacy raw-status params are mapped.
-  const [gridFilter, setGridFilter] = useState<RoomBucket | "all">(() => {
-    if (typeof window === "undefined") return "all";
-    const param = new URLSearchParams(window.location.search).get("filter");
-    if (!param) return "all";
+  //
+  // IMPORTANT: useSearchParams() is reactive — it re-runs whenever the URL
+  // changes (e.g. client-side navigation from the dashboard stat cards).
+  // The old window.location.search approach used a lazy useState initializer
+  // that only fired once on mount, so navigating from the dashboard to
+  // /rooms?filter=occupied never applied the filter until a second click.
+  const searchParams = useSearchParams();
+  const [gridFilter, setGridFilter] = useState<RoomBucket | "all">("all");
+
+  useEffect(() => {
+    const param = searchParams.get("filter");
+    if (!param) { setGridFilter("all"); return; }
     if (GRID_FILTERS.includes(param as RoomBucket | "all")) {
-      return param as RoomBucket | "all";
+      setGridFilter(param as RoomBucket | "all");
+    } else {
+      setGridFilter(LEGACY_FILTER_MAP[param] ?? "all");
     }
-    return LEGACY_FILTER_MAP[param] ?? "all";
-  });
+  }, [searchParams]);
 
   const rooms = useQuery({
     queryKey: ["rooms", activeHotelId],
@@ -502,7 +513,12 @@ function ErrorRow({ onRetry }: { onRetry: () => void }) {
 export default function RoomsPage() {
   return (
     <RequirePermission permission={PERMISSIONS.roomsView}>
-      <RoomsContent />
+      {/* Suspense is required by Next.js whenever useSearchParams() is used
+          inside a client component (build-time enforcement). The fallback is
+          null so there's no flash — the component hydrates immediately. */}
+      <Suspense fallback={null}>
+        <RoomsContent />
+      </Suspense>
     </RequirePermission>
   );
 }

@@ -282,7 +282,7 @@
   "rooms": {
     "title": "Room Status",
     "statTotal": "Total",
-    "statBooked": "Booked",
+    "statBooked": "Occupied",
     "roomsTab": "Rooms",
     "typesTab": "Room Types",
     "addRoom": "Add Room",
