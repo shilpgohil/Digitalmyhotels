@@ -291,10 +291,13 @@ export interface SubscriptionPlanOut {
   id: string;
   code: string;
   name: string;
-  /** Feature list, one per line — edited by the Super Admin, rendered on the
-   *  hotel's Choose Your Plan page (falls back to i18n defaults when empty). */
+  /** Feature list, one per line. Supports *bold* and **bold** inline markup. */
   description: string | null;
+  /** Actual / discounted price the hotel pays. */
   price: string;
+  /** Optional MRP / original price — shown as strikethrough alongside price.
+   *  When set, an auto-calculated "Save X%" badge is displayed. */
+  mrp_price: string | null;
   duration_days: number;
   trial_days: number;
   is_active: boolean;

@@ -13,7 +13,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Pencil, Power } from "lucide-react";
+import { Eye, EyeOff, Pencil, Power } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -103,7 +103,17 @@ export default function AdminPlansPage() {
                   {p.is_active ? t("planActive") : t("planInactive")}
                 </span>
               </div>
-              <p className="mt-3 text-xl font-semibold tabular-nums">{fmtINR(p.price)}</p>
+              <div className="mt-3 flex items-baseline gap-2">
+                {p.mrp_price && Number(p.mrp_price) > Number(p.price) && (
+                  <span className="text-sm text-muted-foreground line-through">{fmtINR(p.mrp_price)}</span>
+                )}
+                <span className="text-xl font-semibold tabular-nums text-gold-600">{fmtINR(p.price)}</span>
+                {p.mrp_price && Number(p.mrp_price) > Number(p.price) && (
+                  <span className="rounded-full bg-success-bg px-2 py-0.5 text-label font-semibold text-success">
+                    Save {Math.round((Number(p.mrp_price) - Number(p.price)) / Number(p.mrp_price) * 100)}%
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground">
                 {p.duration_days} {t("days")} · {p.trial_days} {t("trialDays")}
               </p>
@@ -136,6 +146,16 @@ export default function AdminPlansPage() {
   );
 }
 
+/** Parse *text* / **text** inline markdown → bold React nodes. */
+function parseBold(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*?[^*\n]+\*\*?)/g);
+  return parts.map((p, i) => {
+    if (/^\*\*[^*]+\*\*$/.test(p)) return <strong key={i}>{p.slice(2, -2)}</strong>;
+    if (/^\*[^*]+\*$/.test(p))     return <strong key={i}>{p.slice(1, -1)}</strong>;
+    return p;
+  });
+}
+
 function EditPlanDialog({
   plan,
   onClose,
@@ -148,9 +168,14 @@ function EditPlanDialog({
   const t = useTranslations("admin");
   const tc = useTranslations("common");
   const [error, setError] = useState<string | null>(null);
+  const [featText, setFeatText] = useState<string>("");
+  const [showPreview, setShowPreview] = useState(false);
+
+  // Seed textarea state when plan changes
+  const planKey = plan?.id ?? "none";
 
   const mutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Record<string, string | number> }) =>
+    mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
       apiFetch<SubscriptionPlanOut>(`/api/v1/super-admin/plans/${id}`, {
         method: "PATCH",
         body,
@@ -173,21 +198,21 @@ function EditPlanDialog({
           </DialogTitle>
         </DialogHeader>
         <form
-          key={plan?.id ?? "none"}
+          key={planKey}
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
             if (!plan) return;
             const form = new FormData(e.currentTarget);
+            const mrpRaw = String(form.get("mrp_price") || "").trim();
             mutation.mutate({
               id: plan.id,
               body: {
                 name: String(form.get("name") || plan.name),
                 price: String(form.get("price") || plan.price),
+                mrp_price: mrpRaw !== "" ? mrpRaw : null,
                 duration_days: Number(form.get("duration_days") || plan.duration_days),
                 trial_days: Number(form.get("trial_days") ?? plan.trial_days),
-                // Feature list, one per line — rendered verbatim on the
-                // hotel's Choose Your Plan page.
                 description: String(form.get("description") ?? ""),
               },
             });
@@ -197,9 +222,24 @@ function EditPlanDialog({
             <Label htmlFor="pl-name">{t("planName")}</Label>
             <Input id="pl-name" name="name" defaultValue={plan?.name ?? ""} required minLength={2} />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+
+          {/* Pricing: MRP + Discounted price in same row */}
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="pl-price">{t("planPrice")}</Label>
+              <Label htmlFor="pl-mrp" className="text-xs">Original / MRP Price (₹) <span className="text-muted-foreground">(optional)</span></Label>
+              <Input
+                id="pl-mrp"
+                name="mrp_price"
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder="e.g. 699"
+                defaultValue={plan?.mrp_price ? String(Math.round(Number(plan.mrp_price))) : ""}
+              />
+              <p className="text-label text-muted-foreground">Shows as ~~strikethrough~~</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pl-price" className="text-xs">Discounted Price (₹) *</Label>
               <Input
                 id="pl-price"
                 name="price"
@@ -209,7 +249,11 @@ function EditPlanDialog({
                 defaultValue={plan ? String(Math.round(Number(plan.price))) : ""}
                 required
               />
+              <p className="text-label text-muted-foreground">Actual price to pay</p>
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="pl-days">{t("days")}</Label>
               <Input
@@ -234,18 +278,49 @@ function EditPlanDialog({
               />
             </div>
           </div>
+
+          {/* Feature list with live preview toggle */}
           <div className="space-y-1.5">
-            <Label htmlFor="pl-features">{t("planFeatures")}</Label>
-            <textarea
-              id="pl-features"
-              name="description"
-              defaultValue={plan?.description ?? ""}
-              rows={6}
-              placeholder={t("planFeaturesPlaceholder")}
-              className="w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-gold-500/30"
-            />
-            <p className="text-xs text-muted-foreground">{t("planFeaturesHint")}</p>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="pl-features">{t("planFeatures")}</Label>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-xs text-gold-600 hover:text-gold-700 font-medium"
+                onClick={() => setShowPreview((v) => !v)}
+              >
+                {showPreview ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                {showPreview ? "Edit" : "Preview"}
+              </button>
+            </div>
+            {showPreview ? (
+              /* Rendered preview showing how *bold* looks on the hotel page */
+              <div className="min-h-[120px] rounded-lg border border-input bg-muted/20 px-2.5 py-2 text-sm space-y-1">
+                {(featText || plan?.description || "").split("\n").filter(Boolean).map((line, i) => (
+                  <p key={i} className="flex items-start gap-2">
+                    <span className="mt-0.5 text-gold-600">✓</span>
+                    <span>{parseBold(line)}</span>
+                  </p>
+                ))}
+                {(featText || plan?.description || "").trim() === "" && (
+                  <p className="text-muted-foreground italic">No features entered yet</p>
+                )}
+              </div>
+            ) : (
+              <textarea
+                id="pl-features"
+                name="description"
+                defaultValue={plan?.description ?? ""}
+                rows={6}
+                placeholder={"One feature per line.\nUse *text* or **text** for bold.\ne.g. *Guest Management*"}
+                className="w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-gold-500/30"
+                onChange={(e) => setFeatText(e.target.value)}
+              />
+            )}
+            <p className="text-xs text-muted-foreground">
+              One feature per line. Use <code className="bg-muted px-1 rounded">*text*</code> or <code className="bg-muted px-1 rounded">**text**</code> for <strong>bold</strong>. Click Preview to verify.
+            </p>
           </div>
+
           {error && (
             <p className="text-sm text-danger" role="alert">
               {error}

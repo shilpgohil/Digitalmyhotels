@@ -58,6 +58,9 @@ class SubscriptionPlanOut(ORMModel):
     name: str
     description: str | None
     price: Decimal
+    # Optional MRP / original price — shown as strikethrough on the hotel
+    # plan page.  NULL = no discount pricing shown.
+    mrp_price: Decimal | None = None
     duration_days: int
     trial_days: int
     is_active: bool
@@ -68,6 +71,7 @@ class SubscriptionPlanCreate(BaseModel):
     name: str = Field(min_length=2, max_length=120)
     description: str | None = None
     price: Decimal = Field(ge=0)
+    mrp_price: Decimal | None = Field(default=None, ge=0)
     duration_days: int = Field(ge=1, le=3650)
     trial_days: int = Field(default=14, ge=0, le=365)
 
@@ -79,6 +83,7 @@ class SubscriptionPlanUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=120)
     description: str | None = None
     price: Decimal | None = Field(default=None, ge=0)
+    mrp_price: Decimal | None = Field(default=None, ge=0)
     duration_days: int | None = Field(default=None, ge=1, le=3650)
     trial_days: int | None = Field(default=None, ge=0, le=365)
     is_active: bool | None = None

@@ -28,7 +28,12 @@ class SubscriptionPlan(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Discounted / actual price the hotel pays.
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    # Optional MRP / original price — shown as strikethrough on the hotel
+    # plan page alongside the discounted price and an auto-calculated
+    # "Save X%" badge.  NULL means no discount shown.
+    mrp_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     duration_days: Mapped[int] = mapped_column(Integer, nullable=False)
     trial_days: Mapped[int] = mapped_column(Integer, default=14, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

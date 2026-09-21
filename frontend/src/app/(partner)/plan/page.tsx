@@ -49,6 +49,19 @@ function monthsOf(plan: SubscriptionPlanOut): number {
   return Math.max(1, Math.round(plan.duration_days / 30.4));
 }
 
+/**
+ * Parse *text* / **text** inline markdown → bold React nodes.
+ * All other text renders as-is, asterisks stripped from wrapped words.
+ */
+function parseBold(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*?[^*\n]+\*\*?)/g);
+  return parts.map((p, i) => {
+    if (/^\*\*[^*]+\*\*$/.test(p)) return <strong key={i}>{p.slice(2, -2)}</strong>;
+    if (/^\*[^*]+\*$/.test(p))     return <strong key={i}>{p.slice(1, -1)}</strong>;
+    return p;
+  });
+}
+
 /** Nearest feature tier defined in i18n for a plan's month count. */
 function featureTier(months: number): "m1" | "m3" | "m6" | "m12" {
   if (months >= 12) return "m12";
@@ -409,7 +422,9 @@ function PlanContent() {
             </p>
           )}
 
-          <div className="mt-8 grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {/* grid-cols-3 ensures up to 3 plans sit centred; xl:grid-cols-3
+              avoids the 4-column layout that left-aligned 3 cards (empty 4th slot). */}
+          <div className="mt-8 grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:max-w-5xl xl:mx-auto">
             {visiblePlans.map((plan, index) => {
               const best = index === visiblePlans.length - 1 && visiblePlans.length > 1;
               const months = monthsOf(plan);
@@ -450,15 +465,37 @@ function PlanContent() {
                     </span>
                   )}
                   <h2 className="font-display text-xl">{plan.name}</h2>
-                  <p className="mt-2">
-                    <span className="text-3xl font-semibold text-gold-600">
-                      {fmtINR(plan.price)}
-                    </span>
-                    <span className="text-sm text-muted-foreground"> {durationLabel}</span>
-                  </p>
+                  <div className="mt-2">
+                    {/* MRP strikethrough + discounted price + Save % badge */}
+                    {plan.mrp_price && Number(plan.mrp_price) > Number(plan.price) ? (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground line-through">
+                            {fmtINR(plan.mrp_price)}
+                          </span>
+                          <span className="rounded-full bg-success-bg px-2 py-0.5 text-label font-bold text-success">
+                            Save {Math.round((Number(plan.mrp_price) - Number(plan.price)) / Number(plan.mrp_price) * 100)}%
+                          </span>
+                        </div>
+                        <p>
+                          <span className="text-3xl font-semibold text-gold-600">
+                            {fmtINR(plan.price)}
+                          </span>
+                          <span className="text-sm text-muted-foreground"> {durationLabel}</span>
+                        </p>
+                      </>
+                    ) : (
+                      <p>
+                        <span className="text-3xl font-semibold text-gold-600">
+                          {fmtINR(plan.price)}
+                        </span>
+                        <span className="text-sm text-muted-foreground"> {durationLabel}</span>
+                      </p>
+                    )}
+                  </div>
                   <p
                     className={cn(
-                      "mt-2 min-h-10 text-sm",
+                      "mt-2 min-h-6 text-sm",
                       best ? "font-medium text-gold-600" : "text-muted-foreground",
                     )}
                   >
@@ -471,13 +508,15 @@ function PlanContent() {
                   <hr className="my-4" />
                   <ul className="flex-1 space-y-2 text-sm">
                     {features.map((feature, fi) => (
-                      <li key={feature} className="flex items-start gap-2">
+                      <li key={fi} className="flex items-start gap-2">
                         <BadgeCheck
                           className="mt-0.5 size-4 shrink-0 text-gold-600"
                           aria-hidden
                         />
+                        {/* parseBold converts *text* / **text** → <strong>;
+                            fi===0 + multi-month first-line still gets bold */}
                         <span className={cn(fi === 0 && months > 1 && "font-semibold")}>
-                          {feature}
+                          {parseBold(feature)}
                         </span>
                       </li>
                     ))}
