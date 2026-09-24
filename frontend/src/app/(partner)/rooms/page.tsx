@@ -19,6 +19,17 @@ import {
   Wrench,
   SquarePen,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
 import { SegmentedChips } from "@/components/ui/segmented-chips";
 import type { StatCardTone } from "@/components/ui/stat-card";
@@ -257,20 +268,54 @@ function RoomsContent() {
   // Cross-page room-state invalidation (plan Part 6).
   const invalidate = () => invalidateRoomState(queryClient);
 
+  const [pendingStatusRoom, setPendingStatusRoom] = useState<{
+    room: RoomOut;
+    status: RoomStatus;
+  } | null>(null);
+  const [statusReason, setStatusReason] = useState("");
+
   const statusMutation = useMutation({
-    mutationFn: ({ roomId, status }: { roomId: string; status: RoomStatus }) =>
+    mutationFn: ({
+      roomId,
+      status,
+      reason,
+    }: {
+      roomId: string;
+      status: RoomStatus;
+      reason?: string;
+    }) =>
       api<RoomOut>(`/api/v1/rooms/${roomId}/status`, {
         method: "PUT",
-        body: { status },
+        body: { status, reason },
       }),
     onSuccess: () => {
       toast.success(t("statusUpdated"));
+      setPendingStatusRoom(null);
+      setStatusReason("");
       invalidate();
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : tc("error"));
     },
   });
+
+  const handleSelectStatus = (room: RoomOut, nextStatus: RoomStatus) => {
+    if (nextStatus === "maintenance" || nextStatus === "out_of_service") {
+      setPendingStatusRoom({ room, status: nextStatus });
+      setStatusReason("");
+    } else {
+      statusMutation.mutate({ roomId: room.id, status: nextStatus });
+    }
+  };
+
+  const handleConfirmReasonStatus = () => {
+    if (!pendingStatusRoom) return;
+    statusMutation.mutate({
+      roomId: pendingStatusRoom.room.id,
+      status: pendingStatusRoom.status,
+      reason: statusReason.trim(),
+    });
+  };
 
   return (
     <>
@@ -399,9 +444,7 @@ function RoomsContent() {
                               <DropdownMenuContent align="end" className="w-64 rounded-xl border border-border shadow-lg">
                                 <RoomStatusMenuItems
                                   currentStatus={room.status}
-                                  onSelect={(status) =>
-                                    statusMutation.mutate({ roomId: room.id, status })
-                                  }
+                                  onSelect={(status) => handleSelectStatus(room, status)}
                                 />
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -467,9 +510,7 @@ function RoomsContent() {
                               <DropdownMenuContent align="end" className="w-64 rounded-xl border border-border shadow-lg">
                                 <RoomStatusMenuItems
                                   currentStatus={room.status}
-                                  onSelect={(status) =>
-                                    statusMutation.mutate({ roomId: room.id, status })
-                                  }
+                                  onSelect={(status) => handleSelectStatus(room, status)}
                                 />
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -484,6 +525,72 @@ function RoomsContent() {
             )}
         </div>
       </main>
+
+      {/* Reason dialog for Maintenance and Out of Service statuses */}
+      <Dialog
+        open={!!pendingStatusRoom}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingStatusRoom(null);
+            setStatusReason("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {pendingStatusRoom?.status === "maintenance"
+                ? t("maintenanceReasonTitle", {
+                    roomNumber: pendingStatusRoom.room.room_number,
+                  })
+                : t("outOfServiceReasonTitle", {
+                    roomNumber: pendingStatusRoom?.room.room_number ?? "",
+                  })}
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              {t("reasonPrompt")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-3">
+            <Label htmlFor="room-status-reason">{t("reasonLabel")}</Label>
+            <Input
+              id="room-status-reason"
+              placeholder={t("reasonPlaceholder")}
+              value={statusReason}
+              onChange={(e) => setStatusReason(e.target.value)}
+              onKeyDown={(e) => {
+                if (
+                  e.key === "Enter" &&
+                  statusReason.trim().length >= 3 &&
+                  !statusMutation.isPending
+                ) {
+                  e.preventDefault();
+                  handleConfirmReasonStatus();
+                }
+              }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPendingStatusRoom(null);
+                setStatusReason("");
+              }}
+              disabled={statusMutation.isPending}
+            >
+              {tc("cancel")}
+            </Button>
+            <Button
+              disabled={statusReason.trim().length < 3 || statusMutation.isPending}
+              onClick={handleConfirmReasonStatus}
+            >
+              {statusMutation.isPending ? tc("saving") : tc("confirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

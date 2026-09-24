@@ -333,7 +333,12 @@
     "arrivingToday": "आज आगमन",
     "reservedFrom": "{date} से आरक्षित",
     "departsToday": "आज {time} बजे प्रस्थान",
-    "departsTodayNoTime": "आज प्रस्थान"
+    "departsTodayNoTime": "आज प्रस्थान",
+    "maintenanceReasonTitle": "कमरा {roomNumber} रखरखाव",
+    "outOfServiceReasonTitle": "कमरा {roomNumber} सेवा से बाहर",
+    "reasonPrompt": "कृपया इस स्थिति परिवर्तन का कारण बताएं",
+    "reasonLabel": "कारण",
+    "reasonPlaceholder": "उदा. एसी मरम्मत, प्लंबिंग समस्या, बिजली का काम"
   },
   "team": {
     "title": "टीम सदस्य",

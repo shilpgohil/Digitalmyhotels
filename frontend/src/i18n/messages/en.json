@@ -333,7 +333,12 @@
     "arrivingToday": "Arriving today",
     "reservedFrom": "Reserved from {date}",
     "departsToday": "Departs today {time}",
-    "departsTodayNoTime": "Departs today"
+    "departsTodayNoTime": "Departs today",
+    "maintenanceReasonTitle": "Room {roomNumber} Maintenance",
+    "outOfServiceReasonTitle": "Room {roomNumber} Out of Service",
+    "reasonPrompt": "Please state the reason for this status change",
+    "reasonLabel": "Reason",
+    "reasonPlaceholder": "e.g. AC repair, plumbing issue, electrical work"
   },
   "team": {
     "title": "Team Members",

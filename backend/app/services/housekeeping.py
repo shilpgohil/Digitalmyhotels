@@ -268,6 +268,7 @@ async def open_maintenance(
     room = await _room(db, hotel_id, body.room_id)
     assert_transition(room.status, RoomStatus.MAINTENANCE)
     room.status = RoomStatus.MAINTENANCE.value
+    room.status_note = body.reason.strip() if body.reason else None
     record = MaintenanceRecord(
         hotel_id=hotel_id,
         room_id=room.id,
@@ -326,6 +327,7 @@ async def resolve_maintenance(
     else:
         assert_transition(room.status, RoomStatus.AVAILABLE)
         room.status = RoomStatus.AVAILABLE.value
+    room.status_note = None
     record.status = "resolved"
     record.resolved_at = _now()
     await db.flush()

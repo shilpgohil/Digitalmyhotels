@@ -546,14 +546,41 @@ async def update_room_status(
 
         await ensure_task_for_room(db, hotel_id=hotel_id, room_id=room.id)
 
+    # Manual "maintenance" opens a MaintenanceRecord if not already open,
+    # so it immediately surfaces on the Housekeeping / Operations page.
+    if body.status == RoomStatus.MAINTENANCE.value:
+        from app.models.ops import MaintenanceRecord
+
+        existing_record = await db.scalar(
+            select(MaintenanceRecord).where(
+                MaintenanceRecord.hotel_id == hotel_id,
+                MaintenanceRecord.room_id == room.id,
+                MaintenanceRecord.status.in_(("open", "in_progress")),
+            )
+        )
+        if not existing_record:
+            maintenance_reason = (
+                body.reason.strip()
+                if body.reason and body.reason.strip()
+                else "Maintenance requested"
+            )
+            maintenance_record = MaintenanceRecord(
+                hotel_id=hotel_id,
+                room_id=room.id,
+                reason=maintenance_reason,
+                status="open",
+                created_by_id=tenant.user_id,
+            )
+            db.add(maintenance_record)
+
     # Manual move to Available/Clean & Ready makes any open cleaning task
     # stale ("Start cleaning" shown for an already-ready room). Auto-cancel
-    # open tasks so housekeeping reflects reality (client-reported bug).
+    # open tasks and auto-resolve open maintenance records so housekeeping reflects reality.
     if body.status in (RoomStatus.AVAILABLE.value, RoomStatus.CLEAN_READY.value):
         from datetime import UTC as _UTC
         from datetime import datetime as _dt
 
-        from app.models.ops import HousekeepingTask
+        from app.models.ops import HousekeepingTask, MaintenanceRecord
 
         open_tasks = await db.execute(
             select(HousekeepingTask).where(
@@ -570,6 +597,20 @@ async def update_room_status(
             task.notes = (
                 f"{task.notes} | " if task.notes else ""
             ) + "Auto-cancelled: room manually marked ready"
+
+        open_maintenance = await db.execute(
+            select(MaintenanceRecord).where(
+                MaintenanceRecord.hotel_id == tenant.hotel_id,
+                MaintenanceRecord.room_id == room.id,
+                MaintenanceRecord.status.in_(("open", "in_progress")),
+            )
+        )
+        for m in open_maintenance.scalars():
+            m.status = "resolved"
+            m.resolved_at = _dt.now(_UTC)
+            m.notes = (
+                f"{m.notes} | " if m.notes else ""
+            ) + "Auto-resolved: room manually marked ready"
 
     await write_audit(
         db,
