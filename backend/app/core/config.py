@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     # SQL statement logging is expensive — opt in explicitly, never via DEBUG.
     sql_echo: bool = False
     api_v1_prefix: str = "/api/v1"
+    docs_enabled: bool = False
 
     database_url: str = Field(
         default="postgresql+asyncpg://dmh:dmh_dev_password@127.0.0.1:5434/digitalmyhotels"

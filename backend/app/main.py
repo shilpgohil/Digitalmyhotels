@@ -46,10 +46,9 @@ async def lifespan(_app: FastAPI):
         else settings.local_storage_path,
     )
     if settings.storage_backend == "local" and settings.app_env != "development":
-        _slog.warning(
-            "⚠️  STORAGE_BACKEND=local in %s — files will be lost on container "
-            "restart. Set STORAGE_BACKEND=b2 and B2_* credentials in Render "
-            "environment variables.",
+        _slog.info(
+            "Persistent local disk storage active at '%s' (APP_ENV=%s).",
+            settings.local_storage_path,
             settings.app_env,
         )
 
@@ -98,7 +97,7 @@ def create_app() -> FastAPI:
         title=settings.app_name,
         version="0.1.0",
         lifespan=lifespan,
-        docs_url="/docs" if not settings.is_production else None,
+        docs_url="/docs" if (not settings.is_production or settings.docs_enabled) else None,
         redoc_url=None,
     )
 
@@ -143,6 +142,14 @@ def create_app() -> FastAPI:
                 ),
             ),
         )
+
+    @app.get("/")
+    async def root() -> dict[str, str]:
+        return {
+            "service": settings.app_name,
+            "status": "online",
+            "health": "/health",
+        }
 
     @app.get("/health")
     async def health() -> dict[str, str]:

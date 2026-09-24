@@ -18,6 +18,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth/auth-context";
 
+const ENABLE_IDLE_LOGOUT = process.env.NEXT_PUBLIC_ENABLE_IDLE_LOGOUT === "true";
 const IDLE_LIMIT_MS = 15 * 60_000;
 const WARN_BEFORE_MS = 60_000;
 
@@ -29,6 +30,8 @@ export function IdleLogout() {
   const loggingOut = useRef(false);
 
   useEffect(() => {
+    // Disabled by default so users stay logged in until they explicitly log out
+    if (!ENABLE_IDLE_LOGOUT) return;
     if (status !== "authenticated") return;
     lastActivity.current = Date.now();
     warned.current = false;

@@ -61,6 +61,8 @@ async function parseError(response: Response): Promise<ApiError> {
 
 let refreshPromise: Promise<boolean> | null = null;
 
+let lastRefreshStatus = 200;
+
 /** Refresh the access token using the HttpOnly cookie. Deduplicates concurrent calls.
  *
  * IMPORTANT: Always uses a relative URL so the request goes through the
@@ -76,11 +78,13 @@ export async function refreshAccessToken(): Promise<boolean> {
         method: "POST",
         credentials: "include",
       });
+      lastRefreshStatus = response.status;
       if (!response.ok) return false;
       const data = (await response.json()) as { access_token: string };
       setAccessToken(data.access_token);
       return true;
     } catch {
+      lastRefreshStatus = 503;
       return false;
     } finally {
       refreshPromise = null;
@@ -114,7 +118,11 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     if (refreshed) {
       response = await doFetch();
     } else {
-      clearSession();
+      // Only wipe session if the refresh token was explicitly rejected (401/403).
+      // If the backend is restarting (502/503) or offline, preserve the session!
+      if (lastRefreshStatus === 401 || lastRefreshStatus === 403) {
+        clearSession();
+      }
       throw await parseError(response);
     }
   }

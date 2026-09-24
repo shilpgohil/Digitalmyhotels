@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { apiFetch, refreshAccessToken } from "@/lib/api/client";
+import { apiFetch, refreshAccessToken, ApiError } from "@/lib/api/client";
 import { clearSession, getAccessToken, getCachedUser, setCachedUser, setAccessToken } from "@/lib/auth/session";
 import type { MeResponse, MembershipOut, TokenResponse, UserOut } from "@/types/auth";
 
@@ -101,6 +101,11 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
       if (!cachedToken) {
         const ok = await tryRefresh();
         if (!ok) {
+          const cachedMe = getCachedUser<MeResponse>();
+          if (cachedMe && !cancelled) {
+            applySession(cachedMe);
+            return;
+          }
           if (!cancelled) setStatus("unauthenticated");
           return;
         }
@@ -113,10 +118,21 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
           setCachedUser(me);   // cache for next refresh
           applySession(me);
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
-          clearSession();
-          setStatus("unauthenticated");
+          // Only clear session if explicitly 401/403.
+          // If server is restarting or temporarily offline (503/offline), preserve cached session!
+          if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+            clearSession();
+            setStatus("unauthenticated");
+          } else {
+            const cachedMe = getCachedUser<MeResponse>();
+            if (cachedMe) {
+              applySession(cachedMe);
+            } else {
+              setStatus("unauthenticated");
+            }
+          }
         }
       }
     })();

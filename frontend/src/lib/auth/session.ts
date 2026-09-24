@@ -14,7 +14,7 @@
 const KEY_ACCESS = "dmh_access";
 const KEY_USER   = "dmh_user";       // cached /me response to skip the API call on reload
 const LS_ACCESS  = "dmh_access_ls";  // localStorage backup with expiry
-const LS_TTL_MS  = 60 * 60 * 1000;  // 60 minutes
+const LS_TTL_MS  = 30 * 24 * 60 * 60 * 1000;  // 30 days (persists across browser restarts)
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -36,7 +36,7 @@ export function getAccessToken(): string | null {
   // Primary: sessionStorage (cleared by hard refresh)
   const ss = ss_get(KEY_ACCESS);
   if (ss) return ss;
-  // Fallback: localStorage backup (survives hard refresh, has TTL)
+  // Fallback: localStorage backup (survives hard refresh and browser restart)
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(LS_ACCESS);
@@ -67,15 +67,34 @@ export function setAccessToken(token: string | null): void {
   listeners.forEach((fn) => fn());
 }
 
-/** Cache the /me response in sessionStorage so a page-refresh doesn't need the round-trip. */
+/** Cache the /me response in sessionStorage and localStorage backup so a page-refresh or restart doesn't need the round-trip. */
 export function setCachedUser(me: unknown): void {
-  if (me) { ss_set(KEY_USER, JSON.stringify(me)); } else { ss_del(KEY_USER); }
+  if (me) {
+    ss_set(KEY_USER, JSON.stringify(me));
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem(KEY_USER, JSON.stringify(me));
+      }
+    } catch { /* ignore */ }
+  } else {
+    ss_del(KEY_USER);
+    if (typeof window !== "undefined") {
+      try { localStorage.removeItem(KEY_USER); } catch { /* ignore */ }
+    }
+  }
 }
 
 export function getCachedUser<T>(): T | null {
-  const raw = ss_get(KEY_USER);
-  if (!raw) return null;
-  try { return JSON.parse(raw) as T; } catch { return null; }
+  const ss = ss_get(KEY_USER);
+  if (ss) {
+    try { return JSON.parse(ss) as T; } catch { return null; }
+  }
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(KEY_USER);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch { return null; }
 }
 
 export function clearSession(): void {
@@ -83,6 +102,7 @@ export function clearSession(): void {
   ss_del(KEY_USER);
   if (typeof window !== "undefined") {
     try { localStorage.removeItem(LS_ACCESS); } catch { /* ignore */ }
+    try { localStorage.removeItem(KEY_USER); } catch { /* ignore */ }
   }
   listeners.forEach((fn) => fn());
 }
