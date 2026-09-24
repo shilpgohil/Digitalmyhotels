@@ -761,12 +761,23 @@ async def check_availability(
                     overlapping_booking_count=booking_count,
                 )
             )
-        elif room.status in (RoomStatus.MAINTENANCE.value, RoomStatus.OUT_OF_SERVICE.value):
-            # Physically broken — unavailable for ALL dates regardless of bookings.
+        elif room.status == RoomStatus.OUT_OF_SERVICE.value:
+            # Physically decommissioned — unavailable for ALL dates regardless of bookings.
             unavailable.append(
                 RoomUnavailableItem(
                     **item_data,
                     unavailable_reason=room.status,
+                    occupied_until=None,
+                    occupied_until_time=None,
+                    overlapping_booking_count=0,
+                )
+            )
+        elif check_in <= today_local and room.status == RoomStatus.MAINTENANCE.value:
+            # Same-day maintenance: routine repairs underway today. Cannot check in today.
+            unavailable.append(
+                RoomUnavailableItem(
+                    **item_data,
+                    unavailable_reason="maintenance",
                     occupied_until=None,
                     occupied_until_time=None,
                     overlapping_booking_count=0,

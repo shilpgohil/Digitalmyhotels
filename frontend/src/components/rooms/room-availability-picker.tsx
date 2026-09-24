@@ -32,7 +32,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { cn } from "@/lib/utils";
-import { fmtApiDateTime, fmtINR } from "@/lib/formatting";
+import { fmtApiDateTime, fmtINR, localToday } from "@/lib/formatting";
 import type {
   RoomAvailabilityOut,
   RoomAvailableItem,
@@ -116,6 +116,7 @@ function statusHint(status: string): { label: string; colour: string } | null {
     case "cleaning_in_progress": return { label: "Cleaning",      colour: "text-info    bg-info-bg"    };
     case "clean_ready":          return null; // same as available — no hint needed
     case "inspection_required":  return { label: "Inspection",    colour: "text-warning bg-warning-bg" };
+    case "maintenance":          return { label: "Maintenance",   colour: "text-warning bg-warning-bg" };
     default:                     return null;
   }
 }
@@ -140,21 +141,23 @@ function AvailableChip({
   selected,
   onClick,
   dayUse,
+  isFutureStay,
 }: {
   readonly room: RoomAvailableItem;
   readonly selected: boolean;
   readonly onClick: () => void;
   readonly dayUse: boolean;
+  readonly isFutureStay?: boolean;
 }) {
   const hint = statusHint(room.status);
   const hourlyRate = dayUse ? room.room_type_hourly_rate : null;
   const [infoOpen, setInfoOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Rooms with these PHYSICAL statuses cannot be assigned right now — even if
-  // the backend confirms they're free for the requested dates (they may be
-  // available date-wise but not yet physically ready). Client explicitly asked:
-  // "Reserved Occupied Cleaning Maintenance — these should NOT be selectable."
+  // Rooms with these PHYSICAL statuses cannot be assigned right now for SAME-DAY stays
+  // (they may be free date-wise in the backend but not yet physically clean/vacant right now).
+  // For future dates (checkIn > today), the room will be ready and has no booking conflict,
+  // so it remains fully selectable while displaying the informative status hint badge.
   const NOT_SELECTABLE = new Set([
     "occupied",
     "reserved",
@@ -164,7 +167,7 @@ function AvailableChip({
     "maintenance",
     "out_of_service",
   ]);
-  const isDisabled = NOT_SELECTABLE.has(room.status);
+  const isDisabled = !isFutureStay && NOT_SELECTABLE.has(room.status);
 
   // Close on outside click / scroll
   useEffect(() => {
@@ -410,6 +413,7 @@ export function RoomAvailabilityPicker({
     checkIn <= checkOut
   );
   const dayUse = datesValid && checkIn === checkOut;
+  const isFutureStay = datesValid && checkIn > localToday();
 
   const { data, isLoading, isError, refetch } = useQuery<RoomAvailabilityOut>({
     queryKey: ["room-availability", activeHotelId, checkIn, checkOut],
@@ -461,9 +465,10 @@ export function RoomAvailabilityPicker({
     "inspection_required", "maintenance", "out_of_service",
   ]);
   const toggleRoom = (id: string) => {
-    // Guard: rooms in non-ready states cannot be selected (client agreement).
+    // Guard: rooms in non-ready states cannot be selected for same-day stays.
+    // For future dates (checkIn > today), the room will be ready and has no booking conflict.
     const room = data?.available.find((r) => r.id === id);
-    if (room && NOT_SELECTABLE_STATUSES.has(room.status)) return;
+    if (!isFutureStay && room && NOT_SELECTABLE_STATUSES.has(room.status)) return;
     onSelectionChange(
       selectedRooms.includes(id)
         ? selectedRooms.filter((r) => r !== id)
@@ -605,6 +610,7 @@ export function RoomAvailabilityPicker({
                 selected={selectedRooms.includes(room.id)}
                 onClick={() => toggleRoom(room.id)}
                 dayUse={dayUse}
+                isFutureStay={isFutureStay}
               />
             ))}
           </div>
