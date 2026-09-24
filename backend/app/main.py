@@ -181,6 +181,18 @@ def create_app() -> FastAPI:
             "query_ms": round((t2 - t1) * 1000, 1),
         }
 
+    if settings.storage_backend == "local":
+        import os
+
+        from fastapi.staticfiles import StaticFiles
+
+        os.makedirs(settings.local_storage_path, exist_ok=True)
+        app.mount(
+            "/local-files",
+            StaticFiles(directory=settings.local_storage_path),
+            name="local-files",
+        )
+
     app.include_router(api_router, prefix=settings.api_v1_prefix)
     return app
 
