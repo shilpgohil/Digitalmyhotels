@@ -60,3 +60,18 @@ Thumbs.db
 frontend/*.zip
 
 /*.png
+
+# ── AI / Agent / Memory Bank ──────────────────────────────────────────────────
+.agents/
+memory-bank/
+GEMINI.md
+cursor_digital_my_hotels_documentation.md
+
+# ── Screenshots & Scraping ────────────────────────────────────────────────────
+bug-screenshots/
+screenshots_fetched/
+tmp_screenshots/
+fetch_screenshots.py
+
+# ── Ad-hoc Scripts ────────────────────────────────────────────────────────────
+scripts/
