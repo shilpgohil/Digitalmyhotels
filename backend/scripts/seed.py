@@ -56,15 +56,21 @@ async def seed() -> None:
             roles[code.value] = role
 
         existing_sa = await db.execute(select(User).where(User.email == SUPER_ADMIN_EMAIL))
-        if existing_sa.scalar_one_or_none() is None:
+        sa_user = existing_sa.scalar_one_or_none()
+        if sa_user is None:
             db.add(
                 User(
                     email=SUPER_ADMIN_EMAIL,
                     full_name="Platform Super Admin",
                     password_hash=hash_password(DEV_PASSWORD),
                     is_super_admin=True,
+                    is_active=True,
                 )
             )
+        else:
+            sa_user.password_hash = hash_password(DEV_PASSWORD)
+            sa_user.is_super_admin = True
+            sa_user.is_active = True
 
         existing_hotel = await db.execute(select(Hotel).where(Hotel.slug == "meridian-court"))
         hotel = existing_hotel.scalar_one_or_none()

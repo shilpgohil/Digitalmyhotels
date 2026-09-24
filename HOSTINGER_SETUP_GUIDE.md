@@ -76,18 +76,45 @@ chmod -R 775 /home/digitalmyhotels-admin/htdocs/admin.digitalmyhotels.com/Digita
 
 ### Step 2.4: Activate Virtual Environment, Run Migrations, and Seed Database
 
-Activate the Python virtual environment, apply database migrations, and run the superadmin seed script:
+Activate the Python virtual environment and run the database migrations:
 
 ```bash
 cd /home/digitalmyhotels-admin/htdocs/admin.digitalmyhotels.com/Digitalmyhotels/backend
 source ../.venv/bin/activate
 alembic upgrade head
+```
+
+Run the complete platform seed to create system roles, default plans, demo hotel, and the super admin:
+
+```bash
 python -m scripts.seed
 ```
 
-The seed script creates the default Super Admin user in PostgreSQL:
+Or run the dedicated super admin seed command to create or reset the super admin account directly:
+
+```bash
+python -m scripts.seed_superadmin
+```
+
+The command creates or updates the Super Admin user in PostgreSQL:
 Email: superadmin@digitalmyhotels.in
 Password: ChangeMe123!
+
+Verify that the Super Admin exists in the database:
+
+```bash
+sudo -u postgres psql -d digitalmyhotel -c "SELECT id, email, is_super_admin, is_active FROM users WHERE email='superadmin@digitalmyhotels.in';"
+```
+
+Test the login endpoint directly from the server terminal:
+
+```bash
+curl -X POST http://127.0.0.1:4050/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"superadmin@digitalmyhotels.in","password":"ChangeMe123!"}'
+```
+
+A successful response returns status 200 with an access token and user object showing is_super_admin as true.
 
 ### Step 2.5: Restart Backend Service
 

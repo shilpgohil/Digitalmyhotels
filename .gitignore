@@ -74,4 +74,4 @@ tmp_screenshots/
 fetch_screenshots.py
 
 # ── Ad-hoc Scripts ────────────────────────────────────────────────────────────
-scripts/
+/scripts/
