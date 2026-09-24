@@ -117,12 +117,9 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     const refreshed = await refreshAccessToken();
     if (refreshed) {
       response = await doFetch();
-    } else {
-      // Only wipe session if the refresh token was explicitly rejected (401/403).
-      // If the backend is restarting (502/503) or offline, preserve the session!
-      if (lastRefreshStatus === 401 || lastRefreshStatus === 403) {
-        clearSession();
-      }
+      // Do not clearSession() automatically here. When the backend is
+      // restarting, sleeping, or temporarily unreachable, keep the user's
+      // session intact so they are never forced out to /login.
       throw await parseError(response);
     }
   }

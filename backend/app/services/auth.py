@@ -99,7 +99,25 @@ async def rotate_refresh_token(
 
     now = datetime.now(UTC)
     if existing.revoked_at is not None:
-        # Reuse detection: revoke all tokens for this user
+        revoked_time = (
+            existing.revoked_at.replace(tzinfo=UTC)
+            if existing.revoked_at.tzinfo is None
+            else existing.revoked_at
+        )
+        # 60s grace period: if the token was rotated within the last 60 seconds,
+        # treat this as a concurrent request or network retry, not malicious reuse.
+        if (now - revoked_time).total_seconds() < 60:
+            user_result = await db.execute(select(User).where(User.id == existing.user_id))
+            user = user_result.scalar_one_or_none()
+            if user and user.is_active:
+                access, new_raw, _ = await issue_tokens(
+                    db, user, user_agent=user_agent, ip_address=ip_address
+                )
+                return user, access, new_raw
+            if user and not user.is_active:
+                raise ForbiddenError("Account is disabled", code="account_disabled")
+
+        # Reuse detection beyond grace window: revoke all tokens for this user
         all_tokens = await db.execute(
             select(RefreshToken).where(
                 RefreshToken.user_id == existing.user_id,

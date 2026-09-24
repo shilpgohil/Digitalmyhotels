@@ -118,20 +118,15 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
           setCachedUser(me);   // cache for next refresh
           applySession(me);
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
-          // Only clear session if explicitly 401/403.
-          // If server is restarting or temporarily offline (503/offline), preserve cached session!
-          if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-            clearSession();
-            setStatus("unauthenticated");
+          // If we have a cached user profile, ALWAYS preserve the session!
+          // Server restarts, network drops, or temporary errors must NEVER log the user out.
+          const cachedMe = getCachedUser<MeResponse>();
+          if (cachedMe) {
+            applySession(cachedMe);
           } else {
-            const cachedMe = getCachedUser<MeResponse>();
-            if (cachedMe) {
-              applySession(cachedMe);
-            } else {
-              setStatus("unauthenticated");
-            }
+            setStatus("unauthenticated");
           }
         }
       }

@@ -25,8 +25,9 @@ class Settings(BaseSettings):
     )
 
     secret_key: str = Field(default="dev-secret-change-me")
-    access_token_expire_minutes: int = 15
-    refresh_token_expire_days: int = 14
+    # 30 days default (can be overridden via ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expire_minutes: int = 60 * 24 * 30
+    refresh_token_expire_days: int = 90  # 90 days default
     refresh_cookie_name: str = "dmh_refresh"
     refresh_cookie_secure: bool = False
     refresh_cookie_samesite: Literal["lax", "strict", "none"] = "lax"

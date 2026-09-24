@@ -21,7 +21,7 @@ import { NextResponse } from "next/server";
 const BACKEND = (process.env.API_PROXY_TARGET ?? "http://127.0.0.1:8001").replace(/\/$/, "");
 const COOKIE_NAME = "dmh_refresh";
 const COOKIE_PATH = "/api/v1/auth";
-const MAX_AGE_SEC = 14 * 24 * 3600; // 14 days
+const MAX_AGE_SEC = 90 * 24 * 3600; // 90 days
 
 export async function POST(): Promise<NextResponse> {
   const jar = await cookies();
