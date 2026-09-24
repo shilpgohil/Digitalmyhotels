@@ -95,6 +95,10 @@
   "nav": {
     "overview": "अवलोकन",
     "dashboard": "डैशबोर्ड",
+    "checkin": "चेक-इन",
+    "attendance": "उपस्थिति",
+    "rooms": "कमरे",
+    "paymentsShort": "भुगतान",
     "frontDesk": "फ्रंट डेस्क",
     "guestCheckin": "अतिथि चेक-इन",
     "guestCheckout": "अतिथि चेक-आउट",

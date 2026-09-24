@@ -51,7 +51,7 @@ const TAB_CANDIDATES: readonly {
   },
   {
     href: "/my-attendance",
-    labelKey: "myAttendance",
+    labelKey: "attendance",
     icon: UserCheck,
     permission: PERMISSIONS.staffAttendanceSelf,
     // Staff attendance is only available when the hotel has full access mode.
@@ -59,32 +59,32 @@ const TAB_CANDIDATES: readonly {
   },
   {
     href: "/checkin",
-    labelKey: "guestCheckin",  // nav.guestCheckin = "Guest Check-in"
+    labelKey: "checkin",
     icon: LogIn,
     permission: PERMISSIONS.checkin,
   },
   {
     href: "/current-guests",
-    labelKey: "currentGuests", // nav.currentGuests = "Current Guests"
+    labelKey: "guests",
     icon: Users,
     permission: PERMISSIONS.guestsView,
   },
   {
     href: "/advance-bookings",
-    labelKey: "advanceBookings", // nav.advanceBookings = "Advance Bookings"
+    labelKey: "bookings",
     icon: BookOpen,
     permission: PERMISSIONS.bookingsView,
   },
   {
     href: "/payments",
-    labelKey: "payments",  // nav.payments = "Payment Details"
+    labelKey: "paymentsShort",
     icon: Wallet,
     permission: PERMISSIONS.paymentsView,
   },
   // Housekeeping-oriented tabs — surface when front-desk tabs are not allowed.
   {
     href: "/rooms",
-    labelKey: "roomStatus",
+    labelKey: "rooms",
     icon: BedDouble,
     permission: PERMISSIONS.roomsView,
   },
@@ -123,10 +123,10 @@ export function PartnerMobileTabBar() {
       ).slice(0, MAX_TABS);
 
   return (
-    /* Wrapper — centered pill, mobile only */
-    <div className="lg:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-35 w-[calc(100%-32px)] max-w-[440px]">
+    /* Wrapper — centered pill, mobile only, pointer-events-none so margins don't block clicks */
+    <div className="lg:hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-35 w-[calc(100%-20px)] max-w-[430px] pointer-events-none select-none">
       <nav
-        className="glass-tabbar-warm rounded-[999px] h-[56px] flex items-center justify-around px-2"
+        className="pointer-events-auto glass-tabbar-warm border border-slate-900/[0.08] dark:border-white/[0.1] rounded-full h-[60px] flex items-stretch justify-around px-1 shadow-[0_4px_24px_-2px_rgba(0,0,0,0.12)]"
         aria-label="Mobile navigation"
       >
         {items.map(({ href, labelKey, icon: Icon }) => {
@@ -142,31 +142,36 @@ export function PartnerMobileTabBar() {
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 flex-1 h-full rounded-[999px] transition-all duration-200",
+                "relative flex-1 min-w-0 h-full flex flex-col items-center justify-center py-1.5 px-0.5 rounded-full transition-all duration-150",
                 active
-                  ? "text-gold-700"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "text-amber-800 dark:text-amber-300"
+                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100",
               )}
             >
-              {/* Active dot indicator above icon */}
+              {/* Active subtle pill glow / indicator at the top — absolute so it never shifts the icon */}
+              {active && (
+                <span
+                  className="absolute top-1.5 w-6 h-[2.5px] rounded-full bg-amber-600 dark:bg-amber-400 shadow-[0_1px_4px_rgba(217,119,6,0.35)]"
+                  aria-hidden
+                />
+              )}
+
+              {/* Fixed height icon container to prevent any vertical shift across tabs */}
+              <div className="flex items-center justify-center h-6 w-full mt-0.5">
+                <Icon
+                  className={cn(
+                    "transition-transform duration-150 size-[19px]",
+                    active ? "scale-105 stroke-[2.2] text-amber-700 dark:text-amber-400" : "stroke-[1.8]",
+                  )}
+                  aria-hidden
+                />
+              </div>
+
+              {/* Fixed single-line label with whitespace-nowrap and truncate */}
               <span
                 className={cn(
-                  "w-1 h-1 rounded-full transition-all duration-200 mb-0.5",
-                  active ? "bg-gold-500 scale-100" : "scale-0",
-                )}
-                aria-hidden
-              />
-              <Icon
-                className={cn(
-                  "transition-all duration-200",
-                  active ? "size-[18px]" : "size-4",
-                )}
-                aria-hidden
-              />
-              <span
-                className={cn(
-                  "text-[9px] font-semibold leading-none transition-all duration-200",
-                  active ? "opacity-100" : "opacity-60",
+                  "w-full text-center text-[10px] tracking-tight leading-none truncate px-0.5 whitespace-nowrap mt-1",
+                  active ? "font-bold text-amber-900 dark:text-amber-200" : "font-medium opacity-75",
                 )}
               >
                 {t(labelKey)}

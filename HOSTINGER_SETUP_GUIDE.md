@@ -183,11 +183,9 @@ pm2 restart all || npm run start -- -p 4000
 
 1. Open your browser and navigate to:
    https://app.digitalmyhotels.com/login
-
 2. Log in using the seeded superadmin credentials:
    Email: superadmin@digitalmyhotels.in
    Password: ChangeMe123!
-
 3. Upon successful login, the system will detect that the account has is_super_admin set to true and will automatically route you to:
    https://app.digitalmyhotels.com/admin
 
@@ -203,16 +201,19 @@ Note: Do not attempt to visit https://admin.digitalmyhotels.com/login. That subd
 ## 6. Helpful Maintenance Commands
 
 View live backend logs:
+
 ```bash
 journalctl -u digitalmyhotels -f -n 100
 ```
 
 Check backend systemd service definition:
+
 ```bash
 cat /etc/systemd/system/digitalmyhotels.service
 ```
 
 Inspect local database tables using PostgreSQL client:
+
 ```bash
 sudo -u postgres psql -d digitalmyhotel -c "SELECT id, email, is_super_admin, is_active FROM users;"
 ```

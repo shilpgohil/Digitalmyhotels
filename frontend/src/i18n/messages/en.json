@@ -95,6 +95,10 @@
   "nav": {
     "overview": "Overview",
     "dashboard": "Dashboard",
+    "checkin": "Check-in",
+    "attendance": "Attendance",
+    "rooms": "Rooms",
+    "paymentsShort": "Payments",
     "frontDesk": "Front Desk",
     "guestCheckin": "Guest Check-in",
     "guestCheckout": "Guest Check-out",
