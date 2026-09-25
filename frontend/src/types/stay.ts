@@ -149,6 +149,9 @@ export interface CurrentGuestOut {
   payment_status: string;
   due_amount: string;
   guest_count: number;
+  has_payments?: boolean;
+  has_invoice?: boolean;
+  invoice_id?: string | null;
 }
 
 export interface GuestCreatePayload {

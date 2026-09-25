@@ -72,6 +72,8 @@ async def billing_history(
     payment_mode: str | None = Query(
         default=None, pattern="^(cash|upi|card|credit_card|debit_card|bank_transfer|other)$"
     ),
+    booking_id: UUID | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=100),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     tenant: TenantContext = Depends(require_permissions(Permission.PAYMENTS_VIEW)),
@@ -85,6 +87,8 @@ async def billing_history(
         from_date=_date.fromisoformat(from_date) if from_date else None,
         to_date=_date.fromisoformat(to_date) if to_date else None,
         payment_mode=payment_mode,
+        booking_id=booking_id,
+        search=search,
         limit=limit,
         offset=offset,
     )

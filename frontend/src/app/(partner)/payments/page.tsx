@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Receipt, Wallet } from "lucide-react";
+import { Receipt, Search, Wallet, X } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
@@ -121,9 +122,22 @@ function PaymentsContent() {
   const api = useApi();
   const { activeHotelId, can } = useAuth();
   const queryClient = useQueryClient();
-  const [bookingId, setBookingId] = useState("");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const bookingParam = searchParams.get("booking_id") ?? "";
+
+  const [bookingId, setBookingId] = useState(bookingParam);
+  const [search, setSearch] = useState("");
+  const [isTransactionsOpen, setIsTransactionsOpen] = useState(false);
   const [correctTarget, setCorrectTarget] = useState<PaymentOut | null>(null);
   const [refundTarget, setRefundTarget] = useState<PaymentOut | null>(null);
+
+  useEffect(() => {
+    if (bookingParam) {
+      setBookingId(bookingParam);
+      setIsTransactionsOpen(true);
+    }
+  }, [bookingParam]);
 
   // Draft filters (edited in the filter bar) vs applied filters (drive the
   // queries). "Apply" commits the draft; "Clear" resets both.
@@ -151,10 +165,18 @@ function PaymentsContent() {
     setMode("");
   };
 
-  // Reset Billing History pagination when applied filters change.
+  const clearBookingFilter = () => {
+    setBookingId("");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("booking_id");
+    const qs = params.toString();
+    router.push(qs ? `/payments?${qs}` : "/payments");
+  };
+
+  // Reset Billing History pagination when applied filters or search change.
   useEffect(() => {
     setBillingPage(0);
-  }, [fromDate, toDate, mode]);
+  }, [fromDate, toDate, mode, search, bookingParam]);
 
   const rangeQs = `${fromDate ? `&from_date=${fromDate}` : ""}${toDate ? `&to_date=${toDate}` : ""}`;
 
@@ -164,6 +186,15 @@ function PaymentsContent() {
     enabled: !!activeHotelId,
   });
 
+  const targetBooking = useQuery({
+    queryKey: ["booking", activeHotelId, bookingId],
+    queryFn: () => api<BookingOut>(`/api/v1/bookings/${bookingId}`),
+    enabled:
+      !!activeHotelId &&
+      !!bookingId &&
+      !bookings.data?.items.some((b) => b.id === bookingId),
+  });
+
   const summary = useQuery({
     queryKey: ["payment-summary", activeHotelId, rangeQs],
     queryFn: () =>
@@ -171,7 +202,7 @@ function PaymentsContent() {
     enabled: !!activeHotelId,
   });
 
-  const billingQs = rangeQs + (mode ? `&payment_mode=${mode}` : "");
+  const billingQs = `${rangeQs}${mode ? `&payment_mode=${mode}` : ""}${bookingParam ? `&booking_id=${bookingParam}` : ""}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""}`;
   const billing = useQuery({
     queryKey: ["billing-history", activeHotelId, billingQs, billingPage],
     queryFn: () =>
@@ -302,9 +333,62 @@ function PaymentsContent() {
           <StatCard label={t("pendingCard")}     value={fmtINR(summary.data?.pending_amount ?? 0)} tone="danger"  isLoading={summary.isLoading} />
         </StatCardGrid>
 
+        {/* Filtered by booking banner */}
+        {bookingParam && (
+          <div className="mb-4 flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+            <div className="flex items-center gap-2">
+              <Receipt className="size-4 text-primary shrink-0" />
+              <span>
+                <strong className="text-primary">{t("filteredByBooking")}:</strong>{" "}
+                <span className="font-mono">{billing.data?.items[0]?.booking_number ?? bookingParam}</span>
+                {billing.data?.items[0]?.guest_name && (
+                  <span className="text-muted-foreground"> ({billing.data.items[0].guest_name})</span>
+                )}
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearBookingFilter}
+              className="h-8 text-xs"
+            >
+              {t("showAllBookings")}
+            </Button>
+          </div>
+        )}
+
         {/* ── Billing History: one row per booking (figma redesign) ── */}
         <section className="rounded-lg border bg-card">
-          <h2 className="px-4 pt-4 text-sm font-semibold">{t("billingHistory")}</h2>
+          <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold">{t("billingHistory")}</h2>
+              {bookingParam && (
+                <p className="mt-0.5 text-xs text-primary font-medium">
+                  {t("showingSpecificGuest")}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative w-full sm:w-72">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  placeholder={t("searchPlaceholder")}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="h-8 pl-9 text-xs bg-background"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
           {billing.isLoading && <Skeleton className="m-4 h-48" />}
           {billing.isError && (
             <p className="p-4 text-sm text-danger">
@@ -332,11 +416,15 @@ function PaymentsContent() {
                       <TableHead className="text-white">{t("colBalance")}</TableHead>
                       <TableHead className="text-white">{t("colMode")}</TableHead>
                       <TableHead className="text-white">{t("colStatus")}</TableHead>
+                      <TableHead className="text-white text-right">{tc("actions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {billing.data.items.map((row) => (
-                      <TableRow key={row.booking_id}>
+                      <TableRow
+                        key={row.booking_id}
+                        className={cn(row.booking_id === bookingId && "bg-muted/50")}
+                      >
                         <TableCell className="font-medium">{row.booking_number}</TableCell>
                         <TableCell>{row.guest_name ?? "—"}</TableCell>
                         <TableCell className="tabular-nums">{fmtINR(row.room_rent)}</TableCell>
@@ -371,6 +459,19 @@ function PaymentsContent() {
                         </TableCell>
                         <TableCell>
                           <PaymentStatusBadge status={row.payment_status} />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant={row.booking_id === bookingId ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => {
+                              setBookingId(row.booking_id);
+                              setIsTransactionsOpen(true);
+                            }}
+                            className="h-7 text-xs"
+                          >
+                            {t("viewTransactions")}
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -412,7 +513,11 @@ function PaymentsContent() {
         </section>
 
         {/* ── Payment transactions: raw payments with Correct / Refund ── */}
-        <details className="mt-6 rounded-lg border bg-card">
+        <details
+          className="mt-6 rounded-lg border bg-card"
+          open={isTransactionsOpen || !!bookingId}
+          onToggle={(e) => setIsTransactionsOpen((e.target as HTMLDetailsElement).open)}
+        >
           <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">
             {t("paymentTransactions")}
           </summary>
@@ -426,6 +531,11 @@ function PaymentsContent() {
               onChange={(e) => setBookingId(e.target.value)}
             >
               <option value="">{t("selectBooking")}</option>
+              {targetBooking.data && !bookings.data?.items.some((b) => b.id === bookingId) && (
+                <option value={targetBooking.data.id}>
+                  {targetBooking.data.booking_number} · {targetBooking.data.primary_guest_name ?? "—"}
+                </option>
+              )}
               {bookings.data?.items.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.booking_number} · {b.primary_guest_name ?? "—"}

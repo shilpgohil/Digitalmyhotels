@@ -190,7 +190,7 @@ async def check_in(
             booking.primary_guest_id, True,
             body.purpose_of_visit, body.company_name,
             # Alternate contact for primary guest — does NOT overwrite master phone.
-            body.primary_alternate_contact_phone or None,
+            getattr(body, "primary_alternate_contact_phone", None) or None,
         )
     ]
     seen = {booking.primary_guest_id}
@@ -508,6 +508,36 @@ async def list_current_guests(
         row.booking_id: Decimal(str(row.total)) for row in charge_rows
     }
 
+    # Batch 6: check if bookings have completed payment records.
+    from app.models.payment import Payment
+    paid_booking_ids_set = set(
+        (
+            await db.execute(
+                select(Payment.booking_id)
+                .where(
+                    Payment.hotel_id == hotel_id,
+                    Payment.booking_id.in_(booking_ids),
+                    Payment.status == "completed",
+                )
+                .distinct()
+            )
+        ).scalars().all()
+    )
+
+    # Batch 7: check if bookings have active (non-cancelled) invoices.
+    from app.models.invoice import Invoice
+    invoice_rows = (
+        await db.execute(
+            select(Invoice.booking_id, Invoice.id)
+            .where(
+                Invoice.hotel_id == hotel_id,
+                Invoice.booking_id.in_(booking_ids),
+                Invoice.status != "cancelled",
+            )
+        )
+    ).all()
+    invoices_by_booking: dict[UUID, UUID] = {row[0]: row[1] for row in invoice_rows}
+
     def _gst_inclusive_due(b: Booking) -> tuple[Decimal, str]:
         """Compute the correct GST-inclusive due and payment_status."""
         nights = max((b.check_out_date - b.check_in_date).days, 1)
@@ -549,6 +579,13 @@ async def list_current_guests(
         room_nums = [room_numbers_by_id[rid] for rid in current_room_ids]
         room_statuses = [room_status_by_id.get(rid, "") for rid in current_room_ids]
         gst_due, gst_status = _gst_inclusive_due(booking)
+        has_payments = (
+            (booking.id in paid_booking_ids_set)
+            or (booking.advance_amount > Decimal("0.00"))
+            or (booking.security_deposit > Decimal("0.00"))
+        )
+        inv_id = invoices_by_booking.get(booking.id)
+        has_invoice = inv_id is not None
         items.append(
             CurrentGuestOut(
                 booking_id=booking.id,
@@ -567,6 +604,9 @@ async def list_current_guests(
                 payment_status=gst_status,
                 due_amount=gst_due,
                 guest_count=max(reg_counts.get(booking.id, 0), 1),
+                has_payments=has_payments,
+                has_invoice=has_invoice,
+                invoice_id=inv_id,
             )
         )
     return items, total

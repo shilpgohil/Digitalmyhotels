@@ -165,6 +165,8 @@ async def billing_history(
     from_date: date | None = None,
     to_date: date | None = None,
     payment_mode: str | None = None,
+    booking_id: UUID | None = None,
+    search: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ):
@@ -175,7 +177,7 @@ async def billing_history(
     security deposit), balance due, and the most recent completed payment's
     method. Date filters apply to the booking check-in date.
     """
-    from sqlalchemy import func
+    from sqlalchemy import func, or_
 
     from app.models.guest import Guest
     from app.schemas.payment import BillingHistoryOut, BillingHistoryRow
@@ -216,6 +218,17 @@ async def billing_history(
             Booking.status.notin_(("cancelled", "no_show")),
         )
     )
+    if booking_id:
+        stmt = stmt.where(Booking.id == booking_id)
+    if search and search.strip():
+        pattern = f"%{search.strip()}%"
+        stmt = stmt.where(
+            or_(
+                Booking.booking_number.ilike(pattern),
+                Guest.full_name.ilike(pattern),
+                Guest.normalized_phone.ilike(pattern),
+            )
+        )
     if from_date:
         stmt = stmt.where(Booking.check_in_date >= from_date)
     if to_date:

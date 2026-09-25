@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -59,23 +60,26 @@ function InvoicesContent() {
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const cancelConfirm = useConfirmDialog();
-  // Selected invoice for the styled preview card (single proper invoice —
-  // client 09/2026: merged the old separate "Invoice Preview" page in here).
-  // ?booking=<id> deep-link: auto-select the first invoice for that booking
-  // (ss17: client wants "Invoices BK-0023" link from Current Guests page).
-  const [selectedId, setSelectedId] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return new URLSearchParams(window.location.search).get("booking_invoice") ?? "";
-  });
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const bookingParam =
+    searchParams.get("booking_id") ||
+    searchParams.get("booking_invoice") ||
+    searchParams.get("booking") ||
+    "";
+
+  // Selected invoice for the styled preview card.
+  const [selectedId, setSelectedId] = useState("");
   const [sharingPdf, setSharingPdf] = useState(false);
-  /** Scroll target for the preview card (client 15/09: "View button click →
-   *  scroll down" — the preview renders below the fold and clicking View
-   *  appeared to do nothing). */
+  /** Scroll target for the preview card. */
   const previewRef = useRef<HTMLDivElement>(null);
 
   const invoices = useQuery({
-    queryKey: ["invoices", activeHotelId],
-    queryFn: () => api<ListOut<InvoiceOut>>("/api/v1/invoices?limit=50"),
+    queryKey: ["invoices", activeHotelId, bookingParam],
+    queryFn: () =>
+      api<ListOut<InvoiceOut>>(
+        `/api/v1/invoices?limit=50${bookingParam ? `&booking_id=${bookingParam}` : ""}`,
+      ),
     enabled: !!activeHotelId,
   });
 
@@ -100,28 +104,40 @@ function InvoicesContent() {
     retry: false,
   });
 
-  // Auto-select invoice once the list loads — prefer a booking-specific one
-  // when deep-linked from Current Guests (?booking=<booking_id>).
+  // Auto-select invoice once the list loads. Prefer booking-specific invoice
+  // when deep-linked from Current Guests (?booking_id=<booking_id>).
   useEffect(() => {
     if (!invoices.data) return;
     if (invoices.data.items.length === 0) return;
-    if (selectedId) {
-      // If the selected ID is a BOOKING ID (deep link), find its invoice.
-      const byBookingId = invoices.data.items.find(
-        (inv) => inv.booking_id === selectedId,
-      );
-      if (byBookingId) {
-        setSelectedId(byBookingId.id);
-        const url = new URL(window.location.href);
-        url.searchParams.delete("booking");
-        window.history.replaceState(null, "", url.toString());
+    if (bookingParam) {
+      const match =
+        invoices.data.items.find(
+          (inv) => inv.booking_id === bookingParam || inv.id === bookingParam,
+        ) ?? invoices.data.items[0];
+      if (match) {
+        setSelectedId(match.id);
+        setTimeout(() => {
+          previewRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        }, 100);
         return;
       }
-      // Otherwise keep the selected invoice ID as-is.
-      return;
     }
-    setSelectedId(invoices.data.items[0].id);
-  }, [invoices.data, selectedId]);
+    if (!selectedId || !invoices.data.items.some((inv) => inv.id === selectedId)) {
+      setSelectedId(invoices.data.items[0].id);
+    }
+  }, [invoices.data, bookingParam]);
+
+  const clearBookingFilter = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("booking_id");
+    params.delete("booking_invoice");
+    params.delete("booking");
+    const qs = params.toString();
+    router.push(qs ? `/invoices?${qs}` : "/invoices");
+  };
 
   const invoice = invoices.data?.items.find((inv) => inv.id === selectedId);
 
@@ -248,6 +264,30 @@ function InvoicesContent() {
         <div className="mb-4 flex justify-end">
           <GenerateDialog onDone={invalidate} />
         </div>
+        {/* Filtered by booking banner */}
+        {bookingParam && (
+          <div className="mb-4 flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+            <div className="flex items-center gap-2">
+              <FileText className="size-4 text-primary shrink-0" />
+              <span>
+                <strong className="text-primary">{t("filteredByBooking")}:</strong>{" "}
+                <span className="font-mono">{invoices.data?.items[0]?.booking_number ?? bookingParam}</span>
+                {invoices.data?.items[0]?.guest_name && (
+                  <span className="text-muted-foreground"> ({invoices.data.items[0].guest_name})</span>
+                )}
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearBookingFilter}
+              className="h-8 text-xs"
+            >
+              {t("showAllInvoices")}
+            </Button>
+          </div>
+        )}
+
         <div className="rounded-lg border bg-card">
           {invoices.isLoading && <Skeleton className="h-48" />}
           {invoices.isError && (

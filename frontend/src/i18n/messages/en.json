@@ -813,6 +813,7 @@
     "paymentHistory": "Payment History",
     "totalPaid": "Total Paid",
     "noPaymentsYet": "No payments recorded yet",
+    "noInvoiceYet": "No invoice generated yet",
     "noCheckoutReadyHint": "Guests with upcoming checkout dates will appear here."
   },
   "money": {
@@ -902,7 +903,12 @@
     "category_other": "Other",
     "creditDebitCard": "Credit/Debit Card",
     "othersCard": "Others",
-    "noBillingRowsHint": "Completed bookings with payments will appear here."
+    "noBillingRowsHint": "Completed bookings with payments will appear here.",
+    "searchPlaceholder": "Search booking no., guest name or mobile...",
+    "filteredByBooking": "Filtered by Booking",
+    "showingSpecificGuest": "Showing records for selected guest",
+    "showAllBookings": "Show All Bookings",
+    "viewTransactions": "View Transactions"
   },
   "invoices": {
     "title": "Invoices",
@@ -929,7 +935,10 @@
     "status_cancelled": "Cancelled",
     "status_refunded": "Refunded",
     "alreadyExists": "An invoice already exists for this booking - it is shown in the list below",
-    "noInvoicesHint": "Invoices are generated automatically at checkout."
+    "noInvoicesHint": "Invoices are generated automatically at checkout.",
+    "filteredByBooking": "Filtered by Booking",
+    "showingSpecificGuest": "Showing invoice for selected guest",
+    "showAllInvoices": "Show All Invoices"
   },
   "restaurantBilling": {
     "title": "Restaurant Billing",

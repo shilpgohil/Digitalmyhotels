@@ -813,6 +813,7 @@
     "paymentHistory": "भुगतान इतिहास",
     "totalPaid": "कुल भुगतान",
     "noPaymentsYet": "अभी तक कोई भुगतान दर्ज नहीं",
+    "noInvoiceYet": "अभी तक कोई चालान नहीं बनाया गया",
     "noCheckoutReadyHint": "आगामी चेक-आउट तिथियों वाले अतिथि यहाँ दिखेंगे।"
   },
   "settings": {
@@ -968,7 +969,12 @@
     "category_other": "अन्य",
     "creditDebitCard": "क्रेडिट/डेबिट कार्ड",
     "othersCard": "अन्य",
-    "noBillingRowsHint": "भुगतान वाली पूर्ण बुकिंग यहाँ दिखेंगी।"
+    "noBillingRowsHint": "भुगतान वाली पूर्ण बुकिंग यहाँ दिखेंगी।",
+    "searchPlaceholder": "बुकिंग संख्या, अतिथि का नाम या मोबाइल खोजें...",
+    "filteredByBooking": "बुकिंग द्वारा फ़िल्टर किया गया",
+    "showingSpecificGuest": "चयनित अतिथि के रिकॉर्ड दिखाए जा रहे हैं",
+    "showAllBookings": "सभी बुकिंग देखें",
+    "viewTransactions": "लेन-देन देखें"
   },
   "invoices": {
     "title": "चालान",
@@ -995,7 +1001,10 @@
     "status_cancelled": "रद्द",
     "status_refunded": "वापसी",
     "alreadyExists": "इस बुकिंग का इनवॉइस पहले से मौजूद है - नीचे सूची में दिख रहा है",
-    "noInvoicesHint": "चेक-आउट पर इनवॉइस अपने आप बनते हैं।"
+    "noInvoicesHint": "चेक-आउट पर इनवॉइस अपने आप बनते हैं।",
+    "filteredByBooking": "बुकिंग द्वारा फ़िल्टर किया गया",
+    "showingSpecificGuest": "चयनित अतिथि का चालान दिखाया जा रहा है",
+    "showAllInvoices": "सभी चालान देखें"
   },
   "restaurantBilling": {
     "title": "रेस्तरां बिलिंग",

@@ -270,6 +270,7 @@ async def list_invoices(
     *,
     status: str | None = None,
     query: str | None = None,
+    booking_id: UUID | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[dict], int]:
@@ -285,6 +286,8 @@ async def list_invoices(
     stmt = select(Invoice).where(Invoice.hotel_id == hotel_id)
     if status:
         stmt = stmt.where(Invoice.status == status)
+    if booking_id:
+        stmt = stmt.where(Invoice.booking_id == booking_id)
     if query:
         stmt = stmt.where(Invoice.invoice_number.ilike(f"%{query}%"))
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
@@ -307,7 +310,7 @@ async def list_invoices(
                 )
             )
         ).all()
-        booking_num_map = dict(rows)
+        booking_num_map = {row[0]: row[1] for row in rows}
 
     return [
         {"invoice": inv, "booking_number": booking_num_map.get(inv.booking_id)}

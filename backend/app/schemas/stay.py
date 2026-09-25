@@ -159,6 +159,9 @@ class CurrentGuestOut(BaseModel):
     payment_status: str
     due_amount: Decimal
     guest_count: int
+    has_payments: bool = False
+    has_invoice: bool = False
+    invoice_id: UUID | None = None
 
 
 class CurrentGuestsListOut(BaseModel):

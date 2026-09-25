@@ -28,13 +28,14 @@ def _correlation(request: Request) -> str | None:
 async def list_invoices(
     status: str | None = Query(default=None),
     q: str | None = Query(default=None, max_length=100),
+    booking_id: UUID | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     tenant: TenantContext = Depends(require_permissions(Permission.INVOICES_MANAGE)),
     db: AsyncSession = Depends(get_db),
 ) -> InvoiceListOut:
     items, total = await invoices_service.list_invoices(
-        db, tenant, status=status, query=q, limit=limit, offset=offset
+        db, tenant, status=status, query=q, booking_id=booking_id, limit=limit, offset=offset
     )
     return InvoiceListOut(
         items=[

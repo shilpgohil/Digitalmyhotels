@@ -290,6 +290,7 @@ function CurrentGuestsContent() {
                               (client ss17: "Add Below Payment Details BK-0023 / Invoices BK-0023") */}
                           {can(PERMISSIONS.financialReports) && (
                             <DropdownMenuItem
+                              disabled={!entry.has_payments}
                               onClick={() =>
                                 router.push(`/payments?booking_id=${entry.booking_id}`)
                               }
@@ -300,8 +301,9 @@ function CurrentGuestsContent() {
                           )}
                           {can(PERMISSIONS.financialReports) && (
                             <DropdownMenuItem
+                              disabled={!entry.has_invoice}
                               onClick={() =>
-                                router.push(`/invoices?booking_invoice=${entry.booking_id}`)
+                                router.push(`/invoices?booking_id=${entry.booking_id}`)
                               }
                             >
                               <FileText className="size-4" aria-hidden />
