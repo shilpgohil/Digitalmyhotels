@@ -49,6 +49,7 @@ import type {
   RecurringExpenseOut,
 } from "@/types/money";
 import { RequirePermission } from "@/components/auth/require-permission";
+import { RequireAccessMode } from "@/components/auth/require-access-mode";
 
 interface VendorOut {
   id: string;
@@ -940,9 +941,11 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
 
 export default function ExpensesPage() {
   return (
-    <RequirePermission permission={PERMISSIONS.expensesView}>
-      <ExpensesContent />
-    </RequirePermission>
+    <RequireAccessMode mode="checkin_expense">
+      <RequirePermission permission={PERMISSIONS.expensesView}>
+        <ExpensesContent />
+      </RequirePermission>
+    </RequireAccessMode>
   );
 }
 

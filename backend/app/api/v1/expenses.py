@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Query, Request, Response, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import require_permissions
+from app.api.deps import require_access_mode, require_permissions
 from app.core.permissions import Permission
 from app.core.tenant import TenantContext
 from app.db.session import get_db
@@ -25,7 +25,11 @@ from app.schemas.expense import (
 )
 from app.services import expenses as expenses_service
 
-router = APIRouter(prefix="/expenses", tags=["expenses"])
+router = APIRouter(
+    prefix="/expenses",
+    tags=["expenses"],
+    dependencies=[Depends(require_access_mode("checkin_expense", "full"))],
+)
 
 
 def _correlation(request: Request) -> str | None:

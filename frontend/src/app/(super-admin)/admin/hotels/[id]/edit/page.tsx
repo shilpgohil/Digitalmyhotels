@@ -300,6 +300,7 @@ export default function AdminEditHotelPage({
   const [hotelAccessMode, setHotelAccessMode] = useState<"checkin_only" | "checkin_expense" | "full">("full");
   const [ownerNewPassword, setOwnerNewPassword] = useState("");
   const [identityInit, setIdentityInit] = useState(false);
+  const [adminDetailInit, setAdminDetailInit] = useState(false);
   const [gstInit, setGstInit] = useState(false);
 
   // Direct owner password reset (client 09/2026) — same endpoint the
@@ -329,12 +330,13 @@ export default function AdminEditHotelPage({
   }, [hotel.data, identityInit]);
 
   useEffect(() => {
-    if (adminDetail.data && !identityInit) {
+    if (adminDetail.data && !adminDetailInit) {
       setOwnerPhone(adminDetail.data.owner_phone ?? "");
       setMaxTeamMembers(String(adminDetail.data.max_team_members ?? 5));
       setHotelAccessMode(adminDetail.data.access_mode ?? "full");
+      setAdminDetailInit(true);
     }
-  }, [adminDetail.data, identityInit]);
+  }, [adminDetail.data, adminDetailInit]);
 
   useEffect(() => {
     if (gst.data && !gstInit) {
@@ -500,11 +502,17 @@ export default function AdminEditHotelPage({
   const removeType = async (entry: RoomTypeEntryState) => {
     if (!entry.id) {
       setTypeEntries((p) => p.filter((r) => r.key !== entry.key));
+      setRoomEntries((p) =>
+        p.map((r) => (r.room_type_id === `__new__:${entry.key}` ? { ...r, room_type_id: "" } : r)),
+      );
       return;
     }
     try {
       await api(`/api/v1/rooms/types/${entry.id}`, { method: "DELETE" });
       setTypeEntries((p) => p.filter((r) => r.key !== entry.key));
+      setRoomEntries((p) =>
+        p.map((r) => (r.room_type_id === entry.id ? { ...r, room_type_id: "" } : r)),
+      );
       queryClient.invalidateQueries({ queryKey: ["admin-edit-hotel-room-types", hotelId] });
       toast.success(t("roomTypeDeleted"));
     } catch (e) {
@@ -595,28 +603,51 @@ export default function AdminEditHotelPage({
       );
 
       // 3. Room types diff
+      const newTypeIds: Record<string, string> = {};
       const attemptTypes = attempt(t("sectionRoomTypes"));
       for (const entry of typeEntries) {
         const entryName = entry.name.trim();
-        if (!entryName || !entry.base_price.trim()) continue;
-        const basePrice = String(Math.max(0, Math.round(Number.parseFloat(entry.base_price) || 0)));
+        if (!entryName) continue;
+        const basePrice = String(
+          Math.max(0, Math.round(Number.parseFloat(entry.base_price) || 0)),
+        );
         const hourlyTrimmed = entry.hourly_rate.trim();
         const hourlyRate = hourlyTrimmed
           ? String(Math.max(0, Math.round(Number.parseFloat(hourlyTrimmed) || 0)))
           : null;
         if (!entry.id) {
-          await attemptTypes(() =>
-            api("/api/v1/rooms/types", {
+          await attemptTypes(async () => {
+            const created = await api<{ id: string }>("/api/v1/rooms/types", {
               method: "POST",
-              body: { code: roomTypeCode(entryName), name: entryName, base_price: basePrice, hourly_rate: hourlyRate, max_occupancy: entry.max_occupancy },
-            }),
-          );
+              body: {
+                code: roomTypeCode(entryName),
+                name: entryName,
+                base_price: basePrice,
+                hourly_rate: hourlyRate,
+                max_occupancy: entry.max_occupancy,
+              },
+            });
+            if (created?.id) newTypeIds[entry.key] = created.id;
+          });
         } else {
           const orig = originalTypesRef.current.find((o) => o.id === entry.id);
-          const changed = !orig || orig.name !== entryName || wholeRupees(orig.base_price) !== basePrice || (wholeRupees(orig.hourly_rate) || null) !== hourlyRate || orig.max_occupancy !== entry.max_occupancy;
+          const changed =
+            !orig ||
+            orig.name !== entryName ||
+            wholeRupees(orig.base_price) !== basePrice ||
+            (wholeRupees(orig.hourly_rate) || null) !== hourlyRate ||
+            orig.max_occupancy !== entry.max_occupancy;
           if (changed) {
             await attemptTypes(() =>
-              api(`/api/v1/rooms/types/${entry.id}`, { method: "PATCH", body: { name: entryName, base_price: basePrice, hourly_rate: hourlyRate, max_occupancy: entry.max_occupancy } }),
+              api(`/api/v1/rooms/types/${entry.id}`, {
+                method: "PATCH",
+                body: {
+                  name: entryName,
+                  base_price: basePrice,
+                  hourly_rate: hourlyRate,
+                  max_occupancy: entry.max_occupancy,
+                },
+              }),
             );
           }
         }
@@ -632,12 +663,30 @@ export default function AdminEditHotelPage({
       }
       for (const entry of roomEntries) {
         if (!entry.room_number.trim() || !entry.room_type_id) continue;
-        const body = { room_number: entry.room_number.trim(), room_type_id: entry.room_type_id, bed_type: entry.bed_type || null, max_adults: entry.max_adults, max_children: entry.max_children };
+        let resolvedTypeId = entry.room_type_id;
+        if (resolvedTypeId.startsWith("__new__:")) {
+          const mapped = newTypeIds[resolvedTypeId.slice("__new__:".length)];
+          if (!mapped) continue;
+          resolvedTypeId = mapped;
+        }
+        const body = {
+          room_number: entry.room_number.trim(),
+          room_type_id: resolvedTypeId,
+          bed_type: entry.bed_type || null,
+          max_adults: entry.max_adults,
+          max_children: entry.max_children,
+        };
         if (!entry.id) {
           await attemptRooms(() => api("/api/v1/rooms", { method: "POST", body }));
         } else {
           const orig = originalRoomsRef.current.find((o) => o.id === entry.id);
-          const changed = !orig || orig.room_number !== body.room_number || orig.room_type_id !== body.room_type_id || (orig.bed_type ?? null) !== body.bed_type || (orig.max_adults ?? null) !== body.max_adults || (orig.max_children ?? null) !== body.max_children;
+          const changed =
+            !orig ||
+            orig.room_number !== body.room_number ||
+            orig.room_type_id !== body.room_type_id ||
+            (orig.bed_type ?? null) !== body.bed_type ||
+            (orig.max_adults ?? null) !== body.max_adults ||
+            (orig.max_children ?? null) !== body.max_children;
           if (changed) {
             await attemptRooms(() => api(`/api/v1/rooms/${entry.id}`, { method: "PATCH", body }));
           }
@@ -693,6 +742,7 @@ export default function AdminEditHotelPage({
       queryClient.invalidateQueries({ queryKey: ["admin-hotels-expired"] });
       queryClient.invalidateQueries({ queryKey: ["platform-dashboard"] });
       setIdentityInit(false);
+      setAdminDetailInit(false);
       setGstInit(false);
       setRoomsInit(false);
       setTypesInit(false);
@@ -1039,9 +1089,27 @@ export default function AdminEditHotelPage({
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">{t("roomType")}</Label>
-                      <select value={entry.room_type_id} onChange={(e) => updateRoom(entry.key, { room_type_id: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm">
+                      <select
+                        value={entry.room_type_id}
+                        onChange={(e) => updateRoom(entry.key, { room_type_id: e.target.value })}
+                        className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                      >
                         <option value="">{t("selectRoomType")}</option>
-                        {roomTypes.data?.items.map((rt) => <option key={rt.id} value={rt.id}>{rt.name}</option>)}
+                        {roomTypes.data?.items.map((rt) => {
+                          const live = typeEntries.find((te) => te.id === rt.id);
+                          return (
+                            <option key={rt.id} value={rt.id}>
+                              {live?.name.trim() || rt.name}
+                            </option>
+                          );
+                        })}
+                        {typeEntries
+                          .filter((te) => !te.id && te.name.trim())
+                          .map((te) => (
+                            <option key={te.key} value={`__new__:${te.key}`}>
+                              {te.name.trim()} ({t("newTypeTag")})
+                            </option>
+                          ))}
                       </select>
                     </div>
                     <div className="space-y-1.5">

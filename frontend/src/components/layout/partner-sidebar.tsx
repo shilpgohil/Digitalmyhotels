@@ -45,6 +45,8 @@ interface NavItem {
   permission?: PermissionCode;
   /** When true, this item is hidden unless the hotel's access_mode is "full". */
   requiresFullAccess?: true;
+  /** When true, this item is hidden if the hotel's access_mode is "checkin_only". */
+  requiresExpenseAccess?: true;
 }
 
 interface NavSection {
@@ -62,6 +64,7 @@ const SECTIONS: NavSection[] = [
         labelKey: "expenses",
         icon: Receipt,
         permission: PERMISSIONS.expensesView,
+        requiresExpenseAccess: true,
       },
     ],
   },
@@ -318,7 +321,9 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
             (!item.permission || can(item.permission)) &&
             !(hideGst && item.href === "/gst-tax") &&
             // Hide staff/attendance items unless hotel has full access.
-            !(item.requiresFullAccess && accessMode !== "full"),
+            !(item.requiresFullAccess && accessMode !== "full") &&
+            // Hide expenses if hotel has only checkin_only access.
+            !(item.requiresExpenseAccess && accessMode === "checkin_only"),
         );
         if (visible.length === 0) return null;
         return (

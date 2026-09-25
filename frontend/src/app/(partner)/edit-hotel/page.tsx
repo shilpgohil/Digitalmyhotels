@@ -531,11 +531,19 @@ function EditHotelContent() {
   const removeTypeEntry = async (entry: RoomTypeEntryState) => {
     if (!entry.id) {
       setTypeEntries((prev) => prev.filter((r) => r.key !== entry.key));
+      setRoomEntries((prev) =>
+        prev.map((r) =>
+          r.room_type_id === `__new__:${entry.key}` ? { ...r, room_type_id: "" } : r,
+        ),
+      );
       return;
     }
     try {
       await api(`/api/v1/rooms/types/${entry.id}`, { method: "DELETE" });
       setTypeEntries((prev) => prev.filter((r) => r.key !== entry.key));
+      setRoomEntries((prev) =>
+        prev.map((r) => (r.room_type_id === entry.id ? { ...r, room_type_id: "" } : r)),
+      );
       queryClient.invalidateQueries({ queryKey: ["room-types", activeHotelId] });
       toast.success(t("roomTypeDeleted"));
     } catch (e) {
@@ -1219,16 +1227,19 @@ function EditHotelContent() {
                           className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                         >
                           <option value="">{t("selectRoomType")}</option>
-                          {roomTypes.data?.items.map((rt) => (
-                            <option key={rt.id} value={rt.id}>
-                              {rt.name}
-                            </option>
-                          ))}
+                          {roomTypes.data?.items.map((rt) => {
+                            const live = typeEntries.find((te) => te.id === rt.id);
+                            return (
+                              <option key={rt.id} value={rt.id}>
+                                {live?.name.trim() || rt.name}
+                              </option>
+                            );
+                          })}
                           {/* UNSAVED types added in this session (client
                               15/09: "after adding a room, the room type is
                               not displayed") — resolved to real ids at save. */}
                           {typeEntries
-                            .filter((te) => !te.id && te.name.trim().length >= 2)
+                            .filter((te) => !te.id && te.name.trim())
                             .map((te) => (
                               <option key={te.key} value={`__new__:${te.key}`}>
                                 {te.name.trim()} ({t("newTypeTag")})
