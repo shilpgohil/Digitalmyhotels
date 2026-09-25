@@ -93,99 +93,45 @@ function Section({
 }
 
 // ---------------------------------------------------------------------------
-// Room entry row
+// Room Inventory types and helpers
 // ---------------------------------------------------------------------------
-interface RoomEntry {
+interface RoomTypeEntryState {
+  key: string;
+  name: string;
+  base_price: string;
+  hourly_rate: string;
+  max_occupancy: number;
+}
+
+interface RoomEntryState {
+  key: string;
   room_number: string;
-  room_type: string;
+  room_type_key: string;
   bed_type: string;
   max_adults: number;
   max_children: number;
 }
 
-function RoomRow({
-  entry,
-  idx,
-  onChange,
-  onRemove,
-}: {
-  readonly entry: RoomEntry;
-  readonly idx: number;
-  readonly onChange: (idx: number, field: keyof RoomEntry, value: string | number) => void;
-  readonly onRemove: (idx: number) => void;
-}) {
-  const t = useTranslations("admin");
-  return (
-    <div className="rounded-lg border border-border p-4 space-y-3 relative">
-      <button
-        type="button"
-        onClick={() => onRemove(idx)}
-        className="absolute right-3 top-3 text-muted-foreground hover:text-danger"
-        aria-label="Remove room"
-      >
-        <Trash2 className="size-4" aria-hidden />
-      </button>
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-        {t("roomEntry")} #{idx + 1}
-      </p>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs">{t("roomNumber")}</Label>
-          <Input
-            value={entry.room_number}
-            onChange={(e) => onChange(idx, "room_number", e.target.value)}
-            placeholder="101"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">{t("roomType")}</Label>
-          {/* Free-text so any room type name can be entered — the dropdown had
-              hardcoded options that caused "Room Type Missing" when a hotel uses
-              a custom type (client screenshot 63563159). */}
-          <Input
-            value={entry.room_type}
-            onChange={(e) => onChange(idx, "room_type", e.target.value)}
-            placeholder="e.g. Deluxe Suite"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">{t("bedType")}</Label>
-          <select
-            value={entry.bed_type}
-            onChange={(e) => onChange(idx, "bed_type", e.target.value)}
-            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
-          >
-            <option value="">—</option>
-            <option value="king">King Size</option>
-            <option value="queen">Queen Size</option>
-            <option value="double">Double</option>
-            <option value="single">Single</option>
-            <option value="twin">Twin</option>
-          </select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">{t("maxAdults")}</Label>
-          <Input
-            type="number"
-            min={1}
-            max={20}
-            value={entry.max_adults}
-            onChange={(e) => onChange(idx, "max_adults", Number.parseInt(e.target.value, 10) || 1)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">{t("maxChildren")}</Label>
-          <Input
-            type="number"
-            min={0}
-            max={10}
-            value={entry.max_children}
-            onChange={(e) => onChange(idx, "max_children", Number.parseInt(e.target.value, 10) || 0)}
-          />
-        </div>
-      </div>
-    </div>
-  );
+const BED_TYPES = [
+  { value: "king", label: "King Size" },
+  { value: "queen", label: "Queen Size" },
+  { value: "double", label: "Double" },
+  { value: "single", label: "Single" },
+  { value: "twin", label: "Twin" },
+] as const;
+
+let entryKeySeq = 0;
+const nextKey = () => `e${++entryKeySeq}`;
+
+function roomTypeCode(name: string, index?: number): string {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 20);
+  const prefix = typeof index === "number" ? `rt_${index}_` : "rt_";
+  return slug ? `${prefix}${slug}` : `rt_${index ?? 1}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -308,6 +254,7 @@ interface ServiceItem {
 
 export default function AddHotelPage() {
   const t = useTranslations("admin");
+  const te = useTranslations("editHotel");
   const tc = useTranslations("common");
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -362,9 +309,13 @@ export default function AddHotelPage() {
   // Ref for cleanup on unmount to avoid memory leaks with blob URLs.
   const qrBlobUrlRef = useRef<string | null>(null);
 
-  // --- Section 6: Rooms ---
-  const [rooms, setRooms] = useState<RoomEntry[]>([
-    { room_number: "101", room_type: "", bed_type: "", max_adults: 2, max_children: 1 },
+  // --- Section 6: Room Inventory (Room Types + Room Entries) ---
+  const [typeEntries, setTypeEntries] = useState<RoomTypeEntryState[]>([
+    { key: "type_1", name: "Deluxe", base_price: "1500", hourly_rate: "", max_occupancy: 3 },
+    { key: "type_2", name: "Standard", base_price: "1000", hourly_rate: "", max_occupancy: 2 },
+  ]);
+  const [rooms, setRooms] = useState<RoomEntryState[]>([
+    { key: "room_1", room_number: "101", room_type_key: "type_1", bed_type: "king", max_adults: 2, max_children: 1 },
   ]);
 
   // --- Section 7: Special requirements ---
@@ -546,46 +497,54 @@ export default function AddHotelPage() {
       }
 
       // Step 4 (optional): create room types + rooms.
-      // Each unique type name gets its own RoomType record so that e.g.
-      // "Deluxe Suite" and "Standard Double" don't collapse to one type
-      // (old bug: a single hardcoded "STD" code was used for every room).
-      const validRooms = rooms.filter((r) => r.room_number.trim() && r.room_type.trim());
-      if (validRooms.length > 0) {
+      const validTypes = typeEntries.filter((teItem) => teItem.name.trim().length > 0);
+      const validRooms = rooms.filter((r) => r.room_number.trim().length > 0 && r.room_type_key);
+      if (validTypes.length > 0 || validRooms.length > 0) {
         try {
-          // Group by type name (preserves insertion order)
-          const byType = new Map<string, RoomEntry[]>();
-          for (const room of validRooms) {
-            const name = room.room_type.trim() || "Standard";
-            if (!byType.has(name)) byType.set(name, []);
-            byType.get(name)!.push(room);
-          }
+          const createdTypeMap = new Map<string, string>(); // typeEntryKey -> created room_type.id
           let typeIdx = 0;
-          for (const [typeName, typeRooms] of byType) {
-            // Slugify into a unique code (spaces → underscore, uppercase).
-            const code = `T${typeIdx++}_${typeName.slice(0, 8).replace(/\s+/g, "_").toUpperCase()}`;
+
+          for (const teItem of validTypes) {
+            const entryName = teItem.name.trim();
+            const code = roomTypeCode(entryName, ++typeIdx);
+            const basePrice = String(
+              Math.max(0, Math.round(Number.parseFloat(teItem.base_price) || 0)),
+            );
+            const hourlyTrimmed = teItem.hourly_rate.trim();
+            const hourlyRate = hourlyTrimmed
+              ? String(Math.max(0, Math.round(Number.parseFloat(hourlyTrimmed) || 0)))
+              : null;
+            const maxOccupancy = Math.max(1, Math.min(20, teItem.max_occupancy || 2));
+
             const rt = await apiFetch<{ id: string }>("/api/v1/rooms/types", {
               method: "POST",
               body: {
                 code,
-                name: typeName,
-                base_price: "1000.00",
-                max_occupancy: Math.max(...typeRooms.map((r) => r.max_adults + r.max_children)),
+                name: entryName,
+                base_price: basePrice,
+                hourly_rate: hourlyRate,
+                max_occupancy: maxOccupancy,
               },
               hotelId: hotel.id,
             });
-            for (const room of typeRooms) {
-              await apiFetch("/api/v1/rooms", {
-                method: "POST",
-                body: {
-                  room_number: room.room_number,
-                  room_type_id: rt.id,
-                  bed_type: room.bed_type || null,
-                  max_adults: room.max_adults,
-                  max_children: room.max_children,
-                },
-                hotelId: hotel.id,
-              });
-            }
+            createdTypeMap.set(teItem.key, rt.id);
+          }
+
+          for (const room of validRooms) {
+            const resolvedTypeId = createdTypeMap.get(room.room_type_key);
+            if (!resolvedTypeId) continue;
+
+            await apiFetch("/api/v1/rooms", {
+              method: "POST",
+              body: {
+                room_number: room.room_number.trim(),
+                room_type_id: resolvedTypeId,
+                bed_type: room.bed_type || null,
+                max_adults: room.max_adults,
+                max_children: room.max_children,
+              },
+              hotelId: hotel.id,
+            });
           }
         } catch {
           failedSteps.push(t("roomInventorySetup"));
@@ -689,15 +648,40 @@ export default function AddHotelPage() {
   const updateMember = (idx: number, field: keyof AdditionalMember, value: string) =>
     setAdditionalMembers((prev) => prev.map((m, i) => (i === idx ? { ...m, [field]: value } : m)));
 
-  const updateRoom = (idx: number, field: keyof RoomEntry, value: string | number) => {
-    setRooms((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+  // --- Room inventory helpers ---
+  const updateTypeEntry = (key: string, patch: Partial<RoomTypeEntryState>) =>
+    setTypeEntries((prev) => prev.map((item) => (item.key === key ? { ...item, ...patch } : item)));
+
+  const addTypeEntry = () =>
+    setTypeEntries((prev) => [
+      ...prev,
+      { key: nextKey(), name: "", base_price: "", hourly_rate: "", max_occupancy: 2 },
+    ]);
+
+  const removeTypeEntry = (key: string) => {
+    setTypeEntries((prev) => prev.filter((item) => item.key !== key));
+    setRooms((prev) =>
+      prev.map((r) => (r.room_type_key === key ? { ...r, room_type_key: "" } : r)),
+    );
   };
-  const removeRoom = (idx: number) =>
-    setRooms((prev) => prev.filter((_, i) => i !== idx));
-  const addRoom = () =>
+
+  const updateRoomEntry = (key: string, patch: Partial<RoomEntryState>) =>
+    setRooms((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+
+  const removeRoomEntry = (key: string) =>
+    setRooms((prev) => prev.filter((r) => r.key !== key));
+
+  const addRoomEntry = () =>
     setRooms((prev) => [
       ...prev,
-      { room_number: `10${prev.length + 1}`, room_type: "", bed_type: "", max_adults: 2, max_children: 1 },
+      {
+        key: nextKey(),
+        room_number: `10${prev.length + 1}`,
+        room_type_key: typeEntries[0]?.key ?? "",
+        bed_type: "",
+        max_adults: 2,
+        max_children: 0,
+      },
     ]);
 
   const updateService = (idx: number, field: keyof ServiceItem, value: string) => {
@@ -1257,27 +1241,208 @@ export default function AddHotelPage() {
 
       {/* 5. Room Inventory Setup (optional) */}
       <Section icon={BedDouble} title={t("roomInventorySetup")} defaultOpen={false}>
-        <div className="space-y-3">
+        <div className="space-y-4">
           <p className="text-xs text-muted-foreground">
-            Optional — add more rooms and room types in the partner portal after creation.
+            Optional: configure room types and assign rooms. You can also add more in the partner portal after creation.
           </p>
-          {rooms.map((room, idx) => (
-            <RoomRow
-              key={idx}
-              entry={room}
-              idx={idx}
-              onChange={updateRoom}
-              onRemove={removeRoom}
-            />
-          ))}
-          <button
-            type="button"
-            onClick={addRoom}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
-          >
-            <Plus className="size-4" aria-hidden />
-            {t("addAnotherRoom")}
-          </button>
+
+          {/* Room Types */}
+          <div className="space-y-3 border-b border-border pb-5">
+            <p className="text-sm font-semibold text-foreground">{te("roomTypes")}</p>
+            {typeEntries.map((entry) => (
+              <div
+                key={entry.key}
+                className="relative rounded-lg border border-border p-4"
+              >
+                <button
+                  type="button"
+                  onClick={() => removeTypeEntry(entry.key)}
+                  className="absolute right-3 top-3 text-muted-foreground hover:text-danger"
+                  aria-label={te("deleteRoomType")}
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                </button>
+                <div className="grid gap-3 pr-6 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{te("roomTypeName")}</Label>
+                    <Input
+                      value={entry.name}
+                      onChange={(e) =>
+                        updateTypeEntry(entry.key, { name: e.target.value })
+                      }
+                      placeholder="Deluxe"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{te("baseRate")}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="1"
+                      value={entry.base_price}
+                      onChange={(e) =>
+                        updateTypeEntry(entry.key, { base_price: e.target.value })
+                      }
+                      placeholder="1500"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{te("hourlyRate")}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="1"
+                      value={entry.hourly_rate}
+                      onChange={(e) =>
+                        updateTypeEntry(entry.key, { hourly_rate: e.target.value })
+                      }
+                      placeholder=""
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{te("maxOccupancy")}</Label>
+                    <select
+                      value={entry.max_occupancy}
+                      onChange={(e) =>
+                        updateTypeEntry(entry.key, {
+                          max_occupancy: Number.parseInt(e.target.value, 10) || 2,
+                        })
+                      }
+                      className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addTypeEntry}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gold-400 py-3 text-sm font-medium text-gold-600 transition-colors hover:bg-gold-50"
+            >
+              <Plus className="size-4" aria-hidden />
+              {te("addRoomType")}
+            </button>
+          </div>
+
+          {/* Room Entries */}
+          <div className="space-y-3">
+            {rooms.map((entry, idx) => (
+              <div
+                key={entry.key}
+                className="relative space-y-3 rounded-lg border border-border p-4"
+              >
+                <button
+                  type="button"
+                  onClick={() => removeRoomEntry(entry.key)}
+                  className="absolute right-3 top-3 text-muted-foreground hover:text-danger"
+                  aria-label={te("removeRoom")}
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                </button>
+                <p className="text-sm font-semibold text-foreground">
+                  {t("roomEntry")} #{idx + 1}
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{t("roomNumber")}</Label>
+                    <Input
+                      value={entry.room_number}
+                      onChange={(e) =>
+                        updateRoomEntry(entry.key, { room_number: e.target.value })
+                      }
+                      placeholder="101"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{t("roomType")}</Label>
+                    <select
+                      value={entry.room_type_key}
+                      onChange={(e) =>
+                        updateRoomEntry(entry.key, { room_type_key: e.target.value })
+                      }
+                      className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                    >
+                      <option value="">{te("selectRoomType")}</option>
+                      {typeEntries.map((teItem) => (
+                        <option key={teItem.key} value={teItem.key}>
+                          {teItem.name.trim() || "(Untitled Type)"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{t("bedType")}</Label>
+                    <select
+                      value={entry.bed_type}
+                      onChange={(e) =>
+                        updateRoomEntry(entry.key, { bed_type: e.target.value })
+                      }
+                      className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                    >
+                      <option value="">Select Bed Type</option>
+                      {BED_TYPES.map((bt) => (
+                        <option key={bt.value} value={bt.value}>
+                          {bt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">{t("maxAdults")}</Label>
+                      <select
+                        value={entry.max_adults}
+                        onChange={(e) =>
+                          updateRoomEntry(entry.key, {
+                            max_adults: Number.parseInt(e.target.value, 10),
+                          })
+                        }
+                        className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                      >
+                        {[0, 1, 2, 3, 4, 5, 6].map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">{t("maxChildren")}</Label>
+                      <select
+                        value={entry.max_children}
+                        onChange={(e) =>
+                          updateRoomEntry(entry.key, {
+                            max_children: Number.parseInt(e.target.value, 10),
+                          })
+                        }
+                        className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                      >
+                        {[0, 1, 2, 3, 4, 5, 6].map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addRoomEntry}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
+            >
+              <Plus className="size-4" aria-hidden />
+              {t("addAnotherRoom")}
+            </button>
+          </div>
         </div>
       </Section>
 
