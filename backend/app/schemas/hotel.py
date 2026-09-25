@@ -38,6 +38,7 @@ class HotelOut(ORMModel):
     longitude: Decimal | None = None
     geofence_radius_m: int = 200
     attendance_grace_minutes: int = 10
+    access_mode: Literal["checkin_only", "checkin_expense", "full"] = "full"
 
 
 class ServiceItemOut(ORMModel):

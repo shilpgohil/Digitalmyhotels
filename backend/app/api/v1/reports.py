@@ -5,7 +5,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import require_permissions
+from app.api.deps import require_access_mode, require_permissions
 from app.core.permissions import Permission
 from app.core.tenant import TenantContext
 from app.db.session import get_db
@@ -47,7 +47,11 @@ async def revenue(
     return await reports_service.revenue(db, tenant, from_date, to_date)
 
 
-@router.get("/expenses", response_model=ExpenseReportOut)
+@router.get(
+    "/expenses",
+    response_model=ExpenseReportOut,
+    dependencies=[Depends(require_access_mode("checkin_expense", "full"))],
+)
 async def expenses(
     from_date: date = Query(...),
     to_date: date = Query(...),

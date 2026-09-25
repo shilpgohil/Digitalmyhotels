@@ -97,7 +97,7 @@ function ReportsContent() {
   const tn = useTranslations("nav");
   const tc = useTranslations("common");
   const api = useApi();
-  const { activeHotelId, can } = useAuth();
+  const { activeHotelId, can, accessMode } = useAuth();
   const initial = useMemo(defaultRange, []);
   const [fromDate, setFromDate] = useState(initial.from);
   const [toDate, setToDate] = useState(initial.to);
@@ -116,6 +116,7 @@ function ReportsContent() {
     enabled: !!activeHotelId,
   });
   const financial = can(PERMISSIONS.financialReports);
+  const hasExpenseAccess = financial && accessMode !== "checkin_only";
   const revenue = useQuery({
     queryKey: ["report-rev", activeHotelId, qs],
     queryFn: () => api<RevenueReportOut>(`/api/v1/reports/revenue?${qs}`),
@@ -134,7 +135,7 @@ function ReportsContent() {
   const expenses = useQuery({
     queryKey: ["report-exp", activeHotelId, qs],
     queryFn: () => api<ExpenseReportOut>(`/api/v1/reports/expenses?${qs}`),
-    enabled: !!activeHotelId && financial,
+    enabled: !!activeHotelId && hasExpenseAccess,
   });
   const gstRows = useQuery({
     queryKey: ["report-gst-rows", activeHotelId, qs],
@@ -217,7 +218,7 @@ function ReportsContent() {
         </div>
 
         {/* ── Summary stat cards ──────────────────────────────────────── */}
-        <StatCardGrid cols={financial ? 4 : 2}>
+        <StatCardGrid cols={financial ? (hasExpenseAccess ? 4 : 3) : 2}>
           <StatCard
             label={t("occupancy")}
             value={occupancy.data ? `${occupancy.data.occupancy_percent}%` : "—"}
@@ -236,14 +237,16 @@ function ReportsContent() {
                 tone="white"
                 isLoading={revenue.isLoading}
               />
-              <StatCard
-                label={t("expenses")}
-                value={expenses.data ? fmtINR(expenses.data.total) : "—"}
-                subtitle="Approved + paid only"
-                icon={Receipt}
-                tone="white"
-                isLoading={expenses.isLoading}
-              />
+              {hasExpenseAccess && (
+                <StatCard
+                  label={t("expenses")}
+                  value={expenses.data ? fmtINR(expenses.data.total) : "—"}
+                  subtitle="Approved + paid only"
+                  icon={Receipt}
+                  tone="white"
+                  isLoading={expenses.isLoading}
+                />
+              )}
               <StatCard
                 label={t("gst")}
                 value={gst.data ? fmtINR(String(Number(gst.data.cgst) + Number(gst.data.sgst) + Number(gst.data.igst))) : "—"}

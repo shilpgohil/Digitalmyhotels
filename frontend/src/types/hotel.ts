@@ -23,6 +23,7 @@ export interface HotelOut {
   longitude?: string | null;
   geofence_radius_m?: number;
   attendance_grace_minutes?: number;
+  access_mode?: "full" | "checkin_expense" | "checkin_only";
 }
 
 export interface HotelSettingsOut {

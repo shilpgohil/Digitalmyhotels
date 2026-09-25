@@ -9,9 +9,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { apiFetch, refreshAccessToken, ApiError } from "@/lib/api/client";
+import { useQuery } from "@tanstack/react-query";
+import { apiFetch, refreshAccessToken } from "@/lib/api/client";
 import { clearSession, getAccessToken, getCachedUser, setCachedUser, setAccessToken } from "@/lib/auth/session";
 import type { MeResponse, MembershipOut, TokenResponse, UserOut } from "@/types/auth";
+import type { HotelOut } from "@/types/hotel";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -94,6 +96,15 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
       const cachedMe = getCachedUser<MeResponse>();
       if (cachedToken && cachedMe) {
         if (!cancelled) applySession(cachedMe);
+        try {
+          const freshMe = await apiFetch<MeResponse>("/api/v1/auth/me");
+          if (!cancelled) {
+            setCachedUser(freshMe);
+            applySession(freshMe);
+          }
+        } catch {
+          // Keep cached session intact if offline or transient network error.
+        }
         return;
       }
 
@@ -184,16 +195,32 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     [memberships, activeHotelId],
   );
 
+  // Active hotel profile query — provides the live access_mode for the active hotel.
+  // This automatically synchronizes across all users including Super Admin (who has
+  // no row in memberships) and updates immediately when settings change.
+  const activeHotelQuery = useQuery({
+    queryKey: ["hotel", activeHotelId],
+    queryFn: () =>
+      apiFetch<HotelOut>("/api/v1/hotels/me", { hotelId: activeHotelId ?? undefined }),
+    enabled: !!activeHotelId && status === "authenticated",
+    staleTime: 60_000,
+  });
+
   // Derive the feature-gate mode for the currently active hotel.
-  // Falls back to "full" so loading states and super-admin contexts are
-  // never accidentally restricted.
+  // Uses activeHotelQuery when loaded, falling back to the membership setting or "full".
   const accessMode = useMemo(
-    (): "checkin_only" | "checkin_expense" | "full" =>
-      (memberships.find((m) => m.hotel_id === activeHotelId)?.access_mode as
-        | "checkin_only"
-        | "checkin_expense"
-        | "full") ?? "full",
-    [memberships, activeHotelId],
+    (): "checkin_only" | "checkin_expense" | "full" => {
+      if (activeHotelQuery.data?.access_mode) {
+        return activeHotelQuery.data.access_mode;
+      }
+      return (
+        (memberships.find((m) => m.hotel_id === activeHotelId)?.access_mode as
+          | "checkin_only"
+          | "checkin_expense"
+          | "full") ?? "full"
+      );
+    },
+    [activeHotelQuery.data?.access_mode, memberships, activeHotelId],
   );
 
   const value = useMemo<AuthState>(

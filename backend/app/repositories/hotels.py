@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.errors import NotFoundError
 from app.models.hotel import Hotel, HotelPaymentConfig, HotelSettings
@@ -11,7 +12,9 @@ from app.models.invoice import GstSettings
 
 
 async def get_hotel(db: AsyncSession, hotel_id: UUID) -> Hotel:
-    result = await db.execute(select(Hotel).where(Hotel.id == hotel_id))
+    result = await db.execute(
+        select(Hotel).options(selectinload(Hotel.settings)).where(Hotel.id == hotel_id)
+    )
     hotel = result.scalar_one_or_none()
     if hotel is None:
         raise NotFoundError("Hotel not found")

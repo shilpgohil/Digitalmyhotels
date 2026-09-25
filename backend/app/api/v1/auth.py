@@ -136,11 +136,14 @@ async def login(
         user_agent=request.headers.get("user-agent"),
     )
     _set_refresh_cookie(response, refresh)
+    access_modes = await _load_access_modes(
+        db, [m.hotel_id for m in memberships]
+    )
     return TokenResponse(
         access_token=access,
         expires_in=settings.access_token_expire_minutes * 60,
         user=UserOut.model_validate(user),
-        memberships=_membership_outs(memberships),
+        memberships=_membership_outs(memberships, access_modes),
     )
 
 
@@ -164,11 +167,14 @@ async def refresh(
     )
     memberships = await auth_service.get_user_memberships(db, user.id)
     _set_refresh_cookie(response, new_refresh)
+    access_modes = await _load_access_modes(
+        db, [m.hotel_id for m in memberships]
+    )
     return TokenResponse(
         access_token=access,
         expires_in=settings.access_token_expire_minutes * 60,
         user=UserOut.model_validate(user),
-        memberships=_membership_outs(memberships),
+        memberships=_membership_outs(memberships, access_modes),
     )
 
 

@@ -19,7 +19,7 @@ const TOUR_DONE_KEY = "dmh.tourDone.v1";
  */
 export function useProductTour() {
   const t = useTranslations("tour");
-  const { can, user } = useAuth();
+  const { can, user, accessMode } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const driverRef = useRef<Driver | null>(null);
@@ -98,7 +98,7 @@ export function useProductTour() {
         },
       });
     }
-    if (can(PERMISSIONS.expensesView)) {
+    if (can(PERMISSIONS.expensesView) && accessMode !== "checkin_only") {
       steps.push({
         element: "[data-tour='nav-expenses']",
         popover: {
@@ -153,7 +153,7 @@ export function useProductTour() {
       },
     });
     return steps;
-  }, [can, t]);
+  }, [can, t, accessMode]);
 
   const launchTour = useCallback(() => {
     driverRef.current?.destroy();

@@ -63,6 +63,12 @@ class Hotel(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         back_populates="hotel", uselist=False, cascade="all, delete-orphan"
     )
 
+    @property
+    def access_mode(self) -> str:
+        if "settings" in self.__dict__ and self.settings is not None:
+            return self.settings.access_mode
+        return "full"
+
 
 class HotelSettings(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "hotel_settings"

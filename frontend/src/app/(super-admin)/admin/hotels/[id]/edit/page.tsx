@@ -25,8 +25,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft,
+  ChevronDown,
+  ChevronUp,
   ImagePlus,
   Plus,
+  Shield,
   Trash2,
   UploadCloud,
   X,
@@ -134,6 +137,43 @@ function errMsg(e: unknown, fallback: string): string {
 }
 
 // ── Section card ───────────────────────────────────────────────────────────
+
+function Section({
+  icon: Icon,
+  title,
+  children,
+  defaultOpen = true,
+}: Readonly<{
+  icon: React.ElementType;
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}>) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between px-6 py-4 text-left"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-gold-50">
+            <Icon className="size-4 text-gold-600" aria-hidden />
+          </div>
+          <span className="font-semibold text-sm text-foreground">{title}</span>
+        </div>
+        {open ? (
+          <ChevronUp className="size-4 text-muted-foreground" aria-hidden />
+        ) : (
+          <ChevronDown className="size-4 text-muted-foreground" aria-hidden />
+        )}
+      </button>
+      {open && <div className="border-t px-6 py-5">{children}</div>}
+    </div>
+  );
+}
 
 function SectionCard({
   number,
@@ -574,8 +614,8 @@ export default function AdminEditHotelPage({
       const limitChanged = teamLimitNum !== (adminDetail.data?.max_team_members ?? 5);
       const modeChanged = hotelAccessMode !== (adminDetail.data?.access_mode ?? "full");
       if (phoneChanged || limitChanged || modeChanged) {
-        await attempt("Owner")(() =>
-          apiFetch(`/api/v1/super-admin/hotels/${hotelId}`, {
+        await attempt("Hotel Admin Details")(async () => {
+          const updated = await apiFetch<AdminHotelDetail>(`/api/v1/super-admin/hotels/${hotelId}`, {
             method: "PATCH",
             body: {
               ...(phoneChanged ? { owner_phone: ownerPhone.trim() || null } : {}),
@@ -584,8 +624,9 @@ export default function AdminEditHotelPage({
               // Feature gate (plan §feature-modes).
               ...(modeChanged ? { access_mode: hotelAccessMode } : {}),
             },
-          }),
-        );
+          });
+          queryClient.setQueryData(["admin-hotel-detail", hotelId], updated);
+        });
       }
 
       // 2. Settings
@@ -741,6 +782,9 @@ export default function AdminEditHotelPage({
       queryClient.invalidateQueries({ queryKey: ["admin-hotels"] });
       queryClient.invalidateQueries({ queryKey: ["admin-hotels-expired"] });
       queryClient.invalidateQueries({ queryKey: ["platform-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["hotel", hotelId] });
+      queryClient.invalidateQueries({ queryKey: ["hotel-settings", hotelId] });
+      queryClient.invalidateQueries({ queryKey: ["hotel-switcher-name", hotelId] });
       setIdentityInit(false);
       setAdminDetailInit(false);
       setGstInit(false);
@@ -805,6 +849,50 @@ export default function AdminEditHotelPage({
         </div>
       ) : (
         <div className="space-y-6">
+          {/* Access Permissions — 3-tier matching Add Hotel (plan §feature-modes) */}
+          <Section icon={Shield} title={ta("accessPermissions")} defaultOpen>
+            <p className="text-xs text-muted-foreground mb-4">{ta("accessPermissionsHint")}</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {(
+                [
+                  { mode: "checkin_only",    labelKey: "checkinOnlyLabel",    descKey: "checkinOnlyDesc"    },
+                  { mode: "checkin_expense", labelKey: "checkinExpenseLabel",  descKey: "checkinExpenseDesc" },
+                  { mode: "full",            labelKey: "fullAccessLabel",      descKey: "fullAccessDesc"     },
+                ] as const
+              ).map(({ mode, labelKey, descKey }) => {
+                const isSelected = hotelAccessMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setHotelAccessMode(mode)}
+                    className={cn(
+                      "rounded-xl border-2 p-4 text-left transition-colors",
+                      isSelected
+                        ? "border-gold-500 bg-gold-50/60"
+                        : "border-border hover:border-gold-300",
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={cn(
+                          "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border-2",
+                          isSelected ? "border-gold-500 bg-gold-500" : "border-muted-foreground",
+                        )}
+                      >
+                        {isSelected && <div className="size-1.5 rounded-full bg-white" />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{ta(labelKey)}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{ta(descKey)}</p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </Section>
+
           {/* 0. Admin Info (read-only overview) */}
           {adminDetail.data && (
             <div className="rounded-xl border bg-muted/30 p-5 space-y-4">
@@ -888,39 +976,6 @@ export default function AdminEditHotelPage({
                 />
                 <p className="text-label text-muted-foreground">
                   The hotel cannot add active team members beyond this limit.
-                </p>
-              </div>
-
-              {/* Access mode — feature gate controlling which modules are enabled
-                  (plan §feature-modes). SA can upgrade/downgrade at any time. */}
-              <div className="space-y-2">
-                <Label className="text-xs">Access Mode</Label>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {(
-                    [
-                      { mode: "checkin_only",    label: "Check-In Only",          desc: "Check-in / check-out only. No expenses, no staff." },
-                      { mode: "checkin_expense", label: "Check-In & Expense",      desc: "All financial features. No staff / attendance." },
-                      { mode: "full",            label: "Full Access",             desc: "Everything, incl. staff management & attendance." },
-                    ] as const
-                  ).map(({ mode, label, desc }) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => setHotelAccessMode(mode)}
-                      className={cn(
-                        "rounded-lg border-2 p-3 text-left text-xs transition-colors",
-                        hotelAccessMode === mode
-                          ? "border-navy-700 bg-navy-900/5 font-semibold text-navy-900"
-                          : "border-border hover:border-navy-400",
-                      )}
-                    >
-                      <p className="font-semibold">{label}</p>
-                      <p className="mt-0.5 text-muted-foreground">{desc}</p>
-                    </button>
-                  ))}
-                </div>
-                <p className="text-label text-muted-foreground">
-                  Changing access mode takes effect on the hotel&apos;s next login.
                 </p>
               </div>
 

@@ -85,11 +85,17 @@ async def get_tenant_context(
             raise ForbiddenError("Invalid hotel context", code="invalid_hotel") from exc
 
     if user.is_super_admin and hotel_uuid:
+        from app.models.hotel import HotelSettings as _HS
+
+        raw_mode = await db.scalar(
+            select(_HS.access_mode).where(_HS.hotel_id == hotel_uuid)
+        )
         return TenantContext(
             user_id=user.id,
             hotel_id=hotel_uuid,
             role=RoleCode.SUPER_ADMIN,
             is_super_admin=True,
+            access_mode=raw_mode or "full",
         )
 
     query = (
