@@ -1263,8 +1263,8 @@ export default function AddHotelPage() {
                   <Trash2 className="size-4" aria-hidden />
                 </button>
                 <div className="grid gap-3 pr-6 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">{te("roomTypeName")}</Label>
+                  <div className="flex flex-col justify-between gap-1.5">
+                    <Label className="text-xs leading-tight min-h-[32px] flex items-center">{te("roomTypeName")}</Label>
                     <Input
                       value={entry.name}
                       onChange={(e) =>
@@ -1273,8 +1273,8 @@ export default function AddHotelPage() {
                       placeholder="Deluxe"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">{te("baseRate")}</Label>
+                  <div className="flex flex-col justify-between gap-1.5">
+                    <Label className="text-xs leading-tight min-h-[32px] flex items-center">{te("baseRate")}</Label>
                     <Input
                       type="number"
                       min={0}
@@ -1286,8 +1286,8 @@ export default function AddHotelPage() {
                       placeholder="1500"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">{te("hourlyRate")}</Label>
+                  <div className="flex flex-col justify-between gap-1.5">
+                    <Label className="text-xs leading-tight min-h-[32px] flex items-center">{te("hourlyRate")}</Label>
                     <Input
                       type="number"
                       min={0}
@@ -1299,8 +1299,8 @@ export default function AddHotelPage() {
                       placeholder=""
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">{te("maxOccupancy")}</Label>
+                  <div className="flex flex-col justify-between gap-1.5">
+                    <Label className="text-xs leading-tight min-h-[32px] flex items-center">{te("maxOccupancy")}</Label>
                     <select
                       value={entry.max_occupancy}
                       onChange={(e) =>
@@ -1308,7 +1308,7 @@ export default function AddHotelPage() {
                           max_occupancy: Number.parseInt(e.target.value, 10) || 2,
                         })
                       }
-                      className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                      className="h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm transition-all outline-none focus-visible:border-gold-400 focus-visible:ring-2 focus-visible:ring-gold-400/20"
                     >
                       {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                         <option key={n} value={n}>
@@ -1349,8 +1349,8 @@ export default function AddHotelPage() {
                   {t("roomEntry")} #{idx + 1}
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">{t("roomNumber")}</Label>
+                  <div className="flex flex-col justify-between gap-1.5">
+                    <Label className="text-xs leading-tight min-h-[20px] flex items-center">{t("roomNumber")}</Label>
                     <Input
                       value={entry.room_number}
                       onChange={(e) =>
@@ -1359,14 +1359,14 @@ export default function AddHotelPage() {
                       placeholder="101"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">{t("roomType")}</Label>
+                  <div className="flex flex-col justify-between gap-1.5">
+                    <Label className="text-xs leading-tight min-h-[20px] flex items-center">{t("roomType")}</Label>
                     <select
                       value={entry.room_type_key}
                       onChange={(e) =>
                         updateRoomEntry(entry.key, { room_type_key: e.target.value })
                       }
-                      className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                      className="h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm transition-all outline-none focus-visible:border-gold-400 focus-visible:ring-2 focus-visible:ring-gold-400/20"
                     >
                       <option value="">{te("selectRoomType")}</option>
                       {typeEntries.map((teItem) => (
@@ -1376,14 +1376,14 @@ export default function AddHotelPage() {
                       ))}
                     </select>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">{t("bedType")}</Label>
+                  <div className="flex flex-col justify-between gap-1.5">
+                    <Label className="text-xs leading-tight min-h-[20px] flex items-center">{t("bedType")}</Label>
                     <select
                       value={entry.bed_type}
                       onChange={(e) =>
                         updateRoomEntry(entry.key, { bed_type: e.target.value })
                       }
-                      className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                      className="h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm transition-all outline-none focus-visible:border-gold-400 focus-visible:ring-2 focus-visible:ring-gold-400/20"
                     >
                       <option value="">Select Bed Type</option>
                       {BED_TYPES.map((bt) => (
@@ -1394,8 +1394,8 @@ export default function AddHotelPage() {
                     </select>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">{t("maxAdults")}</Label>
+                    <div className="flex flex-col justify-between gap-1.5">
+                      <Label className="text-xs leading-tight min-h-[20px] flex items-center">{t("maxAdults")}</Label>
                       <select
                         value={entry.max_adults}
                         onChange={(e) =>
@@ -1403,7 +1403,7 @@ export default function AddHotelPage() {
                             max_adults: Number.parseInt(e.target.value, 10),
                           })
                         }
-                        className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                        className="h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm transition-all outline-none focus-visible:border-gold-400 focus-visible:ring-2 focus-visible:ring-gold-400/20"
                       >
                         {[0, 1, 2, 3, 4, 5, 6].map((n) => (
                           <option key={n} value={n}>
@@ -1412,8 +1412,8 @@ export default function AddHotelPage() {
                         ))}
                       </select>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">{t("maxChildren")}</Label>
+                    <div className="flex flex-col justify-between gap-1.5">
+                      <Label className="text-xs leading-tight min-h-[20px] flex items-center">{t("maxChildren")}</Label>
                       <select
                         value={entry.max_children}
                         onChange={(e) =>
@@ -1421,7 +1421,7 @@ export default function AddHotelPage() {
                             max_children: Number.parseInt(e.target.value, 10),
                           })
                         }
-                        className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                        className="h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm transition-all outline-none focus-visible:border-gold-400 focus-visible:ring-2 focus-visible:ring-gold-400/20"
                       >
                         {[0, 1, 2, 3, 4, 5, 6].map((n) => (
                           <option key={n} value={n}>

@@ -1123,8 +1123,8 @@ function EditHotelContent() {
                       <Trash2 className="size-4" aria-hidden />
                     </button>
                     <div className="grid gap-3 pr-6 sm:grid-cols-2 lg:grid-cols-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">{t("roomTypeName")}</Label>
+                      <div className="flex flex-col justify-between gap-1.5">
+                        <Label className="text-xs leading-tight min-h-[32px] flex items-center">{t("roomTypeName")}</Label>
                         <Input
                           value={entry.name}
                           onChange={(e) =>
@@ -1133,8 +1133,8 @@ function EditHotelContent() {
                           placeholder="Deluxe"
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">{t("baseRate")}</Label>
+                      <div className="flex flex-col justify-between gap-1.5">
+                        <Label className="text-xs leading-tight min-h-[32px] flex items-center">{t("baseRate")}</Label>
                         <Input
                           type="number"
                           min={0}
@@ -1146,8 +1146,8 @@ function EditHotelContent() {
                           placeholder="2500"
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">{t("hourlyRate")}</Label>
+                      <div className="flex flex-col justify-between gap-1.5">
+                        <Label className="text-xs leading-tight min-h-[32px] flex items-center">{t("hourlyRate")}</Label>
                         <Input
                           type="number"
                           min={0}
@@ -1156,11 +1156,11 @@ function EditHotelContent() {
                           onChange={(e) =>
                             updateTypeEntry(entry.key, { hourly_rate: e.target.value })
                           }
-                          placeholder="—"
+                          placeholder=""
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">{t("maxOccupancy")}</Label>
+                      <div className="flex flex-col justify-between gap-1.5">
+                        <Label className="text-xs leading-tight min-h-[32px] flex items-center">{t("maxOccupancy")}</Label>
                         <select
                           value={entry.max_occupancy}
                           onChange={(e) =>
@@ -1168,7 +1168,7 @@ function EditHotelContent() {
                               max_occupancy: Number.parseInt(e.target.value, 10),
                             })
                           }
-                          className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                          className="h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm transition-all outline-none focus-visible:border-gold-400 focus-visible:ring-2 focus-visible:ring-gold-400/20"
                         >
                           {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                             <option key={n} value={n}>
