@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.security import hash_token
+from app.models.user import RefreshToken
 from app.services.auth import create_user
 
 # DB fixtures are session-loop scoped; tests must share that loop.
@@ -82,7 +87,21 @@ async def test_refresh_rotation_and_reuse_detection(
     second_refresh = r1.cookies.get(settings.refresh_cookie_name)
     assert second_refresh and second_refresh != first_refresh
 
-    # Replaying the first (rotated-out) token must trip reuse detection.
+    # 1. Within the 60s grace period: concurrent requests / network retries succeed.
+    client.cookies.clear()
+    client.cookies.set(settings.refresh_cookie_name, first_refresh, path="/api/v1/auth")
+    r_grace = await client.post("/api/v1/auth/refresh")
+    assert r_grace.status_code == 200
+
+    # 2. Beyond the 60s grace period: replaying a revoked token trips reuse detection.
+    token_hash = hash_token(first_refresh)
+    await db_session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.token_hash == token_hash)
+        .values(revoked_at=datetime.now(UTC) - timedelta(seconds=65))
+    )
+    await db_session.commit()
+
     client.cookies.clear()
     client.cookies.set(settings.refresh_cookie_name, first_refresh, path="/api/v1/auth")
     r2 = await client.post("/api/v1/auth/refresh")

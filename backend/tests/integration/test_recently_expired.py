@@ -48,7 +48,7 @@ async def _make_hotel_with_subscription(
     """Create a hotel with a subscription expiring `expiry_offset_days` from today.
     Negative = already expired.  Positive = future expiry."""
     suffix = uuid4().hex[:8]
-    hotel = Hotel(name=f"Test RE Hotel {suffix}", slug=f"re-hotel-{suffix}")
+    hotel = Hotel(name=f"Test RE Hotel {suffix}", slug=f"re-hotel-{suffix}", timezone="UTC")
     db_session.add(hotel)
     await db_session.flush()
     db_session.add(HotelSettings(hotel_id=hotel.id))

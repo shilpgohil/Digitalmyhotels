@@ -41,7 +41,7 @@ class HotelFixture:
 async def make_hotel_with_team(db: AsyncSession, *, name: str | None = None) -> HotelFixture:
     suffix = uuid4().hex[:8]
     roles = await _ensure_roles(db)
-    hotel = Hotel(name=name or f"Hotel {suffix}", slug=f"hotel-{suffix}")
+    hotel = Hotel(name=name or f"Hotel {suffix}", slug=f"hotel-{suffix}", timezone="UTC")
     db.add(hotel)
     await db.flush()
     db.add(HotelSettings(hotel_id=hotel.id))
