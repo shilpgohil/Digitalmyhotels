@@ -14,6 +14,9 @@ export function LocaleSwitcher() {
     const next = locale === "en" ? "hi" : "en";
     // Locale cookie read by src/i18n/request.ts on the server.
     document.cookie = `dmh_locale=${next};path=/;max-age=31536000;samesite=lax`;
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("lang", next);
+    }
     startTransition(() => router.refresh());
   };
 

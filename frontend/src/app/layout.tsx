@@ -55,8 +55,14 @@ export default async function RootLayout({
         className={`${inter.variable} ${sourceSerif.variable} ${notoDevanagari.variable} font-sans`}
         style={
           {
-            "--font-sans-stack": `var(--font-inter), var(--font-devanagari), system-ui, sans-serif`,
-            "--font-display-stack": `var(--font-source-serif), var(--font-devanagari), serif`,
+            "--font-sans-stack":
+              locale === "hi"
+                ? `var(--font-devanagari), var(--font-inter), system-ui, sans-serif`
+                : `var(--font-inter), var(--font-devanagari), system-ui, sans-serif`,
+            "--font-display-stack":
+              locale === "hi"
+                ? `var(--font-devanagari), var(--font-source-serif), serif`
+                : `var(--font-source-serif), var(--font-devanagari), serif`,
           } as React.CSSProperties
         }
       >

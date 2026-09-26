@@ -139,7 +139,7 @@ export function StatCard({
 
   if (href) {
     return (
-      <Link href={href} className={baseClasses}>
+      <Link href={href} data-slot="stat-card" className={baseClasses}>
         {content}
       </Link>
     );
@@ -149,6 +149,7 @@ export function StatCard({
     return (
       <button
         type="button"
+        data-slot="stat-card"
         onClick={onClick}
         aria-pressed={active}
         className={baseClasses}
@@ -158,7 +159,7 @@ export function StatCard({
     );
   }
 
-  return <div className={baseClasses}>{content}</div>;
+  return <div data-slot="stat-card" className={baseClasses}>{content}</div>;
 }
 
 // ── StatCardGrid ───────────────────────────────────────────────────────────

@@ -627,3 +627,162 @@
     opacity: 0.7;
   }
 }
+
+/* ── Hindi / Devanagari Typography Harmonization ───────────────────────── */
+/*
+ * In Devanagari script, glyphs require vertical headroom for upper matras
+ * (ै, ो, े, etc.) and lower matras (ु, ू, ृ, etc.). Consequently, the core
+ * readable glyph body (optical x-height) in Devanagari fonts is ~15-20%
+ * smaller than Latin letters at the identical CSS font-size.
+ *
+ * Furthermore:
+ * 1. Devanagari has no uppercase — so English labels rendered in full-cap
+ *    height (e.g. "TOTAL", "OCCUPIED", "FRONT DESK") become diminutive in
+ *    Hindi ("कुल", "अधिग्रहित", "फ्रंट डेस्क") if not optically boosted.
+ * 2. Letter-spacing / tracking breaks the shirorekha (top headline). Devanagari
+ *    must always use normal letter-spacing to prevent fragmented letters.
+ * 3. Root font size is scaled up to 108% (17.28px base) so that rem-based
+ *    font sizes across all pages, cards, tables, and inputs match English visual size.
+ * 4. Micro-labels (.text-micro, .text-label) are boosted to maintain legibility.
+ * 5. Headings and sidebar links are given proportional optical weight and size.
+ */
+
+html:lang(hi),
+html[lang="hi"] {
+  font-size: 108%;
+  --font-sans-stack: var(--font-devanagari), var(--font-inter), system-ui, sans-serif;
+  --font-display-stack: var(--font-devanagari), var(--font-source-serif), serif;
+  --font-sans: var(--font-devanagari), var(--font-inter), system-ui, sans-serif;
+  --font-display: var(--font-devanagari), var(--font-source-serif), serif;
+}
+
+html:lang(hi) body,
+html[lang="hi"] body {
+  font-family: var(--font-devanagari), var(--font-inter), system-ui, sans-serif;
+  line-height: 1.55;
+  font-feature-settings: normal;
+}
+
+/* Prevent shirorekha (top headline) breaking in Devanagari words */
+html:lang(hi) [class*="tracking-"],
+html[lang="hi"] [class*="tracking-"],
+html:lang(hi) .tracking-tight,
+html:lang(hi) .tracking-normal,
+html:lang(hi) .tracking-wide,
+html:lang(hi) .tracking-wider,
+html:lang(hi) .tracking-widest {
+  letter-spacing: normal !important;
+}
+
+/* Compensate for lack of uppercase in Devanagari micro-labels and badges */
+html:lang(hi) .text-micro,
+html[lang="hi"] .text-micro {
+  font-size: 0.75rem !important; /* ~13px scaled instead of 10px */
+  line-height: 1.15rem !important;
+  font-weight: 600;
+}
+
+html:lang(hi) .text-label,
+html[lang="hi"] .text-label {
+  font-size: 0.8125rem !important; /* ~14px scaled instead of 11px */
+  line-height: 1.25rem !important;
+  font-weight: 500;
+}
+
+html:lang(hi) .text-\[9px\],
+html[lang="hi"] .text-\[9px\],
+html:lang(hi) .text-\[10px\],
+html[lang="hi"] .text-\[10px\],
+html:lang(hi) .text-\[11px\],
+html[lang="hi"] .text-\[11px\] {
+  font-size: 0.75rem !important;
+  line-height: 1.15rem !important;
+}
+
+html:lang(hi) .text-xs,
+html[lang="hi"] .text-xs {
+  font-size: 0.8125rem; /* ~14px scaled */
+}
+
+/* Page headings and section titles in Hindi */
+html:lang(hi) h1,
+html[lang="hi"] h1,
+html:lang(hi) .font-display,
+html[lang="hi"] .font-display {
+  font-weight: 600;
+  font-size: 1.12em;
+  letter-spacing: -0.01em;
+}
+
+html:lang(hi) h2,
+html[lang="hi"] h2 {
+  font-weight: 600;
+}
+
+html:lang(hi) h3,
+html[lang="hi"] h3 {
+  font-weight: 600;
+}
+
+/* Section Card / Section Panel headers in Hindi */
+html:lang(hi) [data-slot="section-title"],
+html[lang="hi"] [data-slot="section-title"] {
+  font-size: 0.9375rem !important;
+  font-weight: 600;
+}
+
+/* Navigation items in sidebar */
+html:lang(hi) aside nav a,
+html[lang="hi"] aside nav a,
+html:lang(hi) aside nav button,
+html[lang="hi"] aside nav button {
+  font-size: 0.9375rem; /* ~16px scaled */
+  font-weight: 500;
+}
+
+/* Sidebar category labels */
+html:lang(hi) aside nav p[class*="text-micro"],
+html[lang="hi"] aside nav p[class*="text-micro"] {
+  font-size: 0.75rem !important;
+  font-weight: 600;
+}
+
+/* Stat card metric labels */
+html:lang(hi) [data-slot="stat-card"] p[class*="text-micro"],
+html[lang="hi"] [data-slot="stat-card"] p[class*="text-micro"] {
+  font-size: 0.75rem !important;
+  font-weight: 600;
+}
+
+/* Table header cells */
+html:lang(hi) th,
+html[lang="hi"] th,
+html:lang(hi) [data-slot="table-head"],
+html[lang="hi"] [data-slot="table-head"] {
+  font-size: 0.8125rem; /* ~14px scaled */
+  font-weight: 600;
+}
+
+html:lang(hi) td,
+html[lang="hi"] td,
+html:lang(hi) [data-slot="table-cell"],
+html[lang="hi"] [data-slot="table-cell"] {
+  font-size: 0.875rem;
+}
+
+/* Buttons and interactive action links */
+html:lang(hi) button,
+html[lang="hi"] button,
+html:lang(hi) [data-slot="button"],
+html[lang="hi"] [data-slot="button"] {
+  font-weight: 500;
+}
+
+/* Inputs, selects, and textareas */
+html:lang(hi) input::placeholder,
+html[lang="hi"] input::placeholder,
+html:lang(hi) textarea::placeholder,
+html[lang="hi"] textarea::placeholder {
+  font-size: 0.9375rem;
+}
+
