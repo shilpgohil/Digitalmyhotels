@@ -66,6 +66,7 @@ class Subscription(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # Canonical values: upi | cash | bank_transfer | card | other
     # NULL = unknown / not recorded (legacy rows created before this column).
     payment_mode: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    txn_ref: Mapped[str | None] = mapped_column(String(100), nullable=True)
     allow_view_after_expiry: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     block_transactions_after_expiry: Mapped[bool] = mapped_column(
         Boolean, default=True, nullable=False

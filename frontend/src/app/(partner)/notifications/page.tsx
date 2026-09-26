@@ -4,12 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, Check, ExternalLink } from "lucide-react";
+import { Bell, Check, ExternalLink, Volume2, VolumeX } from "lucide-react";
+import { toast } from "sonner";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
+import { playNotificationSound, useNotificationSoundPreference } from "@/lib/notification-sound";
+import { useBrowserNotifications } from "@/lib/browser-notifications";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS, notificationCategoriesForRole } from "@/lib/permissions";
@@ -73,6 +76,13 @@ function NotificationsContent() {
   const queryClient = useQueryClient();
   const [activeCategory, setActiveCategory] = useState("");
   const [page, setPage] = useState(1);
+  const [soundEnabled, setSoundEnabled] = useNotificationSoundPreference();
+  const {
+    isSupported: isBrowserNotifSupported,
+    permission: browserNotifPermission,
+    requestPermission: requestBrowserNotif,
+    sendTestNotification,
+  } = useBrowserNotifications();
 
   const qs = activeCategory ? `?category=${activeCategory}` : "";
 
@@ -121,6 +131,40 @@ function NotificationsContent() {
     <>
       <PartnerHeader title={t("title")} subtitle={tn("overview")} />
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+        {/* Browser notification permission banner */}
+        {isBrowserNotifSupported && browserNotifPermission === "default" && (
+          <div className="mb-4 flex flex-col gap-2 rounded-lg border border-gold-300 bg-gold-50/60 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-gold-800 dark:bg-gold-950/20">
+            <div className="flex items-center gap-2">
+              <Bell className="size-4 text-gold-600 dark:text-gold-400 shrink-0" aria-hidden />
+              <p className="text-xs text-foreground font-medium">
+                {t("browserNotificationsDesc")}
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              className="shrink-0 text-xs"
+              onClick={async () => {
+                const res = await requestBrowserNotif();
+                if (res === "granted") {
+                  toast.success(t("browserNotificationsEnabledToast"));
+                } else if (res === "denied") {
+                  toast.error(t("browserNotificationsDeniedToast"));
+                }
+              }}
+            >
+              {t("enableBrowserNotifications")}
+            </Button>
+          </div>
+        )}
+
+        {isBrowserNotifSupported && browserNotifPermission === "denied" && (
+          <div className="mb-4 rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+            {t("browserNotificationsBlockedHint")}
+          </div>
+        )}
+
         {/* Category filter chips — only categories this role can see */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap gap-1.5">
@@ -148,18 +192,69 @@ function NotificationsContent() {
               </button>
             ))}
           </div>
-          {unread > 0 && (
+          <div className="flex items-center gap-2">
             <Button
+              type="button"
               variant="outline"
               size="sm"
               className="gap-1.5"
-              onClick={() => markAll.mutate()}
-              disabled={markAll.isPending}
+              onClick={() => {
+                const next = !soundEnabled;
+                setSoundEnabled(next);
+                if (next) {
+                  playNotificationSound(true);
+                  toast.success(t("soundEnabled"));
+                } else {
+                  toast.info(t("soundMuted"));
+                }
+              }}
+              title={soundEnabled ? t("muteSound") : t("unmuteSound")}
+              aria-label={soundEnabled ? t("muteSound") : t("unmuteSound")}
             >
-              <Check className="size-3.5" aria-hidden />
-              {t("markAllRead")}
+              {soundEnabled ? (
+                <>
+                  <Volume2 className="size-3.5 text-navy-900 dark:text-gold-400" aria-hidden />
+                  <span>{t("ringerOn")}</span>
+                </>
+              ) : (
+                <>
+                  <VolumeX className="size-3.5 text-muted-foreground" aria-hidden />
+                  <span>{t("ringerOff")}</span>
+                </>
+              )}
             </Button>
-          )}
+            {browserNotifPermission === "granted" && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={async () => {
+                  const sent = await sendTestNotification();
+                  if (sent) {
+                    toast.success(t("testNotificationSent"));
+                  }
+                }}
+                title={t("testBrowserNotification")}
+                aria-label={t("testBrowserNotification")}
+              >
+                <Bell className="size-3.5 text-navy-900 dark:text-gold-400" aria-hidden />
+                <span>{t("testBrowserNotification")}</span>
+              </Button>
+            )}
+            {unread > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => markAll.mutate()}
+                disabled={markAll.isPending}
+              >
+                <Check className="size-3.5" aria-hidden />
+                {t("markAllRead")}
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* List */}

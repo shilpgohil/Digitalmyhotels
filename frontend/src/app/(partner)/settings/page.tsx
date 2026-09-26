@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { KeyRound, QrCode, Upload } from "lucide-react";
+import { Bell, KeyRound, Play, QrCode, Upload, Volume2, VolumeX } from "lucide-react";
+import { playNotificationSound, useNotificationSoundPreference } from "@/lib/notification-sound";
+import { useBrowserNotifications } from "@/lib/browser-notifications";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,15 +38,21 @@ type TabKey = "hotel" | "policies" | "gst" | "payments" | "services";
 function SettingsContent() {
   const t = useTranslations("settings");
   const tn = useTranslations("nav");
-  const { can } = useAuth();
+  const { can, activeRoleCode, user } = useAuth();
   const router = useRouter();
+
+  // UPI configuration must strictly be accessible only to owner/admin, never manager.
+  const canManageUpi =
+    can(PERMISSIONS.hotelManageUpi) &&
+    activeRoleCode !== "manager" &&
+    (activeRoleCode === "owner" || activeRoleCode === "admin" || Boolean(user?.is_super_admin));
 
   // Build the ordered list of available tabs for this user.
   const tabs: { key: TabKey; label: string }[] = [
     { key: "hotel", label: t("hotelTab") },
     { key: "policies", label: t("policiesTab") },
     ...(can(PERMISSIONS.gstManage) ? [{ key: "gst" as TabKey, label: t("gstTab") }] : []),
-    ...(can(PERMISSIONS.hotelManageUpi) ? [{ key: "payments" as TabKey, label: t("paymentsTab") }] : []),
+    ...(canManageUpi ? [{ key: "payments" as TabKey, label: t("paymentsTab") }] : []),
     ...(can(PERMISSIONS.hotelManageSettings) ? [{ key: "services" as TabKey, label: t("servicesTab") }] : []),
   ];
 
@@ -56,6 +64,12 @@ function SettingsContent() {
     }
     return tabs[0]?.key ?? "hotel";
   });
+
+  useEffect(() => {
+    if (active === "payments" && !canManageUpi) {
+      setActive("hotel");
+    }
+  }, [active, canManageUpi]);
 
   const handleTabChange = useCallback(
     (key: TabKey) => {
@@ -101,9 +115,15 @@ function SettingsContent() {
         {/* Only the active panel is mounted — no phantom white boxes */}
         <div className="section-open mt-2">
           {active === "hotel" && <HotelProfileForm />}
-          {active === "policies" && <PoliciesForm />}
+          {active === "policies" && (
+            <div className="space-y-6">
+              <PoliciesForm />
+              <NotificationSoundCard />
+              <BrowserNotificationSettingsCard />
+            </div>
+          )}
           {active === "gst" && can(PERMISSIONS.gstManage) && <GstForm />}
-          {active === "payments" && can(PERMISSIONS.hotelManageUpi) && <UpiConfigPanel />}
+          {active === "payments" && canManageUpi && <UpiConfigPanel />}
           {active === "services" && can(PERMISSIONS.hotelManageSettings) && <ServicesPanel />}
         </div>
       </main>
@@ -487,6 +507,219 @@ function PoliciesForm() {
   );
 }
 
+function NotificationSoundCard() {
+  const tn = useTranslations("notifications");
+  const [soundEnabled, setSoundEnabled] = useNotificationSoundPreference();
+
+  const handleToggle = (enabled: boolean) => {
+    setSoundEnabled(enabled);
+    if (enabled) {
+      playNotificationSound(true);
+      toast.success(tn("soundEnabled"));
+    } else {
+      toast.info(tn("soundMuted"));
+    }
+  };
+
+  return (
+    <div className="max-w-2xl rounded-lg border bg-card p-6 shadow-xs">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            {soundEnabled ? (
+              <Volume2 className="size-5 text-gold-600 dark:text-gold-400" aria-hidden />
+            ) : (
+              <VolumeX className="size-5 text-muted-foreground" aria-hidden />
+            )}
+            <h3 className="text-base font-semibold tracking-tight text-foreground">
+              {tn("notificationSoundTitle")}
+            </h3>
+            <span
+              className={cn(
+                "inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium border",
+                soundEnabled
+                  ? "bg-gold-50 text-gold-800 border-gold-300 dark:bg-gold-950/40 dark:text-gold-300 dark:border-gold-800"
+                  : "bg-muted text-muted-foreground border-border",
+              )}
+            >
+              {soundEnabled ? tn("ringerOn") : tn("ringerOff")}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {tn("notificationSoundDesc")}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => playNotificationSound(true)}
+            className="gap-1.5"
+            title={tn("testSound")}
+          >
+            <Play className="size-3.5 fill-current" aria-hidden />
+            <span>{tn("testSound")}</span>
+          </Button>
+
+          <Button
+            type="button"
+            variant={soundEnabled ? "default" : "secondary"}
+            size="sm"
+            onClick={() => handleToggle(!soundEnabled)}
+            className="gap-1.5"
+          >
+            {soundEnabled ? (
+              <>
+                <VolumeX className="size-3.5" aria-hidden />
+                <span>{tn("muteSound")}</span>
+              </>
+            ) : (
+              <>
+                <Volume2 className="size-3.5" aria-hidden />
+                <span>{tn("unmuteSound")}</span>
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BrowserNotificationSettingsCard() {
+  const tn = useTranslations("notifications");
+  const {
+    isSupported,
+    permission,
+    isEnabled,
+    requestPermission,
+    setEnabled,
+    sendTestNotification,
+  } = useBrowserNotifications();
+
+  const handleToggle = (enabled: boolean) => {
+    setEnabled(enabled);
+    if (enabled) {
+      toast.success(tn("browserNotificationsEnabledToast"));
+    } else {
+      toast.info(tn("browserNotificationsMutedToast"));
+    }
+  };
+
+  const getStatusBadge = () => {
+    if (!isSupported) {
+      return (
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium border bg-muted text-muted-foreground border-border">
+          {tn("browserNotificationsUnsupported")}
+        </span>
+      );
+    }
+    if (permission === "granted") {
+      return isEnabled ? (
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium border bg-gold-50 text-gold-800 border-gold-300 dark:bg-gold-950/40 dark:text-gold-300 dark:border-gold-800">
+          {tn("browserNotificationsActive")}
+        </span>
+      ) : (
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium border bg-muted text-muted-foreground border-border">
+          {tn("ringerOff")}
+        </span>
+      );
+    }
+    if (permission === "denied") {
+      return (
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium border bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800">
+          {tn("browserNotificationsBlocked")}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium border bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
+        {tn("browserNotificationsDefault")}
+      </span>
+    );
+  };
+
+  return (
+    <div className="max-w-2xl rounded-lg border bg-card p-6 shadow-xs space-y-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Bell className="size-5 text-gold-600 dark:text-gold-400" aria-hidden />
+            <h3 className="text-base font-semibold tracking-tight text-foreground">
+              {tn("browserNotificationsTitle")}
+            </h3>
+            {getStatusBadge()}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {tn("browserNotificationsDesc")}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {isSupported && permission === "default" && (
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={async () => {
+                const res = await requestPermission();
+                if (res === "granted") {
+                  toast.success(tn("browserNotificationsEnabledToast"));
+                } else if (res === "denied") {
+                  toast.error(tn("browserNotificationsDeniedToast"));
+                }
+              }}
+              className="gap-1.5"
+            >
+              <Bell className="size-3.5" aria-hidden />
+              <span>{tn("enableBrowserNotifications")}</span>
+            </Button>
+          )}
+
+          {isSupported && permission === "granted" && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  const sent = await sendTestNotification();
+                  if (sent) {
+                    toast.success(tn("testNotificationSent"));
+                  }
+                }}
+                className="gap-1.5"
+                title={tn("testBrowserNotification")}
+              >
+                <Bell className="size-3.5" aria-hidden />
+                <span>{tn("testBrowserNotification")}</span>
+              </Button>
+
+              <Button
+                type="button"
+                variant={isEnabled ? "default" : "secondary"}
+                size="sm"
+                onClick={() => handleToggle(!isEnabled)}
+                className="gap-1.5"
+              >
+                {isEnabled ? tn("muteSound") : tn("unmuteSound")}
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {isSupported && permission === "denied" && (
+        <div className="rounded-md border border-rose-200 bg-rose-50/50 p-3 text-xs text-rose-900 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-200">
+          {tn("browserNotificationsBlockedHint")}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GstForm() {
   const t = useTranslations("settings");
   const tc = useTranslations("common");
@@ -662,13 +895,17 @@ function UpiConfigPanel() {
   const tc = useTranslations("common");
   const api = useApi();
   const queryClient = useQueryClient();
-  const { activeHotelId } = useAuth();
+  const { activeHotelId, activeRoleCode, user } = useAuth();
   const { edit } = useImageEditor();
+
+  const isAllowed =
+    activeRoleCode !== "manager" &&
+    (activeRoleCode === "owner" || activeRoleCode === "admin" || Boolean(user?.is_super_admin));
 
   const config = useQuery({
     queryKey: ["payment-config", activeHotelId],
     queryFn: () => api<PaymentConfigOut>("/api/v1/hotels/me/payment-config"),
-    enabled: !!activeHotelId,
+    enabled: !!activeHotelId && isAllowed,
   });
 
   // After saving, the QR regenerates in the background — poll for the new version.

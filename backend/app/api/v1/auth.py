@@ -283,6 +283,7 @@ async def _load_hotel_metadata(
 
 @router.get("/me", response_model=MeResponse)
 async def me(
+    request: Request,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     tenant: TenantContext | None = None,
@@ -294,7 +295,17 @@ async def me(
 
         perms = [p.value for p in Permission]
     elif memberships:
-        role = memberships[0].role.code
+        target_membership = memberships[0]
+        hint = request.headers.get("X-Hotel-Id") or request.headers.get("x-hotel-id")
+        if hint:
+            try:
+                target_uuid = UUID(hint)
+                found = next((m for m in memberships if m.hotel_id == target_uuid), None)
+                if found:
+                    target_membership = found
+            except ValueError:
+                pass
+        role = target_membership.role.code
         perms = [p.value for p in permissions_for_role(role)]
     access_modes, hotel_statuses = await _load_hotel_metadata(
         db, [m.hotel_id for m in memberships]

@@ -347,6 +347,8 @@ async def decide_renewal_request(
         if req.payment_mode:
             normalised = "other" if req.payment_mode == "manual" else req.payment_mode
             sub.payment_mode = normalised
+        if req.note:
+            sub.txn_ref = req.note
     req.status = "approved" if approve else "rejected"
     req.decided_at = utcnow()
     req.decided_by_id = decided_by_id

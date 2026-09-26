@@ -30,7 +30,6 @@ import {
   FileText,
   Minus,
   Plus,
-  UserPlus,
   UserRound,
 } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
@@ -40,17 +39,16 @@ import { SectionPanel } from "@/components/ui/section-panel";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Label } from "@/components/ui/label";
 import { GuestPicker } from "@/components/guests/guest-picker";
-import { NewGuestFullForm, type QueuedDoc } from "@/components/stay/new-guest-full-form";
+import { AdvanceBookingVoucherModal } from "@/components/stay/advance-booking-voucher-modal";
 import { RoomAvailabilityPicker } from "@/components/rooms/room-availability-picker";
 import { useApi } from "@/lib/api/use-api";
 import { invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
-import { ApiError, API_BASE, apiUpload } from "@/lib/api/client";
+import { ApiError, API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { localToday, localTomorrow } from "@/lib/formatting";
 import type {
   BookingOut,
-  GuestCreatePayload,
   GuestOut,
   GuestType,
   RoomRateOverride,
@@ -126,6 +124,151 @@ function Counter({
   );
 }
 
+/** Quick guest registration for advance bookings — ID proof and photos deferred to check-in. */
+function QuickGuestForm({
+  initialPhone = "",
+  pending = false,
+  onConfirm,
+  onCancel,
+}: {
+  readonly initialPhone?: string;
+  readonly pending?: boolean;
+  readonly onConfirm: (data: {
+    full_name: string;
+    phone: string;
+    email?: string;
+    id_proof_type?: string;
+    id_number?: string;
+  }) => void;
+  readonly onCancel: () => void;
+}) {
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState(initialPhone);
+  const [email, setEmail] = useState("");
+  const [idProofType, setIdProofType] = useState("");
+  const [idNumber, setIdNumber] = useState("");
+  const tc = useTranslations("common");
+
+  const canSave = !!fullName.trim() && !!phone.trim() && !pending;
+
+  return (
+    <div className="space-y-4 rounded-xl border bg-card p-4 shadow-sm">
+      <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3 text-xs text-blue-900 dark:text-blue-200">
+        <p className="font-semibold">Quick Guest Registration for Advance Booking</p>
+        <p className="mt-0.5 text-muted-foreground dark:text-blue-300">
+          Only Guest Name and Phone Number are required to reserve rooms in advance. Government ID verification and document photos can be collected upon guest arrival during check-in.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1">
+          <Label htmlFor="qg-name" className="text-xs font-semibold">
+            Full Name *
+          </Label>
+          <Input
+            id="qg-name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="e.g. Ramesh Kumar"
+            required
+            autoFocus
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="qg-phone" className="text-xs font-semibold">
+            Phone Number *
+          </Label>
+          <Input
+            id="qg-phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="e.g. 9876543210"
+            inputMode="tel"
+            required
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="qg-email" className="text-xs">
+            Email (Optional)
+          </Label>
+          <Input
+            id="qg-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="e.g. guest@example.com"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label htmlFor="qg-idtype" className="text-xs">
+              ID Type (Optional)
+            </Label>
+            <select
+              id="qg-idtype"
+              value={idProofType}
+              onChange={(e) => setIdProofType(e.target.value)}
+              className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs"
+            >
+              <option value="">None / At Check-in</option>
+              <option value="Aadhar Card">Aadhaar Card</option>
+              <option value="PAN Card">PAN Card</option>
+              <option value="Passport">Passport</option>
+              <option value="Driving License">Driving License</option>
+              <option value="Voter ID">Voter ID</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="qg-idnum" className="text-xs">
+              ID Number (Optional)
+            </Label>
+            <Input
+              id="qg-idnum"
+              value={idNumber}
+              onChange={(e) => setIdNumber(e.target.value)}
+              placeholder="e.g. Last 4 digits"
+              maxLength={20}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 pt-1">
+        <Button
+          type="button"
+          size="sm"
+          disabled={!canSave}
+          onClick={() =>
+            onConfirm({
+              full_name: fullName.trim(),
+              phone: phone.trim(),
+              email: email.trim() || undefined,
+              id_proof_type: idProofType || undefined,
+              id_number: idNumber.trim() || undefined,
+            })
+          }
+          className="bg-navy-900 text-white hover:bg-navy-800"
+        >
+          {pending ? tc("saving") : "Save & Select Guest"}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={onCancel}
+        >
+          {tc("cancel")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function AdvanceBookingContent() {
   const api = useApi();
   const router = useRouter();
@@ -150,48 +293,28 @@ function AdvanceBookingContent() {
   // "Create new guest". Replaces the old inline mini-form.
   const [showNewGuest, setShowNewGuest] = useState(false);
   const [newGuestPhone, setNewGuestPhone] = useState("");
+  const [createdBooking, setCreatedBooking] = useState<BookingOut | null>(null);
+  const [voucherOpen, setVoucherOpen] = useState(false);
 
-  // Creates the guest, then uploads the queued ID docs (front/back/selfie).
-  // Doc uploads are NON-blocking — same convention as check-in: the booking
-  // can proceed while docs upload; failures toast individually.
+  // Quick guest creation for advance bookings without mandatory ID proof.
   const createGuest = useMutation({
-    mutationFn: async ({
-      form,
-      docs,
-    }: {
-      form: GuestCreatePayload;
-      docs: QueuedDoc[];
+    mutationFn: async (payload: {
+      full_name: string;
+      phone: string;
+      email?: string;
+      id_proof_type?: string;
+      id_number?: string;
     }) => {
-      const created = await api<GuestOut>("/api/v1/guests", {
+      return api<GuestOut>("/api/v1/guests", {
         method: "POST",
         body: {
-          full_name: form.full_name.trim(),
-          phone: form.phone.trim(),
-          email: form.email?.trim() || undefined,
-          address: form.address?.trim() || undefined,
-          city: form.city?.trim() || undefined,
-          state: form.state?.trim() || undefined,
-          country: form.country?.trim() || undefined,
-          postal_code: form.postal_code?.trim() || undefined,
-          gender: form.gender?.trim() || undefined,
-          date_of_birth: form.date_of_birth?.trim() || undefined,
-          id_proof_type: form.id_proof_type?.trim() || undefined,
-          id_number: form.id_number?.trim() || undefined,
+          full_name: payload.full_name,
+          phone: payload.phone,
+          email: payload.email,
+          id_proof_type: payload.id_proof_type,
+          id_number: payload.id_number,
         },
       });
-      for (const doc of docs) {
-        const fd = new FormData();
-        fd.append("side", doc.side);
-        fd.append("document_type", "id_proof");
-        fd.append("file", doc.file);
-        apiUpload(`/api/v1/guests/${created.id}/documents`, fd, {
-          hotelId: activeHotelId ?? undefined,
-        }).catch((err: unknown) => {
-          console.warn("[advance-booking] guest doc upload:", err);
-          toast.error(t("uploadFailed"));
-        });
-      }
-      return created;
     },
     onSuccess: (created) => {
       setShowNewGuest(false);
@@ -401,7 +524,8 @@ function AdvanceBookingContent() {
       // booking reserves rooms — the check-in picker must see it.
       invalidateRoomState(queryClient);
       toast.success(`Advance Booking Created — ${booking.booking_number}`);
-      router.push("/advance-bookings");
+      setCreatedBooking(booking);
+      setVoucherOpen(true);
     },
     onError: (e) => {
       const msg = e instanceof ApiError ? e.message : "Failed to Create Booking";
@@ -514,17 +638,12 @@ function AdvanceBookingContent() {
                 }}
               />
               {showNewGuest && !guest?.id && (
-                <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
-                  <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase text-muted-foreground">
-                    <UserPlus className="size-3.5" aria-hidden />
-                    {tg("newGuest")}
-                  </p>
-                  <NewGuestFullForm
+                <div className="space-y-3">
+                  <QuickGuestForm
                     key={newGuestPhone}
                     initialPhone={newGuestPhone}
-                    confirmLabel={t("createGuestAction")}
                     pending={createGuest.isPending}
-                    onConfirm={(form, docs) => createGuest.mutate({ form, docs })}
+                    onConfirm={(data) => createGuest.mutate(data)}
                     onCancel={() => setShowNewGuest(false)}
                   />
                 </div>
@@ -728,6 +847,20 @@ function AdvanceBookingContent() {
             </Button>
           </div>
         </form>
+
+        <AdvanceBookingVoucherModal
+          open={voucherOpen}
+          onClose={() => {
+            setVoucherOpen(false);
+            router.push("/advance-bookings");
+          }}
+          booking={createdBooking}
+          paymentInfo={
+            paymentCollected && parseFloat(advanceAmount) > 0
+              ? { amount: advanceAmount, method: paymentMode }
+              : null
+          }
+        />
       </main>
     </>
   );

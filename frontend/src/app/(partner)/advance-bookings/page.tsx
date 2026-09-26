@@ -4,7 +4,8 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, MoreVertical, LogIn, XCircle, UserX } from "lucide-react";
+import { Plus, MoreVertical, LogIn, XCircle, UserX, Receipt } from "lucide-react";
+import { AdvanceBookingVoucherModal } from "@/components/stay/advance-booking-voucher-modal";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -82,6 +83,7 @@ function AdvanceBookingsContent() {
   const cancelConfirm = useConfirmDialog();
   const [noShowTarget, setNoShowTarget] = useState<BookingOut | null>(null);
   const noShowConfirm = useConfirmDialog();
+  const [voucherTarget, setVoucherTarget] = useState<BookingOut | null>(null);
 
   // Reset pagination whenever any filter changes.
   useEffect(() => {
@@ -338,6 +340,12 @@ function AdvanceBookingsContent() {
                           </DropdownMenuTrigger>
                           {/* min-w keeps "Mark No-show" on one line (client 09/2026) */}
                           <DropdownMenuContent align="end" className="min-w-48 whitespace-nowrap">
+                            <DropdownMenuItem
+                              onClick={() => setVoucherTarget(booking)}
+                            >
+                              <Receipt className="size-4" aria-hidden />
+                              {t("voucherAction")}
+                            </DropdownMenuItem>
                             {booking.status === "confirmed" && (
                               <DropdownMenuItem
                                 onClick={() => router.push(`/checkin?booking=${booking.id}`)}
@@ -382,6 +390,12 @@ function AdvanceBookingsContent() {
             onPageChange={setPage}
           />
         )}
+
+        <AdvanceBookingVoucherModal
+          open={!!voucherTarget}
+          onClose={() => setVoucherTarget(null)}
+          booking={voucherTarget}
+        />
       </main>
     </>
   );

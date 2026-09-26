@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   Bell,
   Building2,
@@ -16,12 +17,19 @@ import {
   LayoutDashboard,
   Check,
   ExternalLink,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { playNotificationSound, useNotificationSoundPreference } from "@/lib/notification-sound";
+import {
+  showBatchSystemNotifications,
+  useBrowserNotifications,
+} from "@/lib/browser-notifications";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS, notificationCategoriesForRole } from "@/lib/permissions";
@@ -263,6 +271,45 @@ export function NotificationsBell() {
   // Top category tab: "all" or a category key present in the data.
   const [activeTab, setActiveTab] = useState<string>("all");
 
+  // ── Audio & Browser notification preference & burst-protection logic ───────
+  const [soundEnabled, setSoundEnabled] = useNotificationSoundPreference();
+  const {
+    isSupported: isBrowserNotifSupported,
+    permission: browserNotifPermission,
+    requestPermission: requestBrowserNotif,
+  } = useBrowserNotifications();
+  const isInitializedRef = useRef(false);
+  const knownIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!notifications.data) return;
+    const items = notifications.data.items ?? [];
+    const unreadItems = items.filter(
+      (n) => !n.is_read && allowedCategories.includes(n.category),
+    );
+
+    // Initial mount: record existing notifications without blasting alerts
+    if (!isInitializedRef.current) {
+      isInitializedRef.current = true;
+      knownIdsRef.current = new Set(items.map((n) => n.id));
+      return;
+    }
+
+    // Detect if truly new unread notifications arrived since last check
+    const newUnreadItems = unreadItems.filter((n) => !knownIdsRef.current.has(n.id));
+    const hasNewUnread = newUnreadItems.length > 0;
+
+    // Update known IDs
+    items.forEach((n) => knownIdsRef.current.add(n.id));
+
+    // If new unread arrived (whether 1, 3, or 5 at once), play chime once (protected by 3s cooldown)
+    // and display grouped or individual desktop/mobile system notification
+    if (hasNewUnread) {
+      playNotificationSound();
+      showBatchSystemNotifications(newUnreadItems);
+    }
+  }, [notifications.data, allowedCategories]);
+
 
   const toggleShowMore = (cat: string) =>
     setExpandedItems((prev) => {
@@ -355,7 +402,33 @@ export function NotificationsBell() {
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b px-3 py-2">
-          <p className="text-sm font-semibold">{t("title")}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold">{t("title")}</p>
+            {/* Quick Ringer / Silent Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                const next = !soundEnabled;
+                setSoundEnabled(next);
+                toast.success(next ? t("soundEnabled") : t("soundMuted"));
+              }}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-micro font-medium transition-colors border",
+                soundEnabled
+                  ? "bg-gold-50 text-gold-800 border-gold-300 dark:bg-gold-950/40 dark:text-gold-300 dark:border-gold-800"
+                  : "bg-muted text-muted-foreground border-border hover:text-foreground",
+              )}
+              title={soundEnabled ? t("muteSound") : t("unmuteSound")}
+              aria-label={soundEnabled ? t("muteSound") : t("unmuteSound")}
+            >
+              {soundEnabled ? (
+                <Volume2 className="size-3" aria-hidden />
+              ) : (
+                <VolumeX className="size-3" aria-hidden />
+              )}
+              <span>{soundEnabled ? t("ringerOn") : t("ringerOff")}</span>
+            </button>
+          </div>
           <div className="flex items-center gap-2">
             {unread > 0 && (
               <button
@@ -377,6 +450,27 @@ export function NotificationsBell() {
             </button>
           </div>
         </div>
+
+        {/* Browser notification permission prompt banner */}
+        {isBrowserNotifSupported && browserNotifPermission === "default" && (
+          <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-1.5 text-micro">
+            <span className="text-muted-foreground line-clamp-1">{t("browserNotificationsTitle")}</span>
+            <button
+              type="button"
+              onClick={async () => {
+                const res = await requestBrowserNotif();
+                if (res === "granted") {
+                  toast.success(t("browserNotificationsEnabledToast"));
+                } else if (res === "denied") {
+                  toast.error(t("browserNotificationsDeniedToast"));
+                }
+              }}
+              className="shrink-0 rounded bg-navy-900 px-2 py-0.5 font-medium text-white hover:bg-navy-800 transition-colors"
+            >
+              {t("enableBrowserNotifications")}
+            </button>
+          </div>
+        )}
 
         {/* Category tabs: "All" + one tab per category present in the data.
             Only show tabs for categories the role can see. */}

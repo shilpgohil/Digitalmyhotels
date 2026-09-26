@@ -497,6 +497,7 @@ async def list_renewal_requests(
             duration_days=plan.duration_days,
             amount=req.amount,
             status=req.status,
+            payment_mode=req.payment_mode,
             note=req.note,
             created_at=req.created_at,
             decided_at=req.decided_at,
@@ -566,6 +567,7 @@ async def _decide_renewal(
         duration_days=plan.duration_days,
         amount=req.amount,
         status=req.status,
+        payment_mode=req.payment_mode,
         note=req.note,
         created_at=req.created_at,
         decided_at=req.decided_at,
@@ -708,6 +710,8 @@ async def record_manual_payment(
     normalised_mode = "other" if body.payment_mode == "manual" else body.payment_mode
     sub = await sub_service.renew_subscription(db, hotel_id=body.hotel_id, plan=plan)
     sub.payment_mode = normalised_mode
+    if body.txn_ref:
+        sub.txn_ref = body.txn_ref.strip().upper()
 
     # Build human-readable audit note (note_parts joined and used)
     note_parts = [f"Manual payment by SA: {user.full_name}"]

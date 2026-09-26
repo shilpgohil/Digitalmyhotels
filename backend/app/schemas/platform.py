@@ -219,8 +219,8 @@ class RenewalRequestAdminOut(BaseModel):
     duration_days: int
     amount: Decimal
     status: str
-    # Partner-entered UPI transaction reference (Part 9) — the super admin
-    # verifies this against the bank/UPI app before approving.
+    payment_mode: str | None = None
+    # Partner-entered transaction/receipt reference for super admin verification.
     note: str | None = None
     created_at: datetime
     decided_at: datetime | None = None
@@ -359,6 +359,7 @@ class BillingHistoryRowOut(BaseModel):
     plan_duration_days: int
     expiry_date: date
     payment_mode: str | None = None
+    txn_ref: str | None = None
 
 
 class BillingHistoryListOut(BaseModel):

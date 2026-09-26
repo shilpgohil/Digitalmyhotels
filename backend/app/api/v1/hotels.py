@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, File, Path, Request, Response, UploadFil
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permissions
-from app.core.permissions import Permission
+from app.core.errors import ForbiddenError
+from app.core.permissions import Permission, RoleCode
 from app.core.tenant import TenantContext
 from app.db.session import get_db
 from app.repositories.hotels import (
@@ -490,6 +491,11 @@ async def get_payment_config(
     tenant: TenantContext = Depends(require_permissions(Permission.HOTEL_VIEW_UPI_ID)),
     db: AsyncSession = Depends(get_db),
 ) -> PaymentConfigOut:
+    if tenant.role == RoleCode.MANAGER:
+        raise ForbiddenError(
+            "Managers are not permitted to view or configure UPI payment settings",
+            code="manager_upi_forbidden",
+        )
     upi_id, config = await upi_service.get_config_view(db, tenant)
     return PaymentConfigOut(
         upi_id=upi_id,
@@ -508,6 +514,11 @@ async def update_payment_config(
     tenant: TenantContext = Depends(require_permissions(Permission.HOTEL_MANAGE_UPI)),
     db: AsyncSession = Depends(get_db),
 ) -> PaymentConfigOut:
+    if tenant.role == RoleCode.MANAGER:
+        raise ForbiddenError(
+            "Managers are not permitted to view or configure UPI payment settings",
+            code="manager_upi_forbidden",
+        )
     config = await upi_service.update_upi_id(
         db, tenant, body.upi_id,
         merchant_name=body.merchant_name,
@@ -531,6 +542,11 @@ async def upload_payment_logo(
     tenant: TenantContext = Depends(require_permissions(Permission.HOTEL_MANAGE_UPI)),
     db: AsyncSession = Depends(get_db),
 ) -> PaymentConfigOut:
+    if tenant.role == RoleCode.MANAGER:
+        raise ForbiddenError(
+            "Managers are not permitted to view or configure UPI payment settings",
+            code="manager_upi_forbidden",
+        )
     data = await file.read()
     config = await upi_service.update_logo(
         db,

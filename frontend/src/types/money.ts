@@ -327,6 +327,7 @@ export interface RenewalRequestAdminOut {
   duration_days: number;
   amount: string;
   status: string;
+  payment_mode?: string | null;
   created_at: string;
   decided_at: string | null;
 }
@@ -336,7 +337,7 @@ export interface RenewalRequestAdminListOut {
   total: number;
 }
 
-/** Super-admin billing history row — one subscription/payment per hotel. */
+/** Super-admin billing history row: one subscription/payment per hotel. */
 export interface SuperAdminBillingHistoryRow {
   subscription_id: string;
   hotel_id: string;
@@ -349,6 +350,7 @@ export interface SuperAdminBillingHistoryRow {
   plan_duration_days: number;
   expiry_date: string;
   payment_mode: string | null;
+  txn_ref?: string | null;
 }
 
 export interface SuperAdminBillingHistorySummary {

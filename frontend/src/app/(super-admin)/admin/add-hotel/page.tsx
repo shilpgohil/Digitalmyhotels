@@ -1592,38 +1592,13 @@ export default function AddHotelPage() {
             </Button>
           </div>
         ) : (
-          /* ── Pre-creation state ── */
+          /* Pre-creation state */
           <div className="flex items-center justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-[42px] flex-1 px-4 sm:flex-none"
-              onClick={() => {
-                // Save draft to localStorage for resume later. Image FILES cannot
-                // be serialized — warn so the admin knows to re-attach them.
-                try {
-                  localStorage.setItem("dmh.addHotelDraft", JSON.stringify({
-                    hotelName, city, state, phone, address, gstin, email, mapId,
-                    gstType, totalRooms, ownerName, ownerEmail, ownerPhone,
-                    merchantName, upiId,
-                  }));
-                  toast.success(t("draftSaved"));
-                  if (logoFile || galleryFiles.some(Boolean)) {
-                    toast.info(t("draftPhotosNotIncluded"));
-                  }
-                } catch {
-                  router.push("/admin/hotels");
-                }
-              }}
-              disabled={mutation.isPending}
-            >
-              {t("saveDraft")}
-            </Button>
             <Button
               type="button"
               disabled={mutation.isPending || !canSubmit}
               onClick={() => mutation.mutate()}
-              className="h-[42px] flex-1 px-4 sm:flex-none bg-navy-900 hover:bg-navy-800 text-white"
+              className="h-[42px] px-6 bg-navy-900 hover:bg-navy-800 text-white"
             >
               {mutation.isPending ? tc("saving") : t("addHotelBtn")}
             </Button>

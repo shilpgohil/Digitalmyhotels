@@ -39,6 +39,7 @@ import {
   ChevronRight,
   Search,
   X,
+  Copy,
 } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,7 @@ import {
 } from "@/components/ui/dialog";
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
 import { DataTable } from "@/components/ui/data-table";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fmtINR, fmtApiDate, localYmd, localToday } from "@/lib/formatting";
@@ -379,6 +381,7 @@ export default function AdminBillingHistoryPage() {
     t("billingChoosePlan"),
     t("billingExpiryDate"),
     t("billingMode"),
+    t("billingTxnRef"),
     t("billingActions"),
   ];
 
@@ -441,25 +444,29 @@ export default function AdminBillingHistoryPage() {
 
         {/* Custom date range + Mode + Search */}
         <div className="flex flex-wrap items-end gap-3">
-          {/* From — writes to draftFrom (committed on Apply) */}
+          {/* From: writes to draftFrom (committed on Apply) */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-muted-foreground">{t("billingFrom")}</label>
-            <input
-              type="date"
+            <DatePicker
               value={draftFrom}
-              onChange={(e) => setDraftFrom(e.target.value)}
-              className="h-[42px] rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+              onChange={(v) => {
+                setPeriod("all");
+                setDraftFrom(v);
+              }}
+              className="w-40"
             />
           </div>
-          {/* To — writes to draftTo (committed on Apply) */}
+          {/* To: writes to draftTo (committed on Apply) */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-muted-foreground">{t("billingTo")}</label>
-            <input
-              type="date"
+            <DatePicker
               value={draftTo}
               min={draftFrom || undefined}
-              onChange={(e) => setDraftTo(e.target.value)}
-              className="h-[42px] rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+              onChange={(v) => {
+                setPeriod("all");
+                setDraftTo(v);
+              }}
+              className="w-40"
             />
           </div>
           {/* Mode */}
@@ -567,6 +574,30 @@ export default function AdminBillingHistoryPage() {
                 <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium capitalize">
                   {modeLabel(row.payment_mode, t)}
                 </span>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
+            </td>
+            {/* Txn / Receipt ID */}
+            <td className="px-4 py-3 whitespace-nowrap">
+              {row.txn_ref ? (
+                <div className="flex items-center gap-1.5 font-mono text-xs">
+                  <span className="rounded bg-muted/60 px-1.5 py-0.5 font-semibold text-foreground select-all">
+                    {row.txn_ref}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(row.txn_ref!);
+                      toast.success(t("txnCopied"));
+                    }}
+                    className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    title={t("copyTxnRef")}
+                    aria-label={t("copyTxnRef")}
+                  >
+                    <Copy className="size-3" />
+                  </button>
+                </div>
               ) : (
                 <span className="text-muted-foreground">—</span>
               )}

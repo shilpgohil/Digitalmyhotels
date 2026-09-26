@@ -232,7 +232,7 @@ export function DatePicker({
         data-required={required}
         onClick={openPanel}
         className={cn(
-          "flex h-[42px] w-full items-center gap-2 rounded-md border border-input bg-white px-2.5 text-sm",
+          "flex h-[42px] w-full items-center gap-2 rounded-md border border-input bg-white dark:bg-background px-2.5 text-sm",
           "hover:border-gold-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500/30",
           disabled && "cursor-not-allowed opacity-60",
         )}

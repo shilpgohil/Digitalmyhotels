@@ -29,6 +29,7 @@ import {
   FileBarChart2,
   Settings,
   TrendingUp,
+  Copy,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
@@ -287,10 +288,10 @@ export default function AdminDashboardPage() {
         )}
         {!renewals.isLoading && (
           <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[500px]">
+          <table className="w-full text-sm min-w-[650px]">
             <thead className="bg-muted/30">
               <tr>
-                {[t("hotelName"), t("subscriptionPlan"), t("amount"), t("requestDate"), tc("actions")].map((h) => (
+                {[t("hotelName"), t("subscriptionPlan"), t("amount"), t("billingMode"), t("paymentProofTxnId"), t("requestDate"), tc("actions")].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-label font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
                     {h}
                   </th>
@@ -303,22 +304,42 @@ export default function AdminDashboardPage() {
                   <td className="px-4 py-3 font-medium">{r.hotel_name}</td>
                   <td className="px-4 py-3 text-muted-foreground capitalize">
                     {r.plan_name} — {r.duration_days} {t("days")}
-                    {/* Transaction ID — extract from "Txn: XXXXX" note format and
-                        display prominently as a badge so SA can verify before approving */}
-                    {r.note && (() => {
-                      const txn = r.note.startsWith("Txn: ")
-                        ? r.note.slice(5)
-                        : r.note;
+                  </td>
+                  <td className="px-4 py-3 font-medium tabular-nums">{fmtINR(r.amount)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium capitalize">
+                      {r.payment_mode ? r.payment_mode.replace("_", " ") : "UPI"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {(() => {
+                      const rawTxn = r.note
+                        ? r.note.startsWith("Txn: ")
+                          ? r.note.slice(5).trim()
+                          : r.note.trim()
+                        : "";
+                      if (!rawTxn) return <span className="text-muted-foreground text-xs">—</span>;
                       return (
-                        <span className="mt-1 flex items-center gap-1">
-                          <span className="rounded bg-gold-100 px-1.5 py-0.5 font-mono text-xs font-bold normal-case text-gold-800">
-                            🔑 Txn: {txn}
+                        <div className="flex items-center gap-1.5 font-mono text-xs">
+                          <span className="rounded bg-gold-100 px-2 py-0.5 font-semibold text-gold-900 border border-gold-300">
+                            {rawTxn}
                           </span>
-                        </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(rawTxn);
+                              toast.success("Transaction ID copied to clipboard");
+                            }}
+                            className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                            title="Copy Transaction ID"
+                            aria-label="Copy Transaction ID"
+                          >
+                            <Copy className="size-3" />
+                          </button>
+                        </div>
                       );
                     })()}
                   </td>
-                  <td className="px-4 py-3 font-medium tabular-nums">{fmtINR(r.amount)}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
                     {fmtDateTime(r.created_at)}
                   </td>
@@ -336,7 +357,7 @@ export default function AdminDashboardPage() {
               ))}
               {(renewals.data?.items ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
                     {t("noRenewalRequests")}
                   </td>
                 </tr>

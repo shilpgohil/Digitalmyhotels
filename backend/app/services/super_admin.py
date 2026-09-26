@@ -319,7 +319,8 @@ async def billing_history(
             SubscriptionPlan.name.label("plan_name"),
             SubscriptionPlan.duration_days.label("plan_duration_days"),
             Subscription.expiry_date,
-            Subscription.payment_mode,          # real column — no longer NULL cast
+            Subscription.payment_mode,
+            Subscription.txn_ref,
         )
         .join(Hotel, Hotel.id == Subscription.hotel_id)
         .join(SubscriptionPlan, SubscriptionPlan.id == Subscription.plan_id)
@@ -429,6 +430,7 @@ async def billing_history(
                 "plan_duration_days": r.plan_duration_days,
                 "expiry_date": r.expiry_date,
                 "payment_mode": _norm_mode(r.payment_mode),
+                "txn_ref": r.txn_ref,
             }
             for r in rows
         ],
