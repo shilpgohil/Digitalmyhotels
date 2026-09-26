@@ -14,7 +14,7 @@ interface RequireAuthProps {
 }
 
 export function RequireAuth({ children, superAdminOnly = false }: RequireAuthProps) {
-  const { status, user } = useAuth();
+  const { status, user, memberships, activeHotelId } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -30,23 +30,48 @@ export function RequireAuth({ children, superAdminOnly = false }: RequireAuthPro
       router.replace("/login");
       return;
     }
-    if (status !== "authenticated") return;
+    if (status !== "authenticated" || !user) return;
 
-    if (superAdminOnly && !user?.is_super_admin) {
+    // Temporary password check: must reset password before accessing any portal page
+    if (user.must_reset_password) {
+      router.replace("/change-password");
+      return;
+    }
+
+    if (superAdminOnly && !user.is_super_admin) {
       // Non-super-admin tried to access an admin-only area.
       router.replace("/dashboard");
       return;
     }
 
-    if (!superAdminOnly && user?.is_super_admin) {
+    if (!superAdminOnly && user.is_super_admin) {
       // Super admin strayed into the partner portal — they have no hotel
       // membership so all partner API calls would fail with 403.
       router.replace("/admin");
+      return;
     }
-  }, [status, user, superAdminOnly, router, pathname]);
 
-  if (status !== "authenticated") return <FullPageSpinner />;
-  if (superAdminOnly && !user?.is_super_admin) return <FullPageSpinner />;
-  if (!superAdminOnly && user?.is_super_admin) return <FullPageSpinner />;
+    // Hotel deactivated / suspended check: redirect to /suspended before children mount
+    if (!superAdminOnly) {
+      const activeMem =
+        memberships.find((m) => m.hotel_id === activeHotelId) ?? memberships[0];
+      if (activeMem?.hotel_status === "suspended") {
+        router.replace("/suspended");
+        return;
+      }
+    }
+  }, [status, user, memberships, activeHotelId, superAdminOnly, router, pathname]);
+
+  if (status !== "authenticated" || !user) return <FullPageSpinner />;
+  if (user.must_reset_password) return <FullPageSpinner />;
+  if (superAdminOnly && !user.is_super_admin) return <FullPageSpinner />;
+  if (!superAdminOnly && user.is_super_admin) return <FullPageSpinner />;
+  if (!superAdminOnly) {
+    const activeMem =
+      memberships.find((m) => m.hotel_id === activeHotelId) ?? memberships[0];
+    if (activeMem?.hotel_status === "suspended") {
+      return <FullPageSpinner />;
+    }
+  }
   return <>{children}</>;
 }

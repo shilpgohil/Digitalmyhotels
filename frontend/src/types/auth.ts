@@ -24,6 +24,7 @@ export interface MembershipOut {
    * Returned by /auth/me so the sidebar never needs a separate settings call.
    */
   access_mode: "checkin_only" | "checkin_expense" | "full";
+  hotel_status?: string;
 }
 
 export interface TokenResponse {

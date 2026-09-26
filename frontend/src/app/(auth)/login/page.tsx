@@ -25,7 +25,7 @@ type LoginValues = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const t = useTranslations("auth");
   const tc = useTranslations("common");
-  const { status, user, login } = useAuth();
+  const { status, user, login, memberships, activeHotelId } = useAuth();
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -37,15 +37,25 @@ export default function LoginPage() {
 
   // Redirect if already authenticated.
   useEffect(() => {
-    if (status === "authenticated") {
+    if (status === "authenticated" && user) {
+      if (user.must_reset_password) {
+        router.replace("/change-password");
+        return;
+      }
+      const activeMem =
+        memberships.find((m) => m.hotel_id === activeHotelId) ?? memberships[0];
+      if (!user.is_super_admin && activeMem?.hotel_status === "suspended") {
+        router.replace("/suspended");
+        return;
+      }
       const returnTo =
         typeof window !== "undefined"
           ? sessionStorage.getItem(AUTH_RETURN_KEY)
           : null;
       sessionStorage.removeItem(AUTH_RETURN_KEY);
-      router.replace(returnTo ?? (user?.is_super_admin ? "/admin" : "/dashboard"));
+      router.replace(returnTo ?? (user.is_super_admin ? "/admin" : "/dashboard"));
     }
-  }, [status, user, router]);
+  }, [status, user, memberships, activeHotelId, router]);
 
   const onSubmit = form.handleSubmit(async (values) => {
     setServerError(null);
@@ -55,9 +65,15 @@ export default function LoginPage() {
         router.replace("/change-password");
         return;
       }
+      const activeMem =
+        memberships.find((m) => m.hotel_id === activeHotelId) ?? memberships[0];
+      if (!loggedIn.is_super_admin && activeMem?.hotel_status === "suspended") {
+        router.replace("/suspended");
+        return;
+      }
       const returnTo = sessionStorage.getItem(AUTH_RETURN_KEY);
       sessionStorage.removeItem(AUTH_RETURN_KEY);
-      // Role-based routing: super admins → /admin, everyone else → /dashboard
+      // Role-based routing: super admins -> /admin, everyone else -> /dashboard
       router.replace(
         returnTo ?? (loggedIn.is_super_admin ? "/admin" : "/dashboard"),
       );

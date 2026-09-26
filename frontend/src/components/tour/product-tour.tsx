@@ -7,6 +7,7 @@ import { driver, type Driver, type DriveStep } from "driver.js";
 import "driver.js/dist/driver.css";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
+import { useSubscription } from "@/components/subscription/subscription-gate";
 
 const TOUR_DONE_KEY = "dmh.tourDone.v1";
 
@@ -19,7 +20,8 @@ const TOUR_DONE_KEY = "dmh.tourDone.v1";
  */
 export function useProductTour() {
   const t = useTranslations("tour");
-  const { can, user, accessMode } = useAuth();
+  const { can, user, accessMode, memberships, activeHotelId } = useAuth();
+  const sub = useSubscription();
   const router = useRouter();
   const pathname = usePathname();
   const driverRef = useRef<Driver | null>(null);
@@ -158,10 +160,25 @@ export function useProductTour() {
   const launchTour = useCallback(() => {
     driverRef.current?.destroy();
 
+    // Abort if user must reset password, hotel is suspended, or plan is blocked
+    if (!user || user.must_reset_password) return;
+    const activeMem =
+      memberships.find((m) => m.hotel_id === activeHotelId) ?? memberships[0];
+    if (activeMem?.hotel_status === "suspended") return;
+    if (sub.data?.status === "expired" || sub.data?.status === "suspended") return;
+
+    // Abort if any modal dialog or overlay is currently active
+    if (typeof document !== "undefined") {
+      const activeModal = document.querySelector(
+        "[role='dialog'], [data-state='open']",
+      );
+      if (activeModal) return;
+    }
+
     // Filter steps to those whose target element exists on the current page.
     const allSteps = buildSteps();
     const filtered = allSteps.filter((step) => {
-      if (!step.element) return true; // welcome/done popovers — always include
+      if (!step.element) return true; // welcome/done popovers always include
       const el = document.querySelector(step.element as string);
       return !!el;
     });
@@ -191,23 +208,43 @@ export function useProductTour() {
     });
     driverRef.current = instance;
     instance.drive();
-  }, [buildSteps, t, pathname, router]);
+  }, [buildSteps, t, pathname, router, user, memberships, activeHotelId, sub.data?.status]);
 
-  // start() is now an alias for launchTour — it navigates if needed (handled
-  // inside launchTour when too few anchors are visible).
+  // start() is an alias for launchTour
   const start = launchTour;
 
-  // Auto-start once after first login on the dashboard — no navigation needed.
+  // Auto-start once after first login on the dashboard with safety guards
   useEffect(() => {
     if (!user || pathname !== "/dashboard") return;
+    if (user.must_reset_password) return;
+    const activeMem =
+      memberships.find((m) => m.hotel_id === activeHotelId) ?? memberships[0];
+    if (activeMem?.hotel_status === "suspended") return;
+    if (sub.isLoading || sub.data?.status === "expired" || sub.data?.status === "suspended") return;
     if (localStorage.getItem(TOUR_DONE_KEY)) return;
-    const timer = setTimeout(() => launchTour(), 800);
+
+    const timer = setTimeout(() => {
+      // Ensure dashboard data and anchor elements have settled
+      const sidebarEl = document.querySelector("[data-tour='sidebar']");
+      const cardsEl = document.querySelector("[data-tour='status-cards']");
+      const hasModal = document.querySelector("[role='dialog'], [data-state='open']");
+      if (!sidebarEl && !cardsEl) return;
+      if (hasModal) return;
+      launchTour();
+    }, 1000);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, pathname]);
+  }, [
+    user,
+    pathname,
+    memberships,
+    activeHotelId,
+    sub.isLoading,
+    sub.data?.status,
+    launchTour,
+  ]);
 
   useEffect(() => () => driverRef.current?.destroy(), []);
 
-  // Both helpers are the same now — the tour decides whether to navigate.
+  // Both helpers are the same now: the tour decides whether to navigate.
   return { startTour: start, startTourInPlace: start };
 }

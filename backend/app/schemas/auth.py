@@ -46,6 +46,7 @@ class MembershipOut(ORMModel):
     # a separate /hotels/me/settings round-trip to know which modules to show.
     # Defaults to "full" for backward-compat with any cached responses.
     access_mode: str = "full"
+    hotel_status: str = "active"
 
 
 class MeResponse(BaseModel):

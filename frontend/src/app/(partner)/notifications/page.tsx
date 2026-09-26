@@ -83,6 +83,8 @@ function NotificationsContent() {
         `/api/v1/notifications${qs}`,
       ),
     enabled: !!activeHotelId,
+    refetchInterval: 12_000,
+    refetchOnWindowFocus: true,
   });
 
   const markOne = useMutation({

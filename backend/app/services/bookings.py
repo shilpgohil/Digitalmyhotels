@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -93,19 +93,42 @@ async def _assert_no_overlap(
     check_in: date,
     check_out: date,
     *,
+    check_in_time: str | None = None,
+    check_out_time: str | None = None,
     exclude_booking_id: UUID | None = None,
 ) -> None:
     """Re-check availability inside the transaction (after locking rooms)."""
-    from sqlalchemy import func, literal
-
-    # Day-use bookings are stored with check_in_date == check_out_date but
-    # still occupy the room for that calendar day, so overlap comparisons use
-    # an EFFECTIVE checkout of at least check_in + 1 day on both sides.
-    effective_out = check_out if check_out > check_in else check_in + timedelta(days=1)
-    stored_effective_out = func.greatest(
-        Booking.check_out_date,
-        Booking.check_in_date + literal(1),
+    settings = await db.scalar(
+        select(HotelSettings).where(HotelSettings.hotel_id == hotel_id)
     )
+    default_ci_str = (
+        settings.check_in_time.strftime("%H:%M")
+        if settings and settings.check_in_time
+        else "14:00"
+    )
+    default_co_str = (
+        settings.check_out_time.strftime("%H:%M")
+        if settings and settings.check_out_time
+        else "11:00"
+    )
+    effective_ci_time = check_in_time[:5] if check_in_time else default_ci_str
+    effective_co_time = check_out_time[:5] if check_out_time else default_co_str
+
+    starts_before_req_ends = or_(
+        Booking.check_in_date < check_out,
+        and_(
+            Booking.check_in_date == check_out,
+            func.coalesce(Booking.check_in_time, default_ci_str) < effective_co_time,
+        ),
+    )
+    ends_after_req_starts = or_(
+        Booking.check_out_date > check_in,
+        and_(
+            Booking.check_out_date == check_in,
+            func.coalesce(Booking.check_out_time, default_co_str) > effective_ci_time,
+        ),
+    )
+
     stmt = (
         select(BookingRoom.room_id)
         .join(Booking, Booking.id == BookingRoom.booking_id)
@@ -114,9 +137,8 @@ async def _assert_no_overlap(
             BookingRoom.room_id.in_(room_ids),
             BookingRoom.is_current.is_(True),
             Booking.status.in_(ACTIVE_BOOKING_STATUSES),
-            # date-range overlap: [check_in, effective_out)
-            Booking.check_in_date < effective_out,
-            stored_effective_out > check_in,
+            starts_before_req_ends,
+            ends_after_req_starts,
         )
     )
     if exclude_booking_id:
@@ -220,7 +242,13 @@ async def create_booking(
 
     rooms = await _lock_rooms(db, hotel_id, body.room_ids)
     await _assert_no_overlap(
-        db, hotel_id, [r.id for r in rooms], body.check_in_date, body.check_out_date
+        db,
+        hotel_id,
+        [r.id for r in rooms],
+        body.check_in_date,
+        body.check_out_date,
+        check_in_time=body.check_in_time,
+        check_out_time=body.check_out_time,
     )
 
     # For today's bookings the room must be physically usable NOW. This set
@@ -517,7 +545,14 @@ async def update_booking(
         room_ids = [br.room_id for br in booking.rooms if br.is_current]
         await _lock_rooms(db, booking.hotel_id, room_ids)
         await _assert_no_overlap(
-            db, booking.hotel_id, room_ids, new_in, new_out, exclude_booking_id=booking.id
+            db,
+            booking.hotel_id,
+            room_ids,
+            new_in,
+            new_out,
+            check_in_time=body.check_in_time or booking.check_in_time,
+            check_out_time=body.check_out_time or booking.check_out_time,
+            exclude_booking_id=booking.id,
         )
         # Recalculate room total for the new night count — INCLUDING existing
         # charges (they were previously dropped here, silently shrinking the
@@ -654,6 +689,8 @@ async def replace_booking_room(
         [to_room_id],
         booking.check_in_date,
         booking.check_out_date,
+        check_in_time=booking.check_in_time,
+        check_out_time=booking.check_out_time,
         exclude_booking_id=booking.id,
     )
     from app.services.rooms import hotel_today as _hotel_today
@@ -814,6 +851,8 @@ async def add_room_to_booking(
         [new_room_id],
         booking.check_in_date,
         booking.check_out_date,
+        check_in_time=booking.check_in_time,
+        check_out_time=booking.check_out_time,
         exclude_booking_id=booking.id,
     )
     from app.services.rooms import hotel_today as _hotel_today

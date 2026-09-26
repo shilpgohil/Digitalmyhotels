@@ -395,6 +395,8 @@ export function RoomAvailabilityPicker({
   checkOut,
   selectedRooms,
   onSelectionChange,
+  checkInTime,
+  checkOutTime,
   adults = 1,
   guestChildren: childCount = 0,
   refreshKey = 0,
@@ -415,12 +417,22 @@ export function RoomAvailabilityPicker({
   const dayUse = datesValid && checkIn === checkOut;
   const isFutureStay = datesValid && checkIn > localToday();
 
+  const ciTimeParam = checkInTime ? checkInTime.slice(0, 5) : "";
+  const coTimeParam = checkOutTime ? checkOutTime.slice(0, 5) : "";
+
   const { data, isLoading, isError, refetch } = useQuery<RoomAvailabilityOut>({
-    queryKey: ["room-availability", activeHotelId, checkIn, checkOut],
-    queryFn: () =>
-      api<RoomAvailabilityOut>(
-        `/api/v1/rooms/availability?check_in=${checkIn}&check_out=${checkOut}`,
-      ),
+    queryKey: ["room-availability", activeHotelId, checkIn, checkOut, ciTimeParam, coTimeParam],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        check_in: checkIn,
+        check_out: checkOut,
+      });
+      if (ciTimeParam) params.set("check_in_time", ciTimeParam);
+      if (coTimeParam) params.set("check_out_time", coTimeParam);
+      return api<RoomAvailabilityOut>(
+        `/api/v1/rooms/availability?${params.toString()}`,
+      );
+    },
     enabled: datesValid && !!activeHotelId,
     staleTime: 30_000,
     // Multi-device desks converge without manual refresh (plan Part 6):

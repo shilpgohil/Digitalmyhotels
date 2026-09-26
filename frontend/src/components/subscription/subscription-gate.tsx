@@ -114,7 +114,7 @@ const WIND_DOWN_PATHS = [
 ];
 
 /** Shows the expired wind-down gate, plus the expiring-soon banner. */
-export function SubscriptionGate() {
+export function SubscriptionGate({ children }: { readonly children?: React.ReactNode }) {
   const t = useTranslations("plan");
   const api = useApi();
   const { activeHotelId, logout, user } = useAuth();
@@ -125,11 +125,11 @@ export function SubscriptionGate() {
   const blocked = status === "expired" || status === "suspended";
   const expiring = status === "expiring_soon";
 
-  // ── Grace-period detection ──────────────────────────────────────────────
+  // Grace-period detection
   // When sub.status = "expiring_soon" but expiry_date is already in the past,
   // the hotel is in the grace window (plan lapsed but grace_days not yet over).
   // This means login is still allowed but staff need a clear warning with
-  // a countdown — NOT the generic "expires soon" banner (client 17/09).
+  // a countdown, not the generic "expires soon" banner.
   const todayStr = new Date().toISOString().slice(0, 10);
   const expiryDate = sub.data?.expiry_date ?? "";
   const isInGrace = expiring && !!expiryDate && expiryDate < todayStr;
@@ -147,8 +147,7 @@ export function SubscriptionGate() {
 
   const [detailOpen, setDetailOpen] = useState(false);
 
-  // Pending renewal request → surfaced on the blocking panel (client:
-  // "Pending needed in the expired modal popup").
+  // Pending renewal request surfaced on the blocking panel
   const myRenewal = useQuery({
     queryKey: ["renewal-request-mine", activeHotelId],
     queryFn: () =>
@@ -158,13 +157,86 @@ export function SubscriptionGate() {
   });
   const renewalPending = myRenewal.data?.status === "pending";
 
-  if (!sub.data || (!blocked && !expiring)) return null;
-
   const onWindDownPage = WIND_DOWN_PATHS.some((p) => pathname.startsWith(p));
+
+  // If subscription data is loading and we are on a non-wind-down page (like /dashboard),
+  // render a calm loading spinner instead of mounting heavy widgets that might flash.
+  if (sub.isLoading && !sub.data) {
+    if (onWindDownPage) {
+      return <>{children}</>;
+    }
+    return (
+      <div className="flex flex-1 items-center justify-center p-8">
+        <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!sub.data) return <>{children}</>;
+
+  // When plan is expired/suspended and user is on a blocked route, render the clean
+  // wind-down panel directly as the content view. No background children mounted.
+  if (blocked && !onWindDownPage) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto bg-navy-950/[0.97] px-6 py-10 text-center">
+        <div className="mb-5 flex size-16 items-center justify-center rounded-full bg-danger/10">
+          <CalendarX2 className="size-8 text-danger" aria-hidden />
+        </div>
+        <h1 className="font-display text-2xl font-bold text-white sm:text-3xl">
+          {t("expiredTitle")}
+        </h1>
+        <p className="mt-3 max-w-xl text-base leading-relaxed text-white/60">
+          {t("expiredBody", { date: fmtApiDate(sub.data.expiry_date) })}
+        </p>
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/50">
+          {t("windDownHint")}
+        </p>
+
+        {/* Renewal request status */}
+        {renewalPending && (
+          <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-warning/40 bg-warning-bg px-4 py-1.5 text-sm font-semibold text-warning">
+            <Clock className="size-4" aria-hidden />
+            {t("renewalPendingBadge")}
+          </div>
+        )}
+
+        <div className="mt-8 flex w-full max-w-sm flex-col gap-3">
+          <Link
+            href="/plan"
+            className={cn(
+              buttonVariants(),
+              "h-[42px] w-full bg-gold-500 text-navy-900 hover:bg-gold-400",
+            )}
+          >
+            {t("renewPlan")}
+          </Link>
+          <Link
+            href="/checkout"
+            className="inline-flex h-[42px] w-full items-center justify-center rounded-lg border border-white/20 text-sm text-white/70 transition-colors hover:border-white/40 hover:text-white"
+          >
+            {t("goToCheckouts")}
+          </Link>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="inline-flex h-[42px] w-full items-center justify-center gap-2 rounded-lg text-sm text-white/40 transition-colors hover:text-white"
+          >
+            <LogOut className="size-4" aria-hidden />
+            {t("signOutExpired")}
+          </button>
+        </div>
+        {user && (
+          <p className="mt-6 text-xs text-white/30">
+            {t("loggedInAsExpired", { name: user.full_name })}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <>
-      {/* ── Top banner — three distinct states ──────────────────────────── */}
+      {/* Top banner */}
       {(blocked || expiring) && (
         <div
           className={cn(
@@ -272,65 +344,7 @@ export function SubscriptionGate() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Wind-down blocking panel (plan Part 2/S1) ──────────────────────
-          Non-dismissible, replaces page access on NON-wind-down routes.
-          Staff can still open Checkout / Current Guests / Payments /
-          Invoices / Plan (the banner above stays visible there). */}
-      {blocked && !onWindDownPage && (
-        <div className="fixed inset-0 z-[150] flex flex-col items-center justify-center overflow-y-auto bg-navy-950/[0.97] px-6 py-10 text-center">
-          <div className="mb-5 flex size-16 items-center justify-center rounded-full bg-danger/10">
-            <CalendarX2 className="size-8 text-danger" aria-hidden />
-          </div>
-          <h1 className="font-display text-2xl font-bold text-white sm:text-3xl">
-            {t("expiredTitle")}
-          </h1>
-          <p className="mt-3 max-w-xl text-base leading-relaxed text-white/60">
-            {t("expiredBody", { date: fmtApiDate(sub.data.expiry_date) })}
-          </p>
-          <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/50">
-            {t("windDownHint")}
-          </p>
-
-          {/* Renewal request status — "Pending" once submitted (client ask) */}
-          {renewalPending && (
-            <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-warning/40 bg-warning-bg px-4 py-1.5 text-sm font-semibold text-warning">
-              <Clock className="size-4" aria-hidden />
-              {t("renewalPendingBadge")}
-            </div>
-          )}
-
-          <div className="mt-8 flex w-full max-w-sm flex-col gap-3">
-            <Link
-              href="/plan"
-              className={cn(
-                buttonVariants(),
-                "h-[42px] w-full bg-gold-500 text-navy-900 hover:bg-gold-400",
-              )}
-            >
-              {t("renewPlan")}
-            </Link>
-            <Link
-              href="/checkout"
-              className="inline-flex h-[42px] w-full items-center justify-center rounded-lg border border-white/20 text-sm text-white/70 transition-colors hover:border-white/40 hover:text-white"
-            >
-              {t("goToCheckouts")}
-            </Link>
-            <button
-              type="button"
-              onClick={() => void logout()}
-              className="inline-flex h-[42px] w-full items-center justify-center gap-2 rounded-lg text-sm text-white/40 transition-colors hover:text-white"
-            >
-              <LogOut className="size-4" aria-hidden />
-              {t("signOutExpired")}
-            </button>
-          </div>
-          {user && (
-            <p className="mt-6 text-xs text-white/30">
-              {t("loggedInAsExpired", { name: user.full_name })}
-            </p>
-          )}
-        </div>
-      )}
+      {children}
     </>
   );
 }

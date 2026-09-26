@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -11,6 +11,7 @@ from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.tenant import TenantContext
 from app.domain.room_status import RoomStatus, assert_transition
 from app.models.booking import Booking, BookingRoom
+from app.models.hotel import HotelSettings
 from app.models.room import Room, RoomAmenity, RoomType
 from app.schemas.room import (
     RoomAvailabilityOut,
@@ -644,6 +645,9 @@ async def check_availability(
     tenant: TenantContext,
     check_in: date,
     check_out: date,
+    *,
+    check_in_time: str | None = None,
+    check_out_time: str | None = None,
 ) -> RoomAvailabilityOut:
     """Return all rooms split into available vs unavailable for the date window.
 
@@ -657,6 +661,23 @@ async def check_availability(
     # runs on UTC, so date.today() would mis-classify same-day stays between
     # midnight and 05:30 IST. Same pattern as the attendance module.
     today_local = await hotel_today(db, hotel_id)
+
+    # Resolve standard hotel check-in/out default times
+    settings = await db.scalar(
+        select(HotelSettings).where(HotelSettings.hotel_id == hotel_id)
+    )
+    default_ci_str = (
+        settings.check_in_time.strftime("%H:%M")
+        if settings and settings.check_in_time
+        else "14:00"
+    )
+    default_co_str = (
+        settings.check_out_time.strftime("%H:%M")
+        if settings and settings.check_out_time
+        else "11:00"
+    )
+    effective_ci_time = check_in_time[:5] if check_in_time else default_ci_str
+    effective_co_time = check_out_time[:5] if check_out_time else default_co_str
 
     # Step 1: all active rooms (eager-load type + amenities in one go)
     rooms_result = await db.execute(
@@ -690,21 +711,30 @@ async def check_availability(
     }
 
     # Step 2: single batch query — for every room, find overlapping bookings
-    # and record the latest checkout date (= when the room will be free).
-    # Day-use bookings (check_in == check_out) still block that calendar day,
-    # so both sides of the comparison use an effective checkout ≥ in + 1 day.
-    from datetime import timedelta as _td
-
-    from sqlalchemy import literal as _lit
-
-    effective_out = check_out if check_out > check_in else check_in + _td(days=1)
-    stored_effective_out = func.greatest(
-        Booking.check_out_date, Booking.check_in_date + _lit(1)
+    # using exact date + time interval arithmetic.
+    # Stored stay [D_in, T_in] to [D_out, T_out] overlaps with requested stay
+    # [check_in, effective_ci_time] to [check_out, effective_co_time] if and only if:
+    # 1) Stored stay starts before requested stay ends
+    # 2) Stored stay ends after requested stay starts
+    starts_before_req_ends = or_(
+        Booking.check_in_date < check_out,
+        and_(
+            Booking.check_in_date == check_out,
+            func.coalesce(Booking.check_in_time, default_ci_str) < effective_co_time,
+        ),
     )
+    ends_after_req_starts = or_(
+        Booking.check_out_date > check_in,
+        and_(
+            Booking.check_out_date == check_in,
+            func.coalesce(Booking.check_out_time, default_co_str) > effective_ci_time,
+        ),
+    )
+
     overlap_stmt = (
         select(
             BookingRoom.room_id,
-            func.max(stored_effective_out).label("free_from"),
+            func.max(Booking.check_out_date).label("free_from"),
             func.count().label("booking_count"),
         )
         .join(Booking, Booking.id == BookingRoom.booking_id)
@@ -712,9 +742,8 @@ async def check_availability(
             BookingRoom.hotel_id == hotel_id,
             BookingRoom.is_current.is_(True),
             Booking.status.in_(_ACTIVE_BOOKING_STATUSES),
-            # Overlap condition: [check_in, effective_out) intersects stored range
-            Booking.check_in_date < effective_out,
-            stored_effective_out > check_in,
+            starts_before_req_ends,
+            ends_after_req_starts,
         )
         .group_by(BookingRoom.room_id)
     )
@@ -723,9 +752,41 @@ async def check_availability(
         row.room_id: (row.free_from, row.booking_count) for row in overlap_rows
     }
 
+    overlap_times: dict[UUID, str | None] = {}
+    if overlaps:
+        overlap_details_stmt = (
+            select(
+                BookingRoom.room_id,
+                Booking.check_out_date,
+                Booking.check_out_time,
+            )
+            .join(Booking, Booking.id == BookingRoom.booking_id)
+            .where(
+                BookingRoom.hotel_id == hotel_id,
+                BookingRoom.is_current.is_(True),
+                Booking.status.in_(_ACTIVE_BOOKING_STATUSES),
+                starts_before_req_ends,
+                ends_after_req_starts,
+            )
+            .order_by(Booking.check_out_date.desc(), Booking.check_out_time.desc())
+        )
+        detail_rows = (await db.execute(overlap_details_stmt)).all()
+        for r_id, _co_date, _co_time in detail_rows:
+            if r_id not in overlap_times:
+                overlap_times[r_id] = _co_time or default_co_str
+
     # Step 2b: for rooms free for the requested window, find the NEXT confirmed
     # booking starting on/after the requested checkout so the picker can show
     # "Booked from Sep 24, 14:00 — free for your dates" (redesign plan §4.3).
+    # On boundary date (check_in_date == check_out), booking must start at or after
+    # the requested checkout time to count as a future booking.
+    starts_on_or_after_req_ends = or_(
+        Booking.check_in_date > check_out,
+        and_(
+            Booking.check_in_date == check_out,
+            func.coalesce(Booking.check_in_time, default_ci_str) >= effective_co_time,
+        ),
+    )
     next_stmt = (
         select(
             BookingRoom.room_id,
@@ -736,7 +797,7 @@ async def check_availability(
             BookingRoom.hotel_id == hotel_id,
             BookingRoom.is_current.is_(True),
             Booking.status == "confirmed",
-            Booking.check_in_date >= effective_out,
+            starts_on_or_after_req_ends,
         )
         .group_by(BookingRoom.room_id)
     )
@@ -757,15 +818,16 @@ async def check_availability(
                 BookingRoom.hotel_id == hotel_id,
                 BookingRoom.is_current.is_(True),
                 Booking.status == "confirmed",
-                Booking.check_in_date >= effective_out,
+                starts_on_or_after_req_ends,
             )
         )
         for room_id, ci_date, ci_time in time_rows.all():
             if next_dates.get(room_id) == ci_date:
                 # Earliest time wins when several bookings start that day.
                 cur = next_times.get(room_id)
-                if cur is None or (ci_time or "99:99") < (cur or "99:99"):
-                    next_times[room_id] = ci_time
+                ci_effective = ci_time or default_ci_str
+                if cur is None or ci_effective < (cur or "99:99"):
+                    next_times[room_id] = ci_time or default_ci_str
 
     available: list[RoomAvailableItem] = []
     unavailable: list[RoomUnavailableItem] = []
@@ -791,14 +853,15 @@ async def check_availability(
             # Room has an active booking that overlaps the requested date window.
             # This is the only reliable signal for date-based unavailability.
             free_from, booking_count = overlaps[room.id]
-            # Also surface the checkout TIME so UI can show "Free on Aug 8 at 11:00"
+            # Surface checkout TIME so UI can show "Free on Sep 29 at 11:00"
             co_date, co_time = current_checkout.get(room.id, (None, None))
+            occupied_until_time = co_time or overlap_times.get(room.id)
             unavailable.append(
                 RoomUnavailableItem(
                     **item_data,
                     unavailable_reason="booked",
                     occupied_until=free_from,
-                    occupied_until_time=co_time,
+                    occupied_until_time=occupied_until_time,
                     overlapping_booking_count=booking_count,
                 )
             )

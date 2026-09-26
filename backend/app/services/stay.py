@@ -668,6 +668,8 @@ async def transfer_room(
         [to_room.id],
         booking.check_in_date,
         booking.check_out_date,
+        check_in_time=booking.check_in_time,
+        check_out_time=booking.check_out_time,
         exclude_booking_id=booking.id,
     )
 

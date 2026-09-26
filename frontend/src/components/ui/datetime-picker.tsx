@@ -22,6 +22,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { CalendarClock, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -165,9 +166,14 @@ export function DateTimePicker({
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
+      const target = e.target as Node;
+      if (
+        (rootRef.current && rootRef.current.contains(target)) ||
+        (panelRef.current && panelRef.current.contains(target))
+      ) {
+        return;
       }
+      setOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -206,6 +212,7 @@ export function DateTimePicker({
     if (left + panelWidth > window.innerWidth - margin) {
       left = Math.max(margin, rect.right - panelWidth);
     }
+    left = Math.max(margin, Math.min(left, window.innerWidth - margin - panelWidth));
 
     // Vertical: below the field; flip above if it would overflow the
     // bottom of the viewport and there is room above.
@@ -215,6 +222,8 @@ export function DateTimePicker({
       rect.top - gap - panelHeight >= margin
     ) {
       top = rect.top - gap - panelHeight;
+    } else if (top + panelHeight > window.innerHeight - margin) {
+      top = Math.max(margin, window.innerHeight - margin - panelHeight);
     }
 
     setPanelPos({ top, left });
@@ -350,18 +359,22 @@ export function DateTimePicker({
       </button>
 
       {/* Popover panel */}
-      {open && (
+      {open && typeof document !== "undefined" && createPortal(
         <div
           ref={panelRef}
           role="dialog"
           aria-label="Date and time picker"
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
           style={{
             top: panelPos?.top ?? 0,
             left: panelPos?.left ?? 0,
             visibility: panelPos ? undefined : "hidden",
+            zIndex: 9999,
           }}
           className={cn(
-            "fixed z-50 w-max rounded-xl border border-input bg-white shadow-lg",
+            "fixed z-[9999] w-max rounded-xl border border-input bg-white shadow-xl",
             "dark:bg-background",
           )}
         >
@@ -541,7 +554,8 @@ export function DateTimePicker({
               Done
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

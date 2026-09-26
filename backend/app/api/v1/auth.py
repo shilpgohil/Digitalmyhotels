@@ -57,13 +57,14 @@ def _clear_refresh_cookie(response: Response) -> None:
 def _membership_outs(
     memberships,  # type: ignore[no-untyped-def]
     access_modes: dict | None = None,
+    hotel_statuses: dict | None = None,
 ) -> list[MembershipOut]:
     """Convert membership ORM rows to response objects.
 
     access_modes is an optional {hotel_id: access_mode} mapping so the
     frontend gets the feature gate without a separate /settings round-trip.
-    If omitted (super-admin contexts, legacy callers) all modes default to
-    "full" which is the unrestricted value.
+    hotel_statuses is an optional {hotel_id: status} mapping so the frontend
+    knows immediately if any hotel is suspended or inactive.
     """
     return [
         MembershipOut(
@@ -73,6 +74,7 @@ def _membership_outs(
             role_name=m.role.name,
             status=m.status,
             access_mode=(access_modes or {}).get(str(m.hotel_id), "full"),
+            hotel_status=(hotel_statuses or {}).get(str(m.hotel_id), "active"),
         )
         for m in memberships
     ]
@@ -136,14 +138,14 @@ async def login(
         user_agent=request.headers.get("user-agent"),
     )
     _set_refresh_cookie(response, refresh)
-    access_modes = await _load_access_modes(
+    access_modes, hotel_statuses = await _load_hotel_metadata(
         db, [m.hotel_id for m in memberships]
     )
     return TokenResponse(
         access_token=access,
         expires_in=settings.access_token_expire_minutes * 60,
         user=UserOut.model_validate(user),
-        memberships=_membership_outs(memberships, access_modes),
+        memberships=_membership_outs(memberships, access_modes, hotel_statuses),
     )
 
 
@@ -167,14 +169,14 @@ async def refresh(
     )
     memberships = await auth_service.get_user_memberships(db, user.id)
     _set_refresh_cookie(response, new_refresh)
-    access_modes = await _load_access_modes(
+    access_modes, hotel_statuses = await _load_hotel_metadata(
         db, [m.hotel_id for m in memberships]
     )
     return TokenResponse(
         access_token=access,
         expires_in=settings.access_token_expire_minutes * 60,
         user=UserOut.model_validate(user),
-        memberships=_membership_outs(memberships, access_modes),
+        memberships=_membership_outs(memberships, access_modes, hotel_statuses),
     )
 
 
@@ -251,18 +253,32 @@ async def change_password(
     return MessageOut(message="Password changed")
 
 
-async def _load_access_modes(db: AsyncSession, hotel_ids: list[UUID]) -> dict[str, str]:
-    """Batch-fetch access_mode for a list of hotels.  Returns {hotel_id_str: mode}."""
+async def _load_hotel_metadata(
+    db: AsyncSession, hotel_ids: list[UUID]
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Batch-fetch access_mode and hotel status for a list of hotels.
+    Returns (access_modes, hotel_statuses).
+    """
     if not hotel_ids:
-        return {}
+        return {}, {}
+    from app.models.hotel import Hotel as _H
     from app.models.hotel import HotelSettings as _HS
 
-    rows = (
+    settings_rows = (
         await db.execute(
             select(_HS.hotel_id, _HS.access_mode).where(_HS.hotel_id.in_(hotel_ids))
         )
     ).all()
-    return {str(hid): mode for hid, mode in rows}
+    access_modes = {str(hid): mode for hid, mode in settings_rows}
+
+    status_rows = (
+        await db.execute(
+            select(_H.id, _H.status).where(_H.id.in_(hotel_ids))
+        )
+    ).all()
+    hotel_statuses = {str(hid): status for hid, status in status_rows}
+
+    return access_modes, hotel_statuses
 
 
 @router.get("/me", response_model=MeResponse)
@@ -280,14 +296,12 @@ async def me(
     elif memberships:
         role = memberships[0].role.code
         perms = [p.value for p in permissions_for_role(role)]
-    # Batch-load access_mode for all hotels the user belongs to so the
-    # frontend never needs a separate /settings round-trip.
-    access_modes = await _load_access_modes(
+    access_modes, hotel_statuses = await _load_hotel_metadata(
         db, [m.hotel_id for m in memberships]
     )
     return MeResponse(
         user=UserOut.model_validate(user),
-        memberships=_membership_outs(memberships, access_modes),
+        memberships=_membership_outs(memberships, access_modes, hotel_statuses),
         permissions=perms,
     )
 
@@ -355,11 +369,11 @@ async def me_with_context(
         perms = [p.value for p in Permission]
     elif tenant.role:
         perms = [p.value for p in permissions_for_role(tenant.role)]
-    access_modes = await _load_access_modes(
+    access_modes, hotel_statuses = await _load_hotel_metadata(
         db, [m.hotel_id for m in memberships]
     )
     return MeResponse(
         user=UserOut.model_validate(user),
-        memberships=_membership_outs(memberships, access_modes),
+        memberships=_membership_outs(memberships, access_modes, hotel_statuses),
         permissions=perms,
     )

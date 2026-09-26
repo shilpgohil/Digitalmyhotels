@@ -20,6 +20,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -101,6 +102,33 @@ export function DatePicker({
   const [viewYear, setViewYear] = useState(initialViewDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(initialViewDate.getMonth());
 
+  // Reposition panel on resize or scroll.
+  const positionPanel = useCallback(() => {
+    if (!rootRef.current) return;
+    const rect = rootRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const panelW = 272; // calendar-only panel is narrower
+    const panelH = 320;
+    const margin = 8;
+    const gap = 4;
+
+    let left = rect.left;
+    if (left + panelW > vw - margin) {
+      left = Math.max(margin, rect.right - panelW);
+    }
+    left = Math.max(margin, Math.min(left, vw - margin - panelW));
+
+    let top = rect.bottom + gap;
+    if (top + panelH > vh - margin && rect.top - gap - panelH >= margin) {
+      top = rect.top - gap - panelH;
+    } else if (top + panelH > vh - margin) {
+      top = Math.max(margin, vh - margin - panelH);
+    }
+
+    setPanelPos({ top, left });
+  }, []);
+
   const openPanel = () => {
     if (disabled) return;
     if (isValidIsoDate(value)) {
@@ -110,6 +138,7 @@ export function DatePicker({
       setViewYear(today.getFullYear());
       setViewMonth(today.getMonth());
     }
+    positionPanel();
     setOpen(true);
   };
 
@@ -119,9 +148,14 @@ export function DatePicker({
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        close();
+      const target = e.target as Node;
+      if (
+        (rootRef.current && rootRef.current.contains(target)) ||
+        (panelRef.current && panelRef.current.contains(target))
+      ) {
+        return;
       }
+      close();
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
@@ -139,20 +173,6 @@ export function DatePicker({
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("scroll", onScroll, true);
     };
-  }, [open]);
-
-  // Reposition panel on resize.
-  const positionPanel = useCallback(() => {
-    if (!rootRef.current || !open) return;
-    const rect = rootRef.current.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const panelW = 272; // calendar-only panel is narrower
-    const spaceRight = vw - rect.left;
-    if (spaceRight >= panelW) {
-      setPanelPos({ top: rect.bottom + 4, left: rect.left });
-    } else {
-      setPanelPos({ top: rect.bottom + 4, left: rect.right - panelW });
-    }
   }, [open]);
 
   useLayoutEffect(() => {
@@ -233,14 +253,17 @@ export function DatePicker({
         <input type="hidden" name={name} value={value} />
       )}
 
-      {/* Fixed-position calendar panel (escapes overflow:hidden) */}
-      {open && panelPos && (
+      {/* Fixed-position calendar panel (escapes overflow:hidden and transformed dialogs) */}
+      {open && panelPos && typeof document !== "undefined" && createPortal(
         <div
           ref={panelRef}
           role="dialog"
           aria-label="Choose date"
-          style={{ position: "fixed", top: panelPos.top, left: panelPos.left, zIndex: 50 }}
-          className="w-[272px] rounded-xl border border-input bg-white shadow-lg"
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          style={{ position: "fixed", top: panelPos.top, left: panelPos.left, zIndex: 9999 }}
+          className="w-[272px] rounded-xl border border-input bg-white shadow-xl dark:bg-background"
         >
           {/* Month header */}
           <div className="flex items-center justify-between border-b px-3 py-2">
@@ -326,7 +349,8 @@ export function DatePicker({
               })}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

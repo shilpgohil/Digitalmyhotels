@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -194,14 +195,14 @@ export function TimeInput({
       />
 
       {/* Custom 24h clock panel — same columns as DateTimePicker */}
-      {open && panelPos && (
+      {open && panelPos && typeof document !== "undefined" && createPortal(
         <div
           ref={panelRef}
           role="dialog"
           aria-label="Time"
           onClick={(e) => e.stopPropagation()}
-          className="fixed z-[70] rounded-lg border border-input bg-white shadow-lg"
-          style={{ top: panelPos.top, left: panelPos.left, width: PANEL_W }}
+          className="fixed z-[100] rounded-lg border border-input bg-white shadow-xl dark:bg-background"
+          style={{ top: panelPos.top, left: panelPos.left, width: PANEL_W, zIndex: 100 }}
         >
           <div className="p-3">
             <span className="mb-2 block text-center text-sm font-semibold">
@@ -284,7 +285,8 @@ export function TimeInput({
               Done
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

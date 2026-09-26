@@ -38,6 +38,7 @@ interface AuthState {
   accessMode: "checkin_only" | "checkin_expense" | "full";
   login: (email: string, password: string) => Promise<UserOut>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<UserOut | null>;
   setActiveHotelId: (hotelId: string) => void;
   can: (permission: string) => boolean;
 }
@@ -223,6 +224,17 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     [activeHotelQuery.data?.access_mode, memberships, activeHotelId],
   );
 
+  const refreshUser = useCallback(async (): Promise<UserOut | null> => {
+    try {
+      const me = await apiFetch<MeResponse>("/api/v1/auth/me");
+      setCachedUser(me);
+      applySession(me);
+      return me.user;
+    } catch {
+      return null;
+    }
+  }, [applySession]);
+
   const value = useMemo<AuthState>(
     () => ({
       status,
@@ -234,10 +246,24 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
       accessMode,
       login,
       logout,
+      refreshUser,
       setActiveHotelId,
       can,
     }),
-    [status, user, memberships, permissions, activeHotelId, activeRoleCode, accessMode, login, logout, setActiveHotelId, can],
+    [
+      status,
+      user,
+      memberships,
+      permissions,
+      activeHotelId,
+      activeRoleCode,
+      accessMode,
+      login,
+      logout,
+      refreshUser,
+      setActiveHotelId,
+      can,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -238,7 +238,8 @@ export function NotificationsBell() {
     queryKey: ["notifications", activeHotelId],
     queryFn: () => api<NotificationList>("/api/v1/notifications?limit=40"),
     enabled,
-    refetchInterval: 30_000,
+    refetchInterval: 12_000,
+    refetchOnWindowFocus: true,
   });
 
   const markOne = useMutation({
@@ -334,7 +335,7 @@ export function NotificationsBell() {
   if (!enabled) return null;
 
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={(open) => { if (open) void notifications.refetch(); }}>
       <DropdownMenuTrigger
         className="relative flex size-9 items-center justify-center rounded-full border text-muted-foreground hover:text-foreground"
         aria-label={t("title")}

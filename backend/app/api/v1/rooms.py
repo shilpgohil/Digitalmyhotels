@@ -119,6 +119,8 @@ async def list_rooms(
 async def room_availability(
     check_in: date = Query(..., description="Check-in date (YYYY-MM-DD)"),
     check_out: date = Query(..., description="Check-out date (YYYY-MM-DD)"),
+    check_in_time: str | None = Query(default=None, description="Check-in time (HH:MM)"),
+    check_out_time: str | None = Query(default=None, description="Check-out time (HH:MM)"),
     tenant: TenantContext = Depends(require_permissions(Permission.ROOMS_VIEW)),
     db: AsyncSession = Depends(get_db),
 ) -> RoomAvailabilityOut:
@@ -148,7 +150,9 @@ async def room_availability(
             "Check-in date cannot be in the past",
             code="checkin_date_past",
         )
-    return await rooms_service.check_availability(db, tenant, check_in, check_out)
+    return await rooms_service.check_availability(
+        db, tenant, check_in, check_out, check_in_time=check_in_time, check_out_time=check_out_time
+    )
 
 
 @router.get("/status-summary", response_model=RoomStatusSummaryOut)

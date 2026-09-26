@@ -15,11 +15,13 @@ function ChangePasswordForm() {
   const t = useTranslations("auth");
   const tc = useTranslations("common");
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isFirstTimeReset = !!user?.must_reset_password;
 
   const submit = async () => {
     setBusy(true);
@@ -30,13 +32,12 @@ function ChangePasswordForm() {
         body: { current_password: current, new_password: next },
       });
       toast.success(t("passwordChanged"));
-      // Clear the stale cached user (still has must_reset_password: true).
-      // Without this, the API client would intercept the first dashboard API
-      // call with a 403 and redirect back here — an infinite loop.
+      // Clear the stale cached user and refresh profile in memory.
       setCachedUser(null);
-      // Hard navigate so the auth context re-fetches /me with the fresh user
-      // (must_reset_password is now false on the server).
-      window.location.href = user?.is_super_admin ? "/admin" : "/dashboard";
+      const freshUser = await refreshUser();
+      // Smooth router navigation without blank page reload.
+      const target = freshUser?.is_super_admin ? "/admin" : "/dashboard";
+      router.replace(target);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : tc("error"));
     } finally {
@@ -47,13 +48,19 @@ function ChangePasswordForm() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-stone-100 via-white to-amber-50/40 px-6">
       <div className="w-full max-w-sm">
-        <h1 className="font-display text-2xl text-foreground">{t("changePasswordTitle")}</h1>
-        {user?.must_reset_password && (
-          <p className="mt-1 text-sm text-warning">{t("mustChangePassword")}</p>
-        )}
+        <h1 className="font-display text-2xl text-foreground">
+          {isFirstTimeReset ? t("tempPasswordWelcome") : t("changePasswordTitle")}
+        </h1>
+        {isFirstTimeReset ? (
+          <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
+            {t("tempPasswordSubtitle")}
+          </p>
+        ) : null}
         <div className="mt-6 space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="current">{t("currentPassword")}</Label>
+            <Label htmlFor="current">
+              {isFirstTimeReset ? t("tempPasswordLabel") : t("currentPassword")}
+            </Label>
             <PasswordInput
               id="current"
               value={current}
@@ -63,7 +70,9 @@ function ChangePasswordForm() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="next">{t("newPassword")}</Label>
+            <Label htmlFor="next">
+              {isFirstTimeReset ? t("permanentPasswordLabel") : t("newPassword")}
+            </Label>
             <PasswordInput
               id="next"
               value={next}
@@ -82,11 +91,11 @@ function ChangePasswordForm() {
             onClick={submit}
             disabled={!current || next.length < 8 || busy}
           >
-            {t("changePassword")}
+            {isFirstTimeReset ? t("setPasswordAndContinue") : t("changePassword")}
           </Button>
-          {/* Go Back → returns to the Settings screen (client 09/2026).
-              Hidden during a FORCED reset — that flow must not be escapable. */}
-          {!user?.must_reset_password && (
+          {/* Go Back returns to Settings screen.
+              Hidden during a FORCED reset so flow cannot be bypassed. */}
+          {!isFirstTimeReset && (
             <Button
               variant="outline"
               className="h-[42px] w-full"

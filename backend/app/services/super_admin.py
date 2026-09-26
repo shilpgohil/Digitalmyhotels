@@ -171,7 +171,7 @@ async def dashboard(db: AsyncSession) -> PlatformDashboardOut:
     _re_latest = _latest_sub_sq()
     _re_expired_cond = or_(
         Hotel.status == "expired",
-        _sub_expired_cond(_re_latest),
+        _sub_expired_cond(_re_latest),  # type: ignore[arg-type]
     )
     recently_expired = int(
         await db.scalar(
