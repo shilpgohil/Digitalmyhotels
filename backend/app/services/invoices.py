@@ -600,15 +600,15 @@ async def render_invoice_pdf(
             HotelSettings.hotel_id == tenant.require_hotel()
         )
     )
-    if settings_row is not False:  # default ON when no settings row exists
-        # Pin "Powered by" to the absolute bottom-centre of the page
-        # (client 09/2026: "keep it in bottom center").  set_y(-N) counts from
-        # the bottom margin so the text sits ~12 mm above the page edge.
-        pdf.set_y(-14)
+    if settings_row is not False:
+        # Pin "Powered by" to the absolute bottom-centre of the page without
+        # triggering an auto page break (which previously created a blank page 2).
+        pdf.set_auto_page_break(False)
+        pdf.set_y(-12)
         pdf.set_x(14)
         pdf.set_font("helvetica", "I", 8)
         pdf.set_text_color(*MUTED)
-        pdf.cell(182, 5, "Powered by DigitalMyHotels", align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(182, 5, "Powered by DigitalMyHotels", align="C")
 
     return bytes(pdf.output())
 

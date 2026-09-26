@@ -248,9 +248,13 @@ function InvoicesContent() {
 
   return (
     <>
-      {/* Print stylesheet: isolate the invoice card when printing */}
+      {/* Print stylesheet: isolate the invoice card when printing and prevent blank page */}
       <style>{`
         @media print {
+          @page {
+            margin: 8mm;
+            size: A4 portrait;
+          }
           body * { visibility: hidden !important; }
           #invoice-print-area, #invoice-print-area * { visibility: visible !important; }
           #invoice-print-area {
@@ -260,6 +264,8 @@ function InvoicesContent() {
             margin: 0 !important;
             box-shadow: none !important;
             border: none !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
