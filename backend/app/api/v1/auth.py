@@ -286,7 +286,6 @@ async def me(
     request: Request,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    tenant: TenantContext | None = None,
 ) -> MeResponse:
     memberships = await auth_service.get_user_memberships(db, user.id)
     perms: list[str] = []

@@ -117,10 +117,15 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     const refreshed = await refreshAccessToken();
     if (refreshed) {
       response = await doFetch();
-      // Do not clearSession() automatically here. When the backend is
-      // restarting, sleeping, or temporarily unreachable, keep the user's
-      // session intact so they are never forced out to /login.
-      throw await parseError(response);
+    } else {
+      // Only wipe session if the refresh token was explicitly rejected (401/403).
+      // If the backend is restarting (502/503) or offline, preserve the session!
+      if (lastRefreshStatus === 401 || lastRefreshStatus === 403) {
+        clearSession();
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("dmh:auth-expired"));
+        }
+      }
     }
   }
 
@@ -174,7 +179,16 @@ export async function apiUpload<T>(
   let response = await doFetch();
   if (response.status === 401) {
     const refreshed = await refreshAccessToken();
-    if (refreshed) response = await doFetch();
+    if (refreshed) {
+      response = await doFetch();
+    } else {
+      if (lastRefreshStatus === 401 || lastRefreshStatus === 403) {
+        clearSession();
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("dmh:auth-expired"));
+        }
+      }
+    }
   }
   if (!response.ok) throw await parseError(response);
   // 204 (e.g. staff photo upload) has no body — response.json() would throw

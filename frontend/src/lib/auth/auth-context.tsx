@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, refreshAccessToken } from "@/lib/api/client";
+import { apiFetch, ApiError, refreshAccessToken } from "@/lib/api/client";
 import { clearSession, getAccessToken, getCachedUser, setCachedUser, setAccessToken } from "@/lib/auth/session";
 import type { MeResponse, MembershipOut, TokenResponse, UserOut } from "@/types/auth";
 import type { HotelOut } from "@/types/hotel";
@@ -68,6 +68,22 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     if (hotelId) sessionStorage.setItem(HOTEL_KEY, hotelId);
   }, []);
 
+  // Listen for auth-expired events dispatched from apiFetch/apiUpload
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      clearSession();
+      setUser(null);
+      setMemberships([]);
+      setPermissions([]);
+      _setActiveHotelId(null);
+      setStatus("unauthenticated");
+    };
+    window.addEventListener("dmh:auth-expired", handleAuthExpired);
+    return () => {
+      window.removeEventListener("dmh:auth-expired", handleAuthExpired);
+    };
+  }, []);
+
   // Session restoration after reload.
   //
   // Fast path (most reloads): the access token is still in sessionStorage →
@@ -103,7 +119,18 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
             setCachedUser(freshMe);
             applySession(freshMe);
           }
-        } catch {
+        } catch (err) {
+          if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+            clearSession();
+            if (!cancelled) {
+              setUser(null);
+              setMemberships([]);
+              setPermissions([]);
+              _setActiveHotelId(null);
+              setStatus("unauthenticated");
+            }
+            return;
+          }
           // Keep cached session intact if offline or transient network error.
         }
         return;
@@ -113,12 +140,14 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
       if (!cachedToken) {
         const ok = await tryRefresh();
         if (!ok) {
-          const cachedMe = getCachedUser<MeResponse>();
-          if (cachedMe && !cancelled) {
-            applySession(cachedMe);
-            return;
+          clearSession();
+          if (!cancelled) {
+            setUser(null);
+            setMemberships([]);
+            setPermissions([]);
+            _setActiveHotelId(null);
+            setStatus("unauthenticated");
           }
-          if (!cancelled) setStatus("unauthenticated");
           return;
         }
       }
@@ -130,8 +159,17 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
           setCachedUser(me);   // cache for next refresh
           applySession(me);
         }
-      } catch {
+      } catch (err) {
         if (!cancelled) {
+          if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+            clearSession();
+            setUser(null);
+            setMemberships([]);
+            setPermissions([]);
+            _setActiveHotelId(null);
+            setStatus("unauthenticated");
+            return;
+          }
           // If we have a cached user profile, ALWAYS preserve the session!
           // Server restarts, network drops, or temporary errors must NEVER log the user out.
           const cachedMe = getCachedUser<MeResponse>();

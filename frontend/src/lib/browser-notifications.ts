@@ -27,7 +27,15 @@ let swRegistrationPromise: Promise<ServiceWorkerRegistration | null> | null = nu
  * Checks if the browser supports HTML5 Web Notifications.
  */
 export function isBrowserNotificationSupported(): boolean {
-  return typeof window !== "undefined" && "Notification" in window;
+  try {
+    return (
+      typeof window !== "undefined" &&
+      typeof window.Notification !== "undefined" &&
+      window.Notification !== null
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -35,7 +43,11 @@ export function isBrowserNotificationSupported(): boolean {
  */
 export function getBrowserNotificationPermission(): NotificationPermission | "unsupported" {
   if (!isBrowserNotificationSupported()) return "unsupported";
-  return Notification.permission;
+  try {
+    return window.Notification.permission;
+  } catch {
+    return "unsupported";
+  }
 }
 
 /**
@@ -43,14 +55,15 @@ export function getBrowserNotificationPermission(): NotificationPermission | "un
  */
 export function isBrowserNotificationEnabled(): boolean {
   if (typeof window === "undefined") return false;
-  if (!isBrowserNotificationSupported() || Notification.permission !== "granted") {
-    return false;
-  }
+  if (!isBrowserNotificationSupported()) return false;
   try {
+    if (window.Notification.permission !== "granted") {
+      return false;
+    }
     const item = localStorage.getItem(BROWSER_NOTIFICATIONS_STORAGE_KEY);
     return item === null ? true : item === "true";
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -99,7 +112,10 @@ export async function requestBrowserNotificationPermission(): Promise<
   }
 
   try {
-    const result = await Notification.requestPermission();
+    if (typeof window.Notification.requestPermission !== "function") {
+      return "unsupported";
+    }
+    const result = await window.Notification.requestPermission();
     if (result === "granted") {
       setBrowserNotificationEnabled(true);
       // Pre-warm the service worker
@@ -112,7 +128,11 @@ export async function requestBrowserNotificationPermission(): Promise<
     // Fallback for older Safari callback syntax
     return new Promise((resolve) => {
       try {
-        Notification.requestPermission((p) => {
+        if (!window.Notification || typeof window.Notification.requestPermission !== "function") {
+          resolve("unsupported");
+          return;
+        }
+        window.Notification.requestPermission((p) => {
           if (p === "granted") {
             setBrowserNotificationEnabled(true);
             getServiceWorkerRegistration().catch(() => {});
@@ -143,8 +163,12 @@ export async function showSystemNotification(
   options?: SystemNotificationOptions,
 ): Promise<boolean> {
   if (!isBrowserNotificationSupported()) return false;
-  if (Notification.permission !== "granted") return false;
-  if (!isBrowserNotificationEnabled()) return false;
+  try {
+    if (window.Notification.permission !== "granted") return false;
+    if (!isBrowserNotificationEnabled()) return false;
+  } catch {
+    return false;
+  }
 
   const iconUrl = options?.icon || "/dmh-icon.png";
   const notificationOptions: NotificationOptions = {
@@ -170,7 +194,8 @@ export async function showSystemNotification(
 
   // Fallback to standard DOM Notification
   try {
-    const n = new Notification(title, notificationOptions);
+    if (typeof window.Notification !== "function") return false;
+    const n = new window.Notification(title, notificationOptions);
     n.onclick = (event) => {
       event.preventDefault();
       window.focus();
@@ -202,7 +227,11 @@ export async function showBatchSystemNotifications(
 ): Promise<void> {
   if (!items.length) return;
   if (!isBrowserNotificationSupported()) return;
-  if (Notification.permission !== "granted" || !isBrowserNotificationEnabled()) return;
+  try {
+    if (window.Notification.permission !== "granted" || !isBrowserNotificationEnabled()) return;
+  } catch {
+    return;
+  }
 
   const getContent = (item: { body?: string | null; message?: string | null }) =>
     item.body || item.message || "";
@@ -270,8 +299,12 @@ export function useBrowserNotifications() {
     window.addEventListener("storage", handleStorage);
 
     // Warm up service worker if already granted
-    if (Notification.permission === "granted") {
-      getServiceWorkerRegistration().catch(() => {});
+    try {
+      if (isBrowserNotificationSupported() && window.Notification.permission === "granted") {
+        getServiceWorkerRegistration().catch(() => {});
+      }
+    } catch {
+      // Ignore unsupported platforms
     }
 
     return () => {
