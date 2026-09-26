@@ -170,7 +170,11 @@ function InvoicesContent() {
   const shareInvoiceWhatsApp = async () => {
     if (!invoice || !guestPhone) return;
     const hotelName = hotel.data?.name ?? "";
-    const text = `${hotelName} — ${tp("waInvoice")} ${invoice.invoice_number} — ${tp("waTotalDue")} ${fmtINR(invoice.due_amount)}`;
+    const isPaid = Number(invoice.due_amount) <= 0;
+    const paymentPart = isPaid
+      ? `${tp("totalPaid")} ${fmtINR(invoice.total_amount)} (${tp("paidInFull")})`
+      : `${tp("waTotalDue")} ${fmtINR(invoice.due_amount)}`;
+    const text = `${hotelName} : ${tp("waInvoice")} ${invoice.invoice_number} : ${paymentPart}`;
 
     // Mobile: try Web Share API with the PDF file attached.
     if (typeof navigator !== "undefined" && "share" in navigator) {
@@ -582,9 +586,13 @@ function InvoicesContent() {
                       <span className="tabular-nums">−{fmtINR(invoice.discount_amount)}</span>
                     </div>
                   )}
-                  {/* Advance paid: blue/info — distinct from discount (warning) and paid totals (success) */}
+                  {/* Payment deduction: when fully paid, label as Advance / Payments, else Advance Paid */}
                   <div className="flex justify-between font-medium text-info">
-                    <span>{tp("advancePaid")}</span>
+                    <span>
+                      {Number(invoice.due_amount) <= 0
+                        ? tp("advanceOrPayments")
+                        : tp("advancePaid")}
+                    </span>
                     <span className="tabular-nums">−{fmtINR(invoice.paid_amount)}</span>
                   </div>
                   {/* Cancelled reason note */}
@@ -593,14 +601,32 @@ function InvoicesContent() {
                       {tp("cancelledReason", { reason: invoice.cancel_reason })}
                     </div>
                   )}
-                  <div className="mt-2 flex items-center justify-between border-t pt-2">
-                    <span className="text-xs font-semibold uppercase tracking-widest">
-                      {tp("totalDue")}
-                    </span>
-                    <span className="text-xl font-semibold tabular-nums">
-                      {fmtINR(invoice.due_amount)}
-                    </span>
-                  </div>
+                  {Number(invoice.due_amount) <= 0 ? (
+                    <div className="mt-2 border-t pt-2 space-y-1">
+                      <div className="flex items-center justify-between text-emerald-700 dark:text-emerald-400">
+                        <span className="text-xs font-semibold uppercase tracking-widest">
+                          {tp("totalPaid")}
+                        </span>
+                        <span className="text-xl font-semibold tabular-nums">
+                          {fmtINR(invoice.total_amount)}
+                        </span>
+                      </div>
+                      <div className="flex justify-end">
+                        <span className="inline-flex items-center rounded-md bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 text-micro font-medium text-emerald-700 dark:text-emerald-300 ring-1 ring-inset ring-emerald-600/20">
+                          {tp("paidInFull")}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex items-center justify-between border-t pt-2 text-amber-700 dark:text-amber-400">
+                      <span className="text-xs font-semibold uppercase tracking-widest">
+                        {tp("totalDue")}
+                      </span>
+                      <span className="text-xl font-semibold tabular-nums">
+                        {fmtINR(invoice.due_amount)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

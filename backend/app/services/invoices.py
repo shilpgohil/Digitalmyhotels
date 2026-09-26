@@ -66,9 +66,18 @@ async def generate_invoice(
     )
     existing_invoice = existing.scalars().first()
     if existing_invoice:
-        # Return the existing invoice instead of 409 — idempotent behaviour
-        # prevents "Invoice generation error" when clicking the button a
-        # second time (e.g. after checkout auto-generated one).
+        # Re-sync payment and due in case payments were collected since generation
+        paid_amount = booking.advance_amount
+        security = booking.security_deposit
+        due = money(max(existing_invoice.total_amount - paid_amount - security, Decimal("0.00")))
+        if existing_invoice.paid_amount != paid_amount or existing_invoice.due_amount != due:
+            existing_invoice.paid_amount = paid_amount
+            existing_invoice.due_amount = due
+            if due == 0:
+                existing_invoice.status = "paid"
+            elif paid_amount > 0:
+                existing_invoice.status = "partially_paid"
+            await db.flush()
         await db.refresh(existing_invoice, ["items"])
         return existing_invoice
 
@@ -553,17 +562,29 @@ async def render_invoice_pdf(
             summary_row("GST", inr(gst_total))
     if invoice.discount_amount > 0:
         summary_row("Discount", f"-{inr(invoice.discount_amount)}")
+    is_fully_paid = invoice.due_amount <= Decimal("0.00")
     if invoice.paid_amount > 0:
-        summary_row("Advance Paid", f"-{inr(invoice.paid_amount)}", color=GOLD)
+        pay_label = "Advance / Payments" if is_fully_paid else "Advance Paid"
+        summary_row(pay_label, f"-{inr(invoice.paid_amount)}", color=GOLD)
     pdf.set_draw_color(*RULE)
     pdf.line(110, pdf.get_y() + 1, 196, pdf.get_y() + 1)
     pdf.ln(2)
     pdf.set_x(110)
     pdf.set_font("helvetica", "B", 9)
-    pdf.set_text_color(*INK)
-    pdf.cell(50, 9, "TOTAL DUE")
-    pdf.set_font("helvetica", "B", 14)
-    pdf.cell(36, 9, latin1(inr(invoice.due_amount)), align="R", new_x="LMARGIN", new_y="NEXT")
+    if is_fully_paid:
+        pdf.set_text_color(22, 101, 52)
+        pdf.cell(50, 9, "TOTAL PAID")
+        pdf.set_font("helvetica", "B", 14)
+        pdf.cell(36, 9, latin1(inr(invoice.total_amount)), align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_x(110)
+        pdf.set_font("helvetica", "B", 8)
+        pdf.set_text_color(22, 101, 52)
+        pdf.cell(86, 5, "[ PAID IN FULL ]", align="R", new_x="LMARGIN", new_y="NEXT")
+    else:
+        pdf.set_text_color(180, 83, 9)
+        pdf.cell(50, 9, "TOTAL DUE")
+        pdf.set_font("helvetica", "B", 14)
+        pdf.cell(36, 9, latin1(inr(invoice.due_amount)), align="R", new_x="LMARGIN", new_y="NEXT")
 
     if invoice.status == "cancelled":
         pdf.ln(4)

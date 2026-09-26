@@ -306,8 +306,28 @@ async def collect_payment(
         booking.security_deposit = money(booking.security_deposit + payment.amount)
     else:
         booking.advance_amount = money(booking.advance_amount + payment.amount)
-    # Deposit AND advance both settle against the bill — recompute due + status.
+    # Deposit AND advance both settle against the bill: recompute due + status.
     settle_booking_amounts(booking)
+
+    # Re-sync any active invoice so paid and due amounts stay accurate
+    from app.models.invoice import Invoice as _Invoice
+    active_inv = await db.scalar(
+        select(_Invoice).where(
+            _Invoice.booking_id == booking.id,
+            _Invoice.hotel_id == hotel_id,
+            _Invoice.status.notin_(("cancelled",)),
+        )
+    )
+    if active_inv:
+        paid_amt = booking.advance_amount
+        sec_dep = booking.security_deposit
+        due_amt = money(max(active_inv.total_amount - paid_amt - sec_dep, Decimal("0.00")))
+        active_inv.paid_amount = paid_amt
+        active_inv.due_amount = due_amt
+        if due_amt == 0:
+            active_inv.status = "paid"
+        elif paid_amt > 0:
+            active_inv.status = "partially_paid"
 
     await append_entry(
         db,

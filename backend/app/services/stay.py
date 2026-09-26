@@ -1193,43 +1193,30 @@ async def check_out(
     # the checkout transaction guarantees every completed stay has an invoice
     # and numbering follows checkout order. If one already exists (generated
     # manually mid-stay), it is kept — never duplicated.
-    from app.core.errors import ConflictError as _Conflict
+    from app.models.invoice import Invoice as _Invoice
+    from app.services.invoices import cancel_invoice as _cancel_stale
     from app.services.invoices import generate_invoice as _gen_invoice
 
     invoice_id: UUID | None = None
-    try:
-        invoice = await _gen_invoice(
-            db, tenant, booking.id, correlation_id=correlation_id
+    stale_id = await db.scalar(
+        select(_Invoice.id).where(
+            _Invoice.booking_id == booking.id,
+            _Invoice.hotel_id == hotel_id,
+            _Invoice.status.notin_(("cancelled",)),
         )
-        invoice_id = invoice.id
-    except _Conflict:
-        # An invoice generated MID-STAY exists. It cannot include checkout
-        # charges/late fees, so reusing it would make the final invoice
-        # disagree with the final bill (client: "payment amount wrong —
-        # print and modal"). Supersede it: cancel + regenerate so the
-        # invoice of record always equals the checkout settlement.
-        from app.models.invoice import Invoice as _Invoice
-        from app.services.invoices import cancel_invoice as _cancel_stale
-
-        stale_id = await db.scalar(
-            select(_Invoice.id).where(
-                _Invoice.booking_id == booking.id,
-                _Invoice.hotel_id == hotel_id,
-                _Invoice.status.notin_(("cancelled",)),
-            )
+    )
+    if stale_id:
+        await _cancel_stale(
+            db,
+            tenant,
+            stale_id,
+            "Superseded by the final checkout invoice",
+            correlation_id=correlation_id,
         )
-        if stale_id:
-            await _cancel_stale(
-                db,
-                tenant,
-                stale_id,
-                "Superseded by the final checkout invoice",
-                correlation_id=correlation_id,
-            )
-            invoice = await _gen_invoice(
-                db, tenant, booking.id, correlation_id=correlation_id
-            )
-            invoice_id = invoice.id
+    invoice = await _gen_invoice(
+        db, tenant, booking.id, correlation_id=correlation_id
+    )
+    invoice_id = invoice.id
 
     await write_audit(
         db,
