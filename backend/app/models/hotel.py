@@ -104,7 +104,12 @@ class HotelSettings(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Numeric(10, 2), default=Decimal("0.00"), nullable=False
     )
     # "full" = all features; "checkin_only" = restrict to check-in/out (no expenses).
-    access_mode: Mapped[str] = mapped_column(String(32), default="full", nullable=False)
+    access_mode: Mapped[str] = mapped_column(
+        String(32),
+        default="full",
+        nullable=False,
+        comment="checkin_only | checkin_expense | full",
+    )
     # Check-in form feature flags (Edit Hotel — Emergency & Vehicle toggles).
     collect_emergency_contact: Mapped[bool] = mapped_column(
         Boolean, default=True, nullable=False
