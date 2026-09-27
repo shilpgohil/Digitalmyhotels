@@ -15,7 +15,7 @@
  *  2. POST /api/v1/payments  — if advance amount > 0 (purpose: "advance")
  */
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -41,6 +41,7 @@ import { Label } from "@/components/ui/label";
 import { GuestPicker } from "@/components/guests/guest-picker";
 import { AdvanceBookingVoucherModal } from "@/components/stay/advance-booking-voucher-modal";
 import { RoomAvailabilityPicker } from "@/components/rooms/room-availability-picker";
+import { UpiQrBlock } from "@/components/checkin/upi-qr-block";
 import { useApi } from "@/lib/api/use-api";
 import { invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -344,75 +345,28 @@ function AdvanceBookingContent() {
   const [paymentCollected, setPaymentCollected] = useState(false);
 
   // ── UPI QR ──
-  const [qrObjectUrl, setQrObjectUrl] = useState<string | null>(null);
-  const [qrNotConfigured, setQrNotConfigured] = useState(false);
-  const [qrLoading, setQrLoading] = useState(false);
-
-  useEffect(() => {
-    const advAmount = parseFloat(advanceAmount) || 0;
-    if (paymentMode !== "upi" || advAmount <= 0) {
-      setQrObjectUrl(null);
-      setQrNotConfigured(false);
-      return;
-    }
-
-    let cancelled = false;
-    let currentUrl: string | null = null;
-
-    const fetchQr = async () => {
-      setQrLoading(true);
-      try {
-        const token = getAccessToken();
-        const headers: Record<string, string> = {};
-        if (token) headers.Authorization = `Bearer ${token}`;
-        if (activeHotelId) headers["X-Hotel-Id"] = activeHotelId;
-
-        const amtParam = advAmount > 0 ? `&amount=${advAmount}` : "";
-        const response = await fetch(
-          `${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${Date.now()}${amtParam}`,
-          {
-            headers,
-            credentials: "include",
-            cache: "no-store",
-          },
-        );
-
-        if (cancelled) return;
-
-        if (response.status === 404) {
-          setQrNotConfigured(true);
-          setQrLoading(false);
-          return;
-        }
-
-        if (!response.ok) {
-          setQrLoading(false);
-          return;
-        }
-
-        const blob = await response.blob();
-        if (cancelled) return;
-
-        currentUrl = URL.createObjectURL(blob);
-        setQrObjectUrl(currentUrl);
-        setQrNotConfigured(false);
-      } catch {
-        // Silently fail — QR is optional
-      } finally {
-        if (!cancelled) setQrLoading(false);
-      }
-    };
-
-    fetchQr();
-
-    return () => {
-      cancelled = true;
-      if (currentUrl) URL.revokeObjectURL(currentUrl);
-      setQrObjectUrl(null);
-      setQrNotConfigured(false);
-      setQrLoading(false);
-    };
-  }, [paymentMode, activeHotelId, advanceAmount]);
+  const advAmountNum = Number.parseFloat(advanceAmount) || 0;
+  const showQr = paymentMode === "upi" && advAmountNum > 0;
+  const qrImageQuery = useQuery({
+    queryKey: ["hotel-qr-png", activeHotelId, advAmountNum],
+    queryFn: async () => {
+      const token = getAccessToken();
+      const amtParam = advAmountNum > 0 ? `&amount=${advAmountNum}` : "";
+      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${Date.now()}${amtParam}`, {
+        headers: {
+          Authorization: `Bearer ${token ?? ""}`,
+          "X-Hotel-Id": activeHotelId ?? "",
+        },
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      return URL.createObjectURL(blob);
+    },
+    enabled: showQr && !!activeHotelId,
+    staleTime: 60_000,
+  });
 
   const [error, setError] = useState<string | null>(null);
 
@@ -816,27 +770,13 @@ function AdvanceBookingContent() {
               )}
 
               {/* UPI QR — shown only when UPI is selected and amount > 0 */}
-              {paymentMode === "upi" && (parseFloat(advanceAmount) || 0) > 0 && (
-                <div className="rounded-lg border border-border bg-muted/30 p-4 flex flex-col items-center gap-2">
-                  {qrNotConfigured ? (
-                    <p className="text-sm text-muted-foreground">UPI QR not configured</p>
-                  ) : qrLoading ? (
-                    <p className="text-sm text-muted-foreground">Loading QR…</p>
-                  ) : qrObjectUrl ? (
-                    <>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        {(parseFloat(advanceAmount) || 0) > 0
-                          ? `Scan to Pay ₹${(parseFloat(advanceAmount) || 0).toLocaleString("en-IN")} via UPI`
-                          : "Scan to Pay via UPI"}
-                      </p>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={qrObjectUrl}
-                        alt="UPI payment QR code"
-                        className="h-48 w-48 rounded-lg object-contain"
-                      />
-                    </>
-                  ) : null}
+              {showQr && (
+                <div className="rounded-xl border border-border bg-muted/20 p-4 flex flex-col items-center">
+                  <UpiQrBlock
+                    qrUrl={qrImageQuery.data}
+                    loading={qrImageQuery.isLoading}
+                    amount={advAmountNum}
+                  />
                 </div>
               )}
 

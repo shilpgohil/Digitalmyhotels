@@ -13,14 +13,17 @@ import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
 
+import { cn } from "@/lib/utils";
+
 interface UpiQrBlockProps {
   /** Blob URL of the hotel QR PNG (null/undefined when not configured). */
   qrUrl: string | null | undefined;
   loading: boolean;
   amount?: number;
+  className?: string;
 }
 
-export function UpiQrBlock({ qrUrl, loading, amount }: UpiQrBlockProps) {
+export function UpiQrBlock({ qrUrl, loading, amount, className }: UpiQrBlockProps) {
   const t = useTranslations("checkin");
   const tp = useTranslations("checkoutPage");
   const tc = useTranslations("common");
@@ -67,18 +70,21 @@ export function UpiQrBlock({ qrUrl, loading, amount }: UpiQrBlockProps) {
     );
   }
   return (
-    <div className="flex flex-col items-start gap-2">
+    <div className={cn("flex flex-col items-center gap-2 text-center", className)}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={qrUrl}
         alt={tp("upiQrAlt")}
-        className="h-72 w-72 rounded-lg border object-contain"
+        className="h-64 w-64 rounded-lg border bg-white object-contain p-1 shadow-sm"
       />
       <p className="text-sm font-semibold text-navy-900">
-        {amount && amount > 0
-          ? `Scan to Pay ₹${amount.toLocaleString("en-IN")} via UPI`
-          : (qrInfoQuery.data?.payment_label ?? tp("scanToPay"))}
+        {qrInfoQuery.data?.payment_label ?? tp("scanToPay")}
       </p>
+      {amount != null && amount > 0 && (
+        <p className="text-xs font-semibold text-gold-700 tabular-nums -mt-0.5">
+          Scan to Pay ₹{amount.toLocaleString("en-IN")} via UPI
+        </p>
+      )}
       {/* UPI ID — restricted to owner/admin (canViewUpiId) */}
       {canViewUpiId && upiConfigQuery.data?.upi_id && (
         <div className="flex items-center gap-2 rounded-lg border border-dashed border-gold-400 bg-gold-50 px-3 py-2">
