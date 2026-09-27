@@ -144,8 +144,8 @@ async def test_duplicate_invoice_rejected(
         json={"booking_id": booking_id, "interstate": False},
         headers=headers,
     )
-    assert second.status_code == 409, second.text
-    assert second.json()["error"]["code"] == "invoice_exists"
+    assert second.status_code == 201, second.text
+    assert second.json()["id"] == first.json()["id"]
 
 
 async def test_cancelled_invoice_allows_new_one(

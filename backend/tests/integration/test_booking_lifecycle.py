@@ -238,8 +238,8 @@ async def test_missed_arrival_fires_once_and_keeps_room_reserved(
         check_in_time="10:00",
     )
 
-    ist = ZoneInfo("Asia/Kolkata")
-    scheduled = datetime(TODAY.year, TODAY.month, TODAY.day, 10, 0, tzinfo=ist)
+    tz = ZoneInfo(hotel_a.hotel.timezone)
+    scheduled = datetime(TODAY.year, TODAY.month, TODAY.day, 10, 0, tzinfo=tz)
 
     # 1 h after schedule — still inside the 2 h grace: nothing fires.
     assert (

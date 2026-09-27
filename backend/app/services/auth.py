@@ -106,7 +106,7 @@ async def rotate_refresh_token(
         )
         # 60s grace period: if the token was rotated within the last 60 seconds,
         # treat this as a concurrent request or network retry, not malicious reuse.
-        if (now - revoked_time).total_seconds() < 60:
+        if existing.replaced_by_id is not None and (now - revoked_time).total_seconds() < 60:
             user_result = await db.execute(select(User).where(User.id == existing.user_id))
             user = user_result.scalar_one_or_none()
             if user and user.is_active:

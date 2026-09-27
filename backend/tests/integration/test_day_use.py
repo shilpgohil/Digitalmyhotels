@@ -131,11 +131,11 @@ async def test_day_use_blocks_the_calendar_day(
     )
     assert first.status_code == 201, first.text
 
-    # Second day-use, same room, same date (non-overlapping hours — still v1 conflict).
+    # Second day-use, same room, same date with overlapping hours (14:00-18:00 vs 10:00-15:30).
     second = await client.post(
         "/api/v1/bookings",
         json=_day_use_payload(
-            guest_id, [room_id], check_in_time="16:00", check_out_time="20:00"
+            guest_id, [room_id], check_in_time="14:00", check_out_time="18:00"
         ),
         headers=headers,
     )

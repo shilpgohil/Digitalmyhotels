@@ -241,7 +241,10 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     queryKey: ["hotel", activeHotelId],
     queryFn: () =>
       apiFetch<HotelOut>("/api/v1/hotels/me", { hotelId: activeHotelId ?? undefined }),
-    enabled: !!activeHotelId && status === "authenticated",
+    enabled:
+      !!activeHotelId &&
+      status === "authenticated" &&
+      !user?.must_reset_password,
     staleTime: 60_000,
   });
 

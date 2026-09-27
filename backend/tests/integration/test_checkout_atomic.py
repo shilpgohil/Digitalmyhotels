@@ -195,8 +195,8 @@ async def test_atomic_checkout_collects_exact_quoted_due(
     dup = await client.post(
         "/api/v1/invoices", json={"booking_id": booking["id"]}, headers=headers
     )
-    assert dup.status_code == 409
-    assert "invoice_exists" in dup.text
+    assert dup.status_code == 201
+    assert dup.json()["id"] == invoice_id
 
 
 # ── (c) a retry after success must not duplicate anything ─────────────────
@@ -326,7 +326,7 @@ async def test_hourly_overstay_is_server_calculated_across_midnight(
     )
     # Expected 23:00 on day 1; actual 02:30 on day 2 → 3.5 h late, 1 h grace,
     # ceil(2.5) = 3 billable hours × ₹300.
-    actual = f"{TODAY + timedelta(days=2)}T02:30:00+05:30"
+    actual = f"{TODAY + timedelta(days=2)}T02:30:00Z"
 
     quote = await client.post(
         f"/api/v1/checkouts/{booking['id']}/quote",

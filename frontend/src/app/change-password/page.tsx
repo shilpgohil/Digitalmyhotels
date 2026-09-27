@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import { FullPageSpinner } from "@/components/feedback/full-page-spinner";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { setCachedUser } from "@/lib/auth/session";
 
@@ -117,12 +118,19 @@ function ChangePasswordForm() {
  *  Does NOT use RequireAuth because that would redirect super admins away
  *  from this page (partner-portal guard), breaking SA change-password. */
 function ChangePasswordGuard({ children }: { readonly children: React.ReactNode }) {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   const router = useRouter();
-  if (status === "unauthenticated") {
-    router.replace("/login");
-    return null;
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/login");
+    }
+  }, [status, router]);
+
+  if (status !== "authenticated" || !user) {
+    return <FullPageSpinner />;
   }
+
   return <>{children}</>;
 }
 

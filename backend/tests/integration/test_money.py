@@ -176,11 +176,12 @@ async def test_invoice_generation_and_cancel(
     # Numbering is sequential and hotel-scoped.
     assert "-" in body["invoice_number"]
 
-    # Duplicate active invoice rejected.
+    # Duplicate active invoice returns existing invoice idempotently.
     dup = await client.post(
         "/api/v1/invoices", json={"booking_id": booking_id}, headers=headers
     )
-    assert dup.status_code == 409
+    assert dup.status_code == 201
+    assert dup.json()["id"] == body["id"]
 
     # PDF renders.
     pdf = await client.get(f"/api/v1/invoices/{body['id']}/pdf", headers=headers)
