@@ -58,6 +58,8 @@ interface Props {
    * The picker watches this value and calls refetch() when it changes.
    */
   readonly refreshKey?: number;
+  /** Callback fired whenever availability data is fetched or updated. */
+  readonly onRoomsData?: (data: RoomAvailabilityOut) => void;
 }
 
 // ─── Status filter chips (client 9-06) ───────────────────────────────────────
@@ -400,6 +402,7 @@ export function RoomAvailabilityPicker({
   adults = 1,
   guestChildren: childCount = 0,
   refreshKey = 0,
+  onRoomsData,
 }: Props) {
   const api = useApi();
   const { activeHotelId } = useAuth();
@@ -446,6 +449,13 @@ export function RoomAvailabilityPicker({
     if (refreshKey > 0 && datesValid) void refetch();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
+
+  // Notify parent component of fresh availability data
+  useEffect(() => {
+    if (data) {
+      onRoomsData?.(data);
+    }
+  }, [data, onRoomsData]);
 
   // ── Capacity validation ────────────────────────────────────────────────────
   const totalGuests = adults + childCount;

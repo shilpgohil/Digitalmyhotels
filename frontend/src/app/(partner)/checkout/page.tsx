@@ -261,27 +261,6 @@ function CheckoutContent() {
     staleTime: 300_000,
   });
 
-  // QR PNG as a blob URL (same pattern as CheckoutDialog).
-  const qrImageQuery = useQuery({
-    queryKey: ["hotel-qr-png", activeHotelId],
-    queryFn: async () => {
-      const token = getAccessToken();
-      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${Date.now()}`, {
-        headers: {
-          Authorization: `Bearer ${token ?? ""}`,
-          "X-Hotel-Id": activeHotelId ?? "",
-        },
-        credentials: "include",
-        cache: "no-store",
-      });
-      if (!resp.ok) return null;
-      const blob = await resp.blob();
-      return URL.createObjectURL(blob);
-    },
-    enabled: showQr && !!activeHotelId,
-    staleTime: 300_000,
-  });
-
   // ── Server-authoritative settlement (checkout draft → quote) ───────────
 
   const booking = bookingQuery.data;
@@ -386,6 +365,28 @@ function CheckoutContent() {
   const pendingAmount = money(quote?.due);
   const refundAmount = money(quote?.refund);
   const needsDueAuth = payStatus === "pending" && pendingAmount > 0;
+
+  // Dynamic QR PNG encoding the payable pending amount into the UPI URI.
+  const qrImageQuery = useQuery({
+    queryKey: ["hotel-qr-png", activeHotelId, pendingAmount],
+    queryFn: async () => {
+      const token = getAccessToken();
+      const amtParam = pendingAmount > 0 ? `&amount=${pendingAmount}` : "";
+      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${Date.now()}${amtParam}`, {
+        headers: {
+          Authorization: `Bearer ${token ?? ""}`,
+          "X-Hotel-Id": activeHotelId ?? "",
+        },
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      return URL.createObjectURL(blob);
+    },
+    enabled: showQr && !!activeHotelId,
+    staleTime: 60_000,
+  });
 
   // ── Actions ────────────────────────────────────────────────────────────
 
@@ -663,7 +664,9 @@ function CheckoutContent() {
           className="h-56 w-56 rounded-lg object-contain"
         />
         <p className="text-center text-sm font-semibold text-navy-900">
-          {qrInfoQuery.data?.payment_label ?? tp("scanToPay")}
+          {pendingAmount > 0
+            ? `Scan to Pay ₹${pendingAmount.toLocaleString("en-IN")} via UPI`
+            : (qrInfoQuery.data?.payment_label ?? tp("scanToPay"))}
         </p>
         {/* UPI ID — restricted to owner/admin (canViewUpiId) */}
         {canViewUpiId && upiConfigQuery.data?.upi_id && (

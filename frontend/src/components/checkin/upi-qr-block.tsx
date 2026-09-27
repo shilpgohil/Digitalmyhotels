@@ -17,9 +17,10 @@ interface UpiQrBlockProps {
   /** Blob URL of the hotel QR PNG (null/undefined when not configured). */
   qrUrl: string | null | undefined;
   loading: boolean;
+  amount?: number;
 }
 
-export function UpiQrBlock({ qrUrl, loading }: UpiQrBlockProps) {
+export function UpiQrBlock({ qrUrl, loading, amount }: UpiQrBlockProps) {
   const t = useTranslations("checkin");
   const tp = useTranslations("checkoutPage");
   const tc = useTranslations("common");
@@ -74,7 +75,9 @@ export function UpiQrBlock({ qrUrl, loading }: UpiQrBlockProps) {
         className="h-72 w-72 rounded-lg border object-contain"
       />
       <p className="text-sm font-semibold text-navy-900">
-        {qrInfoQuery.data?.payment_label ?? tp("scanToPay")}
+        {amount && amount > 0
+          ? `Scan to Pay ₹${amount.toLocaleString("en-IN")} via UPI`
+          : (qrInfoQuery.data?.payment_label ?? tp("scanToPay"))}
       </p>
       {/* UPI ID — restricted to owner/admin (canViewUpiId) */}
       {canViewUpiId && upiConfigQuery.data?.upi_id && (

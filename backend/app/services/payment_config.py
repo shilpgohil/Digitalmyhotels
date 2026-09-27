@@ -9,6 +9,7 @@ Security rules (non-negotiable):
 from __future__ import annotations
 
 import asyncio
+from decimal import Decimal
 from io import BytesIO
 from urllib.parse import quote_plus
 from uuid import UUID
@@ -117,18 +118,29 @@ def _validate_image(data: bytes) -> None:
         raise ValidationAppError("File is not a valid image", code="invalid_image") from exc
 
 
-def build_upi_uri(upi_id: str, payee_name: str) -> str:
+def build_upi_uri(
+    upi_id: str,
+    payee_name: str,
+    amount: Decimal | None = None,
+    note: str | None = None,
+) -> str:
     # UPI spec: pa = payment address (VPA), pn = payee name, cu = currency,
     # mc = merchant category code (5812 = restaurant/hospitality signals it's
     # a business VPA so UPI apps prefer pn over the bank-registered VPA name).
+    # am = transaction amount (e.g. 1500.00). When present, customer UPI apps
+    # automatically lock/prefill the payment amount upon scanning.
     # quote_plus encodes spaces as '+' which is correct for UPI query params.
-    return (
-        f"upi://pay"
-        f"?pa={quote_plus(upi_id)}"
-        f"&pn={quote_plus(payee_name)}"
-        f"&cu=INR"
-        f"&mc=5812"
-    )
+    params = [
+        f"pa={quote_plus(upi_id)}",
+        f"pn={quote_plus(payee_name)}",
+        "cu=INR",
+        "mc=5812",
+    ]
+    if amount is not None and amount > 0:
+        params.append(f"am={amount:.2f}")
+    if note:
+        params.append(f"tn={quote_plus(note)}")
+    return f"upi://pay?{'&'.join(params)}"
 
 
 async def _regenerate_qr(
@@ -222,12 +234,40 @@ async def get_config_view(
     return upi_id, config
 
 
-async def get_qr_png(db: AsyncSession, tenant: TenantContext) -> bytes:
-    """QR image bytes — safe for any role with HOTEL_VIEW_PAYMENT_QR."""
+async def get_qr_png(
+    db: AsyncSession,
+    tenant: TenantContext,
+    amount: Decimal | None = None,
+    note: str | None = None,
+) -> bytes:
+    """QR image bytes — safe for any role with HOTEL_VIEW_PAYMENT_QR.
+
+    If amount is provided (> 0), dynamically renders a UPI QR containing the exact
+    transaction amount (`&am=...`) so scanning in any UPI app automatically
+    pre-fills the customer's payment screen with the specified amount.
+    If amount is omitted or 0, returns the stored base payment QR.
+    """
     hotel_id = tenant.require_hotel()
     config = await get_or_create_payment_config(db, hotel_id)
+    if not config.qr_object_key and not config.upi_id_encrypted:
+        raise NotFoundError("Payment QR is not configured yet", code="qr_not_configured")
+
+    if amount is not None and amount > 0 and config.upi_id_encrypted:
+        upi_id = decrypt_sensitive(config.upi_id_encrypted)
+        hotel = await get_hotel(db, hotel_id)
+        logo_bytes = await _load_logo(config)
+        uri = build_upi_uri(
+            upi_id,
+            hotel.name,
+            amount=amount,
+            note=note or f"Payment to {hotel.name}",
+        )
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, _render_qr_png, uri, logo_bytes)
+
     if not config.qr_object_key:
         raise NotFoundError("Payment QR is not configured yet", code="qr_not_configured")
+
     try:
         return await get_storage().get_bytes(config.qr_object_key)
     except (NotFoundError, FileNotFoundError) as exc:

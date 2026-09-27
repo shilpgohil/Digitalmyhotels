@@ -2559,10 +2559,11 @@ function CheckinForm({
   const advanceAmountNum = Number.parseFloat(advanceAmount) || 0;
   const showQrCheckin = paymentMode === "upi" && advanceAmountNum > 0;
   const qrImageQueryCheckin = useQuery({
-    queryKey: ["hotel-qr-png", activeHotelId],
+    queryKey: ["hotel-qr-png", activeHotelId, advanceAmountNum],
     queryFn: async () => {
       const token = getAccessToken();
-      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${Date.now()}`, {
+      const amtParam = advanceAmountNum > 0 ? `&amount=${advanceAmountNum}` : "";
+      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${Date.now()}${amtParam}`, {
         headers: {
           Authorization: `Bearer ${token ?? ""}`,
           "X-Hotel-Id": activeHotelId ?? "",
@@ -2575,7 +2576,7 @@ function CheckinForm({
       return URL.createObjectURL(blob);
     },
     enabled: showQrCheckin && !!activeHotelId,
-    staleTime: 300_000,
+    staleTime: 60_000,
   });
 
   const currentRooms = booking.rooms.filter((r) => r.is_current);
@@ -3367,8 +3368,9 @@ function CheckinForm({
                     <UpiQrBlock
                       qrUrl={qrImageQueryCheckin.data}
                       loading={qrImageQueryCheckin.isLoading}
+                      amount={advanceAmountNum}
                     />
-            </div>
+                  </div>
                 )}
           </div>
               <div className="space-y-1">
@@ -3867,6 +3869,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const [availRefreshKey, setAvailRefreshKey] = useState(0);
   const [adultsCount, setAdultsCount] = useState(1);
   const [childCount, setChildCount] = useState(0);
+  const [availDataState, setAvailDataState] = useState<import("@/types/hotel").RoomAvailabilityOut | null>(null);
   // Staff-edited room rates keyed by room_id (per night, or whole stay for
   // day use). Only edits that differ from the computed default are sent as
   // rate_overrides in the booking payload.
@@ -3913,12 +3916,17 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   // ── Room rent: read the room availability cache (same queryKey as the picker)
   // to get rates per selected room. Overnight = per-night rate × nights;
   // day use = hourly rate × hours (or base price when no hourly rate).
-  const availData = queryClient.getQueryData<import("@/types/hotel").RoomAvailabilityOut>([
+  const ciTimeParam = (checkInTime || settings.data?.check_in_time)?.slice(0, 5) ?? "";
+  const coTimeParam = (checkOutTime || settings.data?.check_out_time)?.slice(0, 5) ?? "";
+  const cachedAvail = queryClient.getQueryData<import("@/types/hotel").RoomAvailabilityOut>([
     "room-availability",
     activeHotelId,
     checkInDate,
     checkOutDate,
+    ciTimeParam,
+    coTimeParam,
   ]);
+  const availData = availDataState ?? cachedAvail;
   const nights = useMemo(() => {
     if (!checkInDate || !checkOutDate) return 1;
     const d = (new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / 86_400_000;
@@ -4003,10 +4011,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   // UPI QR code — fetched as a blob URL when UPI + amount > 0.
   const showQr = paymentMode === "upi" && newAdvance > 0;
   const qrImageQuery = useQuery({
-    queryKey: ["hotel-qr-png", activeHotelId],
+    queryKey: ["hotel-qr-png", activeHotelId, newAdvance],
     queryFn: async () => {
       const token = getAccessToken();
-      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${Date.now()}`, {
+      const amtParam = newAdvance > 0 ? `&amount=${newAdvance}` : "";
+      const resp = await fetch(`${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${Date.now()}${amtParam}`, {
         headers: {
           Authorization: `Bearer ${token ?? ""}`,
           "X-Hotel-Id": activeHotelId ?? "",
@@ -4019,7 +4028,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       return URL.createObjectURL(blob);
     },
     enabled: showQr && !!activeHotelId,
-    staleTime: 300_000,
+    staleTime: 60_000,
   });
 
   // ── 7. Emergency contact + vehicle ──
@@ -5236,6 +5245,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               adults={adultsCount}
               guestChildren={childCount}
               refreshKey={availRefreshKey}
+              onRoomsData={setAvailDataState}
             />
           </div>
 
@@ -5411,6 +5421,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   <UpiQrBlock
                     qrUrl={qrImageQuery.data}
                     loading={qrImageQuery.isLoading}
+                    amount={newAdvance}
                   />
                 </div>
               )}

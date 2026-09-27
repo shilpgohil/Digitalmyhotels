@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Path, Request, Response, UploadFile
+from decimal import Decimal
+
+from fastapi import APIRouter, Depends, File, Path, Query, Request, Response, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permissions
@@ -583,10 +585,11 @@ async def get_payment_qr_meta(
 
 @router.get("/me/payment-qr/image")
 async def get_payment_qr_image(
+    amount: Decimal | None = Query(default=None, ge=0),
     tenant: TenantContext = Depends(require_permissions(Permission.HOTEL_VIEW_PAYMENT_QR)),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    png = await upi_service.get_qr_png(db, tenant)
+    png = await upi_service.get_qr_png(db, tenant, amount=amount)
     return Response(
         content=png,
         media_type="image/png",

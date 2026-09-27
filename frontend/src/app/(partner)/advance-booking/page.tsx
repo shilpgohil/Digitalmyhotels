@@ -15,7 +15,7 @@
  *  2. POST /api/v1/payments  — if advance amount > 0 (purpose: "advance")
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -329,6 +329,7 @@ function AdvanceBookingContent() {
   const [adults, setAdults] = useState(1);
   const [children, setChildren] = useState(0);
   const [availRefreshKey, setAvailRefreshKey] = useState(0);
+  const [availDataState, setAvailDataState] = useState<RoomAvailabilityOut | null>(null);
   // Staff-edited room rates keyed by room_id (per night, or whole stay for
   // day use). Only edits that differ from the computed default are sent as
   // rate_overrides in the booking payload.
@@ -348,7 +349,8 @@ function AdvanceBookingContent() {
   const [qrLoading, setQrLoading] = useState(false);
 
   useEffect(() => {
-    if (paymentMode !== "upi") {
+    const advAmount = parseFloat(advanceAmount) || 0;
+    if (paymentMode !== "upi" || advAmount <= 0) {
       setQrObjectUrl(null);
       setQrNotConfigured(false);
       return;
@@ -365,8 +367,9 @@ function AdvanceBookingContent() {
         if (token) headers.Authorization = `Bearer ${token}`;
         if (activeHotelId) headers["X-Hotel-Id"] = activeHotelId;
 
+        const amtParam = advAmount > 0 ? `&amount=${advAmount}` : "";
         const response = await fetch(
-          `${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${Date.now()}`,
+          `${API_BASE}/api/v1/hotels/me/payment-qr/image?v=${Date.now()}${amtParam}`,
           {
             headers,
             credentials: "include",
@@ -409,7 +412,7 @@ function AdvanceBookingContent() {
       setQrNotConfigured(false);
       setQrLoading(false);
     };
-  }, [paymentMode, activeHotelId]);
+  }, [paymentMode, activeHotelId, advanceAmount]);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -444,29 +447,53 @@ function AdvanceBookingContent() {
 
   // ── Room rates: read the room availability cache (same queryKey as the
   // picker) to get rates for the selected rooms.
-  const availData = queryClient.getQueryData<RoomAvailabilityOut>([
+  const ciTimeParam = (checkInTime || settings.data?.check_in_time)?.slice(0, 5) ?? "";
+  const coTimeParam = (checkOutTime || settings.data?.check_out_time)?.slice(0, 5) ?? "";
+  const cachedAvail = queryClient.getQueryData<RoomAvailabilityOut>([
     "room-availability",
     activeHotelId,
     checkIn,
     checkOut,
+    ciTimeParam,
+    coTimeParam,
   ]);
+  const availData = availDataState ?? cachedAvail;
+  const nights = useMemo(() => {
+    if (!checkIn || !checkOut) return 1;
+    const d = (new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86_400_000;
+    return Math.max(Math.ceil(d), 1);
+  }, [checkIn, checkOut]);
+
   const selectedAvailRooms = useMemo(
     () =>
       (availData?.available ?? []).filter((r) => selectedRooms.includes(r.id)),
     [availData, selectedRooms],
   );
   /** Default rate for a room: base price per night, or day-use total. */
-  const defaultRoomRate = (r: RoomAvailableItem): number => {
-    const base = Number.parseFloat(r.room_type_base_price) || 0;
-    if (!isSameDay) return base;
-    const hourly =
-      r.room_type_hourly_rate != null
-        ? Number.parseFloat(r.room_type_hourly_rate)
-        : Number.NaN;
-    return Number.isFinite(hourly) && hourly > 0 && dayUseHours > 0
-      ? hourly * dayUseHours
-      : base;
-  };
+  const defaultRoomRate = useCallback(
+    (r: RoomAvailableItem): number => {
+      const base = Number.parseFloat(r.room_type_base_price) || 0;
+      if (!isSameDay) return base;
+      const hourly =
+        r.room_type_hourly_rate != null
+          ? Number.parseFloat(r.room_type_hourly_rate)
+          : Number.NaN;
+      return Number.isFinite(hourly) && hourly > 0 && dayUseHours > 0
+        ? hourly * dayUseHours
+        : base;
+    },
+    [isSameDay, dayUseHours],
+  );
+
+  const totalEstimatedRent = useMemo(() => {
+    const factor = isSameDay ? 1 : nights;
+    return selectedAvailRooms.reduce((sum, r) => {
+      const edited = rateEdits[r.id]?.trim();
+      const parsed = edited ? Number.parseFloat(edited) : Number.NaN;
+      const price = Number.isFinite(parsed) && parsed >= 0 ? parsed : defaultRoomRate(r);
+      return sum + price * factor;
+    }, 0);
+  }, [selectedAvailRooms, isSameDay, nights, rateEdits, defaultRoomRate]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -668,6 +695,7 @@ function AdvanceBookingContent() {
                 adults={adults}
                 guestChildren={children}
                 refreshKey={availRefreshKey}
+                onRoomsData={setAvailDataState}
               />
 
               {/* Editable per-room rates for the selected rooms — prefilled
@@ -705,6 +733,14 @@ function AdvanceBookingContent() {
                         />
                       </div>
                     ))}
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border border-gold-400 bg-gold-50 px-3 py-2 text-xs">
+                    <span className="font-semibold text-navy-900">
+                      Total Estimated Room Rent ({selectedAvailRooms.length} {selectedAvailRooms.length === 1 ? "room" : "rooms"}, {nights} {nights === 1 ? "night" : "nights"})
+                    </span>
+                    <span className="font-bold tabular-nums text-navy-900 text-sm">
+                      ₹{totalEstimatedRent.toLocaleString("en-IN")}
+                    </span>
                   </div>
                   <p className="text-micro text-muted-foreground">
                     {t("rateOverrideHint")}
@@ -789,7 +825,9 @@ function AdvanceBookingContent() {
                   ) : qrObjectUrl ? (
                     <>
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Scan to Pay via UPI
+                        {(parseFloat(advanceAmount) || 0) > 0
+                          ? `Scan to Pay ₹${(parseFloat(advanceAmount) || 0).toLocaleString("en-IN")} via UPI`
+                          : "Scan to Pay via UPI"}
                       </p>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
