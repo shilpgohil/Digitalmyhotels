@@ -131,3 +131,25 @@ async def test_upi_qr_updates_on_second_set(
     )
     assert qr_resp.status_code == 200
     assert qr_resp.content[:8] == _PNG_MAGIC
+
+
+async def test_qr_with_amount_query_param_generates_valid_png(
+    client: AsyncClient, hotel_a: HotelFixture
+) -> None:
+    """Requesting the QR with ?amount=... dynamically generates a valid amount-encoded PNG."""
+    owner_headers = await _login(client, hotel_a, "owner")
+    await client.put(
+        "/api/v1/hotels/me/payment-config",
+        json={"upi_id": "hotelamount@upi"},
+        headers=owner_headers,
+    )
+
+    qr_resp = await client.get(
+        "/api/v1/hotels/me/payment-qr/image?amount=1500.00",
+        headers=owner_headers,
+    )
+    assert qr_resp.status_code == 200, qr_resp.text
+    assert qr_resp.headers["content-type"] == "image/png"
+    assert qr_resp.content[:8] == _PNG_MAGIC
+    assert len(qr_resp.content) > 500
+
