@@ -93,6 +93,11 @@ function HotelsContent() {
         isEmpty={!hotels.isLoading && !hotels.isError && (hotels.data?.items ?? []).length === 0}
         emptyTitle={t("noHotels")}
         columns={columns}
+        columnClasses={
+          isTotal
+            ? ["", "", "", "", "text-center", "text-center", "text-center", "text-center"]
+            : ["", "", "", "", "text-center"]
+        }
       >
         {!hotels.isLoading && !hotels.isError && (hotels.data?.items ?? []).map((h) => (
           <HotelRow
@@ -153,29 +158,35 @@ function HotelRow({
       <td className="px-4 py-3 text-muted-foreground tabular-nums">{hotel.phone ?? "—"}</td>
       {showMeta && (
         <>
-          <td className="px-4 py-3 text-muted-foreground capitalize">{hotel.subscription_plan_name ?? "—"}</td>
-          <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+          <td className="px-4 py-3 text-center text-muted-foreground capitalize">{hotel.subscription_plan_name ?? "—"}</td>
+          <td className="px-4 py-3 text-center whitespace-nowrap text-muted-foreground">
             {hotel.expiry_date ? fmtApiDate(hotel.expiry_date) : "—"}
           </td>
-          <td className="px-4 py-3">
-            <HotelStatusBadge hotel={hotel} />
+          <td className="px-4 py-3 text-center">
+            <div className="flex justify-center">
+              <HotelStatusBadge hotel={hotel} />
+            </div>
           </td>
         </>
       )}
-      <td className="px-4 py-3 whitespace-nowrap">
-        <div className="flex items-center gap-2">
+      <td className="px-4 py-3 whitespace-nowrap text-center">
+        <div className="flex items-center justify-center gap-2">
           {/* Full-page edit — navigates to /admin/hotels/[id]/edit */}
           <Link
             href={`/admin/hotels/${hotel.id}/edit`}
-            className="inline-flex h-8 items-center gap-1 rounded-lg border border-input px-2.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors leading-none"
+            className="inline-flex h-8 items-center gap-1 rounded-lg border border-input px-2.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors leading-normal"
           >
             <Pencil className="size-3" aria-hidden />
             {tc("edit")}
           </Link>
           {kind === "suspended" && (
             <>
-              {!showMeta && <HotelStatusBadge hotel={hotel} />}
-              <Button size="sm" className="h-8 leading-none bg-success text-white hover:bg-success/90" onClick={() => onStatus("active")} disabled={pending}>
+              {!showMeta && (
+                <div className="flex justify-center">
+                  <HotelStatusBadge hotel={hotel} />
+                </div>
+              )}
+              <Button size="sm" className="h-8 leading-normal bg-success text-white hover:bg-success/90" onClick={() => onStatus("active")} disabled={pending}>
                 {activateLabel}
               </Button>
             </>
@@ -185,15 +196,19 @@ function HotelRow({
               <RenewDialog hotel={hotel} />
               {/* Custom N-day grant (client 09/2026) */}
               <ExtendDialog hotel={hotel} />
-              <Button size="sm" className="h-8 leading-none bg-danger text-white hover:bg-danger/90" onClick={() => onStatus("suspended")} disabled={pending}>
+              <Button size="sm" className="h-8 leading-normal bg-danger text-white hover:bg-danger/90" onClick={() => onStatus("suspended")} disabled={pending}>
                 {deactivateLabel}
               </Button>
             </>
           )}
           {(kind === "active" || kind === "trial") && (
             <>
-              {!showMeta && <HotelStatusBadge hotel={hotel} />}
-              <Button size="sm" className="h-8 leading-none bg-danger text-white hover:bg-danger/90" onClick={() => onStatus("suspended")} disabled={pending}>
+              {!showMeta && (
+                <div className="flex justify-center">
+                  <HotelStatusBadge hotel={hotel} />
+                </div>
+              )}
+              <Button size="sm" className="h-8 leading-normal bg-danger text-white hover:bg-danger/90" onClick={() => onStatus("suspended")} disabled={pending}>
                 {deactivateLabel}
               </Button>
               <RenewDialog hotel={hotel} />

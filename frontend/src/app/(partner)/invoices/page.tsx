@@ -517,7 +517,7 @@ function InvoicesContent() {
                       <tr key={item.id} className="border-b last:border-b-0">
                         {/* First letter capital (covers pre-existing items) */}
                         <td className="py-2">
-                          {item.description.charAt(0).toUpperCase() + item.description.slice(1)}
+                          {(item.description.charAt(0).toUpperCase() + item.description.slice(1)).replace(/charges at checkout/gi, "Charges at Checkout")}
                           {item.quantity > 1 ? ` × ${item.quantity}` : ""}
                         </td>
                         <td className="py-2 text-right tabular-nums">
@@ -592,15 +592,13 @@ function InvoicesContent() {
                       <span className="tabular-nums">−{fmtINR(invoice.discount_amount)}</span>
                     </div>
                   )}
-                  {/* Payment deduction: when fully paid, label as Advance / Payments, else Advance Paid */}
-                  <div className="flex justify-between font-medium text-info">
-                    <span>
-                      {Number(invoice.due_amount) <= 0
-                        ? tp("advanceOrPayments")
-                        : tp("advancePaid")}
-                    </span>
-                    <span className="tabular-nums">−{fmtINR(invoice.paid_amount)}</span>
-                  </div>
+                  {/* Payment deduction: only shown when there is a remaining balance and an advance was paid */}
+                  {Number(invoice.due_amount) > 0 && Number(invoice.paid_amount) > 0 && (
+                    <div className="flex justify-between font-medium text-info">
+                      <span>{tp("advancePaid")}</span>
+                      <span className="tabular-nums">−{fmtINR(invoice.paid_amount)}</span>
+                    </div>
+                  )}
                   {/* Cancelled reason note */}
                   {invoice.status === "cancelled" && invoice.cancel_reason && (
                     <div className="mt-1 rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-xs text-danger">
@@ -615,11 +613,6 @@ function InvoicesContent() {
                         </span>
                         <span className="text-xl font-semibold tabular-nums">
                           {fmtINR(invoice.total_amount)}
-                        </span>
-                      </div>
-                      <div className="flex justify-end">
-                        <span className="inline-flex items-center rounded-md bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 text-micro font-medium text-emerald-700 dark:text-emerald-300 ring-1 ring-inset ring-emerald-600/20">
-                          {tp("paidInFull")}
                         </span>
                       </div>
                     </div>

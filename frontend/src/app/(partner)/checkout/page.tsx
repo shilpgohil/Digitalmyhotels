@@ -88,9 +88,9 @@ const PAY_METHODS: {
  *  `description` is the API payload value (not user-facing UI text);
  *  `labelKey` resolves the visible label from the checkoutPage namespace. */
 const EXTRA_CHARGE_FIELDS = [
-  { key: "restaurant", labelKey: "chargeRestaurant", description: "Restaurant charges at checkout" },
-  { key: "damage", labelKey: "chargeDamage", description: "Damage charges at checkout" },
-  { key: "other", labelKey: "chargeOther", description: "Other charges at checkout" },
+  { key: "restaurant", labelKey: "chargeRestaurant", description: "Restaurant Charges at Checkout" },
+  { key: "damage", labelKey: "chargeDamage", description: "Damage Charges at Checkout" },
+  { key: "other", labelKey: "chargeOther", description: "Other Charges at Checkout" },
 ] as const;
 
 type ExtraChargeKey = (typeof EXTRA_CHARGE_FIELDS)[number]["key"];

@@ -507,8 +507,8 @@ async def render_invoice_pdf(
     pdf.set_font("helvetica", "", 10)
     pdf.set_text_color(*INK)
     for item in invoice.items:
-        # First letter capital — covers items generated before this change.
         desc = item.description[:1].upper() + item.description[1:]
+        desc = desc.replace("charges at checkout", "Charges at Checkout")
         if item.quantity > 1:
             desc = f"{desc} x {item.quantity}"
         pdf.set_x(14)
@@ -563,9 +563,8 @@ async def render_invoice_pdf(
     if invoice.discount_amount > 0:
         summary_row("Discount", f"-{inr(invoice.discount_amount)}")
     is_fully_paid = invoice.due_amount <= Decimal("0.00")
-    if invoice.paid_amount > 0:
-        pay_label = "Advance / Payments" if is_fully_paid else "Advance Paid"
-        summary_row(pay_label, f"-{inr(invoice.paid_amount)}", color=GOLD)
+    if not is_fully_paid and invoice.paid_amount > 0:
+        summary_row("Advance Paid", f"-{inr(invoice.paid_amount)}", color=GOLD)
     pdf.set_draw_color(*RULE)
     pdf.line(110, pdf.get_y() + 1, 196, pdf.get_y() + 1)
     pdf.ln(2)
@@ -576,10 +575,6 @@ async def render_invoice_pdf(
         pdf.cell(50, 9, "TOTAL PAID")
         pdf.set_font("helvetica", "B", 14)
         pdf.cell(36, 9, latin1(inr(invoice.total_amount)), align="R", new_x="LMARGIN", new_y="NEXT")
-        pdf.set_x(110)
-        pdf.set_font("helvetica", "B", 8)
-        pdf.set_text_color(22, 101, 52)
-        pdf.cell(86, 5, "[ PAID IN FULL ]", align="R", new_x="LMARGIN", new_y="NEXT")
     else:
         pdf.set_text_color(180, 83, 9)
         pdf.cell(50, 9, "TOTAL DUE")

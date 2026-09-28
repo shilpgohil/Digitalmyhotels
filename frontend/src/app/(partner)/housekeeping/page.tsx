@@ -236,7 +236,7 @@ function OpenMaintenanceDialog({ onDone }: { onDone: () => void }) {
               value={roomId}
               onChange={(e) => setRoomId(e.target.value)}
             >
-              <option value="">—</option>
+              <option value="">{t("chooseRoom")}</option>
               {rooms.data?.items.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.room_number}

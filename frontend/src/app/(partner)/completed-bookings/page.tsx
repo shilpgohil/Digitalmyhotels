@@ -364,6 +364,28 @@ function BookingDetailSheet({
     return keys[m] ? tm(keys[m]) : m;
   };
 
+  const advancePayments = (payments.data?.items ?? []).filter(
+    (p) => p.purpose === "advance" && p.status === "completed",
+  );
+  const actualAdvance = advancePayments.reduce(
+    (sum, p) => sum + Number(p.amount),
+    0,
+  );
+
+  const completedMethods = Array.from(
+    new Set(
+      (payments.data?.items ?? [])
+        .filter((p) => p.status === "completed")
+        .map((p) => methodLabel(p.method)),
+    ),
+  );
+  const paymentModeDisplay =
+    completedMethods.length > 0
+      ? completedMethods.join(", ")
+      : latestMethod
+        ? methodLabel(latestMethod)
+        : null;
+
   const activeCharges = (charges.data?.items ?? []).filter((c) => !c.voided_at);
   const b = booking.data;
 
@@ -419,14 +441,27 @@ function BookingDetailSheet({
               />
               <SummaryRow label={t("total")} value={fmtINR(b.total_amount)} />
               <SummaryRow label={t("tax")} value={fmtINR(b.tax_amount)} />
-              <SummaryRow label={t("discount")} value={fmtINR(b.discount_amount)} />
-              <SummaryRow label={t("advance")} value={fmtINR(b.advance_amount)} />
+              <SummaryRow
+                label={t("discount")}
+                value={
+                  Number(b.discount_amount) > 0 ? (
+                    <span className="font-medium text-warning tabular-nums">
+                      −{fmtINR(b.discount_amount)}
+                    </span>
+                  ) : (
+                    <span className="tabular-nums">{fmtINR(b.discount_amount)}</span>
+                  )
+                }
+              />
+              {actualAdvance > 0 && (
+                <SummaryRow label={t("advance")} value={fmtINR(actualAdvance)} />
+              )}
               <SummaryRow label={t("securityDeposit")} value={fmtINR(b.security_deposit)} />
               <SummaryRow label={t("due")} value={fmtINR(b.due_amount)} />
-              {latestMethod && (
+              {paymentModeDisplay && (
                 <SummaryRow
                   label={t("paymentMode")}
-                  value={`${b.payment_status} · ${methodLabel(latestMethod)}`}
+                  value={paymentModeDisplay}
                 />
               )}
               {b.special_requests && (
@@ -486,7 +521,9 @@ function BookingDetailSheet({
               <ul className="divide-y rounded-lg border text-sm">
                 {activeCharges.map((c) => (
                   <li key={c.id} className="flex items-center justify-between gap-3 px-3 py-1.5">
-                    <span className="min-w-0 truncate">{c.description}</span>
+                    <span className="min-w-0 truncate">
+                      {c.description.replace(/charges at checkout/gi, "Charges at Checkout")}
+                    </span>
                     <span className="tabular-nums">{fmtINR(c.total_amount)}</span>
                   </li>
                 ))}
