@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.guest import ForeignGuestIn
+
 
 class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -115,6 +117,7 @@ class BookingCreate(BaseModel):
     vehicle_number: str | None = Field(default=None, max_length=32)
     vehicle_type: str | None = Field(default=None, max_length=40)
     parking_slot: str | None = Field(default=None, max_length=40)
+    foreign_guest: ForeignGuestIn | None = None
     confirm: bool = True
 
     @model_validator(mode="after")

@@ -29,7 +29,8 @@
     "error": "Something went wrong",
     "retry": "Retry",
     "requiredField": "This field is required",
-    "unauthorized": "You do not have permission to view this page"
+    "unauthorized": "You do not have permission to view this page",
+    "clear": "Clear"
   },
   "imageEditor": {
     "title": "Edit Photo",

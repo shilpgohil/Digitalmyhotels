@@ -345,6 +345,18 @@ async def create_booking(
     db.add(booking)
     await db.flush()
 
+    if body.foreign_guest is not None:
+        from app.models.guest import ForeignGuestDetail
+
+        db.add(
+            ForeignGuestDetail(
+                hotel_id=hotel_id,
+                booking_id=booking.id,
+                guest_id=guest.id,
+                **body.foreign_guest.model_dump(),
+            )
+        )
+
     for room in rooms_with_types:
         db.add(
             BookingRoom(

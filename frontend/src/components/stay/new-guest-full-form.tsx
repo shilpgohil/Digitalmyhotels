@@ -2,7 +2,7 @@
 
 /**
  * NewGuestFullForm — the full Aadhaar-upload guest creation experience,
- * shared outside the check-in page (first consumer: Advance Booking).
+ * shared outside the check-in page (used by Advance Booking).
  *
  * Replicates the check-in page's inline walk-in "new guest" UX:
  *  • Three queued document tiles (ID front / ID back / selfie) with
@@ -18,18 +18,13 @@
  * (POST /api/v1/guests), then uploads each queued file to
  * POST /api/v1/guests/{id}/documents (side + document_type=id_proof + file),
  * non-blocking for the surrounding flow.
- *
- * NOTE: the check-in page keeps its own inline copy of this form; it could
- * not be extracted at the time this file was created (concurrent edits).
- * OCR + compression logic is NOT duplicated — both use @/lib/id-ocr and
- * @/lib/compress-image; only the form wiring is replicated.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { docAspectFor, useImageEditor } from "@/components/media/image-editor";
-import { AlertTriangle, BadgeCheck, Camera, Upload } from "lucide-react";
+import { Camera, Globe, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,8 +32,17 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { compressDocument } from "@/lib/compress-image";
 import { localToday } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
-import type { IdOcrResult, ParsedIdFields } from "@/lib/id-ocr";
-import type { GuestCreatePayload } from "@/types/stay";
+import { useAuth } from "@/lib/auth/auth-context";
+import { getAccessToken } from "@/lib/auth/session";
+import { API_BASE, ApiError, apiUpload } from "@/lib/api/client";
+import { liveNameCase, sanitizeGuestPhone } from "@/lib/input-discipline";
+import { MaskedIdInput } from "@/components/checkin/masked-id-input";
+import { AutofillBanner } from "@/components/checkin/autofill-banner";
+import type { IdOcrResult } from "@/lib/id-ocr";
+import type { ForeignGuestIn, GuestCreatePayload } from "@/types/stay";
+
+export { MaskedIdInput } from "@/components/checkin/masked-id-input";
+export { AutofillBanner } from "@/components/checkin/autofill-banner";
 
 /** Which face of an ID document (or selfie) a tile handles. */
 export type DocSide = "front" | "back" | "selfie";
@@ -49,71 +53,13 @@ export interface QueuedDoc {
   file: File;
 }
 
-// ─── Masked ID input ─────────────────────────────────────────────────────────
-
-/** Mask an ID number, keeping only the last 4 characters visible. */
-function maskIdValue(v: string): string {
-  if (!v) return "";
-  const visible = v.slice(-4);
-  return "•".repeat(Math.max(v.length - visible.length, 0)) + visible;
-}
-
-/**
- * ID-number field that renders masked (••••••••1234) with a "Show" checkbox
- * beside the label. Raw value stays in parent state — only display toggles.
- * Focusing the input reveals the raw value so it stays editable.
- */
-function MaskedIdInput({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  readonly label: string;
-  readonly value: string;
-  readonly onChange: (v: string) => void;
-  readonly placeholder?: string;
-}) {
-  const t = useTranslations("checkin");
-  const [show, setShow] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const masked = !show && !focused;
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between gap-2">
-        <Label className="text-xs">{label}</Label>
-        <label className="flex cursor-pointer select-none items-center gap-1 text-label text-muted-foreground">
-          <input
-            type="checkbox"
-            className="size-3 rounded border-input"
-            checked={show}
-            onChange={(e) => setShow(e.target.checked)}
-          />
-          {t("show")}
-        </label>
-      </div>
-      <Input
-        value={masked ? maskIdValue(value) : value}
-        onChange={(e) => {
-          if (!masked) onChange(e.target.value);
-        }}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        placeholder={placeholder}
-        autoComplete="off"
-      />
-    </div>
-  );
-}
-
 // ─── Inline camera capture (desktop selfie) ──────────────────────────────────
 
 /**
  * Inline camera view for desktop selfie capture — opens the front camera via
  * getUserMedia, captures a frame to canvas and returns it as a File.
  */
-function InlineCameraCapture({
+export function InlineCameraCapture({
   onCapture,
   onClose,
 }: {
@@ -216,7 +162,7 @@ function InlineCameraCapture({
 // ─── Queued document upload tile ─────────────────────────────────────────────
 
 /** Queued doc upload tile — shows preview thumbnail; queues file for upload after guest creation. */
-function QueuedDocUpload({
+export function QueuedDocUpload({
   side,
   label,
   onQueued,
@@ -321,117 +267,510 @@ function QueuedDocUpload({
   );
 }
 
-// ─── OCR autofill banner ─────────────────────────────────────────────────────
+// ─── Existing document upload tile (for saved guest) ─────────────────────────
 
 /**
- * Shown after front-face OCR completes.
- *  - High confidence → shows extracted fields + "Auto-fill" button.
- *  - Low confidence  → shows warning message only.
+ * DocUpload tile for an existing guest — fetches existing document from B2,
+ * displays preview with status badge, and allows re-upload/camera capture.
  */
-function AutofillBanner({
-  result,
-  onAccept,
-  onDismiss,
+export function DocUpload({
+  guestId,
+  side,
+  label,
+  idType,
+  existingDocId,
+  onUploaded,
+  onOcrResult,
 }: {
-  readonly result: IdOcrResult;
-  readonly onAccept: (fields: ParsedIdFields) => void;
-  readonly onDismiss: () => void;
+  readonly guestId: string | null;
+  readonly side: DocSide;
+  readonly label: string;
+  readonly idType?: string;
+  /** Existing document ID — pre-fills the tile from B2 on mount. */
+  readonly existingDocId?: string | null;
+  readonly onUploaded?: () => void;
+  readonly onOcrResult?: (result: import("@/lib/id-ocr").IdOcrResult) => void;
 }) {
   const t = useTranslations("checkin");
-  if (!result.can_autofill) {
-    return (
-      <div className="flex items-start gap-3 rounded-xl border border-warning/20 bg-warning-bg px-4 py-3 text-sm">
-        <AlertTriangle className="size-4 shrink-0 text-warning mt-0.5" aria-hidden />
-        <div className="flex-1">
-          <p className="font-semibold text-warning">{t("unableAutofill")}</p>
-          <p className="mt-0.5 text-warning/80 text-xs">{result.message}</p>
-        </div>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="text-warning hover:text-warning text-sm leading-none"
-          aria-label={t("dismiss")}
-        >
-          ×
-        </button>
-      </div>
-    );
+  const { activeHotelId } = useAuth();
+  const { edit } = useImageEditor();
+  const [uploaded, setUploaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [ocrRunning, setOcrRunning] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
+  useEffect(() => {
+    if (!existingDocId || !guestId || preview) return;
+    let cancelled = false;
+    setBusy(true);
+    const url = `${API_BASE}/api/v1/guests/${guestId}/documents/${existingDocId}/file`;
+    const token = getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (activeHotelId) headers["X-Hotel-Id"] = activeHotelId;
+    fetch(url, { headers, credentials: "include" })
+      .then((r) => (r.ok ? r.blob() : Promise.reject(r.status)))
+      .then((blob) => {
+        if (!cancelled) {
+          setPreview(URL.createObjectURL(blob));
+          setUploaded(true);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [existingDocId, guestId]);
+
+  const onFile = async (file: File | undefined) => {
+    if (!file || !guestId) return;
+    const edited = await edit(file, {
+      aspect: docAspectFor(idType, side),
+      maxDimension: side === "selfie" ? 1000 : 1800,
+    });
+    if (!edited) return;
+    setBusy(true);
+    const previewUrl = URL.createObjectURL(edited);
+    setPreview(previewUrl);
+    try {
+      const compressed = await compressDocument(edited);
+
+      if ((side === "front" || side === "back") && onOcrResult) {
+        setOcrRunning(true);
+        const { parseIdDocument } = await import("@/lib/id-ocr");
+        parseIdDocument(edited, idType ?? "Aadhar Card", side)
+          .then((result) => {
+            if (side === "back") {
+              const addressOnly = {
+                ...result,
+                fields: {
+                  address: result.fields.address,
+                  pincode: result.fields.pincode,
+                  city: result.fields.city,
+                  state: result.fields.state,
+                },
+              };
+              onOcrResult(addressOnly);
+            } else {
+              onOcrResult(result);
+            }
+          })
+          .catch(() => toast.warning(t("ocrFailed")))
+          .finally(() => setOcrRunning(false));
+      }
+
+      const form = new FormData();
+      form.append("side", side);
+      form.append("document_type", "id_proof");
+      form.append("file", compressed);
+      await apiUpload(`/api/v1/guests/${guestId}/documents`, form, {
+        hotelId: activeHotelId ?? undefined,
+      });
+      setUploaded(true);
+      onUploaded?.();
+    } catch (e) {
+      setPreview(null);
+      toast.error(e instanceof ApiError ? e.message : t("uploadFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  let tileStateClass: string;
+  if (preview) {
+    tileStateClass = "border-green-400 p-0 h-40";
+  } else if (ocrRunning) {
+    tileStateClass = "border-gold-400 bg-gold-50 text-gold-700 animate-pulse p-4";
+  } else {
+    tileStateClass = "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4";
   }
 
-  const { fields } = result;
-  const detectedItems = [
-    fields.name && { label: t("fieldName"), value: fields.name },
-    fields.id_number && { label: t("fieldIdNumber"), value: fields.id_number },
-    fields.date_of_birth && { label: t("fieldDob"), value: fields.date_of_birth },
-    fields.gender && { label: t("fieldGender"), value: fields.gender },
-    fields.address && {
-      label: t("fieldAddress"),
-      value: fields.address.slice(0, 60) + (fields.address.length > 60 ? "…" : ""),
-    },
-    fields.pincode && { label: t("pincode"), value: fields.pincode },
-    fields.city && { label: t("fieldCity"), value: fields.city },
-    fields.state && { label: t("fieldState"), value: fields.state },
-  ].filter(Boolean) as { label: string; value: string }[];
+  let overlayStatusText: string;
+  if (ocrRunning) {
+    overlayStatusText = t("readingId");
+  } else if (busy) {
+    overlayStatusText = t("uploading");
+  } else {
+    overlayStatusText = t("uploaded");
+  }
 
-  const pct = Math.round(result.confidence * 100);
+  let tileLabelText: string;
+  if (ocrRunning) {
+    tileLabelText = t("readingId");
+  } else if (busy) {
+    tileLabelText = t("uploading");
+  } else {
+    tileLabelText = label;
+  }
 
   return (
-    <div className="rounded-xl border border-success/20 bg-success-bg overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-success/20">
-        <div className="flex items-center gap-2">
-          <BadgeCheck className="size-4 text-success" aria-hidden />
-          <span className="text-sm font-semibold text-success">{t("idDetected")}</span>
-          <span className="rounded-full bg-success-bg px-2 py-0.5 text-micro font-bold text-success">
-            {t("confidencePct", { pct })}
-          </span>
-        </div>
+    <div className="space-y-1.5">
+      <label
+        className={cn(
+          "relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 overflow-hidden text-center text-xs transition-colors",
+          !guestId && "pointer-events-none opacity-40",
+          tileStateClass,
+        )}
+      >
+        {preview ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={preview}
+              alt={side === "selfie" ? t("selfieAlt") : t("idDocumentAlt")}
+              className={side === "selfie" ? "h-full w-full object-cover" : "h-full w-full bg-navy-900/5 object-contain"}
+            />
+            <div
+              className={cn(
+                "absolute bottom-0 left-0 right-0 px-2 py-1 text-micro font-semibold text-center",
+                uploaded ? "bg-success/80 text-white" : "bg-gold-500/80 text-navy-900",
+              )}
+            >
+              {overlayStatusText}
+            </div>
+          </>
+        ) : (
+          <>
+            <Upload className={cn("size-5", ocrRunning && "animate-spin")} aria-hidden />
+            <span className="font-medium">{tileLabelText}</span>
+            {ocrRunning && (
+              <span className="text-micro text-gold-600">{t("extractingDetails")}</span>
+            )}
+          </>
+        )}
+        <input
+          type="file"
+          accept={side === "selfie" ? "image/*" : "image/png,image/jpeg,image/webp"}
+          capture={side === "selfie" ? "user" : undefined}
+          className="hidden"
+          disabled={!guestId || busy}
+          onChange={(e) => onFile(e.target.files?.[0])}
+        />
+      </label>
+      {side === "selfie" && !cameraOpen && (
         <button
           type="button"
-          onClick={onDismiss}
-          className="text-success hover:text-success text-sm leading-none"
-          aria-label={t("dismiss")}
+          onClick={() => setCameraOpen(true)}
+          disabled={!guestId || busy}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-label font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors disabled:opacity-40"
         >
-          ×
+          <Camera className="size-3.5" aria-hidden />
+          {t("useCamera")}
         </button>
-      </div>
-
-      <div className="px-4 py-3 space-y-1.5">
-        {detectedItems.map((item) => (
-          <div key={item.label} className="flex gap-2 text-xs">
-            <span className="w-24 shrink-0 font-semibold text-success">{item.label}</span>
-            <span className="text-success truncate">{item.value}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-2 px-4 py-3 border-t border-success/20 bg-success-bg/50">
-        <button
-          type="button"
-          onClick={() => onAccept(fields)}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-success px-3 text-xs font-semibold text-white hover:bg-success/90 transition-colors"
-        >
-          <BadgeCheck className="size-3.5" aria-hidden />
-          {t("autofillForm")}
-        </button>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="inline-flex h-8 items-center px-3 text-xs font-medium text-success hover:underline"
-        >
-          {t("skipManual")}
-        </button>
-      </div>
+      )}
+      {side === "selfie" && cameraOpen && (
+        <InlineCameraCapture
+          onCapture={(file) => onFile(file)}
+          onClose={() => setCameraOpen(false)}
+        />
+      )}
     </div>
   );
 }
 
-// ─── Full new-guest form ─────────────────────────────────────────────────────
+// ─── Foreign Guest Details (Form C) ──────────────────────────────────────────
+
+export interface ForeignGuestFormState {
+  passport_number: string;
+  passport_place_of_issue: string;
+  passport_expiry: string;
+  visa_number: string;
+  visa_type: string;
+  visa_place_of_issue: string;
+  visa_expiry: string;
+  place_of_birth: string;
+  country_of_birth: string;
+  nationality: string;
+  arrived_in_india_on: string;
+  arrival_place: string;
+  coming_from_city: string;
+  coming_from_country: string;
+  next_destination: string;
+  next_destination_country: string;
+  purpose_of_visit: string;
+}
+
+export const EMPTY_FOREIGN_GUEST: ForeignGuestFormState = {
+  passport_number: "",
+  passport_place_of_issue: "",
+  passport_expiry: "",
+  visa_number: "",
+  visa_type: "",
+  visa_place_of_issue: "",
+  visa_expiry: "",
+  place_of_birth: "",
+  country_of_birth: "",
+  nationality: "",
+  arrived_in_india_on: "",
+  arrival_place: "",
+  coming_from_city: "",
+  coming_from_country: "",
+  next_destination: "",
+  next_destination_country: "",
+  purpose_of_visit: "",
+};
+
+export function buildForeignGuestPayload(
+  enabled: boolean,
+  f: ForeignGuestFormState,
+): ForeignGuestIn | null {
+  if (!enabled) return null;
+  const opt = (v: string) => v.trim() || null;
+  return {
+    passport_number: f.passport_number.trim(),
+    passport_place_of_issue: opt(f.passport_place_of_issue),
+    passport_expiry: opt(f.passport_expiry),
+    visa_number: opt(f.visa_number),
+    visa_type: opt(f.visa_type),
+    visa_place_of_issue: opt(f.visa_place_of_issue),
+    visa_expiry: opt(f.visa_expiry),
+    place_of_birth: opt(f.place_of_birth),
+    country_of_birth: opt(f.country_of_birth),
+    nationality: opt(f.nationality),
+    arrived_in_india_on: opt(f.arrived_in_india_on),
+    arrival_place: opt(f.arrival_place),
+    coming_from_city: opt(f.coming_from_city),
+    coming_from_country: opt(f.coming_from_country),
+    next_destination: opt(f.next_destination),
+    next_destination_country: opt(f.next_destination_country),
+    purpose_of_visit: opt(f.purpose_of_visit),
+  };
+}
+
+export function ForeignGuestSection({
+  enabled,
+  onEnabledChange,
+  value,
+  onChange,
+}: {
+  readonly enabled: boolean;
+  readonly onEnabledChange: (v: boolean) => void;
+  readonly value: ForeignGuestFormState;
+  readonly onChange: (v: ForeignGuestFormState) => void;
+}) {
+  const t = useTranslations("checkin");
+  const ts = useTranslations("stay");
+  const set = (k: keyof ForeignGuestFormState, v: string) =>
+    onChange({ ...value, [k]: v });
+
+  const lbl = "text-label font-semibold uppercase tracking-wide text-muted-foreground";
+
+  return (
+    <div className="space-y-3">
+      <label className="flex cursor-pointer items-center gap-2.5 text-sm">
+        <input
+          type="checkbox"
+          className="size-4 rounded border-input"
+          checked={enabled}
+          onChange={(e) => onEnabledChange(e.target.checked)}
+        />
+        <span className="font-medium">{t("foreignGuestToggle")}</span>
+      </label>
+
+      {enabled && (
+        <div className="rounded-xl border bg-muted/10 p-4 space-y-5">
+          <div className="flex items-center gap-2">
+            <Globe className="size-4 text-gold-600" aria-hidden />
+            <p className="text-sm font-semibold">{t("foreignGuestDetails")}</p>
+          </div>
+
+          {/* Passport */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">{t("passport")}</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("passportNumber")} *</Label>
+                <Input
+                  value={value.passport_number}
+                  onChange={(e) => set("passport_number", e.target.value)}
+                  placeholder={t("passportNumber")}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("placeOfIssue")}</Label>
+                <Input
+                  value={value.passport_place_of_issue}
+                  onChange={(e) => set("passport_place_of_issue", e.target.value)}
+                  placeholder={t("placeOfIssue")}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("passportExpiry")}</Label>
+                <DatePicker
+                  value={value.passport_expiry}
+                  onChange={(v) => set("passport_expiry", v)}
+                  min={localToday()}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Visa */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">{t("visa")}</p>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("visaNumber")}</Label>
+                <Input
+                  value={value.visa_number}
+                  onChange={(e) => set("visa_number", e.target.value)}
+                  placeholder={t("visaNumber")}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("visaType")}</Label>
+                <select
+                  value={value.visa_type}
+                  onChange={(e) => set("visa_type", e.target.value)}
+                  className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                >
+                  <option value="">{t("selectOption")}</option>
+                  <option value="Tourist">{t("visa_tourist")}</option>
+                  <option value="Business">{t("visa_business")}</option>
+                  <option value="Medical">{t("visa_medical")}</option>
+                  <option value="Student">{t("visa_student")}</option>
+                  <option value="Employment">{t("visa_employment")}</option>
+                  <option value="Other">{t("visa_other")}</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("placeOfIssue")}</Label>
+                <Input
+                  value={value.visa_place_of_issue}
+                  onChange={(e) => set("visa_place_of_issue", e.target.value)}
+                  placeholder={t("placeOfIssue")}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("visaExpiry")}</Label>
+                <DatePicker
+                  value={value.visa_expiry}
+                  onChange={(v) => set("visa_expiry", v)}
+                  min={localToday()}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Personal */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">{t("personal")}</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("placeOfBirth")}</Label>
+                <Input
+                  value={value.place_of_birth}
+                  onChange={(e) => set("place_of_birth", e.target.value)}
+                  placeholder={t("placeOfBirth")}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("countryOfBirth")}</Label>
+                <Input
+                  value={value.country_of_birth}
+                  onChange={(e) => set("country_of_birth", e.target.value)}
+                  placeholder={t("countryOfBirth")}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("nationality")}</Label>
+                <Input
+                  value={value.nationality}
+                  onChange={(e) => set("nationality", e.target.value)}
+                  placeholder={t("nationality")}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Journey */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">{t("journey")}</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("arrivedInIndiaOn")}</Label>
+                <DatePicker
+                  value={value.arrived_in_india_on}
+                  onChange={(v) => set("arrived_in_india_on", v)}
+                  max={localToday()}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("arrivalPlace")}</Label>
+                <Input
+                  value={value.arrival_place}
+                  onChange={(e) => set("arrival_place", e.target.value)}
+                  placeholder={t("phArrivalPort")}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("comingFromCity")}</Label>
+                <Input
+                  value={value.coming_from_city}
+                  onChange={(e) => set("coming_from_city", e.target.value)}
+                  placeholder={t("phCity")}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("comingFromCountry")}</Label>
+                <Input
+                  value={value.coming_from_country}
+                  onChange={(e) => set("coming_from_country", e.target.value)}
+                  placeholder={t("phCountry")}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("nextDestination")}</Label>
+                <Input
+                  value={value.next_destination}
+                  onChange={(e) => set("next_destination", e.target.value)}
+                  placeholder={t("phCityPlace")}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={lbl}>{t("nextDestinationCountry")}</Label>
+                <Input
+                  value={value.next_destination_country}
+                  onChange={(e) => set("next_destination_country", e.target.value)}
+                  placeholder={t("phCountry")}
+                />
+              </div>
+              <div className="space-y-1.5 sm:col-span-3">
+                <Label className={lbl}>{ts("purposeOfVisit")}</Label>
+                <Input
+                  value={value.purpose_of_visit}
+                  onChange={(e) => set("purpose_of_visit", e.target.value)}
+                  placeholder={ts("purposeOfVisit")}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── New Guest Full Form ─────────────────────────────────────────────────────
 
 /**
  * Full identity form for creating a NEW guest: ID type/number, three queued
  * doc tiles (front/back/selfie) with OCR autofill, personal details and a
- * confirm button. Docs are only QUEUED here — the parent uploads them after
- * the guest record is created.
+ * confirm button.
+ *
+ * NOTE: Aadhaar and document uploads are non-compulsory (optional). Only
+ * Full Name and Phone Number are required to create the guest.
  */
 export function NewGuestFullForm({
   initialPhone = "",
@@ -440,6 +779,7 @@ export function NewGuestFullForm({
   pending = false,
   onConfirm,
   onCancel,
+  beforeConfirm,
 }: {
   /** Seeds the mobile field (e.g. the phone that was searched with no match). */
   readonly initialPhone?: string;
@@ -451,6 +791,8 @@ export function NewGuestFullForm({
   readonly onConfirm: (form: GuestCreatePayload, docs: QueuedDoc[]) => void;
   /** When provided, renders a Cancel button that closes the form. */
   readonly onCancel?: () => void;
+  /** Rendered between the form fields and the confirm button (e.g. Foreign Guest Form C). */
+  readonly beforeConfirm?: React.ReactNode;
 }) {
   const t = useTranslations("checkin");
   const tc = useTranslations("common");
@@ -488,7 +830,7 @@ export function NewGuestFullForm({
           <select
             value={form.id_proof_type}
             onChange={(e) => set("id_proof_type", e.target.value)}
-            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+            className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
           >
             <option value="Aadhar Card">{t("idAadhar")}</option>
             <option value="PAN Card">{t("idPan")}</option>
@@ -499,7 +841,9 @@ export function NewGuestFullForm({
         </div>
         <MaskedIdInput
           label={t("fieldIdNumber")}
+          labelClassName="text-xs"
           value={form.id_number ?? ""}
+          idType={form.id_proof_type}
           onChange={(v) => set("id_number", v)}
           placeholder={t("last4Min")}
         />
@@ -513,7 +857,6 @@ export function NewGuestFullForm({
           onQueued={handleQueueDoc}
           idType={form.id_proof_type}
           onOriginal={(_side, original) => {
-            // OCR runs on the ORIGINAL (full-resolution) image.
             import("@/lib/id-ocr").then(({ parseIdDocument }) =>
               parseIdDocument(original, form.id_proof_type ?? "Aadhar Card").then(setOcrResult),
             );
@@ -525,7 +868,6 @@ export function NewGuestFullForm({
           onQueued={handleQueueDoc}
           idType={form.id_proof_type}
           onOriginal={(_side, original) => {
-            // Back face → dedicated Aadhaar address/pincode parser.
             import("@/lib/id-ocr").then(({ parseIdDocument }) =>
               parseIdDocument(original, form.id_proof_type ?? "Aadhar Card", "back").then(
                 (result) => {
@@ -573,7 +915,7 @@ export function NewGuestFullForm({
           <Label className="text-xs">{tg("fullName")} *</Label>
           <Input
             value={form.full_name}
-            onChange={(e) => set("full_name", e.target.value)}
+            onChange={(e) => set("full_name", liveNameCase(e.target.value))}
             placeholder={tg("fullName")}
             required
           />
@@ -582,7 +924,8 @@ export function NewGuestFullForm({
           <Label className="text-xs">{tg("phoneNumber")} *</Label>
           <Input
             value={form.phone}
-            onChange={(e) => set("phone", e.target.value)}
+            onChange={(e) => set("phone", sanitizeGuestPhone(e.target.value))}
+            maxLength={15}
             placeholder={t("mobile10")}
             inputMode="tel"
             required
@@ -602,7 +945,7 @@ export function NewGuestFullForm({
           <select
             value={form.gender}
             onChange={(e) => set("gender", e.target.value)}
-            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+            className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
           >
             <option value="">{t("selectOption")}</option>
             <option value="Male">{t("male")}</option>
@@ -661,6 +1004,9 @@ export function NewGuestFullForm({
           />
         </div>
       </div>
+
+      {/* Slot for Foreign Guest (Form C) etc. — keeps confirm button LAST */}
+      {beforeConfirm}
 
       <div className="flex items-center gap-2">
         <Button

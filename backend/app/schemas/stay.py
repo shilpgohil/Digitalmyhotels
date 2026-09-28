@@ -5,28 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.schemas.booking import BookingCreate
-
-
-class ForeignGuestIn(BaseModel):
-    """Form C fields for a foreign national (FRRO compliance)."""
-
-    passport_number: str = Field(min_length=3, max_length=32)
-    passport_place_of_issue: str | None = Field(default=None, max_length=120)
-    passport_expiry: date | None = None
-    visa_number: str | None = Field(default=None, max_length=40)
-    visa_type: str | None = Field(default=None, max_length=40)
-    visa_place_of_issue: str | None = Field(default=None, max_length=120)
-    visa_expiry: date | None = None
-    place_of_birth: str | None = Field(default=None, max_length=120)
-    country_of_birth: str | None = Field(default=None, max_length=120)
-    nationality: str | None = Field(default=None, max_length=120)
-    arrived_in_india_on: date | None = None
-    arrival_place: str | None = Field(default=None, max_length=120)
-    coming_from_city: str | None = Field(default=None, max_length=120)
-    coming_from_country: str | None = Field(default=None, max_length=120)
-    next_destination: str | None = Field(default=None, max_length=120)
-    next_destination_country: str | None = Field(default=None, max_length=120)
-    purpose_of_visit: str | None = Field(default=None, max_length=200)
+from app.schemas.guest import ForeignGuestIn
 
 
 class CoGuestIn(BaseModel):

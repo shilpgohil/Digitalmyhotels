@@ -21,6 +21,8 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
+  AlertTriangle,
+  BadgeCheck,
   BedDouble,
   CalendarPlus,
   Check,
@@ -29,14 +31,17 @@ import {
   CreditCard,
   FileText,
   Minus,
+  Pencil,
+  Phone,
   Plus,
-  UserRound,
+  UserPlus,
 } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionPanel } from "@/components/ui/section-panel";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { GuestPicker } from "@/components/guests/guest-picker";
 import { AdvanceBookingVoucherModal } from "@/components/stay/advance-booking-voucher-modal";
@@ -45,11 +50,19 @@ import { UpiQrBlock } from "@/components/checkin/upi-qr-block";
 import { useApi } from "@/lib/api/use-api";
 import { invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
-import { ApiError, API_BASE } from "@/lib/api/client";
+import { ApiError, API_BASE, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { localToday, localTomorrow } from "@/lib/formatting";
+import {
+  liveNameCase,
+  sanitizeGuestPhone,
+  sanitizeAadhaarOcr,
+  isIdMask,
+} from "@/lib/input-discipline";
 import type {
   BookingOut,
+  GuestAutofill,
+  GuestCreatePayload,
   GuestOut,
   GuestType,
   RoomRateOverride,
@@ -58,6 +71,18 @@ import { GUEST_TYPES } from "@/types/stay";
 import type { RoomAvailabilityOut, RoomAvailableItem } from "@/types/hotel";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
+import {
+  NewGuestFullForm,
+  DocUpload,
+  DocSide,
+  MaskedIdInput,
+  AutofillBanner,
+  ForeignGuestSection,
+  ForeignGuestFormState,
+  EMPTY_FOREIGN_GUEST,
+  buildForeignGuestPayload,
+} from "@/components/stay/new-guest-full-form";
+import type { IdOcrResult } from "@/lib/id-ocr";
 
 const GUEST_TYPE_OPTIONS: { value: GuestType; label: string }[] = GUEST_TYPES.map(
   (value) => ({ value, label: value[0].toUpperCase() + value.slice(1) }),
@@ -80,7 +105,6 @@ const PAYMENT_MODES = [
 ];
 
 /** Static card section matching the check-in page look. */
-// Local Card alias removed — uses shared SectionPanel instead.
 const Card = SectionPanel;
 
 /** +/- counter matching the check-in page room occupancy controls. */
@@ -125,151 +149,6 @@ function Counter({
   );
 }
 
-/** Quick guest registration for advance bookings — ID proof and photos deferred to check-in. */
-function QuickGuestForm({
-  initialPhone = "",
-  pending = false,
-  onConfirm,
-  onCancel,
-}: {
-  readonly initialPhone?: string;
-  readonly pending?: boolean;
-  readonly onConfirm: (data: {
-    full_name: string;
-    phone: string;
-    email?: string;
-    id_proof_type?: string;
-    id_number?: string;
-  }) => void;
-  readonly onCancel: () => void;
-}) {
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState(initialPhone);
-  const [email, setEmail] = useState("");
-  const [idProofType, setIdProofType] = useState("");
-  const [idNumber, setIdNumber] = useState("");
-  const tc = useTranslations("common");
-
-  const canSave = !!fullName.trim() && !!phone.trim() && !pending;
-
-  return (
-    <div className="space-y-4 rounded-xl border bg-card p-4 shadow-sm">
-      <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3 text-xs text-blue-900 dark:text-blue-200">
-        <p className="font-semibold">Quick Guest Registration for Advance Booking</p>
-        <p className="mt-0.5 text-muted-foreground dark:text-blue-300">
-          Only Guest Name and Phone Number are required to reserve rooms in advance. Government ID verification and document photos can be collected upon guest arrival during check-in.
-        </p>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Label htmlFor="qg-name" className="text-xs font-semibold">
-            Full Name *
-          </Label>
-          <Input
-            id="qg-name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="e.g. Ramesh Kumar"
-            required
-            autoFocus
-          />
-        </div>
-
-        <div className="space-y-1">
-          <Label htmlFor="qg-phone" className="text-xs font-semibold">
-            Phone Number *
-          </Label>
-          <Input
-            id="qg-phone"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="e.g. 9876543210"
-            inputMode="tel"
-            required
-          />
-        </div>
-
-        <div className="space-y-1">
-          <Label htmlFor="qg-email" className="text-xs">
-            Email (Optional)
-          </Label>
-          <Input
-            id="qg-email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="e.g. guest@example.com"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <Label htmlFor="qg-idtype" className="text-xs">
-              ID Type (Optional)
-            </Label>
-            <select
-              id="qg-idtype"
-              value={idProofType}
-              onChange={(e) => setIdProofType(e.target.value)}
-              className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs"
-            >
-              <option value="">None / At Check-in</option>
-              <option value="Aadhar Card">Aadhaar Card</option>
-              <option value="PAN Card">PAN Card</option>
-              <option value="Passport">Passport</option>
-              <option value="Driving License">Driving License</option>
-              <option value="Voter ID">Voter ID</option>
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="qg-idnum" className="text-xs">
-              ID Number (Optional)
-            </Label>
-            <Input
-              id="qg-idnum"
-              value={idNumber}
-              onChange={(e) => setIdNumber(e.target.value)}
-              placeholder="e.g. Last 4 digits"
-              maxLength={20}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 pt-1">
-        <Button
-          type="button"
-          size="sm"
-          disabled={!canSave}
-          onClick={() =>
-            onConfirm({
-              full_name: fullName.trim(),
-              phone: phone.trim(),
-              email: email.trim() || undefined,
-              id_proof_type: idProofType || undefined,
-              id_number: idNumber.trim() || undefined,
-            })
-          }
-          className="bg-navy-900 text-white hover:bg-navy-800"
-        >
-          {pending ? tc("saving") : "Save & Select Guest"}
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={pending}
-          onClick={onCancel}
-        >
-          {tc("cancel")}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 function AdvanceBookingContent() {
   const api = useApi();
   const router = useRouter();
@@ -289,38 +168,142 @@ function AdvanceBookingContent() {
 
   // ── 2. Guest ──
   const [guest, setGuest] = useState<{ id: string; full_name: string } | null>(null);
-  // Full Aadhaar-upload creation form (same UX as check-in's walk-in flow) —
-  // opened when GuestPicker's search finds no match and staff clicks
-  // "Create new guest". Replaces the old inline mini-form.
   const [showNewGuest, setShowNewGuest] = useState(false);
   const [newGuestPhone, setNewGuestPhone] = useState("");
   const [createdBooking, setCreatedBooking] = useState<BookingOut | null>(null);
   const [voucherOpen, setVoucherOpen] = useState(false);
 
-  // Quick guest creation for advance bookings without mandatory ID proof.
-  const createGuest = useMutation({
-    mutationFn: async (payload: {
-      full_name: string;
-      phone: string;
-      email?: string;
-      id_proof_type?: string;
-      id_number?: string;
+  // Guest details state (identical to check-in walk-in flow)
+  const [pgName, setPgName] = useState("");
+  const [pgPhone, setPgPhone] = useState("");
+  const [pgGender, setPgGender] = useState("");
+  const [pgDob, setPgDob] = useState("");
+  const [pgAddress, setPgAddress] = useState("");
+  const [pgPostalCode, setPgPostalCode] = useState("");
+  const [pgCity, setPgCity] = useState("");
+  const [pgState, setPgState] = useState("");
+  const [pgCountry, setPgCountry] = useState("India");
+  const [pgIdType, setPgIdType] = useState("Aadhar Card");
+  const [pgIdNumber, setPgIdNumber] = useState("");
+  const [pgExistingDocs, setPgExistingDocs] = useState<Partial<Record<DocSide, string>>>({});
+  const [pgBaseline, setPgBaseline] = useState<GuestAutofill | null>(null);
+  const [pgWasIdSearch, setPgWasIdSearch] = useState(false);
+  const [pgContactOverride, setPgContactOverride] = useState("");
+  const [pgEditing, setPgEditing] = useState(false);
+  const [pgOcrResult, setPgOcrResult] = useState<IdOcrResult | null>(null);
+
+  // Foreign guest state (Form C)
+  const [fgEnabled, setFgEnabled] = useState(false);
+  const [fgForm, setFgForm] = useState<ForeignGuestFormState>(EMPTY_FOREIGN_GUEST);
+
+  const handleGuestSelected = async (g: {
+    id: string;
+    full_name: string;
+    phone?: string;
+    wasIdSearch?: boolean;
+  } | null) => {
+    if (!g?.id) {
+      setGuest(null);
+      setPgBaseline(null);
+      return;
+    }
+    setGuest({ id: g.id, full_name: g.full_name });
+    setPgName(g.full_name);
+    setPgPhone(g.phone ?? "");
+    setPgExistingDocs({});
+    setPgWasIdSearch(g.wasIdSearch ?? false);
+    setPgContactOverride("");
+    setPgEditing(false);
+
+    const [autofillResult, docsResult] = await Promise.allSettled([
+      api<GuestAutofill>(`/api/v1/guests/${g.id}/autofill`, { method: "POST" }),
+      api<{ id: string; side: string | null }[]>(`/api/v1/guests/${g.id}/documents`),
+    ]);
+
+    if (autofillResult.status === "fulfilled") {
+      const full = autofillResult.value;
+      setPgBaseline(full);
+      if (full.full_name) setPgName(full.full_name);
+      if (full.phone) setPgPhone(full.phone);
+      setPgGender(full.gender ?? "");
+      setPgDob(full.date_of_birth ?? "");
+      setPgAddress(full.address ?? "");
+      setPgPostalCode(full.postal_code ?? "");
+      setPgCity(full.city ?? "");
+      setPgState(full.state ?? "");
+      setPgCountry(full.country ?? "India");
+      if (full.id_proof_type) setPgIdType(full.id_proof_type);
+      setPgIdNumber(full.id_last4 ? `••••••••${full.id_last4}` : "");
+    } else {
+      setPgBaseline(null);
+    }
+
+    if (docsResult.status === "fulfilled") {
+      const docs: Partial<Record<DocSide, string>> = {};
+      for (const d of docsResult.value) {
+        if (
+          (d.side === "front" || d.side === "back" || d.side === "selfie") &&
+          !docs[d.side]
+        ) {
+          docs[d.side] = d.id;
+        }
+      }
+      setPgExistingDocs(docs);
+    }
+  };
+
+  // Full rich guest creation with queued document uploads (ID proof is optional)
+  const createPrimaryGuest = useMutation({
+    mutationFn: async ({
+      form,
+      docs,
+    }: {
+      form: GuestCreatePayload;
+      docs: { side: DocSide; file: File }[];
     }) => {
-      return api<GuestOut>("/api/v1/guests", {
+      const created = await api<GuestOut>("/api/v1/guests", {
         method: "POST",
         body: {
-          full_name: payload.full_name,
-          phone: payload.phone,
-          email: payload.email,
-          id_proof_type: payload.id_proof_type,
-          id_number: payload.id_number,
+          full_name: form.full_name.trim(),
+          phone: form.phone.trim(),
+          email: form.email?.trim() || undefined,
+          address: form.address?.trim() || undefined,
+          city: form.city?.trim() || undefined,
+          state: form.state?.trim() || undefined,
+          country: form.country?.trim() || undefined,
+          postal_code: form.postal_code?.trim() || undefined,
+          gender: form.gender?.trim() || undefined,
+          date_of_birth: form.date_of_birth?.trim() || undefined,
+          id_proof_type: form.id_proof_type?.trim() || undefined,
+          id_number: form.id_number?.trim() || undefined,
         },
       });
+
+      const uploadResults = await Promise.allSettled(
+        docs.map((doc) => {
+          const fd = new FormData();
+          fd.append("side", doc.side);
+          fd.append("document_type", "id_proof");
+          fd.append("file", doc.file);
+          return apiUpload(`/api/v1/guests/${created.id}/documents`, fd, {
+            hotelId: activeHotelId ?? undefined,
+          });
+        }),
+      );
+      const failedUploads = uploadResults.filter((r) => r.status === "rejected").length;
+      return { created, failedUploads };
     },
-    onSuccess: (created) => {
+    onSuccess: async ({ created, failedUploads }) => {
       setShowNewGuest(false);
-      setGuest({ id: created.id, full_name: created.full_name });
       toast.success(tg("guestCreated"));
+      if (failedUploads > 0) {
+        toast.warning(t("someDocsFailed", { count: failedUploads }));
+      }
+      await handleGuestSelected({
+        id: created.id,
+        full_name: created.full_name,
+        phone: created.normalized_phone,
+      });
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
   });
@@ -451,6 +434,32 @@ function AdvanceBookingContent() {
 
   const mutation = useMutation({
     mutationFn: async () => {
+      if (!guest?.id) throw new ApiError(400, "validation", "Please select a guest");
+
+      // 1. Update primary guest profile if identity fields were edited.
+      const patch: Record<string, string> = {};
+      if (pgName.trim() && pgName.trim() !== (pgBaseline?.full_name ?? guest.full_name)) {
+        patch.full_name = pgName.trim();
+      }
+      if (pgPhone.trim() && pgPhone.trim() !== (pgBaseline?.phone ?? pgPhone.trim())) {
+        patch.phone = pgPhone.trim();
+      }
+      if (pgGender && pgGender !== (pgBaseline?.gender ?? "")) patch.gender = pgGender;
+      if (pgDob && pgDob !== (pgBaseline?.date_of_birth ?? "")) patch.date_of_birth = pgDob;
+      if (pgAddress && pgAddress !== (pgBaseline?.address ?? "")) patch.address = pgAddress;
+      if (pgPostalCode && pgPostalCode !== (pgBaseline?.postal_code ?? "")) patch.postal_code = pgPostalCode;
+      if (pgCity && pgCity !== (pgBaseline?.city ?? "")) patch.city = pgCity;
+      if (pgState && pgState !== (pgBaseline?.state ?? "")) patch.state = pgState;
+      if (pgCountry && pgCountry !== (pgBaseline?.country ?? "India")) patch.country = pgCountry;
+      // Only send id_number if desk entered a real number (not the mask).
+      if (pgIdNumber.trim() && !isIdMask(pgIdNumber)) {
+        patch.id_number = pgIdNumber.trim().replace(/\s/g, "");
+        patch.id_proof_type = pgIdType;
+      }
+      if (Object.keys(patch).length > 0) {
+        await api(`/api/v1/guests/${guest.id}`, { method: "PATCH", body: patch });
+      }
+
       // Only rates actually edited away from the computed default are sent.
       const rateOverrides: RoomRateOverride[] = selectedAvailRooms
         .filter((r) => {
@@ -465,11 +474,11 @@ function AdvanceBookingContent() {
         })
         .map((r) => ({ room_id: r.id, rate: rateEdits[r.id].trim() }));
 
-      // 1. Create the booking
+      // 2. Create the booking
       const booking = await api<BookingOut>("/api/v1/bookings", {
         method: "POST",
         body: {
-          primary_guest_id: guest?.id,
+          primary_guest_id: guest.id,
           room_ids: selectedRooms,
           rate_overrides: rateOverrides.length > 0 ? rateOverrides : undefined,
           check_in_date: checkIn,
@@ -481,10 +490,11 @@ function AdvanceBookingContent() {
           adults,
           children,
           special_requests: specialInstructions.trim() || null,
+          foreign_guest: buildForeignGuestPayload(fgEnabled, fgForm),
         },
       });
 
-      // 2. Collect advance payment only if explicitly collected from guest
+      // 3. Collect advance payment only if explicitly collected from guest
       const advance = parseFloat(advanceAmount) || 0;
       if (advance > 0 && paymentCollected) {
         await api("/api/v1/payments", {
@@ -602,32 +612,389 @@ function AdvanceBookingContent() {
             </div>
           </Card>
 
-          {/* ── 2. Guest ───────────────────────────────────────────────── */}
-          <Card icon={UserRound} title={t("abGuest")} subtitle={t("abGuestSub")}>
+          {/* ── 2. Primary Guest Identity ─────────────────────────────────────── */}
+          <Card
+            icon={BadgeCheck}
+            title={t("primaryGuestIdentity")}
+            subtitle={t("primaryGuestIdentitySubtitle")}
+          >
             <div className="space-y-4">
               <GuestPicker
-                selected={guest?.id ? guest : null}
+                selected={guest?.id ? { id: guest.id, full_name: pgName || guest.full_name } : null}
                 onSelected={(g) => {
-                  setGuest(g.id ? g : null);
-                  if (g.id) setShowNewGuest(false);
+                  setShowNewGuest(false);
+                  void handleGuestSelected(g);
                 }}
                 onCreateNew={(searchedPhone) => {
-                  // Client flow: no mini-form — open the full Aadhaar-upload
-                  // guest creation form (same UX as Guest Check-in).
                   setNewGuestPhone(searchedPhone);
                   setShowNewGuest(true);
                 }}
               />
-              {showNewGuest && !guest?.id && (
-                <div className="space-y-3">
-                  <QuickGuestForm
+
+              {/* Rich new-guest form (Photo 3) */}
+              {!guest && showNewGuest && (
+                <div className="rounded-xl border p-4 space-y-4">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+                    <UserPlus className="size-3.5" aria-hidden />
+                    {tg("newGuest")}
+                  </p>
+                  <NewGuestFullForm
                     key={newGuestPhone}
                     initialPhone={newGuestPhone}
-                    pending={createGuest.isPending}
-                    onConfirm={(data) => createGuest.mutate(data)}
+                    confirmLabel={t("createGuestAction")}
+                    pending={createPrimaryGuest.isPending}
+                    onConfirm={(form, docs) => createPrimaryGuest.mutate({ form, docs })}
                     onCancel={() => setShowNewGuest(false)}
+                    beforeConfirm={
+                      <ForeignGuestSection
+                        enabled={fgEnabled}
+                        onEnabledChange={setFgEnabled}
+                        value={fgForm}
+                        onChange={setFgForm}
+                      />
+                    }
                   />
                 </div>
+              )}
+
+              {/* Primary guest SUMMARY CARD (Photo 2) */}
+              {guest && !pgEditing && (
+                <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
+                  {/* Header: name + phone + action buttons */}
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <BadgeCheck className="size-4 text-success" aria-hidden />
+                      <div>
+                        <span className="text-sm font-semibold">{pgName || guest.full_name}</span>
+                        {pgPhone && (
+                          <p className="text-xs text-muted-foreground tabular-nums">{pgPhone}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {/* Auto-fill: re-fetches latest profile + docs then opens edit */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void Promise.all([
+                            api<GuestAutofill>(`/api/v1/guests/${guest.id}/autofill`, { method: "POST" }),
+                            api<{ id: string; side: string | null }[]>(`/api/v1/guests/${guest.id}/documents`)
+                              .catch(() => [] as { id: string; side: string | null }[]),
+                          ]).then(([full, docsList]) => {
+                            const bySide: Partial<Record<DocSide, string>> = {};
+                            for (const d of docsList) {
+                              if (
+                                (d.side === "front" || d.side === "back" || d.side === "selfie") &&
+                                !bySide[d.side as DocSide]
+                              ) {
+                                bySide[d.side as DocSide] = d.id;
+                              }
+                            }
+                            setPgExistingDocs(bySide);
+                            setPgBaseline(full);
+                            if (full.full_name) setPgName(full.full_name);
+                            if (full.phone) setPgPhone(full.phone);
+                            setPgGender(full.gender ?? pgGender);
+                            setPgDob(full.date_of_birth ?? pgDob);
+                            setPgAddress(full.address ?? pgAddress);
+                            setPgPostalCode(full.postal_code ?? pgPostalCode);
+                            setPgCity(full.city ?? pgCity);
+                            setPgState(full.state ?? pgState);
+                            if (full.id_proof_type) setPgIdType(full.id_proof_type);
+                            setPgIdNumber(full.id_last4 ? `••••••••${full.id_last4}` : pgIdNumber);
+                            setPgEditing(true);
+                          }).catch(() => setPgEditing(true));
+                        }}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gold-400 bg-gold-50 px-2.5 text-xs font-semibold text-gold-700 transition-colors hover:bg-gold-100"
+                      >
+                        {t("autofillLabel")}
+                      </button>
+                      {/* Edit Guest Details */}
+                      <button
+                        type="button"
+                        onClick={() => setPgEditing(true)}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-input bg-white px-2.5 text-xs font-semibold transition-colors hover:bg-muted"
+                      >
+                        <Pencil className="size-3.5" aria-hidden />
+                        {t("editGuest")}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Read-only profile summary grid */}
+                  {[
+                    { label: t("fieldGender"), value: pgGender },
+                    { label: t("fieldDob"), value: pgDob },
+                    { label: t("fieldAddress"), value: pgAddress },
+                    { label: t("fieldCity"), value: pgCity },
+                    { label: t("fieldState"), value: pgState },
+                    { label: t("pincode"), value: pgPostalCode },
+                    { label: t("idType"), value: pgIdType },
+                    { label: t("idNumberShort"), value: pgIdNumber ? `••••${pgIdNumber.slice(-4)}` : null },
+                  ].filter((row) => !!row.value).length > 0 && (
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg border bg-white px-3 py-2.5 sm:grid-cols-3">
+                      {[
+                        { label: t("fieldGender"), value: pgGender },
+                        { label: t("fieldDob"), value: pgDob },
+                        { label: t("fieldAddress"), value: pgAddress },
+                        { label: t("fieldCity"), value: pgCity },
+                        { label: t("fieldState"), value: pgState },
+                        { label: t("pincode"), value: pgPostalCode },
+                        { label: t("idType"), value: pgIdType },
+                        { label: t("idNumberShort"), value: pgIdNumber ? `••••${pgIdNumber.slice(-4)}` : null },
+                      ].filter((row) => !!row.value).map((row) => (
+                        <div key={row.label} className="min-w-0">
+                          <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">{row.label}</p>
+                          <p className="truncate text-xs font-medium" title={row.value ?? ""}>{row.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* "Found by Aadhaar ID" hint + contact override */}
+                  {pgWasIdSearch && (
+                    <div className="rounded-lg border border-info/20 bg-info-bg/40 px-3 py-2 space-y-2">
+                      <p className="flex items-start gap-1.5 text-xs text-info">
+                        <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                        <span>{t("idSearchSelectedHint")}</span>
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" aria-hidden />
+                          <input
+                            type="tel"
+                            inputMode="numeric"
+                            maxLength={15}
+                            value={pgContactOverride}
+                            onChange={(e) => setPgContactOverride(sanitizeGuestPhone(e.target.value))}
+                            placeholder={t("contactOverridePlaceholder")}
+                            className="h-8 w-full rounded-lg border border-input bg-white pl-8 pr-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                          />
+                        </div>
+                        {pgContactOverride && (
+                          <button
+                            type="button"
+                            onClick={() => setPgContactOverride("")}
+                            className="text-xs text-muted-foreground hover:text-foreground"
+                          >
+                            {tc("clear")}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Photo tiles (read-only display with DocUpload) */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <DocUpload
+                      key={`${guest.id}-front`}
+                      guestId={guest.id}
+                      side="front"
+                      label={t("uploadFrontFace")}
+                      idType={pgIdType}
+                      existingDocId={pgExistingDocs.front}
+                      onOcrResult={() => {}}
+                    />
+                    <DocUpload
+                      key={`${guest.id}-back`}
+                      guestId={guest.id}
+                      side="back"
+                      label={t("uploadBackFace")}
+                      idType={pgIdType}
+                      existingDocId={pgExistingDocs.back}
+                      onOcrResult={() => {}}
+                    />
+                    <DocUpload
+                      key={`${guest.id}-selfie`}
+                      guestId={guest.id}
+                      side="selfie"
+                      label={t("selfieCapture")}
+                      existingDocId={pgExistingDocs.selfie}
+                      onOcrResult={() => {}}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Primary guest EDIT FORM (shows when pgEditing = true) */}
+              {guest && pgEditing && (
+                <div className="space-y-4 rounded-xl border bg-card p-4">
+                  {/* Edit header with cancel */}
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("editGuest")}</p>
+                    <button
+                      type="button"
+                      onClick={() => setPgEditing(false)}
+                      className="text-xs font-medium text-muted-foreground hover:text-foreground"
+                    >
+                      {tc("cancel")}
+                    </button>
+                  </div>
+
+                  {/* ID type + number */}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("idType")}</Label>
+                      <select
+                        value={pgIdType}
+                        onChange={(e) => setPgIdType(e.target.value)}
+                        className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                      >
+                        <option value="Aadhar Card">{t("idAadhar")}</option>
+                        <option value="PAN Card">{t("idPan")}</option>
+                        <option value="Passport">{t("idPassport")}</option>
+                        <option value="Driving License">{t("idDrivingLicense")}</option>
+                        <option value="Voter ID">{t("idVoter")}</option>
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <MaskedIdInput
+                        label={t("idNoOf", { type: pgIdType.toUpperCase() })}
+                        idType={pgIdType}
+                        value={pgIdNumber}
+                        onChange={setPgIdNumber}
+                        placeholder={t("enterIdNumber", { type: pgIdType })}
+                        onReveal={
+                          guest?.id
+                            ? async () => {
+                                const res = await api<{ id_number: string | null }>(
+                                  `/api/v1/guests/${guest.id}/reveal-id`,
+                                  { method: "POST" },
+                                );
+                                return res.id_number;
+                              }
+                            : undefined
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  {/* Document uploads */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <DocUpload
+                      key={`${guest.id}-front`}
+                      guestId={guest.id}
+                      side="front"
+                      label={t("uploadFrontFace")}
+                      idType={pgIdType}
+                      existingDocId={pgExistingDocs.front}
+                      onOcrResult={(result) => setPgOcrResult(result)}
+                    />
+                    <DocUpload
+                      key={`${guest.id}-back`}
+                      guestId={guest.id}
+                      side="back"
+                      label={t("uploadBackFace")}
+                      idType={pgIdType}
+                      existingDocId={pgExistingDocs.back}
+                      onOcrResult={(result) => {
+                        if (result.fields.address) {
+                          setPgAddress((prev) => prev || (result.fields.address ?? ""));
+                          if (result.fields.pincode) setPgPostalCode((prev) => prev || (result.fields.pincode ?? ""));
+                          if (result.fields.city) setPgCity((prev) => prev || (result.fields.city ?? ""));
+                          if (result.fields.state) setPgState((prev) => prev || (result.fields.state ?? ""));
+                          toast.success(t("formAutofilled"));
+                        } else {
+                          toast.warning(result.message);
+                        }
+                      }}
+                    />
+                    <DocUpload
+                      key={`${guest.id}-selfie`}
+                      guestId={guest.id}
+                      side="selfie"
+                      label={t("selfieCapture")}
+                      existingDocId={pgExistingDocs.selfie}
+                    />
+                  </div>
+
+                  {/* OCR autofill banner */}
+                  {pgOcrResult && (
+                    <AutofillBanner
+                      result={pgOcrResult}
+                      onAccept={(fields) => {
+                        if (fields.name) setPgName(fields.name);
+                        if (fields.id_number && !isIdMask(fields.id_number)) {
+                          const idType = fields.id_type_detected ?? pgIdType ?? "Aadhar Card";
+                          const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(fields.id_number) : fields.id_number.trim();
+                          setPgIdNumber(cleaned);
+                        }
+                        if (fields.gender) setPgGender(fields.gender);
+                        if (fields.date_of_birth) setPgDob(fields.date_of_birth);
+                        if (fields.address) setPgAddress(fields.address);
+                        if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
+                        setPgOcrResult(null);
+                        toast.success(t("formAutofilled"));
+                      }}
+                      onDismiss={() => setPgOcrResult(null)}
+                    />
+                  )}
+
+                  {/* Personal details */}
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{tg("fullName")}</Label>
+                      <Input value={pgName} onChange={(e) => setPgName(liveNameCase(e.target.value))} placeholder={tg("fullName")} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("phoneNumber")}</Label>
+                      <Input value={pgPhone} onChange={(e) => setPgPhone(sanitizeGuestPhone(e.target.value))} maxLength={15} placeholder={t("phonePlaceholder")} inputMode="tel" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldGender")}</Label>
+                      <select
+                        value={pgGender}
+                        onChange={(e) => setPgGender(e.target.value)}
+                        className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                      >
+                        <option value="">{t("selectOption")}</option>
+                        <option value="Male">{t("male")}</option>
+                        <option value="Female">{t("female")}</option>
+                        <option value="Other">{t("genderOther")}</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldDob")}</Label>
+                      <DatePicker value={pgDob} onChange={setPgDob} max={localToday()} />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>
+                      <Input value={pgAddress} onChange={(e) => setPgAddress(e.target.value)} placeholder={t("fieldAddress")} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldPincode")}</Label>
+                      <Input
+                        value={pgPostalCode}
+                        onChange={(e) => setPgPostalCode(e.target.value)}
+                        placeholder={t("fieldPincode")}
+                        inputMode="numeric"
+                        maxLength={6}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldCity")}</Label>
+                      <Input value={pgCity} onChange={(e) => setPgCity(e.target.value)} placeholder={t("fieldCity")} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldState")}</Label>
+                      <Input value={pgState} onChange={(e) => setPgState(e.target.value)} placeholder={t("fieldState")} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldCountry")}</Label>
+                      <Input value={pgCountry} onChange={(e) => setPgCountry(e.target.value)} placeholder={t("fieldCountry")} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Foreign guest (Form C) for selected guest */}
+              {guest && (
+                <ForeignGuestSection
+                  enabled={fgEnabled}
+                  onEnabledChange={setFgEnabled}
+                  value={fgForm}
+                  onChange={setFgForm}
+                />
               )}
             </div>
           </Card>
