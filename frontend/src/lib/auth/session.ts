@@ -13,8 +13,9 @@
 
 const KEY_ACCESS = "dmh_access";
 const KEY_USER   = "dmh_user";       // cached /me response to skip the API call on reload
+const KEY_REFRESH = "dmh_refresh_ls"; // durable localStorage refresh token backup
 const LS_ACCESS  = "dmh_access_ls";  // localStorage backup with expiry
-const LS_TTL_MS  = 30 * 24 * 60 * 60 * 1000;  // 30 days (persists across browser restarts)
+const LS_TTL_MS  = 365 * 24 * 60 * 60 * 1000;  // 1 year (persists until user explicitly logs out)
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -97,12 +98,35 @@ export function getCachedUser<T>(): T | null {
   } catch { return null; }
 }
 
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(KEY_REFRESH);
+  } catch {
+    return null;
+  }
+}
+
+export function setRefreshToken(token: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (token) {
+      localStorage.setItem(KEY_REFRESH, token);
+    } else {
+      localStorage.removeItem(KEY_REFRESH);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 export function clearSession(): void {
   ss_del(KEY_ACCESS);
   ss_del(KEY_USER);
   if (typeof window !== "undefined") {
     try { localStorage.removeItem(LS_ACCESS); } catch { /* ignore */ }
     try { localStorage.removeItem(KEY_USER); } catch { /* ignore */ }
+    try { localStorage.removeItem(KEY_REFRESH); } catch { /* ignore */ }
   }
   listeners.forEach((fn) => fn());
 }

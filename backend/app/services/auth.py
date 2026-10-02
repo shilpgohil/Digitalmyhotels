@@ -104,9 +104,16 @@ async def rotate_refresh_token(
             if existing.revoked_at.tzinfo is None
             else existing.revoked_at
         )
-        # 60s grace period: if the token was rotated within the last 60 seconds,
-        # treat this as a concurrent request or network retry, not malicious reuse.
-        if existing.replaced_by_id is not None and (now - revoked_time).total_seconds() < 60:
+        # Multi-tab and background tab grace period: if the token was rotated within the
+        # grace window (default 30 days), treat this as a concurrent request, network retry,
+        # or secondary tab, and seamlessly issue a fresh token pair.
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        if (
+            existing.replaced_by_id is not None
+            and (now - revoked_time).total_seconds() < settings.refresh_rotation_grace_seconds
+        ):
             user_result = await db.execute(select(User).where(User.id == existing.user_id))
             user = user_result.scalar_one_or_none()
             if user and user.is_active:

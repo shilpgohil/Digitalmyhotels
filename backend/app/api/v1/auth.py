@@ -21,6 +21,7 @@ from app.schemas.auth import (
     MessageOut,
     PasswordResetConfirm,
     PasswordResetRequest,
+    RefreshRequest,
     TokenResponse,
     UpdateMeRequest,
     UserOut,
@@ -37,11 +38,11 @@ def _set_refresh_cookie(response: Response, raw_refresh: str) -> None:
         key=settings.refresh_cookie_name,
         value=raw_refresh,
         httponly=True,
-        secure=settings.refresh_cookie_secure,
+        secure=settings.effective_cookie_secure,
         samesite=settings.refresh_cookie_samesite,
         domain=settings.refresh_cookie_domain or None,
         max_age=settings.refresh_token_expire_days * 24 * 3600,
-        path="/api/v1/auth",
+        path=settings.refresh_cookie_path,
     )
 
 
@@ -49,7 +50,7 @@ def _clear_refresh_cookie(response: Response) -> None:
     settings = get_settings()
     response.delete_cookie(
         key=settings.refresh_cookie_name,
-        path="/api/v1/auth",
+        path=settings.refresh_cookie_path,
         domain=settings.refresh_cookie_domain or None,
     )
 
@@ -144,6 +145,8 @@ async def login(
     return TokenResponse(
         access_token=access,
         expires_in=settings.access_token_expire_minutes * 60,
+        refresh_token=refresh,
+        refresh_expires_in=settings.refresh_token_expire_days * 24 * 3600,
         user=UserOut.model_validate(user),
         memberships=_membership_outs(memberships, access_modes, hotel_statuses),
     )
@@ -153,10 +156,17 @@ async def login(
 async def refresh(
     request: Request,
     response: Response,
+    body: RefreshRequest | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
     settings = get_settings()
     raw = request.cookies.get(settings.refresh_cookie_name)
+    if not raw and body and body.refresh_token:
+        raw = body.refresh_token.strip()
+    if not raw:
+        hdr = request.headers.get("x-refresh-token")
+        if hdr:
+            raw = hdr.strip()
     if not raw:
         from app.core.errors import UnauthorizedError
 
@@ -175,6 +185,8 @@ async def refresh(
     return TokenResponse(
         access_token=access,
         expires_in=settings.access_token_expire_minutes * 60,
+        refresh_token=new_refresh,
+        refresh_expires_in=settings.refresh_token_expire_days * 24 * 3600,
         user=UserOut.model_validate(user),
         memberships=_membership_outs(memberships, access_modes, hotel_statuses),
     )
@@ -184,10 +196,17 @@ async def refresh(
 async def logout(
     request: Request,
     response: Response,
+    body: RefreshRequest | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> MessageOut:
     settings = get_settings()
     raw = request.cookies.get(settings.refresh_cookie_name)
+    if not raw and body and body.refresh_token:
+        raw = body.refresh_token.strip()
+    if not raw:
+        hdr = request.headers.get("x-refresh-token")
+        if hdr:
+            raw = hdr.strip()
     if raw:
         await auth_service.revoke_refresh_token(db, raw)
     _clear_refresh_cookie(response)

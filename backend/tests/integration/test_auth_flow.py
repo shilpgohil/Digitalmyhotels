@@ -98,7 +98,10 @@ async def test_refresh_rotation_and_reuse_detection(
     await db_session.execute(
         update(RefreshToken)
         .where(RefreshToken.token_hash == token_hash)
-        .values(revoked_at=datetime.now(UTC) - timedelta(seconds=65))
+        .values(
+            revoked_at=datetime.now(UTC)
+            - timedelta(seconds=settings.refresh_rotation_grace_seconds + 5)
+        )
     )
     await db_session.commit()
 

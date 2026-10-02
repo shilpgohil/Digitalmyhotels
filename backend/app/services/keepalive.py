@@ -27,9 +27,16 @@ PING_INTERVAL_SECONDS = 10 * 60
 
 async def self_ping_loop() -> None:
     """Ping our own public /health every 10 minutes (production only)."""
-    base_url = (os.environ.get("RENDER_EXTERNAL_URL") or "").rstrip("/")
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    base_url = (
+        os.environ.get("RENDER_EXTERNAL_URL")
+        or os.environ.get("BACKEND_PUBLIC_URL")
+        or ("https://digitalmyhotels-api-sg.onrender.com" if settings.is_production else "")
+    ).rstrip("/")
     if not base_url:
-        return  # not on Render — nothing to keep alive
+        return  # not on Render / production — nothing to keep alive
 
     import httpx
 

@@ -11,7 +11,15 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, ApiError, refreshAccessToken } from "@/lib/api/client";
-import { clearSession, getAccessToken, getCachedUser, setCachedUser, setAccessToken } from "@/lib/auth/session";
+import {
+  clearSession,
+  getAccessToken,
+  getRefreshToken,
+  setRefreshToken,
+  getCachedUser,
+  setCachedUser,
+  setAccessToken,
+} from "@/lib/auth/session";
 import type { MeResponse, MembershipOut, TokenResponse, UserOut } from "@/types/auth";
 import type { HotelOut } from "@/types/hotel";
 
@@ -100,14 +108,14 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     const tryRefresh = async (attempt = 0): Promise<boolean> => {
       const ok = await refreshAccessToken();
       if (ok || cancelled) return ok;
-      if (attempt >= 4) return false;             // max 5 attempts
-      const delay = 500 * 2 ** attempt;           // 500 ms → 1 s → 2 s → 4 s → 8 s
+      if (attempt >= 6) return false;             // max 7 attempts (up to 45 s total for Render cold starts)
+      const delay = Math.min(500 * 2 ** attempt, 8000);
       await new Promise((r) => setTimeout(r, delay));
       return cancelled ? false : tryRefresh(attempt + 1);
     };
 
     (async () => {
-      // ── Fastest path: token + user both in sessionStorage (normal page F5) ──
+      // ── Fastest path: token + user both in sessionStorage or localStorage ──
       // Skip the /me round-trip entirely — no loading spinner, instant restore.
       const cachedToken = getAccessToken();
       const cachedMe = getCachedUser<MeResponse>();
@@ -120,7 +128,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
             applySession(freshMe);
           }
         } catch (err) {
-          if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          if (err instanceof ApiError && err.code === "account_disabled") {
             clearSession();
             if (!cancelled) {
               setUser(null);
@@ -131,7 +139,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
             }
             return;
           }
-          // Keep cached session intact if offline or transient network error.
+          // Keep cached session intact across transient network drops and server cold starts.
         }
         return;
       }
@@ -140,6 +148,13 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
       if (!cachedToken) {
         const ok = await tryRefresh();
         if (!ok) {
+          // If we have a cached user profile from localStorage, preserve it!
+          // Transient network drops or sleeping servers must NEVER log the user out.
+          const fallbackMe = getCachedUser<MeResponse>();
+          if (fallbackMe) {
+            if (!cancelled) applySession(fallbackMe);
+            return;
+          }
           clearSession();
           if (!cancelled) {
             setUser(null);
@@ -161,7 +176,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
         }
       } catch (err) {
         if (!cancelled) {
-          if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          if (err instanceof ApiError && err.code === "account_disabled") {
             clearSession();
             setUser(null);
             setMemberships([]);
@@ -194,6 +209,9 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
         skipAuthRetry: true,
       });
       setAccessToken(data.access_token);
+      if (data.refresh_token) {
+        setRefreshToken(data.refresh_token);
+      }
       const me = await apiFetch<MeResponse>("/api/v1/auth/me");
       setCachedUser(me);   // cache so next F5 is instant
       applySession(me);
@@ -204,7 +222,12 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await apiFetch("/api/v1/auth/logout", { method: "POST", skipAuthRetry: true });
+      const refreshToken = getRefreshToken();
+      await apiFetch("/api/v1/auth/logout", {
+        method: "POST",
+        body: { refresh_token: refreshToken },
+        skipAuthRetry: true,
+      });
     } catch {
       // Logout must always succeed client-side.
     }

@@ -1,4 +1,10 @@
-import { getAccessToken, setAccessToken, clearSession } from "@/lib/auth/session";
+import {
+  getAccessToken,
+  setAccessToken,
+  getRefreshToken,
+  setRefreshToken,
+  clearSession,
+} from "@/lib/auth/session";
 
 // Empty = same-origin (Next.js rewrites /api to the FastAPI process).
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
@@ -73,15 +79,29 @@ let lastRefreshStatus = 200;
 export async function refreshAccessToken(): Promise<boolean> {
   refreshPromise ??= (async () => {
     try {
+      const storedRefresh = getRefreshToken();
+      const headers: Record<string, string> = {};
+      let body: string | undefined;
+      if (storedRefresh) {
+        headers["Content-Type"] = "application/json";
+        headers["X-Refresh-Token"] = storedRefresh;
+        body = JSON.stringify({ refresh_token: storedRefresh });
+      }
+
       // Relative path — always proxied by Next.js rewrites, never cross-origin.
       const response = await fetch(`/api/v1/auth/refresh`, {
         method: "POST",
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
+        body,
         credentials: "include",
       });
       lastRefreshStatus = response.status;
       if (!response.ok) return false;
-      const data = (await response.json()) as { access_token: string };
+      const data = (await response.json()) as { access_token: string; refresh_token?: string };
       setAccessToken(data.access_token);
+      if (data.refresh_token) {
+        setRefreshToken(data.refresh_token);
+      }
       return true;
     } catch {
       lastRefreshStatus = 503;
@@ -118,9 +138,9 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     if (refreshed) {
       response = await doFetch();
     } else {
-      // Only wipe session if the refresh token was explicitly rejected (401/403).
-      // If the backend is restarting (502/503) or offline, preserve the session!
-      if (lastRefreshStatus === 401 || lastRefreshStatus === 403) {
+      // Only wipe session if the account is explicitly disabled (403).
+      // Transient 401s, network drops, or server spin-downs must NEVER wipe the session.
+      if (lastRefreshStatus === 403) {
         clearSession();
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("dmh:auth-expired"));
@@ -182,7 +202,7 @@ export async function apiUpload<T>(
     if (refreshed) {
       response = await doFetch();
     } else {
-      if (lastRefreshStatus === 401 || lastRefreshStatus === 403) {
+      if (lastRefreshStatus === 403) {
         clearSession();
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("dmh:auth-expired"));

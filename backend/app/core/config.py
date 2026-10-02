@@ -25,13 +25,22 @@ class Settings(BaseSettings):
     )
 
     secret_key: str = Field(default="dev-secret-change-me")
-    # 30 days default (can be overridden via ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token_expire_minutes: int = 60 * 24 * 30
-    refresh_token_expire_days: int = 90  # 90 days default
+    # 365 days default (1 year) so sessions do not expire until user logs out
+    access_token_expire_minutes: int = 60 * 24 * 365
+    refresh_token_expire_days: int = 365
+    # 30-day grace window for rotated tokens (multi-tab / background tab wake-up)
+    refresh_rotation_grace_seconds: int = 60 * 60 * 24 * 30
     refresh_cookie_name: str = "dmh_refresh"
     refresh_cookie_secure: bool = False
     refresh_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     refresh_cookie_domain: str | None = None
+    refresh_cookie_path: str = "/"
+
+    @property
+    def effective_cookie_secure(self) -> bool:
+        if self.app_env in ("production", "staging"):
+            return True
+        return self.refresh_cookie_secure
 
     upi_encryption_key: str = Field(default="dev-fernet-key-replace-with-real-fernet-key==")
     # Set this to the OLD key when rotating upi_encryption_key so existing

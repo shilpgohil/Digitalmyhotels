@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date
 import hashlib
+from datetime import date
 
 import pytest
 from pydantic import ValidationError
