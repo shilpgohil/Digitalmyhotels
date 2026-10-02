@@ -20,7 +20,6 @@ import {
   BarChart3,
   Settings,
   UserCog,
-  UserRound,
   Bell,
   ClipboardCheck,
   ArrowLeftRight,
@@ -123,12 +122,6 @@ const SECTIONS: NavSection[] = [
         labelKey: "housekeeping",
         icon: Sparkles,
         permission: PERMISSIONS.housekeepingManage,
-      },
-      {
-        href: "/edit-hotel",
-        labelKey: "editHotel",
-        icon: Building2,
-        permission: PERMISSIONS.hotelManageSettings,
       },
     ],
   },
@@ -257,19 +250,32 @@ const SECTIONS: NavSection[] = [
         icon: ScrollText,
         permission: PERMISSIONS.auditView,
       },
-      {
-        href: "/team",
-        labelKey: "team",
-        icon: UserCog,
-        permission: PERMISSIONS.hotelManageTeam,
-      },
-      {
-        href: "/settings",
-        labelKey: "settings",
-        icon: Settings,
-        permission: PERMISSIONS.hotelView,
-      },
     ],
+  },
+];
+
+/**
+ * Bottom navigation items placed below the Upgrade Plan button.
+ * Settings, Edit Hotel, and Team Members (hotel management / configuration).
+ */
+export const BOTTOM_NAV_ITEMS: NavItem[] = [
+  {
+    href: "/settings",
+    labelKey: "settings",
+    icon: Settings,
+    permission: PERMISSIONS.hotelView,
+  },
+  {
+    href: "/edit-hotel",
+    labelKey: "editHotel",
+    icon: Building2,
+    permission: PERMISSIONS.hotelManageSettings,
+  },
+  {
+    href: "/team",
+    labelKey: "team",
+    icon: UserCog,
+    permission: PERMISSIONS.hotelManageTeam,
   },
 ];
 
@@ -309,6 +315,7 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
   // screenshot: Staff List + Staff Check-in/out both gold). Exactly ONE item
   // — the most specific matching href — may be active.
   const activeHref = SECTIONS.flatMap((s) => s.items)
+    .concat(BOTTOM_NAV_ITEMS)
     .map((item) => item.href)
     .filter((href) => pathname === href || pathname.startsWith(`${href}/`))
     .sort((a, b) => b.length - a.length)[0];
@@ -453,13 +460,58 @@ export function PartnerBrand() {
   );
 }
 
+/**
+ * Bottom navigation links for hotel configuration (Settings, Edit Hotel, Team Members)
+ * placed below the Upgrade Plan button.
+ */
+export function PartnerBottomNav({ onNavigate }: { readonly onNavigate?: () => void }) {
+  const t = useTranslations("nav");
+  const pathname = usePathname();
+  const { can } = useAuth();
+
+  const activeHref = SECTIONS.flatMap((s) => s.items)
+    .concat(BOTTOM_NAV_ITEMS)
+    .map((item) => item.href)
+    .filter((href) => pathname === href || pathname.startsWith(`${href}/`))
+    .sort((a, b) => b.length - a.length)[0];
+
+  const visible = BOTTOM_NAV_ITEMS.filter(
+    (item) => !item.permission || can(item.permission),
+  );
+  if (visible.length === 0) return null;
+
+  return (
+    <ul className="space-y-0.5 px-3 py-1">
+      {visible.map((item) => {
+        const active = item.href === activeHref;
+        const Icon = item.icon;
+        return (
+          <li key={item.href}>
+            <Link
+              href={item.href}
+              data-tour={`nav-${item.href.replace("/", "")}`}
+              aria-current={active ? "page" : undefined}
+              onClick={onNavigate}
+              className={cn(
+                "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-all duration-200",
+                active
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[0_2px_14px_rgba(192,154,46,0.30)]"
+                  : "text-sidebar-foreground hover:bg-white/[0.06] hover:text-white",
+              )}
+            >
+              <Icon className="size-4 shrink-0" aria-hidden />
+              <span className="truncate">{t(item.labelKey)}</span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function PartnerSidebar() {
   const t = useTranslations("nav");
-  const { user, can, memberships, activeHotelId } = useAuth();
-
-  // Designation shown under the user's name (client request, 09/2026) —
-  // the role held at the active hotel, e.g. "Hotel Owner" / "Manager".
-  const roleName = memberships.find((m) => m.hotel_id === activeHotelId)?.role_name;
+  const { can } = useAuth();
 
   return (
     <aside
@@ -488,22 +540,12 @@ export function PartnerSidebar() {
         </div>
       )}
 
-      {/* User footer */}
-      <div className="border-t border-white/[0.08] px-4 py-4">
-        <div className="flex items-center gap-2.5">
-          <UserRound className="size-4 shrink-0 opacity-70" aria-hidden />
-          <div className="min-w-0">
-            <p className="text-micro uppercase tracking-wider opacity-60">
-              {t("loggedInAs")}
-            </p>
-            <p className="truncate text-sm font-medium text-white">{user?.full_name}</p>
-            {roleName && (
-              <p className="truncate text-xs opacity-70">{roleName}</p>
-            )}
-          </div>
-        </div>
-        {/* Powered by DMH badge */}
-        <div className="mt-3 flex items-center gap-1.5 opacity-40">
+      {/* Bottom configuration nav: Settings, Edit Hotel, Team Members */}
+      <PartnerBottomNav />
+
+      {/* Powered by DMH badge */}
+      <div className="border-t border-white/[0.08] px-4 py-3">
+        <div className="flex items-center gap-1.5 opacity-40">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/dmh-icon.png"

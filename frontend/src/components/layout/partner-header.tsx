@@ -20,7 +20,7 @@ import { apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { HotelOut } from "@/types/hotel";
-import { PartnerBrand, PartnerNav } from "@/components/layout/partner-sidebar";
+import { PartnerBrand, PartnerNav, PartnerBottomNav } from "@/components/layout/partner-sidebar";
 import { LocaleSwitcher } from "@/components/layout/locale-switcher";
 import { NotificationsBell } from "@/components/layout/notifications-bell";
 import { GlobalSearch } from "@/components/layout/global-search";
@@ -140,7 +140,7 @@ function MobileNavDrawer() {
               from the mobile drawer (client 21/09/2026). Shown only to
               users with settings permission, same gate as the desktop button. */}
           {can(PERMISSIONS.hotelManageSettings) && (
-            <div className="px-4 pb-4 pt-2">
+            <div className="px-4 pb-2 pt-2">
               <Link
                 href="/plan"
                 onClick={() => setOpen(false)}
@@ -151,6 +151,7 @@ function MobileNavDrawer() {
               </Link>
             </div>
           )}
+          <PartnerBottomNav onNavigate={() => setOpen(false)} />
         </SheetContent>
       </Sheet>
     </>
@@ -169,8 +170,11 @@ export function PartnerHeader({
 }) {
   const t = useTranslations("auth");
   const tt = useTranslations("tour");
-  const { user, logout } = useAuth();
+  const { user, memberships, activeHotelId, logout } = useAuth();
   const router = useRouter();
+
+  const roleName = memberships.find((m) => m.hotel_id === activeHotelId)?.role_name;
+
   // Use startTourInPlace — the user is already on a partner page,
   // so the tour runs contextually without navigating away.
   const { startTourInPlace } = useProductTour();
@@ -219,7 +223,12 @@ export function PartnerHeader({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel className="truncate">
-              <span className="block text-sm">{user?.full_name}</span>
+              <span className="block text-sm font-semibold">{user?.full_name}</span>
+              {roleName && (
+                <span className="block truncate text-xs font-medium text-gold-600 dark:text-gold-400">
+                  {roleName}
+                </span>
+              )}
               <span className="block truncate text-xs font-normal text-muted-foreground">
                 {user?.email}
               </span>
