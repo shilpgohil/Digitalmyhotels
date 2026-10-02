@@ -10,6 +10,7 @@ from app.core.errors import NotFoundError, ValidationAppError
 from app.core.permissions import RoleCode
 from app.core.security import hash_password
 from app.core.tenant import TenantContext
+from app.models.staff import StaffProfile
 from app.models.user import HotelMembership, Role, User
 from app.schemas.guest import normalize_phone
 from app.schemas.team import TeamMemberCreate, TeamMemberOut, TeamMemberUpdate
@@ -27,7 +28,10 @@ CREATABLE_ROLES = {
 }
 
 
-def _to_out(membership: HotelMembership) -> TeamMemberOut:
+def _to_out(
+    membership: HotelMembership,
+    staff_profile_id: UUID | None = None,
+) -> TeamMemberOut:
     return TeamMemberOut(
         membership_id=membership.id,
         user_id=membership.user.id,
@@ -39,6 +43,7 @@ def _to_out(membership: HotelMembership) -> TeamMemberOut:
         status=membership.status,
         is_active=membership.user.is_active,
         last_login_at=membership.user.last_login_at,
+        staff_profile_id=staff_profile_id,
     )
 
 
@@ -90,7 +95,26 @@ async def list_team(
         )
         or 0
     )
-    return [_to_out(m) for m in result.scalars().all()], total, member_limit, active_members
+    memberships = result.scalars().all()
+    # Build user_id → staff_profile_id map for this hotel in one query.
+    user_ids = [m.user.id for m in memberships]
+    profile_map: dict[UUID, UUID] = {}
+    if user_ids:
+        profile_rows = (
+            await db.execute(
+                select(StaffProfile.user_id, StaffProfile.id).where(
+                    StaffProfile.hotel_id == hotel_id,
+                    StaffProfile.user_id.in_(user_ids),
+                )
+            )
+        ).all()
+        profile_map = {row.user_id: row.id for row in profile_rows}
+    return (
+        [_to_out(m, profile_map.get(m.user.id)) for m in memberships],
+        total,
+        member_limit,
+        active_members,
+    )
 
 
 async def _get_membership(

@@ -110,6 +110,7 @@ class HotelSettingsOut(ORMModel):
     collect_emergency_contact: bool = True
     collect_vehicle_details: bool = True
     show_powered_by: bool = True
+    attendance_selfie_retention_days: int = 30
 
 
 class HotelSettingsUpdate(BaseModel):
@@ -128,6 +129,7 @@ class HotelSettingsUpdate(BaseModel):
     collect_vehicle_details: bool | None = None
     # Super-admin controlled invoice branding (plan §3.8).
     show_powered_by: bool | None = None
+    attendance_selfie_retention_days: int | None = Field(default=None, ge=7, le=90)
 
 
 class GstSettingsOut(ORMModel):

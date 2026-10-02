@@ -732,6 +732,9 @@ async def today_attendance(
                 status=row_status,
                 method_in=rec.method_in if rec else None,
                 method_out=rec.method_out if rec else None,
+                has_selfie=bool(rec and rec.check_in_selfie_key),
+                selfie_flushed=bool(rec and rec.selfie_flushed_at),
+                check_in_selfie_sha256=rec.check_in_selfie_sha256 if rec else None,
             )
         )
     return TodayAttendanceOut(stats=TodayStatsOut(**stats), items=items)
@@ -794,6 +797,9 @@ async def history(
             status=_row_status(profile.status, rec),
             method_in=rec.method_in,
             method_out=rec.method_out,
+            has_selfie=bool(rec.check_in_selfie_key),
+            selfie_flushed=bool(rec.selfie_flushed_at),
+            check_in_selfie_sha256=rec.check_in_selfie_sha256,
         )
         for rec, profile, user in rows
     ]
@@ -849,9 +855,11 @@ async def calendar(
             CalendarDayOut(
                 day=d,
                 status=status,
+                record_id=rec.id if rec else None,
                 check_in_at=rec.check_in_at if rec else None,
                 check_out_at=rec.check_out_at if rec else None,
                 late_minutes=rec.late_minutes if rec else None,
+                selfie_flushed=bool(rec and rec.selfie_flushed_at),
             )
         )
         d += timedelta(days=1)
@@ -1091,6 +1099,8 @@ async def record_detail(
         early_out_minutes=rec.early_out_minutes,
         working_minutes=_working_minutes(rec),
         has_selfie=rec.check_in_selfie_key is not None,
+        selfie_flushed=rec.selfie_flushed_at is not None,
+        check_in_selfie_sha256=rec.check_in_selfie_sha256,
         performed_by_name=performed_by_name,
         note=rec.note,
     )
@@ -1353,3 +1363,81 @@ async def upload_selfie(
     key = new_object_key(f"hotels/{hotel_id}/staff/selfies/{tenant.user_id}", filename)
     await get_storage().put_bytes(key=key, data=data, content_type=content_type)
     return key
+
+
+# ── Nightly selfie-flush sweep ─────────────────────────────────────────────────
+
+
+async def sweep_flushed_selfies(db: AsyncSession) -> dict[str, int]:
+    """Purge raw selfie bytes past each hotel's retention window.
+
+    Retention window is ``hotel_settings.attendance_selfie_retention_days``
+    (default 30, max 90).  After purging the binary bytes the record's
+    ``check_in_selfie_key`` is cleared and ``selfie_flushed_at`` is stamped;
+    the SHA-256 fingerprint (``check_in_selfie_sha256``) is kept forever for
+    audit-trail purposes.
+
+    Returns a summary dict ``{"scanned": N, "flushed": M, "errors": K}``.
+    """
+    import hashlib
+
+    from app.integrations.storage.base import get_storage
+    from app.models.hotel import HotelSettings
+
+    now_utc = datetime.now(UTC)
+    scanned = flushed = errors = 0
+
+    # Fetch per-hotel retention windows in one query.
+    settings_rows = (await db.execute(select(HotelSettings))).scalars().all()
+    hotel_retention: dict[UUID, int] = {
+        s.hotel_id: max(1, min(s.attendance_selfie_retention_days, 90))
+        for s in settings_rows
+    }
+
+    # Default to 30 days for hotels without a settings row.
+    DEFAULT_DAYS = 30
+
+    # Candidate records: have a selfie key, not yet flushed.
+    candidates = (
+        await db.execute(
+            select(AttendanceRecord).where(
+                AttendanceRecord.check_in_selfie_key.isnot(None),
+                AttendanceRecord.selfie_flushed_at.is_(None),
+            )
+        )
+    ).scalars().all()
+
+    storage = get_storage()
+
+    for rec in candidates:
+        scanned += 1
+        retention_days = hotel_retention.get(rec.hotel_id, DEFAULT_DAYS)
+        cutoff = now_utc - timedelta(days=retention_days)
+        # Use work_date (hotel-local date) as a UTC proxy — close enough for
+        # a daily sweep; exact-minute precision is not required here.
+        record_age_date = datetime(
+            rec.work_date.year, rec.work_date.month, rec.work_date.day, tzinfo=UTC
+        )
+        if record_age_date > cutoff:
+            continue  # still within retention window
+
+        key = rec.check_in_selfie_key
+        if not key:
+            continue
+        try:
+            # Read bytes to compute SHA-256 before deletion.
+            raw = await storage.get_bytes(key=key)
+            sha256 = hashlib.sha256(raw).hexdigest()
+            await storage.delete(key=key)
+        except Exception:  # noqa: BLE001
+            errors += 1
+            continue
+
+        rec.check_in_selfie_sha256 = sha256
+        rec.check_in_selfie_key = None
+        rec.selfie_flushed_at = now_utc
+        db.add(rec)
+        flushed += 1
+
+    await db.flush()
+    return {"scanned": scanned, "flushed": flushed, "errors": errors}

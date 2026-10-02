@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { MapPin, ScanFace } from "lucide-react";
+import { MapPin, ScanFace, ShieldCheck } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -173,6 +173,29 @@ export function RecordDetailDialog({
                     {t("selfieEvidence")}
                   </p>
                   <SelfieImage recordId={d.id} />
+                </div>
+              ) : d.selfie_flushed ? (
+                <div className="shrink-0 w-36 rounded-lg border border-amber-200 bg-amber-50/60 p-2.5 text-xs">
+                  <div className="flex items-center gap-1 font-semibold text-amber-800">
+                    <ShieldCheck className="size-3.5" aria-hidden />
+                    <span>{t("selfieArchived")}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground leading-tight">
+                    {t("selfieFlushedNote")}
+                  </p>
+                  {d.check_in_selfie_sha256 && (
+                    <div className="mt-2">
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase">
+                        {t("sha256Fingerprint")}
+                      </span>
+                      <code
+                        className="mt-0.5 block max-w-full truncate rounded bg-white px-1 py-0.5 text-[9px] font-mono border select-all"
+                        title={d.check_in_selfie_sha256}
+                      >
+                        {d.check_in_selfie_sha256.slice(0, 16)}…
+                      </code>
+                    </div>
+                  )}
                 </div>
               ) : null}
 

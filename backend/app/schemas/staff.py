@@ -135,6 +135,10 @@ class AttendanceRecordOut(ORMModel):
     late_minutes: int | None
     early_out_minutes: int | None
     note: str | None
+    # Selfie archival fields (plan §attendance.retention).
+    has_selfie: bool = False          # True when check_in_selfie_key is set
+    selfie_flushed: bool = False      # True when selfie_flushed_at is set
+    check_in_selfie_sha256: str | None = None  # fingerprint kept post-flush
 
 
 class AttendanceRowOut(BaseModel):
@@ -154,6 +158,9 @@ class AttendanceRowOut(BaseModel):
     status: str  # present|late|absent|leave|off|holiday|working|checked_out|not_checked_in
     method_in: str | None = None
     method_out: str | None = None
+    has_selfie: bool = False
+    selfie_flushed: bool = False
+    check_in_selfie_sha256: str | None = None
 
 
 class TodayStatsOut(BaseModel):
@@ -178,9 +185,11 @@ class HistoryOut(BaseModel):
 class CalendarDayOut(BaseModel):
     day: date
     status: str | None  # None = no record / not scheduled
+    record_id: UUID | None = None   # links to record detail / selfie view
     check_in_at: datetime | None = None
     check_out_at: datetime | None = None
     late_minutes: int | None = None
+    selfie_flushed: bool = False    # True → image purged, hash fingerprint kept
 
 
 class CalendarOut(BaseModel):
@@ -236,6 +245,8 @@ class RecordDetailOut(BaseModel):
     early_out_minutes: int | None
     working_minutes: int | None
     has_selfie: bool
+    selfie_flushed: bool = False
+    check_in_selfie_sha256: str | None = None
     performed_by_name: str | None
     note: str | None
 

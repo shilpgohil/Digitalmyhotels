@@ -3,22 +3,29 @@
 /** Month grid for attendance (mockup "Attendance Calendar"). */
 
 import { useTranslations } from "next-intl";
+import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { localYmd } from "@/lib/formatting";
-import type { CalendarOut } from "@/types/staff";
+import type { CalendarDayOut, CalendarOut } from "@/types/staff";
 
 const CELL_TONES: Record<string, string> = {
-  present: "bg-success-bg text-success",
-  working: "bg-info-bg text-info",
-  late: "bg-warning-bg text-warning",
-  checked_out: "bg-success-bg text-success",
-  absent: "bg-danger-bg text-danger",
-  leave: "bg-info-bg text-info",
+  present: "bg-success-bg text-success border-success/30",
+  working: "bg-info-bg text-info border-info/30",
+  late: "bg-warning-bg text-warning border-warning/30",
+  checked_out: "bg-success-bg text-success border-success/30",
+  absent: "bg-danger-bg text-danger border-danger/30",
+  leave: "bg-info-bg text-info border-info/30",
   off: "bg-muted text-muted-foreground",
   holiday: "bg-muted text-muted-foreground",
 };
 
-export function MonthCalendar({ data }: { readonly data: CalendarOut }) {
+export function MonthCalendar({
+  data,
+  onSelectDay,
+}: {
+  readonly data: CalendarOut;
+  readonly onSelectDay?: (day: CalendarDayOut) => void;
+}) {
   const t = useTranslations("staff");
   const dows = ["S", "M", "T", "W", "T", "F", "S"];
   const firstDay = new Date(`${data.month}-01T00:00:00`);
@@ -43,29 +50,41 @@ export function MonthCalendar({ data }: { readonly data: CalendarOut }) {
           const today = localYmd(new Date());
           const isToday = day.day === today;
           const isFuture = day.day > today;
+          const hasRecord = !!day.record_id;
+          const isClickable = hasRecord && !!onSelectDay;
+
           return (
-            <div
+            <button
+              type="button"
               key={day.day}
+              disabled={!isClickable}
+              onClick={() => isClickable && onSelectDay(day)}
               title={
                 day.status
-                  ? t(`att_${day.status}`)
+                  ? `${t(`att_${day.status}`)}${day.selfie_flushed ? ` (${t("selfieArchived")})` : ""}${hasRecord ? ` - ${t("viewAuditEvidence")}` : ""}`
                   : isFuture
                     ? t("scheduled")
                     : undefined
               }
               className={cn(
-                "flex h-9 flex-col items-center justify-center rounded-md border text-caption",
+                "relative flex h-10 flex-col items-center justify-center rounded-md border text-caption transition-all",
                 day.status
                   ? CELL_TONES[day.status] ?? "bg-muted"
                   : isFuture
                     ? "border-dashed bg-muted/30 text-muted-foreground"
                     : "bg-white",
-                // Today gets the gold focus ring (theme accent).
-                isToday && "ring-2 ring-gold-400 ring-offset-1",
+                isToday && "ring-2 ring-gold-400 ring-offset-1 font-bold",
+                isClickable && "cursor-pointer hover:border-gold-500 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-gold-400",
+                !isClickable && "cursor-default",
               )}
             >
-              <span className="font-medium tabular-nums">{n}</span>
-            </div>
+              <span className="font-medium tabular-nums flex items-center justify-center gap-0.5">
+                {n}
+                {day.selfie_flushed && (
+                  <Lock className="size-2.5 text-amber-600 inline" aria-hidden />
+                )}
+              </span>
+            </button>
           );
         })}
       </div>

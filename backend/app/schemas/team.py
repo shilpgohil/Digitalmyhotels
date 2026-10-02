@@ -21,6 +21,9 @@ class TeamMemberOut(BaseModel):
     status: str
     is_active: bool
     last_login_at: datetime | None
+    # Populated when the user has a StaffProfile for this hotel (i.e. participates
+    # in attendance). None for owner accounts and members who have never checked in.
+    staff_profile_id: UUID | None = None
 
 
 class TeamMemberCreate(BaseModel):

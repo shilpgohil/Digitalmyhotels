@@ -27,6 +27,7 @@ async def lifespan(_app: FastAPI):
     from app.services.keepalive import self_ping_loop
     from app.services.overdue import overdue_sweep_loop
     from app.services.reminders import low_availability_loop, reminders_loop
+    from app.services.selfie_sweep import selfie_sweep_loop
 
     settings = get_settings()
     setup_logging(debug=settings.debug)
@@ -80,6 +81,7 @@ async def lifespan(_app: FastAPI):
         asyncio.create_task(reminders_loop()),         # arrival + checkout reminders
         asyncio.create_task(low_availability_loop()),  # low room availability alert
         asyncio.create_task(self_ping_loop()),
+        asyncio.create_task(selfie_sweep_loop()),      # nightly selfie byte purge
     ]
     yield
     for task in tasks:

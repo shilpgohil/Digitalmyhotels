@@ -204,6 +204,7 @@ export interface TeamMemberOut {
   status: string;
   is_active: boolean;
   last_login_at: string | null;
+  staff_profile_id?: string | null;
 }
 
 export interface ListOut<T> {

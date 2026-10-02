@@ -81,6 +81,9 @@ export interface AttendanceRowOut {
   status: string;
   method_in?: string | null;
   method_out?: string | null;
+  has_selfie?: boolean;
+  selfie_flushed?: boolean;
+  check_in_selfie_sha256?: string | null;
 }
 
 export interface TodayStatsOut {
@@ -105,9 +108,11 @@ export interface HistoryOut {
 export interface CalendarDayOut {
   day: string;
   status: string | null;
+  record_id?: string | null;
   check_in_at: string | null;
   check_out_at: string | null;
   late_minutes: number | null;
+  selfie_flushed?: boolean;
 }
 
 export interface CalendarOut {
@@ -161,6 +166,8 @@ export interface RecordDetailOut {
   early_out_minutes: number | null;
   working_minutes: number | null;
   has_selfie: boolean;
+  selfie_flushed?: boolean;
+  check_in_selfie_sha256?: string | null;
   performed_by_name: string | null;
   note: string | null;
 }

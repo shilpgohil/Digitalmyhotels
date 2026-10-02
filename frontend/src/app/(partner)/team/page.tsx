@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, MoreVertical, KeyRound, Ban, CheckCircle2, Eye, EyeOff, Pencil, Users } from "lucide-react";
+import { Plus, MoreVertical, KeyRound, Ban, CheckCircle2, Eye, EyeOff, Pencil, Users, User } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,7 @@ import { liveNameCase, sanitizePhone } from "@/lib/input-discipline";
 const CREATABLE_ROLES = ["manager", "admin", "housekeeping"] as const;
 
 function TeamContent() {
+  const router = useRouter();
   const t = useTranslations("team");
   const tn = useTranslations("nav");
   const tc = useTranslations("common");
@@ -212,7 +214,19 @@ function TeamContent() {
               <TableBody>
                 {paginate(team.data.items, page, 10).map((member) => (
                   <TableRow key={member.membership_id}>
-                    <TableCell className="font-medium">{member.full_name}</TableCell>
+                    <TableCell className="font-medium">
+                      {member.staff_profile_id ? (
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/staff/${member.staff_profile_id}?from=team`)}
+                          className="text-left font-medium text-navy-900 hover:text-navy-700 hover:underline inline-flex items-center gap-1.5 focus:outline-none focus:ring-1 focus:ring-navy-500 rounded-sm"
+                        >
+                          {member.full_name}
+                        </button>
+                      ) : (
+                        member.full_name
+                      )}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{member.phone || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{member.email}</TableCell>
                     <TableCell>{member.role_name}</TableCell>
@@ -227,7 +241,7 @@ function TeamContent() {
                         : "—"}
                     </TableCell>
                     <TableCell className="text-right">
-                      {member.role_code !== "owner" && (
+                      {(member.role_code !== "owner" || member.staff_profile_id) && (
                         <DropdownMenu>
                           <DropdownMenuTrigger
                             className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"
@@ -237,40 +251,52 @@ function TeamContent() {
                           </DropdownMenuTrigger>
                           {/* Wider so "Edit Profile" / "Reset Password" never
                               wrap (client 15/09: "Need increase width") */}
-                          <DropdownMenuContent align="end" className="min-w-[190px]">
-                            <DropdownMenuItem onClick={() => setEditTarget(member)}>
-                              <Pencil className="size-4" aria-hidden />
-                              {t("editProfile")}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setResetTarget(member)}>
-                              <KeyRound className="size-4" aria-hidden />
-                              {t("resetPassword")}
-                            </DropdownMenuItem>
-                            {member.is_active ? (
+                          <DropdownMenuContent align="end" className="min-w-[210px]">
+                            {member.staff_profile_id && (
                               <DropdownMenuItem
-                                variant="destructive"
-                                onClick={() =>
-                                  statusMutation.mutate({
-                                    membershipId: member.membership_id,
-                                    enabled: false,
-                                  })
-                                }
+                                onClick={() => router.push(`/staff/${member.staff_profile_id}?from=team`)}
                               >
-                                <Ban className="size-4" aria-hidden />
-                                {t("disable")}
+                                <User className="size-4" aria-hidden />
+                                {t("viewProfileAttendance")}
                               </DropdownMenuItem>
-                            ) : (
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  statusMutation.mutate({
-                                    membershipId: member.membership_id,
-                                    enabled: true,
-                                  })
-                                }
-                              >
-                                <CheckCircle2 className="size-4" aria-hidden />
-                                {t("enable")}
-                              </DropdownMenuItem>
+                            )}
+                            {member.role_code !== "owner" && (
+                              <>
+                                <DropdownMenuItem onClick={() => setEditTarget(member)}>
+                                  <Pencil className="size-4" aria-hidden />
+                                  {t("editProfile")}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setResetTarget(member)}>
+                                  <KeyRound className="size-4" aria-hidden />
+                                  {t("resetPassword")}
+                                </DropdownMenuItem>
+                                {member.is_active ? (
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={() =>
+                                      statusMutation.mutate({
+                                        membershipId: member.membership_id,
+                                        enabled: false,
+                                      })
+                                    }
+                                  >
+                                    <Ban className="size-4" aria-hidden />
+                                    {t("disable")}
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      statusMutation.mutate({
+                                        membershipId: member.membership_id,
+                                        enabled: true,
+                                      })
+                                    }
+                                  >
+                                    <CheckCircle2 className="size-4" aria-hidden />
+                                    {t("enable")}
+                                  </DropdownMenuItem>
+                                )}
+                              </>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>

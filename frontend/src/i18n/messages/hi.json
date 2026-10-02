@@ -371,6 +371,7 @@
     "role_admin": "एडमिन / रिसेप्शन",
     "role_housekeeping": "हाउसकीपिंग",
     "editProfile": "प्रोफ़ाइल संपादित करें",
+    "viewProfileAttendance": "प्रोफ़ाइल और उपस्थिति देखें",
     "pendingResetRequests": "{count, plural, one {1 पासवर्ड रीसेट अनुरोध} other {# पासवर्ड रीसेट अनुरोध}}",
     "dismissRequest": "खारिज करें",
     "memberQuota": "टीम सदस्य: {limit} में से {used} उपयोग में",
@@ -695,7 +696,19 @@
     "scheduled": "निर्धारित",
     "exportReport": "रिपोर्ट निर्यात करें",
     "recordCheckIn": "चेक-इन दर्ज करें",
-    "recordCheckOut": "चेक-आउट दर्ज करें"
+    "recordCheckOut": "चेक-आउट दर्ज करें",
+    "backToTeam": "टीम पर वापस",
+    "attendanceAuditTitle": "उपस्थिति और ऑडिट रिकॉर्ड",
+    "attendanceHeatmap": "उपस्थिति हीटमैप",
+    "selfieAvailable": "लाइव सेल्फ़ी",
+    "selfieArchived": "संग्रहीत",
+    "viewAuditEvidence": "साक्ष्य देखें",
+    "selfieFlushedNote": "30-दिन की अवधारण अवधि के बाद बाइनरी सेल्फ़ी छवि सुरक्षित रूप से हटा दी गई।",
+    "sha256Fingerprint": "SHA-256 फ़िंगरप्रिंट",
+    "selfieRetentionNote": "होटल ऑडिट नीति के अनुसार सेल्फ़ी फ़ोटो 30 दिनों के लिए रखी जाती हैं, जिसके बाद फ़ोटो हटा दी जाती हैं जबकि SHA-256 फ़िंगरप्रिंट स्थायी रूप से सुरक्षित रखे जाते हैं।",
+    "selfieAuditCol": "सेल्फ़ी और ऑडिट",
+    "viewEvidence": "साक्ष्य देखें",
+    "noRecordsForMonth": "इस महीने के लिए कोई उपस्थिति रिकॉर्ड नहीं मिला।"
   },
   "guestPicker": {
     "searchByPhone": "फ़ोन नंबर (पूरा या आंशिक)",

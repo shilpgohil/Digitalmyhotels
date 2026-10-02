@@ -835,6 +835,16 @@ async def get_hotel_detail(db: AsyncSession, hotel_id: UUID) -> dict:
             )
             or "full"
         ),
+        "attendance_selfie_retention_days": (
+            (
+                await db.scalar(
+                    select(HotelSettings.attendance_selfie_retention_days).where(
+                        HotelSettings.hotel_id == hotel_id
+                    )
+                )
+            )
+            or 30
+        ),
     }
 
 
@@ -859,6 +869,7 @@ async def update_hotel_admin(
     gstin = changes.pop("gstin", None)
     # access_mode is stored in HotelSettings, not Hotel itself.
     new_access_mode = changes.pop("access_mode", None)
+    new_retention_days = changes.pop("attendance_selfie_retention_days", None)
     before = {k: str(getattr(hotel, k)) for k in changes if hasattr(hotel, k)}
     for key, value in changes.items():
         if hasattr(hotel, key):
@@ -896,6 +907,20 @@ async def update_hotel_admin(
         old_mode = settings_row.access_mode
         settings_row.access_mode = new_access_mode
         before["access_mode"] = old_mode
+
+    # Update attendance_selfie_retention_days in HotelSettings if SA changed it.
+    if new_retention_days is not None:
+        settings_row = (
+            await db.execute(
+                select(HotelSettings).where(HotelSettings.hotel_id == hotel_id)
+            )
+        ).scalar_one_or_none()
+        if settings_row is None:
+            settings_row = HotelSettings(hotel_id=hotel_id)
+            db.add(settings_row)
+        old_retention = settings_row.attendance_selfie_retention_days
+        settings_row.attendance_selfie_retention_days = new_retention_days
+        before["attendance_selfie_retention_days"] = str(old_retention)
 
     if owner_phone is not None:
         owner = await _owner_for_hotel(db, hotel_id)

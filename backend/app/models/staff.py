@@ -108,6 +108,14 @@ class AttendanceRecord(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     # "Face Check-In" evidence selfie (object storage key).
     check_in_selfie_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # Archival fingerprint — SHA-256 hex of raw selfie bytes, stored permanently
+    # even after the binary image is purged from storage (30-day retention sweep).
+    check_in_selfie_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Timestamp when the binary selfie bytes were deleted from storage.
+    # NULL means the selfie is still available. Set by the nightly sweep job.
+    selfie_flushed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # self_geo | front_desk | manual
     method_in: Mapped[str | None] = mapped_column(String(16), nullable=True)

@@ -371,6 +371,7 @@
     "role_admin": "Admin / Reception",
     "role_housekeeping": "Housekeeping",
     "editProfile": "Edit Profile",
+    "viewProfileAttendance": "View Profile & Attendance",
     "pendingResetRequests": "{count, plural, one {1 password reset request} other {# password reset requests}}",
     "dismissRequest": "Dismiss",
     "memberQuota": "Team members: {used} of {limit} used",
@@ -695,7 +696,19 @@
     "scheduled": "Scheduled",
     "exportReport": "Export Report",
     "recordCheckIn": "Record Check-in",
-    "recordCheckOut": "Record Check-out"
+    "recordCheckOut": "Record Check-out",
+    "backToTeam": "Back to Team",
+    "attendanceAuditTitle": "Attendance & Audit Records",
+    "attendanceHeatmap": "Attendance Heatmap",
+    "selfieAvailable": "Live Selfie",
+    "selfieArchived": "Archived",
+    "viewAuditEvidence": "View Evidence",
+    "selfieFlushedNote": "Binary selfie image was securely purged after the 30-day retention window.",
+    "sha256Fingerprint": "SHA-256 Fingerprint",
+    "selfieRetentionNote": "Selfie photos are retained for 30 days per hotel audit policy, after which photos are purged while cryptographic SHA-256 fingerprints are permanently preserved for audit verification.",
+    "selfieAuditCol": "Selfie & Audit",
+    "viewEvidence": "View Evidence",
+    "noRecordsForMonth": "No attendance records found for this month."
   },
   "guestPicker": {
     "searchByPhone": "Phone number (full or partial)",

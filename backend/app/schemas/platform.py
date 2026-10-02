@@ -114,6 +114,7 @@ class AdminHotelDetailOut(BaseModel):
     subscription_plan_name: str | None = None
     subscription_status: str | None = None
     subscription_expiry: str | None = None
+    attendance_selfie_retention_days: int = 30
 
 
 class AdminHotelUpdate(BaseModel):
@@ -133,6 +134,7 @@ class AdminHotelUpdate(BaseModel):
     max_team_members: int | None = Field(default=None, ge=1, le=100)
     # Feature module gate — SA can switch hotels between three tiers.
     access_mode: Literal["checkin_only", "checkin_expense", "full"] | None = None
+    attendance_selfie_retention_days: int | None = Field(default=None, ge=7, le=90)
 
 
 class AdminCustomerSummaryOut(BaseModel):

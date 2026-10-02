@@ -117,6 +117,12 @@ class HotelSettings(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     collect_vehicle_details: Mapped[bool] = mapped_column(
         Boolean, default=True, nullable=False
     )
+    # Selfie image retention window (days). After this many days the nightly sweep
+    # purges binary selfie bytes from storage but keeps the SHA-256 fingerprint
+    # permanently. Default 30, configurable up to 90 per SRS §attendance.retention.
+    attendance_selfie_retention_days: Mapped[int] = mapped_column(
+        Integer, default=30, nullable=False
+    )
 
     hotel: Mapped[Hotel] = relationship(back_populates="settings")
 
