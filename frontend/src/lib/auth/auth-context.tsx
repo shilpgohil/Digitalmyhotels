@@ -97,81 +97,100 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
   // Fast path (most reloads): the access token is still in sessionStorage →
   // skip refresh entirely, call /me directly.
   //
-  // Slow path (new tab / tab-close-and-reopen / token expired):
-  // call /api/v1/auth/refresh using the HttpOnly cookie, retrying up to 5
-  // times with exponential back-off (500 ms … 8 s = ~15.5 s total) to cover
-  // Render free-tier warm-ups.  Only after all retries fail does status
-  // become "unauthenticated".
+  // Super-fast path: even if token is gone, if we have a cached user profile
+  // show it immediately (instant UI, no spinner) and then refresh in the
+  // background. Only fall through to the full retry loop if there is NO cache.
+  //
+  // Slow path (cold start / new install):
+  // call /api/v1/auth/refresh using the HttpOnly cookie, retrying up to 4
+  // times with exponential back-off (500 ms … 4 s = ~12 s total) to cover
+  // Render free-tier warm-ups. Only after all retries fail AND there is no
+  // cached session does status become "unauthenticated".
   useEffect(() => {
     let cancelled = false;
 
     const tryRefresh = async (attempt = 0): Promise<boolean> => {
       const ok = await refreshAccessToken();
       if (ok || cancelled) return ok;
-      if (attempt >= 6) return false;             // max 7 attempts (up to 45 s total for Render cold starts)
-      const delay = Math.min(500 * 2 ** attempt, 8000);
+      if (attempt >= 3) return false;   // 4 attempts total (0..3) → max ~12 s
+      const delay = Math.min(500 * 2 ** attempt, 4000);
       await new Promise((r) => setTimeout(r, delay));
       return cancelled ? false : tryRefresh(attempt + 1);
     };
 
     (async () => {
-      // ── Fastest path: token + user both in sessionStorage or localStorage ──
-      // Skip the /me round-trip entirely — no loading spinner, instant restore.
+      // ── Super-fast path: cached user → show session immediately, refresh silently ──
+      // This eliminates the loading spinner entirely for returning users even
+      // when the access token has expired or the server is doing a cold start.
       const cachedToken = getAccessToken();
       const cachedMe = getCachedUser<MeResponse>();
-      if (cachedToken && cachedMe) {
+
+      if (cachedMe) {
+        // Show the session from cache RIGHT NOW — no spinner.
         if (!cancelled) applySession(cachedMe);
-        try {
-          const freshMe = await apiFetch<MeResponse>("/api/v1/auth/me");
-          if (!cancelled) {
-            setCachedUser(freshMe);
-            applySession(freshMe);
-          }
-        } catch (err) {
-          if (err instanceof ApiError && err.code === "account_disabled") {
-            clearSession();
+
+        if (cachedToken) {
+          // Token still valid → just re-fetch /me to sync any profile changes.
+          try {
+            const freshMe = await apiFetch<MeResponse>("/api/v1/auth/me");
             if (!cancelled) {
-              setUser(null);
-              setMemberships([]);
-              setPermissions([]);
-              _setActiveHotelId(null);
-              setStatus("unauthenticated");
+              setCachedUser(freshMe);
+              applySession(freshMe);
             }
-            return;
+          } catch (err) {
+            if (err instanceof ApiError && err.code === "account_disabled") {
+              clearSession();
+              if (!cancelled) {
+                setUser(null);
+                setMemberships([]);
+                setPermissions([]);
+                _setActiveHotelId(null);
+                setStatus("unauthenticated");
+              }
+            }
+            // Any other error (network, cold-start) → keep cached session.
           }
-          // Keep cached session intact across transient network drops and server cold starts.
+        } else {
+          // Token gone but cache exists → refresh silently in background.
+          // The UI is already showing the cached session so there's no spinner.
+          const ok = await tryRefresh();
+          if (ok && !cancelled) {
+            try {
+              const freshMe = await apiFetch<MeResponse>("/api/v1/auth/me");
+              if (!cancelled) {
+                setCachedUser(freshMe);
+                applySession(freshMe);
+              }
+            } catch {
+              // Refresh worked but /me failed → keep cached session, try next time.
+            }
+          }
+          // If refresh failed: cache is already displayed, user stays logged in.
+          // wasRefreshRejectedByServer() would have triggered dmh:auth-expired
+          // via the apiFetch layer if the token was truly revoked.
         }
         return;
       }
 
-      // ── Need a fresh token (new tab, tab closed, token expired) ──
-      if (!cachedToken) {
-        const ok = await tryRefresh();
-        if (!ok) {
-          // If we have a cached user profile from localStorage, preserve it!
-          // Transient network drops or sleeping servers must NEVER log the user out.
-          const fallbackMe = getCachedUser<MeResponse>();
-          if (fallbackMe) {
-            if (!cancelled) applySession(fallbackMe);
-            return;
-          }
-          clearSession();
-          if (!cancelled) {
-            setUser(null);
-            setMemberships([]);
-            setPermissions([]);
-            _setActiveHotelId(null);
-            setStatus("unauthenticated");
-          }
-          return;
+      // ── No cache at all: fresh install or user cleared storage ──
+      // Show loading spinner and try to restore session from the HttpOnly cookie.
+      const ok = await tryRefresh();
+      if (!ok) {
+        if (!cancelled) {
+          setUser(null);
+          setMemberships([]);
+          setPermissions([]);
+          _setActiveHotelId(null);
+          setStatus("unauthenticated");
         }
+        return;
       }
 
-      // ── Call /me to load user profile ──
+      // Refresh succeeded — load user profile.
       try {
         const me = await apiFetch<MeResponse>("/api/v1/auth/me");
         if (!cancelled) {
-          setCachedUser(me);   // cache for next refresh
+          setCachedUser(me);
           applySession(me);
         }
       } catch (err) {
@@ -185,14 +204,9 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
             setStatus("unauthenticated");
             return;
           }
-          // If we have a cached user profile, ALWAYS preserve the session!
-          // Server restarts, network drops, or temporary errors must NEVER log the user out.
-          const cachedMe = getCachedUser<MeResponse>();
-          if (cachedMe) {
-            applySession(cachedMe);
-          } else {
-            setStatus("unauthenticated");
-          }
+          // /me failed after refresh (transient) → show unauthenticated so
+          // user can retry (we have no cache to fall back to here).
+          setStatus("unauthenticated");
         }
       }
     })();

@@ -6,7 +6,15 @@ import {
   clearSession,
 } from "@/lib/auth/session";
 
-// Empty = same-origin (Next.js rewrites /api to the FastAPI process).
+// API_BASE is intentionally EMPTY in production when the Next.js rewrite
+// proxy is in use (all /api/* calls route through the same-origin Next.js
+// server which forwards them to the Render backend). Setting
+// NEXT_PUBLIC_API_URL on Vercel would make calls cross-origin and break
+// HttpOnly cookie delivery — the refresh cookie cannot travel cross-domain.
+//
+// Only set NEXT_PUBLIC_API_URL when the frontend and backend share the
+// same domain (e.g. custom domain with wildcard cert). Leave it UNSET on
+// Vercel — the rewrites in next.config.ts handle backend forwarding.
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 
 export class ApiError extends Error {
@@ -67,7 +75,20 @@ async function parseError(response: Response): Promise<ApiError> {
 
 let refreshPromise: Promise<boolean> | null = null;
 
-let lastRefreshStatus = 200;
+// Track the HTTP status of the last refresh attempt so callers can
+// distinguish a genuine revocation (401/403) from a transient failure.
+// -1 means "no attempt yet"; 0/503 means "network error / server unreachable".
+let lastRefreshStatus = -1;
+
+/** Whether the last refresh attempt was conclusively rejected by the server
+ *  (vs. a network error or server spin-up timeout). Only a genuine server 4xx
+ *  should trigger a session wipe — never a transient network failure.
+ */
+export function wasRefreshRejectedByServer(): boolean {
+  // 401 = invalid/expired/revoked token   403 = account disabled
+  // Anything else (0, 503, 502, etc.) is a transient infra failure.
+  return lastRefreshStatus === 401 || lastRefreshStatus === 403;
+}
 
 /** Refresh the access token using the HttpOnly cookie. Deduplicates concurrent calls.
  *
@@ -75,6 +96,11 @@ let lastRefreshStatus = 200;
  * Next.js server-side proxy (same-origin from the browser's perspective).
  * This prevents cross-origin cookie blocking (3rd-party cookie deprecation
  * in Chrome/Safari) and is safe for both local dev and Vercel production.
+ *
+ * Dual-channel: sends the refresh token both in the HttpOnly cookie (set by
+ * the backend /refresh response) AND in the request body + X-Refresh-Token
+ * header (read from localStorage). The backend uses whichever arrives first,
+ * so sessions survive cross-origin restrictions and cookie clearing.
  */
 export async function refreshAccessToken(): Promise<boolean> {
   refreshPromise ??= (async () => {
@@ -88,7 +114,9 @@ export async function refreshAccessToken(): Promise<boolean> {
         body = JSON.stringify({ refresh_token: storedRefresh });
       }
 
-      // Relative path — always proxied by Next.js rewrites, never cross-origin.
+      // Relative path — ALWAYS proxied by Next.js rewrites, never cross-origin.
+      // DO NOT use API_BASE here — it may point to the Render backend directly
+      // which would break HttpOnly cookie delivery on Vercel (cross-origin).
       const response = await fetch(`/api/v1/auth/refresh`, {
         method: "POST",
         headers: Object.keys(headers).length > 0 ? headers : undefined,
@@ -104,7 +132,8 @@ export async function refreshAccessToken(): Promise<boolean> {
       }
       return true;
     } catch {
-      lastRefreshStatus = 503;
+      // Network error / server unreachable — NOT a token rejection.
+      lastRefreshStatus = 0;
       return false;
     } finally {
       refreshPromise = null;
@@ -138,9 +167,11 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     if (refreshed) {
       response = await doFetch();
     } else {
-      // Only wipe session if the account is explicitly disabled (403).
-      // Transient 401s, network drops, or server spin-downs must NEVER wipe the session.
-      if (lastRefreshStatus === 403) {
+      // Only wipe session when the server conclusively rejects the token
+      // (401 invalid_refresh or 403 account_disabled). Network failures,
+      // server spin-downs (502/503/0), or timeouts must NEVER wipe the
+      // session — that is the root cause of the phantom-logout bug.
+      if (wasRefreshRejectedByServer()) {
         clearSession();
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("dmh:auth-expired"));
@@ -202,7 +233,7 @@ export async function apiUpload<T>(
     if (refreshed) {
       response = await doFetch();
     } else {
-      if (lastRefreshStatus === 403) {
+      if (wasRefreshRejectedByServer()) {
         clearSession();
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("dmh:auth-expired"));
