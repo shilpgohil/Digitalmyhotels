@@ -344,7 +344,18 @@
     "outOfServiceReasonTitle": "Room {roomNumber} Out of Service",
     "reasonPrompt": "Please state the reason for this status change",
     "reasonLabel": "Reason",
-    "reasonPlaceholder": "e.g. AC repair, plumbing issue, electrical work"
+    "reasonPlaceholder": "e.g. AC repair, plumbing issue, electrical work",
+    "quickCheckIn": "Check-In Walk-In Guest",
+    "checkOutGuest": "Check Out Guest",
+    "inHouseGuest": "In-house Guest",
+    "stayoverClean": "Request Stayover Cleaning",
+    "fastTrackAvailable": "Mark Clean & Available",
+    "repairCompleted": "Repair Done: Mark Available",
+    "sendToCleaning": "Send to Cleaning",
+    "markDirty": "Mark Needs Cleaning",
+    "markCleanReady": "Mark Clean & Ready",
+    "markMaintenance": "Put Under Maintenance",
+    "markOutOfService": "Mark Out of Service"
   },
   "team": {
     "title": "Team Members",

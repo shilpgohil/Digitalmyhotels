@@ -37,6 +37,14 @@ class TestCoreLifecycle:
         assert can_transition(RoomStatus.MAINTENANCE, RoomStatus.AVAILABLE)
         assert can_transition(RoomStatus.MAINTENANCE, RoomStatus.OUT_OF_SERVICE)
 
+    def test_direct_physical_override_transitions(self) -> None:
+        # Fast-track cleaning approval & marking available room dirty
+        assert can_transition(RoomStatus.AVAILABLE, RoomStatus.CLEANING_REQUIRED)
+        assert can_transition(RoomStatus.CLEANING_REQUIRED, RoomStatus.AVAILABLE)
+        assert can_transition(RoomStatus.CLEANING_IN_PROGRESS, RoomStatus.AVAILABLE)
+        assert can_transition(RoomStatus.CLEAN_READY, RoomStatus.CLEANING_REQUIRED)
+        assert can_transition(RoomStatus.MAINTENANCE, RoomStatus.CLEAN_READY)
+
     def test_same_status_is_noop(self) -> None:
         assert can_transition(RoomStatus.AVAILABLE, RoomStatus.AVAILABLE)
 

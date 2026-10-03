@@ -31,13 +31,14 @@ TRANSITIONS: dict[RoomStatus, frozenset[RoomStatus]] = {
             RoomStatus.OCCUPIED,
             RoomStatus.MAINTENANCE,
             RoomStatus.OUT_OF_SERVICE,
+            RoomStatus.CLEANING_REQUIRED,
         }
     ),
     RoomStatus.RESERVED: frozenset(
         {RoomStatus.OCCUPIED, RoomStatus.AVAILABLE, RoomStatus.MAINTENANCE}
     ),
     RoomStatus.OCCUPIED: frozenset(
-        # Room transfer frees an occupied room straight to cleaning.
+        # Room transfer or checkout frees an occupied room straight to cleaning.
         {RoomStatus.CLEANING_REQUIRED}
     ),
     RoomStatus.CLEANING_REQUIRED: frozenset(
@@ -47,6 +48,9 @@ TRANSITIONS: dict[RoomStatus, frozenset[RoomStatus]] = {
             RoomStatus.OUT_OF_SERVICE,
             # Stayover clean: guest still in-house → restore Occupied.
             RoomStatus.OCCUPIED,
+            # Fast-track / manager inspection approval
+            RoomStatus.CLEAN_READY,
+            RoomStatus.AVAILABLE,
         }
     ),
     RoomStatus.CLEANING_IN_PROGRESS: frozenset(
@@ -55,19 +59,31 @@ TRANSITIONS: dict[RoomStatus, frozenset[RoomStatus]] = {
             RoomStatus.INSPECTION_REQUIRED,
             RoomStatus.MAINTENANCE,
             RoomStatus.OCCUPIED,
+            RoomStatus.AVAILABLE,
         }
     ),
     RoomStatus.CLEAN_READY: frozenset(
-        {RoomStatus.AVAILABLE, RoomStatus.INSPECTION_REQUIRED, RoomStatus.OCCUPIED}
+        {
+            RoomStatus.AVAILABLE,
+            RoomStatus.INSPECTION_REQUIRED,
+            RoomStatus.OCCUPIED,
+            RoomStatus.CLEANING_REQUIRED,
+            RoomStatus.MAINTENANCE,
+        }
     ),
     RoomStatus.INSPECTION_REQUIRED: frozenset(
         {RoomStatus.AVAILABLE, RoomStatus.CLEANING_REQUIRED, RoomStatus.MAINTENANCE}
     ),
     RoomStatus.MAINTENANCE: frozenset(
-        {RoomStatus.AVAILABLE, RoomStatus.CLEANING_REQUIRED, RoomStatus.OUT_OF_SERVICE}
+        {
+            RoomStatus.AVAILABLE,
+            RoomStatus.CLEANING_REQUIRED,
+            RoomStatus.OUT_OF_SERVICE,
+            RoomStatus.CLEAN_READY,
+        }
     ),
     RoomStatus.OUT_OF_SERVICE: frozenset(
-        {RoomStatus.AVAILABLE, RoomStatus.MAINTENANCE}
+        {RoomStatus.AVAILABLE, RoomStatus.MAINTENANCE, RoomStatus.CLEANING_REQUIRED}
     ),
 }
 

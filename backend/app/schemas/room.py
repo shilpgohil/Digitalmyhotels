@@ -68,6 +68,9 @@ class RoomOut(ORMModel):
     next_booking_time: str | None = None  # its expected check-in time
     departing_today: bool = False  # current in-house guest checks out today
     departure_time: str | None = None  # "HH:MM" expected checkout time
+    current_booking_id: UUID | None = None  # active checked-in booking ID
+    current_guest_name: str | None = None  # in-house primary guest name
+    current_guest_phone: str | None = None  # in-house primary guest phone
 
 
 class RoomCreate(BaseModel):

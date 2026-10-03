@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -18,6 +18,12 @@ import {
   Sparkles,
   Wrench,
   SquarePen,
+  Ban,
+  CheckCircle2,
+  LogIn,
+  LogOut,
+  Phone,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -107,21 +113,6 @@ const LEGACY_FILTER_MAP: Record<string, RoomBucket> = {
 };
 
 /**
- * Statuses a user may set manually — the single source of truth for BOTH the
- * grid-tile menu and the table-row menu. Invalid transitions are rejected by
- * the backend with a friendly message shown verbatim in the error toast.
- */
-const MANUAL_STATUSES: RoomStatus[] = [
-  "available",
-  "cleaning_required",
-  "cleaning_in_progress",
-  "clean_ready",
-  "inspection_required",
-  "maintenance",
-  "out_of_service",
-];
-
-/**
  * Two-layer status display (redesign 15/09): physical badge + derived
  * reservation ribbons, hour-accurate. Shared by grid tiles and table rows.
  *  - Free room, guest arrives today  → "Reserved (Today)" badge + arrival time
@@ -178,39 +169,177 @@ function RoomStatusCell({ room }: { readonly room: RoomOut }) {
 
 /** Shared status-change menu items — identical options for grid and table views. */
 function RoomStatusMenuItems({
-  currentStatus,
-  onSelect,
+  room,
+  onSelectStatus,
+  onCheckIn,
+  onCheckOut,
 }: {
-  currentStatus: RoomStatus;
-  onSelect: (status: RoomStatus) => void;
+  readonly room: RoomOut;
+  readonly onSelectStatus: (status: RoomStatus) => void;
+  readonly onCheckIn: () => void;
+  readonly onCheckOut: (bookingId: string) => void;
 }) {
   const t = useTranslations("rooms");
+  const isOccupied = room.status === "occupied";
+  const isAvailable = room.status === "available" || room.status === "clean_ready";
+  const isCleaning =
+    room.status === "cleaning_required" ||
+    room.status === "cleaning_in_progress" ||
+    room.status === "inspection_required";
+  const isMaintenanceOrOos =
+    room.status === "maintenance" || room.status === "out_of_service";
+
   return (
     <>
-      {/* Clear header title + separator (client 9-08 item 26: wider, bordered, title hierarchy). */}
-      <DropdownMenuLabel className="px-3 py-2 text-xs font-bold uppercase tracking-widest text-muted-foreground border-b mb-1">
-        {t("changeStatus")}
-      </DropdownMenuLabel>
-      {MANUAL_STATUSES.filter((s) => {
-        if (s === currentStatus) return false;
-        // Occupied rooms stay occupied until checkout — never offer Available.
-        if (
-          currentStatus === "occupied" &&
-          (s === "available" || s === "clean_ready")
-        ) {
-          return false;
-        }
-        return true;
-      }).map((status) => (
-        <DropdownMenuItem key={status} onClick={() => onSelect(status)}>
-          {t(`status_${status}`)}
-        </DropdownMenuItem>
-      ))}
+      {/* Room header / In-house guest header */}
+      {isOccupied ? (
+        <div className="px-3 py-2 border-b bg-muted/40">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+            <User className="size-3.5 text-navy-600 dark:text-gold-500" />
+            <span className="truncate">{room.current_guest_name || t("inHouseGuest")}</span>
+          </div>
+          {room.current_guest_phone && (
+            <div className="flex items-center gap-1.5 text-micro text-muted-foreground mt-0.5">
+              <Phone className="size-3" />
+              <span>{room.current_guest_phone}</span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <DropdownMenuLabel className="px-3 py-2 text-xs font-bold uppercase tracking-widest text-muted-foreground border-b mb-1">
+          {t("roomNumber")} {room.room_number}
+        </DropdownMenuLabel>
+      )}
+
+      {/* ── CASE 1: OCCUPIED ── */}
+      {isOccupied && (
+        <>
+          {room.current_booking_id && (
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 font-medium text-destructive focus:text-destructive focus:bg-destructive/10"
+              onClick={() => onCheckOut(room.current_booking_id!)}
+            >
+              <LogOut className="size-4" />
+              <span>{t("checkOutGuest")}</span>
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
+            className="cursor-pointer gap-2"
+            onClick={() => onSelectStatus("cleaning_required")}
+          >
+            <Sparkles className="size-4 text-warning" />
+            <span>{t("stayoverClean")}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer gap-2"
+            onClick={() => onSelectStatus("maintenance")}
+          >
+            <Wrench className="size-4 text-muted-foreground" />
+            <span>{t("markMaintenance")}</span>
+          </DropdownMenuItem>
+        </>
+      )}
+
+      {/* ── CASE 2: AVAILABLE / CLEAN & READY ── */}
+      {isAvailable && (
+        <>
+          <DropdownMenuItem
+            className="cursor-pointer gap-2 font-medium text-navy-800 dark:text-gold-500 focus:bg-accent"
+            onClick={onCheckIn}
+          >
+            <LogIn className="size-4 text-emerald-600" />
+            <span>{t("quickCheckIn")}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer gap-2"
+            onClick={() => onSelectStatus("cleaning_required")}
+          >
+            <Sparkles className="size-4 text-warning" />
+            <span>{t("markDirty")}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer gap-2"
+            onClick={() => onSelectStatus("maintenance")}
+          >
+            <Wrench className="size-4 text-muted-foreground" />
+            <span>{t("markMaintenance")}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer gap-2"
+            onClick={() => onSelectStatus("out_of_service")}
+          >
+            <Ban className="size-4 text-destructive" />
+            <span>{t("markOutOfService")}</span>
+          </DropdownMenuItem>
+        </>
+      )}
+
+      {/* ── CASE 3: CLEANING (REQUIRED / IN PROGRESS / INSPECTION) ── */}
+      {isCleaning && (
+        <>
+          <DropdownMenuItem
+            className="cursor-pointer gap-2 font-medium text-emerald-600 focus:text-emerald-700"
+            onClick={() => onSelectStatus("available")}
+          >
+            <CheckCircle2 className="size-4" />
+            <span>{t("fastTrackAvailable")}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer gap-2"
+            onClick={() => onSelectStatus("clean_ready")}
+          >
+            <Sparkles className="size-4 text-emerald-600" />
+            <span>{t("markCleanReady")}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer gap-2"
+            onClick={() => onSelectStatus("maintenance")}
+          >
+            <Wrench className="size-4 text-muted-foreground" />
+            <span>{t("markMaintenance")}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer gap-2"
+            onClick={() => onSelectStatus("out_of_service")}
+          >
+            <Ban className="size-4 text-destructive" />
+            <span>{t("markOutOfService")}</span>
+          </DropdownMenuItem>
+        </>
+      )}
+
+      {/* ── CASE 4: MAINTENANCE / OUT OF SERVICE ── */}
+      {isMaintenanceOrOos && (
+        <>
+          <DropdownMenuItem
+            className="cursor-pointer gap-2 font-medium text-emerald-600 focus:text-emerald-700"
+            onClick={() => onSelectStatus("available")}
+          >
+            <CheckCircle2 className="size-4" />
+            <span>{t("repairCompleted")}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer gap-2"
+            onClick={() => onSelectStatus("cleaning_required")}
+          >
+            <Sparkles className="size-4 text-warning" />
+            <span>{t("sendToCleaning")}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer gap-2"
+            onClick={() => onSelectStatus("clean_ready")}
+          >
+            <Sparkles className="size-4 text-emerald-600" />
+            <span>{t("markCleanReady")}</span>
+          </DropdownMenuItem>
+        </>
+      )}
     </>
   );
 }
 
 function RoomsContent() {
+  const router = useRouter();
   const t = useTranslations("rooms");
   const tn = useTranslations("nav");
   const tc = useTranslations("common");
@@ -443,8 +572,10 @@ function RoomsContent() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-64 rounded-xl border border-border shadow-lg">
                                 <RoomStatusMenuItems
-                                  currentStatus={room.status}
-                                  onSelect={(status) => handleSelectStatus(room, status)}
+                                  room={room}
+                                  onSelectStatus={(status) => handleSelectStatus(room, status)}
+                                  onCheckIn={() => router.push("/checkin")}
+                                  onCheckOut={(bookingId) => router.push(`/checkout?booking=${bookingId}`)}
                                 />
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -509,8 +640,10 @@ function RoomsContent() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-64 rounded-xl border border-border shadow-lg">
                                 <RoomStatusMenuItems
-                                  currentStatus={room.status}
-                                  onSelect={(status) => handleSelectStatus(room, status)}
+                                  room={room}
+                                  onSelectStatus={(status) => handleSelectStatus(room, status)}
+                                  onCheckIn={() => router.push("/checkin")}
+                                  onCheckOut={(bookingId) => router.push(`/checkout?booking=${bookingId}`)}
                                 />
                               </DropdownMenuContent>
                             </DropdownMenu>

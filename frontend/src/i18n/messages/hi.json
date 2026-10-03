@@ -344,7 +344,18 @@
     "outOfServiceReasonTitle": "कमरा {roomNumber} सेवा से बाहर",
     "reasonPrompt": "कृपया इस स्थिति परिवर्तन का कारण बताएं",
     "reasonLabel": "कारण",
-    "reasonPlaceholder": "उदा. एसी मरम्मत, प्लंबिंग समस्या, बिजली का काम"
+    "reasonPlaceholder": "उदा. एसी मरम्मत, प्लंबिंग समस्या, बिजली का काम",
+    "quickCheckIn": "वॉक-इन अतिथि चेक-इन करें",
+    "checkOutGuest": "अतिथि चेक-आउट करें",
+    "inHouseGuest": "कमरे में उपस्थित अतिथि",
+    "stayoverClean": "स्टेओवर सफाई का अनुरोध करें",
+    "fastTrackAvailable": "साफ और उपलब्ध चिह्नित करें",
+    "repairCompleted": "मरम्मत पूरी: उपलब्ध चिह्नित करें",
+    "sendToCleaning": "सफाई के लिए भेजें",
+    "markDirty": "सफाई की आवश्यकता चिह्नित करें",
+    "markCleanReady": "साफ और तैयार चिह्नित करें",
+    "markMaintenance": "रखरखाव में डालें",
+    "markOutOfService": "सेवा से बाहर चिह्नित करें"
   },
   "team": {
     "title": "टीम सदस्य",

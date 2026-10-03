@@ -59,6 +59,9 @@ class _BookingContext:
         "next_booking_time",
         "departing_today",
         "departure_time",
+        "current_booking_id",
+        "current_guest_name",
+        "current_guest_phone",
     )
 
     def __init__(self) -> None:
@@ -68,6 +71,9 @@ class _BookingContext:
         self.next_booking_time: str | None = None
         self.departing_today = False
         self.departure_time: str | None = None
+        self.current_booking_id: UUID | None = None
+        self.current_guest_name: str | None = None
+        self.current_guest_phone: str | None = None
 
 
 async def _booking_context(
@@ -79,9 +85,12 @@ async def _booking_context(
       (check_in <= today < effective checkout — covers late arrivals too).
     - next_booking: the earliest confirmed booking starting AFTER today.
     - departing_today: the current CHECKED-IN guest checks out today.
+    - current in-house guest details (booking_id, name, phone) for Occupied rooms.
     Reservation state is always derived — never stored on the room — so it
     can never drift (multiple bookings, cancellations, edits all re-derive).
     """
+    from app.models.guest import Guest
+
     rows = await db.execute(
         select(
             BookingRoom.room_id,
@@ -90,8 +99,12 @@ async def _booking_context(
             Booking.check_in_time,
             Booking.check_out_date,
             Booking.check_out_time,
+            Booking.id,
+            Guest.full_name,
+            Guest.normalized_phone,
         )
         .join(Booking, Booking.id == BookingRoom.booking_id)
+        .outerjoin(Guest, Guest.id == Booking.primary_guest_id)
         .where(
             BookingRoom.hotel_id == hotel_id,
             BookingRoom.is_current.is_(True),
@@ -101,9 +114,12 @@ async def _booking_context(
         )
     )
     ctx: dict[UUID, _BookingContext] = {}
-    for room_id, status, ci_date, ci_time, co_date, co_time in rows.all():
+    for room_id, status, ci_date, ci_time, co_date, co_time, b_id, g_name, g_phone in rows.all():
         c = ctx.setdefault(room_id, _BookingContext())
         if status == "checked_in":
+            c.current_booking_id = b_id
+            c.current_guest_name = g_name
+            c.current_guest_phone = g_phone
             if co_date == today:
                 c.departing_today = True
                 c.departure_time = co_time
@@ -169,6 +185,9 @@ def _room_out(room: Room, ctx: _BookingContext | None = None) -> RoomOut:
         next_booking_time=ctx.next_booking_time if ctx else None,
         departing_today=ctx.departing_today if ctx else False,
         departure_time=ctx.departure_time if ctx else None,
+        current_booking_id=ctx.current_booking_id if ctx else None,
+        current_guest_name=ctx.current_guest_name if ctx else None,
+        current_guest_phone=ctx.current_guest_phone if ctx else None,
     )
 
 

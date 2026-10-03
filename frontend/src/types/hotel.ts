@@ -125,6 +125,12 @@ export interface RoomOut {
   departing_today: boolean;
   /** "HH:MM" expected checkout time today. */
   departure_time: string | null;
+  /** Current in-house active booking ID. */
+  current_booking_id?: string | null;
+  /** In-house primary guest name. */
+  current_guest_name?: string | null;
+  /** In-house primary guest phone. */
+  current_guest_phone?: string | null;
 }
 
 // ── Date-aware availability ───────────────────────────────────────────────────
