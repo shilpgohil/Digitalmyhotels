@@ -112,6 +112,24 @@ const LEGACY_FILTER_MAP: Record<string, RoomBucket> = {
   out_of_service: "maintenance",
 };
 
+/** Top status shade line colors for room grid cards based on live current bucket. */
+const ROOM_BUCKET_BAR_COLOR: Record<RoomBucket, string> = {
+  occupied: "bg-danger",
+  available: "bg-success",
+  reserved: "bg-info",
+  cleaning: "bg-warning",
+  maintenance: "bg-navy-800 dark:bg-slate-600",
+};
+
+/** Subtle border tint on card hover matching its live status. */
+const ROOM_BUCKET_BORDER_HOVER: Record<RoomBucket, string> = {
+  occupied: "hover:border-danger/40 dark:hover:border-danger/40",
+  available: "hover:border-success/40 dark:hover:border-success/40",
+  reserved: "hover:border-info/40 dark:hover:border-info/40",
+  cleaning: "hover:border-warning/40 dark:hover:border-warning/40",
+  maintenance: "hover:border-navy-500/40 dark:hover:border-slate-500/40",
+};
+
 /**
  * Two-layer status display (redesign 15/09): physical badge + derived
  * reservation ribbons, hour-accurate. Shared by grid tiles and table rows.
@@ -598,41 +616,56 @@ function RoomsContent() {
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
                   {rooms.data?.items
                     .filter((room) => gridFilter === "all" || roomBucket(room) === gridFilter)
-                    .map((room) => (
-                      <div
-                        key={room.id}
-                        className="relative flex flex-col items-center gap-2 rounded-lg border p-4 text-center"
-                      >
-                        {/* Room number — centered; ··· menu is absolutely-positioned
-                            so it doesn't push the number off-centre
-                            (client 09/2026: "All Items Center, room number should also be center"). */}
-                        <span className="w-full text-center text-lg font-semibold">{room.room_number}</span>
-                        {can(PERMISSIONS.roomsUpdateStatus) && (
-                          <div className="absolute top-2 right-2">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger
-                                className="flex size-6 items-center justify-center rounded hover:bg-muted"
-                                aria-label={t("changeStatus")}
-                              >
-                                <MoreHorizontal className="size-3.5" aria-hidden />
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-64 rounded-xl border border-border shadow-lg">
-                                <RoomStatusMenuItems
-                                  room={room}
-                                  onSelectStatus={(status) => handleSelectStatus(room, status)}
-                                  onCheckIn={() => router.push("/checkin")}
-                                  onCheckOut={(bookingId) => router.push(`/checkout?booking=${bookingId}`)}
-                                />
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        )}
-                        <RoomStatusCell room={room} />
-                        <span className="text-xs text-muted-foreground">
-                          {room.room_type_name}
-                        </span>
-                      </div>
-                    ))}
+                    .map((room) => {
+                      const bucket = roomBucket(room);
+                      return (
+                        <div
+                          key={room.id}
+                          className={cn(
+                            "relative flex flex-col items-center gap-2 rounded-xl border bg-card p-4 pt-5 text-center shadow-2xs transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 overflow-hidden",
+                            ROOM_BUCKET_BORDER_HOVER[bucket],
+                          )}
+                        >
+                          {/* Live status top horizontal shade line */}
+                          <div
+                            className={cn(
+                              "absolute top-0 inset-x-0 h-1.5",
+                              ROOM_BUCKET_BAR_COLOR[bucket],
+                            )}
+                            aria-hidden
+                          />
+
+                          {/* Room number — centered; ··· menu is absolutely-positioned
+                              so it doesn't push the number off-centre
+                              (client 09/2026: "All Items Center, room number should also be center"). */}
+                          <span className="w-full text-center text-lg font-semibold">{room.room_number}</span>
+                          {can(PERMISSIONS.roomsUpdateStatus) && (
+                            <div className="absolute top-2.5 right-2">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger
+                                  className="flex size-6 items-center justify-center rounded hover:bg-muted"
+                                  aria-label={t("changeStatus")}
+                                >
+                                  <MoreHorizontal className="size-3.5" aria-hidden />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-64 rounded-xl border border-border shadow-lg">
+                                  <RoomStatusMenuItems
+                                    room={room}
+                                    onSelectStatus={(status) => handleSelectStatus(room, status)}
+                                    onCheckIn={() => router.push("/checkin")}
+                                    onCheckOut={(bookingId) => router.push(`/checkout?booking=${bookingId}`)}
+                                  />
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          )}
+                          <RoomStatusCell room={room} />
+                          <span className="text-xs text-muted-foreground">
+                            {room.room_type_name}
+                          </span>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             )}
