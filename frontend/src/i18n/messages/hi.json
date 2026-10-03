@@ -355,7 +355,9 @@
     "markDirty": "सफाई की आवश्यकता चिह्नित करें",
     "markCleanReady": "साफ और तैयार चिह्नित करें",
     "markMaintenance": "रखरखाव में डालें",
-    "markOutOfService": "सेवा से बाहर चिह्नित करें"
+    "markOutOfService": "सेवा से बाहर चिह्नित करें",
+    "finishStayoverClean": "सफाई पूरी (अतिथि के कमरे में वापस)",
+    "stayoverBadge": "स्टेओवर"
   },
   "team": {
     "title": "टीम सदस्य",

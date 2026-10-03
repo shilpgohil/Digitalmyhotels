@@ -355,7 +355,9 @@
     "markDirty": "Mark Needs Cleaning",
     "markCleanReady": "Mark Clean & Ready",
     "markMaintenance": "Put Under Maintenance",
-    "markOutOfService": "Mark Out of Service"
+    "markOutOfService": "Mark Out of Service",
+    "finishStayoverClean": "Finish Cleaning (Back to Occupied)",
+    "stayoverBadge": "Stayover"
   },
   "team": {
     "title": "Team Members",

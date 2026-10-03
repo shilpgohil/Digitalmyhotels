@@ -533,15 +533,21 @@ async def update_room_status(
     if not room.is_active:
         raise ValidationAppError("Room is inactive", code="room_inactive")
     old_status = room.status
-    # Manual status changes must respect the state machine; booking/checkout
-    # services perform their own transitions with the same rules.
-    if RoomStatus(body.status) in {RoomStatus.OCCUPIED, RoomStatus.RESERVED}:
+    hotel_id = tenant.require_hotel()
+    if RoomStatus(body.status) == RoomStatus.RESERVED:
         raise ValidationAppError(
-            "Occupied/Reserved are set by the booking workflow, not manually",
+            "Reserved is set by the booking workflow, not manually",
             code="workflow_status",
         )
+    if RoomStatus(body.status) == RoomStatus.OCCUPIED:
+        # Occupied status can only be restored manually if the room currently has an
+        # active in-house guest (stayover cleaning finished from Room Status).
+        if not await has_in_house_guest(db, hotel_id, room.id):
+            raise ValidationAppError(
+                "Occupied status is set by the check-in workflow, not manually",
+                code="workflow_status",
+            )
     assert_transition(old_status, body.status)
-    hotel_id = tenant.require_hotel()
     if body.status in _FREEING_STATUSES and await has_in_house_guest(
         db, hotel_id, room.id
     ):
@@ -631,6 +637,40 @@ async def update_room_status(
             m.notes = (
                 f"{m.notes} | " if m.notes else ""
             ) + "Auto-resolved: room manually marked ready"
+
+    # Restoring Occupied (stayover cleaning finished via Room Status override):
+    # Complete any open housekeeping task and notify staff that room is cleaned.
+    if body.status == RoomStatus.OCCUPIED.value and old_status in (
+        RoomStatus.CLEANING_REQUIRED.value,
+        RoomStatus.CLEANING_IN_PROGRESS.value,
+        RoomStatus.INSPECTION_REQUIRED.value,
+    ):
+        from datetime import UTC as _UTC
+        from datetime import datetime as _dt
+
+        from app.models.ops import HousekeepingTask
+        from app.services.notification_events import NE
+        from app.services.notification_events import fire as _fire
+
+        open_tasks = await db.execute(
+            select(HousekeepingTask).where(
+                HousekeepingTask.hotel_id == hotel_id,
+                HousekeepingTask.room_id == room.id,
+                HousekeepingTask.status.in_(
+                    ("cleaning_required", "cleaning_in_progress", "inspection_required")
+                ),
+            )
+        )
+        for task in open_tasks.scalars():
+            task.status = "completed"
+            task.completed_at = _dt.now(_UTC)
+            task.notes = (
+                f"{task.notes} | " if task.notes else ""
+            ) + "Completed: stayover cleaning finished from Room Status"
+
+        await _fire(
+            db, hotel_id=hotel_id, event=NE.ROOM_CLEANED, data={"room_number": room.room_number}
+        )
 
     await write_audit(
         db,

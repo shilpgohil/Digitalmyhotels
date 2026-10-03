@@ -163,6 +163,12 @@ function RoomStatusCell({ room }: { readonly room: RoomOut }) {
           {room.status_note}
         </span>
       )}
+      {/* In-house guest on stayover clean or maintenance */}
+      {room.current_booking_id && room.status !== "occupied" && (
+        <span className="text-micro font-medium text-amber-700 dark:text-amber-400 truncate max-w-full px-1">
+          {room.current_guest_name ? `${room.current_guest_name} (${t("stayoverBadge")})` : t("inHouseGuest")}
+        </span>
+      )}
     </div>
   );
 }
@@ -180,6 +186,7 @@ function RoomStatusMenuItems({
   readonly onCheckOut: (bookingId: string) => void;
 }) {
   const t = useTranslations("rooms");
+  const hasInHouseGuest = Boolean(room.current_booking_id);
   const isOccupied = room.status === "occupied";
   const isAvailable = room.status === "available" || room.status === "clean_ready";
   const isCleaning =
@@ -192,15 +199,22 @@ function RoomStatusMenuItems({
   return (
     <>
       {/* Room header / In-house guest header */}
-      {isOccupied ? (
+      {hasInHouseGuest ? (
         <div className="px-3 py-2 border-b bg-muted/40">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-            <User className="size-3.5 text-navy-600 dark:text-gold-500" />
-            <span className="truncate">{room.current_guest_name || t("inHouseGuest")}</span>
+          <div className="flex items-center justify-between gap-1 text-xs font-semibold text-foreground">
+            <div className="flex items-center gap-1.5 truncate">
+              <User className="size-3.5 text-navy-600 dark:text-gold-500 shrink-0" />
+              <span className="truncate">{room.current_guest_name || t("inHouseGuest")}</span>
+            </div>
+            {isCleaning && (
+              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 shrink-0">
+                {t("stayoverBadge")}
+              </span>
+            )}
           </div>
           {room.current_guest_phone && (
             <div className="flex items-center gap-1.5 text-micro text-muted-foreground mt-0.5">
-              <Phone className="size-3" />
+              <Phone className="size-3 shrink-0" />
               <span>{room.current_guest_phone}</span>
             </div>
           )}
@@ -277,34 +291,66 @@ function RoomStatusMenuItems({
       {/* ── CASE 3: CLEANING (REQUIRED / IN PROGRESS / INSPECTION) ── */}
       {isCleaning && (
         <>
-          <DropdownMenuItem
-            className="cursor-pointer gap-2 font-medium text-emerald-600 focus:text-emerald-700"
-            onClick={() => onSelectStatus("available")}
-          >
-            <CheckCircle2 className="size-4" />
-            <span>{t("fastTrackAvailable")}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="cursor-pointer gap-2"
-            onClick={() => onSelectStatus("clean_ready")}
-          >
-            <Sparkles className="size-4 text-emerald-600" />
-            <span>{t("markCleanReady")}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="cursor-pointer gap-2"
-            onClick={() => onSelectStatus("maintenance")}
-          >
-            <Wrench className="size-4 text-muted-foreground" />
-            <span>{t("markMaintenance")}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="cursor-pointer gap-2"
-            onClick={() => onSelectStatus("out_of_service")}
-          >
-            <Ban className="size-4 text-destructive" />
-            <span>{t("markOutOfService")}</span>
-          </DropdownMenuItem>
+          {hasInHouseGuest ? (
+            /* Stayover cleaning: guest is still living here! */
+            <>
+              <DropdownMenuItem
+                className="cursor-pointer gap-2 font-medium text-emerald-600 focus:text-emerald-700"
+                onClick={() => onSelectStatus("occupied")}
+              >
+                <CheckCircle2 className="size-4" />
+                <span>{t("finishStayoverClean")}</span>
+              </DropdownMenuItem>
+              {room.current_booking_id && (
+                <DropdownMenuItem
+                  className="cursor-pointer gap-2 font-medium text-destructive focus:text-destructive focus:bg-destructive/10"
+                  onClick={() => onCheckOut(room.current_booking_id!)}
+                >
+                  <LogOut className="size-4" />
+                  <span>{t("checkOutGuest")}</span>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                className="cursor-pointer gap-2"
+                onClick={() => onSelectStatus("maintenance")}
+              >
+                <Wrench className="size-4 text-muted-foreground" />
+                <span>{t("markMaintenance")}</span>
+              </DropdownMenuItem>
+            </>
+          ) : (
+            /* Vacant / checkout cleaning: room is empty! */
+            <>
+              <DropdownMenuItem
+                className="cursor-pointer gap-2 font-medium text-emerald-600 focus:text-emerald-700"
+                onClick={() => onSelectStatus("available")}
+              >
+                <CheckCircle2 className="size-4" />
+                <span>{t("fastTrackAvailable")}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="cursor-pointer gap-2"
+                onClick={() => onSelectStatus("clean_ready")}
+              >
+                <Sparkles className="size-4 text-emerald-600" />
+                <span>{t("markCleanReady")}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="cursor-pointer gap-2"
+                onClick={() => onSelectStatus("maintenance")}
+              >
+                <Wrench className="size-4 text-muted-foreground" />
+                <span>{t("markMaintenance")}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="cursor-pointer gap-2"
+                onClick={() => onSelectStatus("out_of_service")}
+              >
+                <Ban className="size-4 text-destructive" />
+                <span>{t("markOutOfService")}</span>
+              </DropdownMenuItem>
+            </>
+          )}
         </>
       )}
 
