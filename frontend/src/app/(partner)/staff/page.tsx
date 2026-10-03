@@ -15,6 +15,7 @@ import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/feedback/status-badge";
 import { AttendanceStatusBadge } from "@/components/staff/attendance-status-badge";
+import { StaffAvatar } from "@/components/staff/staff-avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -209,13 +210,13 @@ function StaffListContent() {
               <TableCell className="font-medium tabular-nums">{s.staff_code}</TableCell>
               <TableCell>
                 <span className="flex items-center gap-2">
-                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-navy-900 text-micro font-bold text-white">
-                    {s.full_name
-                      .split(" ")
-                      .slice(0, 2)
-                      .map((w) => w[0]?.toUpperCase())
-                      .join("")}
-                  </span>
+                  <StaffAvatar
+                    staffId={s.id}
+                    name={s.full_name}
+                    hasPhoto={s.has_photo}
+                    size="sm"
+                    className="size-7"
+                  />
                   <span className="font-medium">{s.full_name}</span>
                 </span>
               </TableCell>

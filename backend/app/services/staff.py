@@ -22,6 +22,8 @@ from app.services.audit import write_audit
 
 ALLOWED_PHOTO_TYPES = {"image/png", "image/jpeg", "image/webp"}
 MAX_PHOTO_BYTES = 2 * 1024 * 1024  # mockup: max 2 MB
+ALLOWED_ID_TYPES = {"image/png", "image/jpeg", "image/webp", "application/pdf"}
+MAX_ID_BYTES = 5 * 1024 * 1024  # max 5 MB
 
 
 def hotel_tz(hotel: Hotel) -> ZoneInfo:
@@ -111,6 +113,7 @@ async def _to_out(
         status=profile.status,
         role_code=role_code,
         has_photo=profile.photo_object_key is not None,
+        has_id_proof=profile.id_proof_object_key is not None,
         today_status=today_status,
     )
     # Salary is permission-gated — never serialized without staff.salary_view.
@@ -399,3 +402,67 @@ async def get_photo_bytes(
         "webp": "image/webp",
     }.get(suffix, "application/octet-stream")
     return data, media
+
+
+async def upload_id_proof(
+    db: AsyncSession,
+    tenant: TenantContext,
+    staff_id: UUID,
+    *,
+    filename: str,
+    content_type: str,
+    data: bytes,
+) -> None:
+    from app.integrations.storage.base import get_storage, new_object_key
+
+    if content_type not in ALLOWED_ID_TYPES:
+        raise ValidationAppError("ID proof must be PNG, JPEG, WebP or PDF", code="invalid_id_type")
+    if len(data) > MAX_ID_BYTES:
+        raise ValidationAppError("ID proof must be 5 MB or smaller", code="id_too_large")
+    profile = await get_profile(db, tenant, staff_id)
+    old_key = profile.id_proof_object_key
+    key = new_object_key(f"hotels/{profile.hotel_id}/staff/{profile.id}/id_proof", filename)
+    await get_storage().put_bytes(key=key, data=data, content_type=content_type)
+    profile.id_proof_object_key = key
+    await db.flush()
+    if old_key and old_key != key:
+        try:
+            await get_storage().delete(old_key)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+async def get_id_proof_bytes(
+    db: AsyncSession, tenant: TenantContext, staff_id: UUID
+) -> tuple[bytes, str]:
+    from app.integrations.storage.base import get_storage
+
+    profile = await get_profile(db, tenant, staff_id)
+    if not profile.id_proof_object_key:
+        raise NotFoundError("No ID proof uploaded")
+    data = await get_storage().get_bytes(profile.id_proof_object_key)
+    suffix = profile.id_proof_object_key.rsplit(".", 1)[-1].lower()
+    media = {
+        "png": "image/png",
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "webp": "image/webp",
+        "pdf": "application/pdf",
+    }.get(suffix, "application/octet-stream")
+    return data, media
+
+
+async def delete_id_proof(
+    db: AsyncSession, tenant: TenantContext, staff_id: UUID
+) -> None:
+    from app.integrations.storage.base import get_storage
+
+    profile = await get_profile(db, tenant, staff_id)
+    if profile.id_proof_object_key:
+        old_key = profile.id_proof_object_key
+        profile.id_proof_object_key = None
+        await db.flush()
+        try:
+            await get_storage().delete(old_key)
+        except Exception:  # noqa: BLE001
+            pass

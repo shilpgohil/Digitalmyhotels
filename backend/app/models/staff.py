@@ -61,6 +61,7 @@ class StaffProfile(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # 0=Sunday … 6=Saturday; NULL = no fixed weekly off.
     weekly_off: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     photo_object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    id_proof_object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     # active | on_leave | inactive
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active", index=True)
 

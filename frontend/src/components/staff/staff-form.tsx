@@ -6,11 +6,11 @@
  * 42px controls per the platform form spec.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Camera, IdCard, KeyRound, UserRound } from "lucide-react";
+import { Camera, FileBadge, IdCard, KeyRound, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,7 @@ import { SectionPanel } from "@/components/ui/section-panel";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
-import { ApiError, apiUpload } from "@/lib/api/client";
+import { ApiError, API_BASE, apiUpload, getAccessToken } from "@/lib/api/client";
 import { useImageEditor } from "@/components/media/image-editor";
 import { compressStaffPhoto } from "@/lib/compress-image";
 import { localToday } from "@/lib/formatting";
@@ -66,6 +66,38 @@ export function StaffForm({
   const [gender, setGender] = useState(existing?.gender ?? "");
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [idProof, setIdProof] = useState<File | null>(null);
+  const [idProofName, setIdProofName] = useState<string | null>(null);
+
+  // Load existing photo preview if available
+  useEffect(() => {
+    if (!existing?.has_photo || !existing?.id || !activeHotelId) return;
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = getAccessToken();
+        const res = await fetch(`${API_BASE}/api/v1/staff/${existing.id}/photo`, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+            "X-Hotel-Id": activeHotelId,
+          },
+          credentials: "include",
+        });
+        if (!res.ok || cancelled) return;
+        const blob = await res.blob();
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPhotoPreview(objectUrl);
+      } catch {
+        // Fallback
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [existing?.id, existing?.has_photo, activeHotelId]);
   // Employment
   const [department, setDepartment] = useState(existing?.department ?? "reception");
   const [designation, setDesignation] = useState(existing?.designation ?? "");
@@ -142,6 +174,17 @@ export function StaffForm({
           });
         } catch {
           toast.warning(t("photoUploadFailed"));
+        }
+      }
+      if (idProof) {
+        try {
+          const form = new FormData();
+          form.append("file", idProof, idProof.name);
+          await apiUpload(`/api/v1/staff/${staffId}/id-proof`, form, {
+            hotelId: activeHotelId ?? undefined,
+          });
+        } catch {
+          toast.warning(t("idProofUploadFailed"));
         }
       }
       return staffId;
@@ -251,6 +294,38 @@ export function StaffForm({
               <option value="Other">{t("genderOther")}</option>
             </select>
           </div>
+          {can(PERMISSIONS.staffManage) && (
+            <div className="space-y-1.5">
+              <Label>{t("idProofDoc")}</Label>
+              <div className="flex items-center gap-2">
+                <label className="flex h-[42px] flex-1 cursor-pointer items-center gap-2 rounded-md border border-input bg-white px-3 text-sm text-muted-foreground transition-colors hover:bg-muted/40">
+                  <FileBadge className="size-4 shrink-0 text-navy-900" aria-hidden />
+                  <span className="truncate">
+                    {idProofName
+                      ? idProofName
+                      : existing?.has_id_proof
+                        ? t("idProofUploaded")
+                        : t("chooseIdProof")}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,application/pdf"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      if (f.size > 5 * 1024 * 1024) {
+                        toast.error(t("idProofTooLarge"));
+                        return;
+                      }
+                      setIdProof(f);
+                      setIdProofName(f.name);
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+          )}
         </div>
       </SectionPanel>
 

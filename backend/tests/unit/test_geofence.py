@@ -82,3 +82,15 @@ class TestEnforceGeofence:
         assert enforce_geofence(make_hotel(radius=500), lat, HOTEL_LNG, 0) is not None
         with pytest.raises(ValidationAppError):
             enforce_geofence(make_hotel(radius=200), lat, HOTEL_LNG, 0)
+
+    def test_checkout_outside_fence_rejected(self):
+        with pytest.raises(ValidationAppError) as exc:
+            enforce_geofence(make_hotel(), HOTEL_LAT + 0.009, HOTEL_LNG, 5, action="check out")
+        assert exc.value.code == "geofence_violation"
+        assert "to check out" in str(exc.value)
+
+    def test_checkout_missing_location_rejected(self):
+        with pytest.raises(ValidationAppError) as exc:
+            enforce_geofence(make_hotel(), None, None, None, action="check out")
+        assert exc.value.code == "location_required"
+        assert "to check out at this hotel" in str(exc.value)

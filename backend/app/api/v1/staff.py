@@ -434,6 +434,45 @@ async def get_staff_photo(
     return Response(content=data, media_type=media)
 
 
+@router.post("/{staff_id}/id-proof", status_code=204)
+async def upload_staff_id_proof(
+    staff_id: UUID,
+    file: UploadFile = File(...),
+    tenant: TenantContext = Depends(require_permissions(Permission.STAFF_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    data = await file.read()
+    await staff_service.upload_id_proof(
+        db,
+        tenant,
+        staff_id,
+        filename=file.filename or "id_proof.jpg",
+        content_type=file.content_type or "image/jpeg",
+        data=data,
+    )
+    return Response(status_code=204)
+
+
+@router.get("/{staff_id}/id-proof")
+async def get_staff_id_proof(
+    staff_id: UUID,
+    tenant: TenantContext = Depends(require_permissions(Permission.STAFF_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    data, media = await staff_service.get_id_proof_bytes(db, tenant, staff_id)
+    return Response(content=data, media_type=media)
+
+
+@router.delete("/{staff_id}/id-proof", status_code=204)
+async def delete_staff_id_proof(
+    staff_id: UUID,
+    tenant: TenantContext = Depends(require_permissions(Permission.STAFF_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    await staff_service.delete_id_proof(db, tenant, staff_id)
+    return Response(status_code=204)
+
+
 @router.get("/attendance/{staff_id}/recent", response_model=HistoryOut)
 async def staff_recent_attendance(
     staff_id: UUID,

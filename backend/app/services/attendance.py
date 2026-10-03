@@ -57,7 +57,12 @@ MAX_SELFIE_BYTES = 5 * 1024 * 1024
 
 
 def enforce_geofence(
-    hotel: Hotel, lat: float | None, lng: float | None, accuracy_m: float | None
+    hotel: Hotel,
+    lat: float | None,
+    lng: float | None,
+    accuracy_m: float | None,
+    *,
+    action: str = "check in",
 ) -> float | None:
     """Validate a self check-in/out position against the hotel geofence.
 
@@ -72,14 +77,14 @@ def enforce_geofence(
         return None
     if lat is None or lng is None:
         raise ValidationAppError(
-            "Location is required to check in at this hotel", code="location_required"
+            f"Location is required to {action} at this hotel", code="location_required"
         )
     distance = haversine_m(float(lat), float(lng), float(hotel.latitude), float(hotel.longitude))
     grace = min(float(accuracy_m or 0.0), MAX_ACCURACY_GRACE_M)
     if distance > float(hotel.geofence_radius_m) + grace:
         raise ValidationAppError(
             f"You are ~{int(distance)} m from the property — move within "
-            f"{hotel.geofence_radius_m} m to check in",
+            f"{hotel.geofence_radius_m} m to {action}",
             code="geofence_violation",
         )
     return distance
@@ -354,28 +359,11 @@ async def self_check_out(
     hotel = await _hotel(db, tenant)
     profile = await get_or_create_own_profile(db, tenant)
 
-    # Check-OUT policy: NEVER block on the geofence or missing GPS.
-    # If we blocked, a staff member who left the property or whose GPS was
-    # unavailable could never check out — producing an auto-closed record
-    # with incorrect hours. The distance is measured when possible; off-site
-    # or GPS-unavailable checkouts are flagged on the record for audit.
-    distance: float | None = None
-    off_site = False
-    if (
-        hotel.geofence_enabled
-        and hotel.latitude is not None
-        and hotel.longitude is not None
-        and body.lat is not None
-        and body.lng is not None
-    ):
-        distance = haversine_m(
-            float(body.lat), float(body.lng), float(hotel.latitude), float(hotel.longitude)
-        )
-        grace = min(float(body.accuracy_m or 0.0), MAX_ACCURACY_GRACE_M)
-        off_site = distance > float(hotel.geofence_radius_m) + grace
-    elif hotel.geofence_enabled and (body.lat is None or body.lng is None):
-        # Fence is on but GPS unavailable at checkout — flag it, still allow.
-        off_site = True
+    # Geofence enforcement on check-out: staff cannot check out from other locations
+    # or without GPS when geofencing is enabled on the property.
+    distance = enforce_geofence(
+        hotel, body.lat, body.lng, body.accuracy_m, action="check out"
+    )
 
     now_utc = datetime.now(UTC)
     now_local = now_utc.astimezone(hotel_tz(hotel))
@@ -400,9 +388,6 @@ async def self_check_out(
         accuracy_m=body.accuracy_m,
         distance_m=distance,
     )
-    if off_site and distance is not None:
-        suffix = f"off-site check-out (~{int(distance)} m from property)"
-        record.note = f"{record.note} | {suffix}" if record.note else suffix
     await db.flush()
     return record
 

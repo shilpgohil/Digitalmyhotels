@@ -14,8 +14,8 @@ import {
 //
 // Only set NEXT_PUBLIC_API_URL when the frontend and backend share the
 // same domain (e.g. custom domain with wildcard cert). Leave it UNSET on
-// Vercel — the rewrites in next.config.ts handle backend forwarding.
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+export const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+export { getAccessToken } from "@/lib/auth/session";
 
 export class ApiError extends Error {
   readonly code: string;
@@ -248,4 +248,4 @@ export async function apiUpload<T>(
   return (await response.json()) as T;
 }
 
-export { API_BASE };
+export { apiFetch as api };

@@ -40,6 +40,7 @@ export interface StaffOut {
   status: "active" | "on_leave" | "inactive";
   role_code: string | null;
   has_photo: boolean;
+  has_id_proof: boolean;
   /** Present only when the caller has staff.salary_view. */
   base_salary: string | null;
   today_status: string | null;

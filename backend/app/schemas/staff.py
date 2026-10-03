@@ -90,6 +90,7 @@ class StaffOut(BaseModel):
     status: str
     role_code: str | None
     has_photo: bool = False
+    has_id_proof: bool = False
     # Present only for callers with staff.salary_view.
     base_salary: Decimal | None = None
     # Today's attendance chip for the Staff List.

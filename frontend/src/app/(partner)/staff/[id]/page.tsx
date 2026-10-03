@@ -10,7 +10,7 @@
 import { use, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   CalendarCheck,
@@ -33,6 +33,8 @@ import { AttendanceStatusBadge } from "@/components/staff/attendance-status-badg
 import { CheckInCard } from "@/components/staff/check-in-card";
 import { StaffForm } from "@/components/staff/staff-form";
 import { MonthCalendar } from "@/components/staff/month-calendar";
+import { StaffAvatar } from "@/components/staff/staff-avatar";
+import { StaffIdProofCard } from "@/components/staff/staff-id-proof-card";
 import { RecordDetailDialog } from "@/components/staff/record-detail-dialog";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { RequireAccessMode } from "@/components/auth/require-access-mode";
@@ -68,6 +70,7 @@ function StaffProfileContent({ staffId }: { readonly staffId: string }) {
   const tc = useTranslations("common");
   const api = useApi();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const fromTeam = searchParams.get("from") === "team";
   const { activeHotelId, can, user } = useAuth();
@@ -160,13 +163,12 @@ function StaffProfileContent({ staffId }: { readonly staffId: string }) {
             {/* Hero */}
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-card p-5 shadow-sm">
               <div className="flex items-center gap-4">
-                <span className="flex size-14 items-center justify-center rounded-full bg-navy-900 text-lg font-bold text-white">
-                  {s.full_name
-                    .split(" ")
-                    .slice(0, 2)
-                    .map((w) => w[0]?.toUpperCase())
-                    .join("")}
-                </span>
+                <StaffAvatar
+                  staffId={s.id}
+                  name={s.full_name}
+                  hasPhoto={s.has_photo}
+                  size="lg"
+                />
                 <div>
                   <p className="flex items-center gap-2 text-lg font-semibold">
                     {s.full_name}
@@ -252,6 +254,14 @@ function StaffProfileContent({ staffId }: { readonly staffId: string }) {
                 ))}
               </dl>
             </SectionPanel>
+
+            {/* ID Proof & Verification */}
+            <StaffIdProofCard
+              staff={s}
+              onUpdated={() =>
+                queryClient.invalidateQueries({ queryKey: ["staff", activeHotelId] })
+              }
+            />
 
             {/* Attendance Heatmap & Auditing Section */}
             {can(PERMISSIONS.staffAttendanceView) && (
