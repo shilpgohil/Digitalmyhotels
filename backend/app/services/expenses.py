@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 from datetime import UTC, date, datetime
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -121,7 +123,7 @@ async def list_expenses(
     to_date: date | None = None,
     category_id: UUID | None = None,
     payment_method: str | None = None,
-    limit: int = 50,
+    limit: int | None = 50,
     offset: int = 0,
 ) -> tuple[list[Expense], int]:
     hotel_id = tenant.require_hotel()
@@ -137,11 +139,10 @@ async def list_expenses(
     if payment_method:
         stmt = stmt.where(Expense.payment_method == payment_method)
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
-    result = await db.execute(
-        stmt.order_by(Expense.expense_date.desc(), Expense.created_at.desc())
-        .limit(limit)
-        .offset(offset)
-    )
+    query_stmt = stmt.order_by(Expense.expense_date.desc(), Expense.created_at.desc())
+    if limit is not None:
+        query_stmt = query_stmt.limit(limit).offset(offset)
+    result = await db.execute(query_stmt)
     return list(result.scalars().all()), total
 
 
@@ -561,3 +562,89 @@ async def run_due_recurring(
             correlation_id=correlation_id,
         )
     return created
+
+
+async def export_expenses_csv(
+    db: AsyncSession,
+    tenant: TenantContext,
+    *,
+    status: str | None = None,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    category_id: UUID | None = None,
+    payment_method: str | None = None,
+) -> str:
+    """Generate CSV string of expenses matching filters, or all expenses if unfiltered."""
+    hotel_id = tenant.require_hotel()
+    items, _ = await list_expenses(
+        db,
+        tenant,
+        status=status,
+        from_date=from_date,
+        to_date=to_date,
+        category_id=category_id,
+        payment_method=payment_method,
+        limit=None,
+        offset=0,
+    )
+
+    # Batch lookup categories and vendors for this hotel
+    cat_rows = (
+        await db.execute(
+            select(ExpenseCategory.id, ExpenseCategory.name).where(
+                ExpenseCategory.hotel_id == hotel_id
+            )
+        )
+    ).all()
+    cat_map: dict[UUID, str] = {r[0]: r[1] for r in cat_rows}
+
+    vendor_rows = (
+        await db.execute(
+            select(Vendor.id, Vendor.name).where(Vendor.hotel_id == hotel_id)
+        )
+    ).all()
+    vendor_map: dict[UUID, str] = {r[0]: r[1] for r in vendor_rows}
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "Date",
+        "Bill #",
+        "Category",
+        "Vendor",
+        "Description",
+        "Amount (INR)",
+        "Taxable (INR)",
+        "CGST (INR)",
+        "SGST (INR)",
+        "IGST (INR)",
+        "Payment Mode",
+        "Status",
+        "Payment Status",
+        "Payment Date",
+    ])
+    for ex in items:
+        bill_num = f"\t{ex.bill_number}" if ex.bill_number else ""
+        c_name = cat_map.get(ex.category_id, "") if ex.category_id else ""
+        v_name = vendor_map.get(ex.vendor_id, "") if ex.vendor_id else ""
+        mode_str = ex.payment_method.replace("_", " ").title()
+        status_str = ex.status.replace("_", " ").title()
+        pay_status = ex.payment_status.replace("_", " ").title()
+        pay_date = ex.payment_date.isoformat() if ex.payment_date else ""
+        writer.writerow([
+            ex.expense_date.isoformat(),
+            bill_num,
+            c_name,
+            v_name,
+            ex.description or "",
+            f"{ex.amount:.2f}",
+            f"{ex.taxable_amount:.2f}",
+            f"{ex.cgst_amount:.2f}",
+            f"{ex.sgst_amount:.2f}",
+            f"{ex.igst_amount:.2f}",
+            mode_str,
+            status_str,
+            pay_status,
+            pay_date,
+        ])
+    return "\ufeff" + buf.getvalue()

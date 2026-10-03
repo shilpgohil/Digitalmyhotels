@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CalendarDays, CalendarRange, ListChecks, Paperclip, Plus, Wallet, X as XIcon } from "lucide-react";
+import { CalendarDays, CalendarRange, Download, ListChecks, Paperclip, Plus, Wallet, X as XIcon } from "lucide-react";
 import { fmtApiDate, fmtINR, localToday } from "@/lib/formatting";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
@@ -185,11 +185,56 @@ function ExpensesContent() {
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
   });
 
+  const [isExporting, setIsExporting] = useState(false);
+
+  const exportCsv = async () => {
+    try {
+      setIsExporting(true);
+      const token = getAccessToken();
+      const qs = filterQs ? `?${filterQs}` : "";
+      const res = await fetch(
+        `${API_BASE}/api/v1/expenses/export.csv${qs}`,
+        {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+            "X-Hotel-Id": activeHotelId ?? "",
+          },
+          credentials: "include",
+        },
+      );
+      if (!res.ok) {
+        toast.error(tc("error"));
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `expenses-${localToday()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(tc("exportSuccess"));
+    } catch {
+      toast.error(tc("error"));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <>
       <PartnerHeader title={t("title")} subtitle={tn("property")} />
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mb-4 flex flex-wrap justify-end gap-2">
+          <Button
+            variant="outline"
+            className="h-[42px] rounded-md border-input bg-card px-3.5 font-medium shadow-xs hover:bg-muted"
+            onClick={() => void exportCsv()}
+            disabled={isExporting}
+          >
+            <Download className="mr-2 size-4" aria-hidden />
+            {isExporting ? tc("loading") : tc("exportCsv")}
+          </Button>
           {can(PERMISSIONS.expensesApprove) && (
             <>
               {/* Client 09/2026: 42px styled header actions (were bare 32px) */}

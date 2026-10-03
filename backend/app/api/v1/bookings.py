@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permissions
@@ -51,6 +51,30 @@ async def list_bookings(
     )
     return BookingListOut(
         items=await bookings_service.to_out_many(db, items), total=total
+    )
+
+
+@router.get("/export.csv")
+async def export_bookings_csv(
+    status: str | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=100),
+    from_date: date | None = Query(default=None),
+    to_date: date | None = Query(default=None),
+    tenant: TenantContext = Depends(require_permissions(Permission.BOOKINGS_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    csv_content = await bookings_service.export_bookings_csv(
+        db,
+        tenant,
+        status=status,
+        query=q,
+        from_date=from_date,
+        to_date=to_date,
+    )
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="completed-bookings.csv"'},
     )
 
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -167,7 +169,7 @@ async def billing_history(
     payment_mode: str | None = None,
     booking_id: UUID | None = None,
     search: str | None = None,
-    limit: int = 50,
+    limit: int | None = 50,
     offset: int = 0,
 ):
     """Booking-level billing rows for the partner Payments page.
@@ -239,13 +241,10 @@ async def billing_history(
     total = (
         await db.execute(select(func.count()).select_from(stmt.subquery()))
     ).scalar_one()
-    rows = (
-        await db.execute(
-            stmt.order_by(Booking.check_in_date.desc(), Booking.created_at.desc())
-            .limit(limit)
-            .offset(offset)
-        )
-    ).all()
+    query_stmt = stmt.order_by(Booking.check_in_date.desc(), Booking.created_at.desc())
+    if limit is not None:
+        query_stmt = query_stmt.limit(limit).offset(offset)
+    rows = (await db.execute(query_stmt)).all()
 
     items = [
         BillingHistoryRow(
@@ -267,6 +266,59 @@ async def billing_history(
         for r in rows
     ]
     return BillingHistoryOut(items=items, total=total)
+
+
+async def export_billing_history_csv(
+    db: AsyncSession,
+    tenant: TenantContext,
+    *,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    payment_mode: str | None = None,
+    booking_id: UUID | None = None,
+    search: str | None = None,
+) -> str:
+    """Generate CSV string of billing history rows matching filters, or all rows if unfiltered."""
+    data = await billing_history(
+        db,
+        tenant,
+        from_date=from_date,
+        to_date=to_date,
+        payment_mode=payment_mode,
+        booking_id=booking_id,
+        search=search,
+        limit=None,
+        offset=0,
+    )
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "Booking #",
+        "Guest Name",
+        "Room Rent (INR)",
+        "GST (INR)",
+        "Discount (INR)",
+        "Advance / Collected (INR)",
+        "Balance Due (INR)",
+        "Payment Mode",
+        "Payment Status",
+    ])
+    for row in data.items:
+        mode_str = row.mode.replace("_", " ").title() if row.mode else ""
+        pay_status = row.payment_status.replace("_", " ").title()
+        writer.writerow([
+            row.booking_number,
+            row.guest_name or "",
+            f"{row.room_rent:.2f}",
+            f"{row.gst:.2f}",
+            f"{row.discount:.2f}",
+            f"{row.advance:.2f}",
+            f"{row.balance:.2f}",
+            mode_str,
+            pay_status,
+        ])
+    return "\ufeff" + buf.getvalue()
 
 
 async def collect_payment(

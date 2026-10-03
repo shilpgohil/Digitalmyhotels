@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Receipt, Search, Wallet, X } from "lucide-react";
+import { Download, Receipt, Search, Wallet, X } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatCard, StatCardGrid } from "@/components/ui/stat-card";
@@ -38,7 +38,8 @@ import { RequirePermission } from "@/components/auth/require-permission";
 import { useApi } from "@/lib/api/use-api";
 import { invalidateMoney } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
-import { ApiError } from "@/lib/api/client";
+import { API_BASE, ApiError } from "@/lib/api/client";
+import { getAccessToken } from "@/lib/auth/session";
 import { fmtINR, localToday } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -128,6 +129,7 @@ function PaymentsContent() {
 
   const [bookingId, setBookingId] = useState(bookingParam);
   const [search, setSearch] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
   const [isTransactionsOpen, setIsTransactionsOpen] = useState(false);
   const [correctTarget, setCorrectTarget] = useState<PaymentOut | null>(null);
   const [refundTarget, setRefundTarget] = useState<PaymentOut | null>(null);
@@ -211,6 +213,40 @@ function PaymentsContent() {
       ),
     enabled: !!activeHotelId,
   });
+
+  const exportCsv = async () => {
+    try {
+      setIsExporting(true);
+      const token = getAccessToken();
+      const cleanQs = billingQs.replace(/^&/, "");
+      const res = await fetch(
+        `${API_BASE}/api/v1/payments/billing-history/export.csv${cleanQs ? `?${cleanQs}` : ""}`,
+        {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+            "X-Hotel-Id": activeHotelId ?? "",
+          },
+          credentials: "include",
+        },
+      );
+      if (!res.ok) {
+        toast.error(tc("error"));
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `billing-history-${localToday()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(tc("exportSuccess"));
+    } catch {
+      toast.error(tc("error"));
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // No-GST hotels hide the GST column entirely (client 16/09: "if No GST
   // Applicable — not showing GST all system").
@@ -387,6 +423,16 @@ function PaymentsContent() {
                   </button>
                 )}
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 border-input bg-card text-xs font-medium shadow-xs hover:bg-muted whitespace-nowrap"
+                onClick={() => void exportCsv()}
+                disabled={isExporting}
+              >
+                <Download className="mr-1.5 size-3.5" aria-hidden />
+                {isExporting ? tc("loading") : tc("exportCsv")}
+              </Button>
             </div>
           </div>
           {billing.isLoading && <Skeleton className="m-4 h-48" />}

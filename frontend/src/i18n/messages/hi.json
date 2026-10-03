@@ -31,7 +31,9 @@
     "requiredField": "यह फ़ील्ड आवश्यक है",
     "unauthorized": "आपको यह पृष्ठ देखने की अनुमति नहीं है",
     "clear": "साफ़ करें",
-    "download": "डाउनलोड करें"
+    "download": "डाउनलोड करें",
+    "exportCsv": "CSV निर्यात करें",
+    "exportSuccess": "CSV सफलतापूर्वक निर्यात किया गया"
   },
   "imageEditor": {
     "title": "फ़ोटो संपादित करें",

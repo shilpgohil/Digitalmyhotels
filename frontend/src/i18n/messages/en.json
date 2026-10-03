@@ -31,7 +31,9 @@
     "requiredField": "This field is required",
     "unauthorized": "You do not have permission to view this page",
     "clear": "Clear",
-    "download": "Download"
+    "download": "Download",
+    "exportCsv": "Export CSV",
+    "exportSuccess": "CSV exported successfully"
   },
   "imageEditor": {
     "title": "Edit Photo",

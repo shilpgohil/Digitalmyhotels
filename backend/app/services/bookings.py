@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -460,7 +462,7 @@ async def list_bookings(
     query: str | None = None,
     from_date: date | None = None,
     to_date: date | None = None,
-    limit: int = 50,
+    limit: int | None = 50,
     offset: int = 0,
 ) -> tuple[list[Booking], int]:
     hotel_id = tenant.require_hotel()
@@ -495,12 +497,13 @@ async def list_bookings(
             )
         )
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
-    result = await db.execute(
+    query_stmt = (
         stmt.options(*BOOKING_LOAD)
         .order_by(Booking.created_at.desc())
-        .limit(limit)
-        .offset(offset)
     )
+    if limit is not None:
+        query_stmt = query_stmt.limit(limit).offset(offset)
+    result = await db.execute(query_stmt)
     return list(result.scalars().all()), total
 
 
@@ -1142,3 +1145,79 @@ async def to_out_many(db: AsyncSession, bookings: list[Booking]) -> list[Booking
 
 async def to_out(db: AsyncSession, booking: Booking) -> BookingOut:
     return (await to_out_many(db, [booking]))[0]
+
+
+async def export_bookings_csv(
+    db: AsyncSession,
+    tenant: TenantContext,
+    *,
+    status: str | None = None,
+    query: str | None = None,
+    from_date: date | None = None,
+    to_date: date | None = None,
+) -> str:
+    """Generate CSV string of bookings matching filters, or all bookings if unfiltered.
+
+    Uses to_out_many to efficiently batch load rooms and guests without N+1.
+    """
+    items, _ = await list_bookings(
+        db,
+        tenant,
+        status=status,
+        query=query,
+        from_date=from_date,
+        to_date=to_date,
+        limit=None,
+        offset=0,
+    )
+    outs = await to_out_many(db, items)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "Booking #",
+        "Primary Guest",
+        "Phone",
+        "Room(s)",
+        "Check-In",
+        "Check-Out",
+        "Status",
+        "Total Amount (INR)",
+        "Advance/Paid (INR)",
+        "Due Amount (INR)",
+        "Payment Status",
+        "Booked On",
+    ])
+    for b in outs:
+        phone_val = f"\t{b.primary_guest_phone}" if b.primary_guest_phone else ""
+        rooms_str = (
+            ", ".join(f"{r.room_number} ({r.room_type_name})" for r in b.rooms)
+            if b.rooms
+            else ""
+        )
+        status_str = b.status.replace("_", " ").title()
+        pay_status_str = b.payment_status.replace("_", " ").title()
+        ci_str = f"{b.check_in_date.isoformat()}" + (
+            f", {b.check_in_time}" if b.check_in_time else ""
+        )
+        co_str = f"{b.check_out_date.isoformat()}" + (
+            f", {b.check_out_time}" if b.check_out_time else ""
+        )
+        created_str = (
+            b.created_at.strftime("%Y-%m-%d %H:%M:%S") if b.created_at else ""
+        )
+        writer.writerow([
+            b.booking_number,
+            b.primary_guest_name or "",
+            phone_val,
+            rooms_str,
+            ci_str,
+            co_str,
+            status_str,
+            f"{b.total_amount:.2f}",
+            f"{b.advance_amount:.2f}",
+            f"{b.due_amount:.2f}",
+            pay_status_str,
+            created_str,
+        ])
+    return "\ufeff" + buf.getvalue()

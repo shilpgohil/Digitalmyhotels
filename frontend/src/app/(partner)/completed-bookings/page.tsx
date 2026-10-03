@@ -33,11 +33,10 @@ import { invalidateMoney, invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
-import { Eye, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, Eye, RotateCcw } from "lucide-react";
 import type { ListOut } from "@/types/hotel";
 import type { BookingGuestDocOut, BookingGuestOut, BookingOut, ForeignGuestIn } from "@/types/stay";
 import type { ChargeOut, PaymentOut } from "@/types/money";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatStatus } from "@/lib/format-status";
@@ -671,12 +670,46 @@ function CompletedBookingsContent() {
   // Booking id whose detail drawer is open (null = closed).
   const [viewBookingId, setViewBookingId] = useState<string | null>(null);
   const [reversalTarget, setReversalTarget] = useState<BookingOut | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const canReverse = can(PERMISSIONS.checkout) && can(PERMISSIONS.paymentsCorrect);
 
   const filterQs =
     (search ? `&q=${encodeURIComponent(search)}` : "") +
     (fromDate ? `&from_date=${fromDate}` : "") +
     (toDate ? `&to_date=${toDate}` : "");
+
+  const exportCsv = async () => {
+    try {
+      setIsExporting(true);
+      const token = getAccessToken();
+      const res = await fetch(
+        `${API_BASE}/api/v1/bookings/export.csv?status=${statusParam}${filterQs}`,
+        {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+            "X-Hotel-Id": activeHotelId ?? "",
+          },
+          credentials: "include",
+        },
+      );
+      if (!res.ok) {
+        toast.error(tc("error"));
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `completed-bookings-${status}-${toLocalIso(new Date())}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(tc("exportSuccess"));
+    } catch {
+      toast.error(tc("error"));
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Keep URL in sync with filters so refresh/share preserves state.
   useEffect(() => {
@@ -758,9 +791,18 @@ function CompletedBookingsContent() {
           />
         </div>
 
-        {/* Status toggle chips */}
-        <div className="mb-4">
+        {/* Status toggle chips and Export CSV */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <SegmentedChips options={statusChips} value={status} onChange={setStatus} />
+          <Button
+            variant="outline"
+            className="h-[42px] border-input bg-card font-medium shadow-xs hover:bg-muted"
+            onClick={() => void exportCsv()}
+            disabled={isExporting}
+          >
+            <Download className="mr-2 size-4" aria-hidden />
+            {isExporting ? tc("loading") : tc("exportCsv")}
+          </Button>
         </div>
 
         <DataTable

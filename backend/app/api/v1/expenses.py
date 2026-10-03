@@ -157,6 +157,32 @@ async def list_expenses(
     return ExpenseListOut(items=[ExpenseOut.model_validate(e) for e in items], total=total)
 
 
+@router.get("/export.csv")
+async def export_expenses_csv(
+    status: str | None = Query(default=None),
+    from_date: date | None = Query(default=None),
+    to_date: date | None = Query(default=None),
+    category_id: UUID | None = Query(default=None),
+    payment_method: str | None = Query(default=None),
+    tenant: TenantContext = Depends(require_permissions(Permission.EXPENSES_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    csv_content = await expenses_service.export_expenses_csv(
+        db,
+        tenant,
+        status=status,
+        from_date=from_date,
+        to_date=to_date,
+        category_id=category_id,
+        payment_method=payment_method,
+    )
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="expenses.csv"'},
+    )
+
+
 @router.post("", response_model=ExpenseOut, status_code=201)
 async def create_expense(
     body: ExpenseCreate,

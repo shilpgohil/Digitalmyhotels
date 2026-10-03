@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permissions
@@ -91,6 +91,36 @@ async def billing_history(
         search=search,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.get("/billing-history/export.csv")
+async def export_billing_history_csv(
+    from_date: str | None = Query(default=None),
+    to_date: str | None = Query(default=None),
+    payment_mode: str | None = Query(
+        default=None, pattern="^(cash|upi|card|credit_card|debit_card|bank_transfer|other)$"
+    ),
+    booking_id: UUID | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=100),
+    tenant: TenantContext = Depends(require_permissions(Permission.PAYMENTS_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    from datetime import date as _date
+
+    csv_content = await payments_service.export_billing_history_csv(
+        db,
+        tenant,
+        from_date=_date.fromisoformat(from_date) if from_date else None,
+        to_date=_date.fromisoformat(to_date) if to_date else None,
+        payment_mode=payment_mode,
+        booking_id=booking_id,
+        search=search,
+    )
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="billing-history.csv"'},
     )
 
 
