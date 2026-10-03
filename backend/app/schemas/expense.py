@@ -155,6 +155,7 @@ class RecurringExpenseOut(ORMModel):
     name: str
     amount: Decimal
     frequency: str
+    payment_method: str = "cash"
     start_date: date
     end_date: date | None
     next_run_date: date
@@ -167,6 +168,10 @@ class RecurringExpenseCreate(BaseModel):
     name: str = Field(min_length=2, max_length=200)
     amount: Decimal = Field(gt=0)
     frequency: str = Field(pattern="^(monthly|quarterly|yearly|custom)$")
+    payment_method: str = Field(
+        default="cash",
+        pattern="^(cash|upi|card|credit_card|debit_card|bank_transfer|other)$",
+    )
     custom_interval_days: int | None = Field(default=None, ge=1, le=365)
     start_date: date
     end_date: date | None = None

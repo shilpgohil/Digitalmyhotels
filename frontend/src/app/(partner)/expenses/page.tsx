@@ -400,7 +400,7 @@ function ExpensesContent() {
         </DataTable>
         {recurring.data && recurring.data.length > 0 && (
           <p className="mt-4 text-sm text-muted-foreground">
-            {t("recurring")}: {recurring.data.map((r) => r.name).join(", ")}
+            {t("recurring")}: {recurring.data.map((r) => `${r.name} (${FILTER_MODES.includes(r.payment_method) ? t(`mode_${r.payment_method}`) : r.payment_method || t("mode_cash")})`).join(", ")}
           </p>
         )}
 
@@ -528,6 +528,16 @@ function AddVendorDialog({ onDone }: { onDone: () => void }) {
   );
 }
 
+/** Canonical payment modes — same list used by check-in, checkout, advance
+ *  booking, and payments. Matches the backend CHECK constraint exactly
+ *  (minus legacy 'card', which the UI no longer offers — client 09/2026). */
+const PAYMENT_MODES = ["cash", "upi", "credit_card", "debit_card", "bank_transfer", "other"] as const;
+
+/** Ledger filter uses the same canonical list. Legacy 'card' rows are
+ *  still visible under "All Payment Modes" — they just can't be filtered
+ *  individually (client found the extra 'Card' option confusing). */
+const FILTER_MODES: string[] = [...PAYMENT_MODES];
+
 function AddRecurringDialog({ onDone }: { onDone: () => void }) {
   const t = useTranslations("expenses");
   const tc = useTranslations("common");
@@ -541,6 +551,7 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
   const [customDays, setCustomDays] = useState("30");
   const [startDate, setStartDate] = useState(localToday);
   const [categoryId, setCategoryId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<string>("cash");
 
   const categories = useQuery({
     queryKey: ["expense-categories", activeHotelId],
@@ -556,6 +567,7 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
           name,
           amount,
           frequency,
+          payment_method: paymentMethod,
           custom_interval_days:
             frequency === "custom" ? Number.parseInt(customDays, 10) || 30 : null,
           start_date: startDate,
@@ -567,6 +579,11 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
       setOpen(false);
       setName("");
       setAmount("");
+      setFrequency("monthly");
+      setCustomDays("30");
+      setStartDate(localToday());
+      setCategoryId("");
+      setPaymentMethod("cash");
       onDone();
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
@@ -649,6 +666,21 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
               </select>
             </div>
           </div>
+          <div>
+            <Label htmlFor="rec-payment-method">{t("paymentMode")}</Label>
+            <select
+              id="rec-payment-method"
+              className="mt-1 h-[42px] w-full rounded-md border border-input bg-white px-2.5 text-sm"
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+            >
+              {PAYMENT_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {t(`mode_${mode}`)}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <DialogFooter>
           <DialogClose className="inline-flex h-[42px] items-center rounded-lg bg-[#d1d1d1] px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors">
@@ -665,16 +697,6 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
     </Dialog>
   );
 }
-
-/** Canonical payment modes — same list used by check-in, checkout, advance
- *  booking, and payments. Matches the backend CHECK constraint exactly
- *  (minus legacy 'card', which the UI no longer offers — client 09/2026). */
-const PAYMENT_MODES = ["cash", "upi", "credit_card", "debit_card", "bank_transfer", "other"] as const;
-
-/** Ledger filter uses the same canonical list. Legacy 'card' rows are
- *  still visible under "All Payment Modes" — they just can't be filtered
- *  individually (client found the extra 'Card' option confusing). */
-const FILTER_MODES: string[] = [...PAYMENT_MODES];
 
 /** Fetches the receipt with auth headers and opens it in a new tab. */
 function ViewReceiptButton({ expenseId }: { expenseId: string }) {

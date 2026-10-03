@@ -135,6 +135,7 @@ export interface RecurringExpenseOut {
   name: string;
   amount: string;
   frequency: string;
+  payment_method: string;
   start_date: string;
   next_run_date: string;
   is_active: boolean;

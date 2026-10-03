@@ -114,6 +114,11 @@ class RecurringExpense(Base, UUIDPrimaryKeyMixin, TimestampMixin):
             "frequency IN ('monthly','quarterly','yearly','custom')",
             name="recurring_frequency",
         ),
+        CheckConstraint(
+            "payment_method IN ('cash','upi','card','credit_card','debit_card',"
+            "'bank_transfer','other')",
+            name="recurring_expense_payment_method",
+        ),
     )
 
     hotel_id: Mapped[uuid.UUID] = mapped_column(
@@ -128,6 +133,9 @@ class RecurringExpense(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     frequency: Mapped[str] = mapped_column(String(32), nullable=False)
+    payment_method: Mapped[str] = mapped_column(
+        String(32), default="cash", nullable=False
+    )
     custom_interval_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)

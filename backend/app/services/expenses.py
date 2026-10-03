@@ -539,7 +539,7 @@ async def run_due_recurring(
                 vendor_id=template.vendor_id,
                 expense_date=template.next_run_date,
                 amount=template.amount,
-                payment_method="cash",
+                payment_method=template.payment_method or "cash",
                 description=f"[Recurring] {template.name}",
                 status="draft",
                 created_by_id=tenant.user_id,
