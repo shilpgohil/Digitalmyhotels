@@ -137,15 +137,60 @@ const ROOM_BUCKET_BORDER_HOVER: Record<RoomBucket, string> = {
  *  - Free room, future booking       → physical badge + "Reserved from <date, time>"
  *  - Occupied, guest departs today   → physical badge + "Departs today <time>"
  */
-function RoomStatusCell({ room }: { readonly room: RoomOut }) {
+function RoomStatusCell({
+  room,
+  fixedHeight = false,
+}: {
+  readonly room: RoomOut;
+  readonly fixedHeight?: boolean;
+}) {
   const t = useTranslations("rooms");
   const bucket = roomBucket(room);
   // Derived reserved: physically free but today's guest is due — show the
   // reservation as the primary badge (this is what "Reserved" now means).
   const derivedReserved = bucket === "reserved";
-  // items-center: grid view centres badges/text; table view also looks clean centered
+
+  let subtext: React.ReactNode = null;
+  if (derivedReserved) {
+    subtext = (
+      <span className="text-micro font-medium text-info truncate max-w-full block">
+        {room.arrival_time
+          ? t("arrivesAt", { time: room.arrival_time })
+          : t("arrivingToday")}
+      </span>
+    );
+  } else if (!room.arriving_today && room.next_booking_date) {
+    subtext = (
+      <span className="text-micro font-semibold text-gold-600 truncate max-w-full block">
+        {t("reservedFrom", {
+          date: fmtApiDateTime(room.next_booking_date, room.next_booking_time),
+        })}
+      </span>
+    );
+  } else if (room.departing_today) {
+    subtext = (
+      <span className="text-micro font-medium text-success truncate max-w-full block">
+        {room.departure_time
+          ? t("departsToday", { time: room.departure_time })
+          : t("departsTodayNoTime")}
+      </span>
+    );
+  } else if (room.status_note) {
+    subtext = (
+      <span className="text-micro text-muted-foreground italic truncate max-w-full block px-1">
+        {room.status_note}
+      </span>
+    );
+  } else if (room.current_booking_id && room.status !== "occupied") {
+    subtext = (
+      <span className="text-micro font-medium text-amber-700 dark:text-amber-400 truncate max-w-full block px-1">
+        {room.current_guest_name ? `${room.current_guest_name} (${t("stayoverBadge")})` : t("inHouseGuest")}
+      </span>
+    );
+  }
+
   return (
-    <div className="flex flex-col items-center gap-0.5 text-center">
+    <div className="flex flex-col items-center gap-0.5 text-center max-w-full w-full">
       {derivedReserved ? (
         <StatusBadge tone={ROOM_STATUS_TONE.reserved}>{t("reservedToday")}</StatusBadge>
       ) : (
@@ -153,39 +198,12 @@ function RoomStatusCell({ room }: { readonly room: RoomOut }) {
           {t(`status_${room.status}`)}
         </StatusBadge>
       )}
-      {derivedReserved && (
-        <span className="text-micro font-medium text-info">
-          {room.arrival_time
-            ? t("arrivesAt", { time: room.arrival_time })
-            : t("arrivingToday")}
-        </span>
-      )}
-      {/* Future-booking ribbon — the room is sellable until that date. */}
-      {!room.arriving_today && room.next_booking_date && (
-        <span className="text-micro font-semibold text-gold-600">
-          {t("reservedFrom", {
-            date: fmtApiDateTime(room.next_booking_date, room.next_booking_time),
-          })}
-        </span>
-      )}
-      {room.departing_today && (
-        <span className="text-micro font-medium text-success">
-          {room.departure_time
-            ? t("departsToday", { time: room.departure_time })
-            : t("departsTodayNoTime")}
-        </span>
-      )}
-      {/* Staff-supplied reason (maintenance / out_of_service) */}
-      {room.status_note && (
-        <span className="text-micro text-muted-foreground italic truncate max-w-full px-1">
-          {room.status_note}
-        </span>
-      )}
-      {/* In-house guest on stayover clean or maintenance */}
-      {room.current_booking_id && room.status !== "occupied" && (
-        <span className="text-micro font-medium text-amber-700 dark:text-amber-400 truncate max-w-full px-1">
-          {room.current_guest_name ? `${room.current_guest_name} (${t("stayoverBadge")})` : t("inHouseGuest")}
-        </span>
+      {fixedHeight ? (
+        <div className="h-4 w-full flex items-center justify-center overflow-hidden">
+          {subtext}
+        </div>
+      ) : (
+        subtext
       )}
     </div>
   );
@@ -613,7 +631,7 @@ function RoomsContent() {
                       {t("noRoomsInStatus", { status: t(`bucket_${gridFilter}`) })}
                     </p>
                   )}
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 auto-rows-[144px]">
                   {rooms.data?.items
                     .filter((room) => gridFilter === "all" || roomBucket(room) === gridFilter)
                     .map((room) => {
@@ -622,7 +640,7 @@ function RoomsContent() {
                         <div
                           key={room.id}
                           className={cn(
-                            "relative flex flex-col items-center gap-2 rounded-xl border bg-card p-4 pt-5 text-center shadow-2xs transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 overflow-hidden",
+                            "relative flex h-full flex-col justify-between items-center rounded-xl border bg-card p-3.5 pt-4 pb-3 text-center shadow-2xs transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 overflow-hidden",
                             ROOM_BUCKET_BORDER_HOVER[bucket],
                           )}
                         >
@@ -635,32 +653,38 @@ function RoomsContent() {
                             aria-hidden
                           />
 
-                          {/* Room number — centered; ··· menu is absolutely-positioned
-                              so it doesn't push the number off-centre
-                              (client 09/2026: "All Items Center, room number should also be center"). */}
-                          <span className="w-full text-center text-lg font-semibold">{room.room_number}</span>
-                          {can(PERMISSIONS.roomsUpdateStatus) && (
-                            <div className="absolute top-2.5 right-2">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger
-                                  className="flex size-6 items-center justify-center rounded hover:bg-muted"
-                                  aria-label={t("changeStatus")}
-                                >
-                                  <MoreHorizontal className="size-3.5" aria-hidden />
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-64 rounded-xl border border-border shadow-lg">
-                                  <RoomStatusMenuItems
-                                    room={room}
-                                    onSelectStatus={(status) => handleSelectStatus(room, status)}
-                                    onCheckIn={() => router.push("/checkin")}
-                                    onCheckOut={(bookingId) => router.push(`/checkout?booking=${bookingId}`)}
-                                  />
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          )}
-                          <RoomStatusCell room={room} />
-                          <span className="text-xs text-muted-foreground">
+                          {/* Top: Room number + action menu */}
+                          <div className="w-full relative flex items-center justify-center pt-0.5">
+                            <span className="text-lg font-semibold tracking-tight text-foreground">{room.room_number}</span>
+                            {can(PERMISSIONS.roomsUpdateStatus) && (
+                              <div className="absolute right-0 top-1/2 -translate-y-1/2">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger
+                                    className="flex size-6 items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                    aria-label={t("changeStatus")}
+                                  >
+                                    <MoreHorizontal className="size-3.5" aria-hidden />
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-64 rounded-xl border border-border shadow-lg">
+                                    <RoomStatusMenuItems
+                                      room={room}
+                                      onSelectStatus={(status) => handleSelectStatus(room, status)}
+                                      onCheckIn={() => router.push("/checkin")}
+                                      onCheckOut={(bookingId) => router.push(`/checkout?booking=${bookingId}`)}
+                                    />
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Middle: Badge & Sub-label (vertically centered with fixed line height) */}
+                          <div className="w-full flex flex-col items-center justify-center">
+                            <RoomStatusCell room={room} fixedHeight />
+                          </div>
+
+                          {/* Bottom: Room type name */}
+                          <span className="w-full text-xs text-muted-foreground truncate px-1 block">
                             {room.room_type_name}
                           </span>
                         </div>
