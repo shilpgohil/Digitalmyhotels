@@ -187,7 +187,7 @@ function ExpensesContent() {
 
   return (
     <>
-      <PartnerHeader title={t("title")} subtitle={tn("overview")} />
+      <PartnerHeader title={t("title")} subtitle={tn("property")} />
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mb-4 flex flex-wrap justify-end gap-2">
           {can(PERMISSIONS.expensesApprove) && (

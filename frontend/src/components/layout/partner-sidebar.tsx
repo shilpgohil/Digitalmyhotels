@@ -58,13 +58,6 @@ const SECTIONS: NavSection[] = [
     labelKey: "overview",
     items: [
       { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
-      {
-        href: "/expenses",
-        labelKey: "expenses",
-        icon: Receipt,
-        permission: PERMISSIONS.expensesView,
-        requiresExpenseAccess: true,
-      },
     ],
   },
   {
@@ -122,6 +115,13 @@ const SECTIONS: NavSection[] = [
         labelKey: "housekeeping",
         icon: Sparkles,
         permission: PERMISSIONS.housekeepingManage,
+      },
+      {
+        href: "/expenses",
+        labelKey: "expenses",
+        icon: Receipt,
+        permission: PERMISSIONS.expensesView,
+        requiresExpenseAccess: true,
       },
     ],
   },
