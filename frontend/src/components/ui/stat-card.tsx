@@ -68,6 +68,8 @@ interface StatCardBaseProps {
   icon?: ComponentType<{ className?: string }>;
   /** Colour preset — defaults to "navy" */
   tone?: StatCardTone;
+  /** Optional top horizontal border shade line (e.g. "bg-success", "bg-warning", "bg-danger", "bg-info") */
+  barColor?: string;
   /** Show skeleton while data loads */
   isLoading?: boolean;
   /** Pressed state (aria + active ring) — for filter-toggle use */
@@ -89,6 +91,7 @@ export function StatCard({
   trend,
   icon: Icon,
   tone = "navy",
+  barColor,
   isLoading = false,
   active = false,
   className,
@@ -111,6 +114,12 @@ export function StatCard({
 
   const content = (
     <>
+      {barColor && (
+        <div
+          className={cn("absolute top-0 inset-x-0 h-1.5", barColor)}
+          aria-hidden
+        />
+      )}
       {Icon && (
         <Icon className="absolute right-3 bottom-3 size-8 opacity-20" aria-hidden />
       )}

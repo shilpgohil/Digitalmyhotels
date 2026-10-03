@@ -298,24 +298,32 @@ function StaffProfileContent({ staffId }: { readonly staffId: string }) {
                   <StatCardGrid cols={4}>
                     <StatCard
                       tone="white"
+                      barColor="bg-success"
+                      className="border border-border/80 hover:border-success/50 transition-colors shadow-2xs hover:shadow-sm"
                       label={t("presentDays")}
                       value={String(calendar.data?.present_days ?? 0)}
                       isLoading={calendar.isLoading}
                     />
                     <StatCard
                       tone="white"
+                      barColor="bg-warning"
+                      className="border border-border/80 hover:border-warning/50 transition-colors shadow-2xs hover:shadow-sm"
                       label={t("lateDays")}
                       value={String(calendar.data?.late_days ?? 0)}
                       isLoading={calendar.isLoading}
                     />
                     <StatCard
                       tone="white"
+                      barColor="bg-danger"
+                      className="border border-border/80 hover:border-danger/50 transition-colors shadow-2xs hover:shadow-sm"
                       label={t("absentDays")}
                       value={String(calendar.data?.absent_days ?? 0)}
                       isLoading={calendar.isLoading}
                     />
                     <StatCard
                       tone="white"
+                      barColor="bg-info"
+                      className="border border-border/80 hover:border-info/50 transition-colors shadow-2xs hover:shadow-sm"
                       label={t("leaveDays")}
                       value={String(calendar.data?.leave_days ?? 0)}
                       isLoading={calendar.isLoading}
