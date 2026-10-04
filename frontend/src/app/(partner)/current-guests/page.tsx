@@ -413,6 +413,14 @@ function StayDetailDialog({
     staleTime: 5 * 60_000,
   });
 
+  // Hotel GST settings for registration card print & dialog (client 04/10: GST missing on registration card)
+  const gstSettings = useQuery({
+    queryKey: ["hotel-gst-cg", activeHotelId],
+    queryFn: () => api<{ is_gst_registered: boolean; gst_mode: string; gstin: string | null }>("/api/v1/hotels/me/gst"),
+    enabled: !!activeHotelId,
+    staleTime: 5 * 60_000,
+  });
+
   // Registered guests with ID documents (full identity view).
   const registeredGuests = useQuery({
     queryKey: ["booking-guests", entry?.booking_id, "stay-dialog"],
@@ -528,6 +536,7 @@ function StayDetailDialog({
         <h2>${hotelProfile.data.name}</h2>
         ${hotelProfile.data.address_line1 ? `<p>${hotelProfile.data.address_line1}${hotelProfile.data.city ? ', ' + hotelProfile.data.city : ''}</p>` : ""}
         ${hotelProfile.data.phone ? `<p>Tel: ${hotelProfile.data.phone}</p>` : ""}
+        ${gstSettings.data?.gstin ? `<p>GSTIN: ${gstSettings.data.gstin}</p>` : ""}
       </div>` : ""}
       <h1>${t("registrationCard")} — ${b.booking_number}</h1>
       <table>
@@ -541,6 +550,11 @@ function StayDetailDialog({
         <tr><td>${tb("checkoutDate")}</td><td>${fmtApiDateTime(b.check_out_date, b.check_out_time)}</td></tr>`
         }
         <tr><td>${tb("adults")} / ${tb("children")}</td><td>${b.adults} / ${b.children}</td></tr>
+        ${
+          Number(b.tax_amount) > 0 || (gstSettings.data?.is_gst_registered && gstSettings.data?.gst_mode !== "no_gst")
+            ? `<tr><td>${tb("tax") || "GST"}</td><td>${fmtINR(b.tax_amount)}</td></tr>`
+            : ""
+        }
         <tr><td>${tb("total")}</td><td>${fmtINR(b.total_amount)}</td></tr>
         <tr><td>${tb("due")}</td><td>${fmtINR(b.due_amount)}</td></tr>
         ${b.emergency_contact_name ? `<tr><td>${t("emergencyContact")}</td><td>${b.emergency_contact_name} (${b.emergency_contact_relation ?? ""}) ${b.emergency_contact_phone ?? ""}</td></tr>` : ""}
@@ -553,7 +567,7 @@ function StayDetailDialog({
       <script>window.print()</script></body></html>`);
     win.document.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [booking.data, entry, payments.data, t, tb, tm]);
+  }, [booking.data, entry, payments.data, gstSettings.data, t, tb, tm]);
 
   // Row "Print" action: fire the registration print as soon as the booking
   // detail is available — once per opened entry.
@@ -644,6 +658,11 @@ function StayDetailDialog({
                   : fmtStatus(b.payment_status);
               })()}
             />
+            {(Number(b.tax_amount) > 0 ||
+              (gstSettings.data?.is_gst_registered &&
+                gstSettings.data?.gst_mode !== "no_gst")) && (
+              <Detail label={tb("tax") || "GST"} value={fmtINR(b.tax_amount)} />
+            )}
             <Detail label={tb("total")} value={fmtINR(b.total_amount)} />
             <Detail label={tb("due")} value={fmtINR(b.due_amount)} />
             {b.security_deposit !== "0.00" && (

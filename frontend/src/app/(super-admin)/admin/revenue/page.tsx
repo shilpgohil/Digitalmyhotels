@@ -94,6 +94,7 @@ function modeLabel(mode: string | null, t: (k: string) => string): string {
     upi:           t("billingUPI"),
     cash:          t("billingCash"),
     bank_transfer: t("billingBankTransfer"),
+    net_banking:   t("billingBankTransfer"),
     card:          t("billingCardPayment"),
     credit_card:   t("billingCardPayment"),  // legacy
     debit_card:    t("billingCardPayment"),  // legacy
@@ -231,7 +232,7 @@ function RecordPaymentButton({ onSuccess }: { readonly onSuccess: () => void }) 
               >
                 <option value="upi">UPI</option>
                 <option value="cash">Cash</option>
-                <option value="bank_transfer">Bank Transfer</option>
+                <option value="bank_transfer">Net Banking</option>
                 <option value="card">Credit/Debit Card</option>
                 <option value="other">Others</option>
               </select>

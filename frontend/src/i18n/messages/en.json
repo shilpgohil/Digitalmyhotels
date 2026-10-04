@@ -1612,7 +1612,7 @@
     "billingAllModes": "All Modes",
     "billingCash": "Cash",
     "billingUPI": "UPI",
-    "billingBankTransfer": "Bank Transfer",
+    "billingBankTransfer": "Net Banking",
     "billingCardPayment": "Credit/Debit Card",
     "billingOthers": "Others",
     "billingApply": "Apply",

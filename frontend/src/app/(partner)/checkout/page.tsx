@@ -1106,23 +1106,50 @@ function CheckoutContent() {
                             <span className="font-medium tabular-nums">{fmtMoney(totals.gst)}</span>
                           </div>
                         )}
-                        {/* Expanded per-category charge lines (always visible when > 0) */}
-                        {totals.existingCharges > 0 && (
+                        {/* Prior stay charges — shown individually if available, else lumped */}
+                        {priorCharges.length > 0 ? (
+                          priorCharges
+                            .filter((c) => !c.voided_at)
+                            .map((c) => (
+                              <div key={c.id} className="flex justify-between px-3 py-2">
+                                <span className="text-muted-foreground">{c.description || tp("existingCharges")}</span>
+                                <span className="font-medium tabular-nums">
+                                  {fmtMoney(money(c.total_amount))}
+                                </span>
+                              </div>
+                            ))
+                        ) : totals.existingCharges > 0 ? (
                           <div className="flex justify-between px-3 py-2">
                             <span className="text-muted-foreground">{tp("existingCharges")}</span>
                             <span className="font-medium tabular-nums">
                               {fmtMoney(totals.existingCharges)}
                             </span>
                           </div>
-                        )}
-                        {totals.proposedCharges > 0 && (
-                          <div className="flex justify-between px-3 py-2">
-                            <span className="text-muted-foreground">{tp("newChargesAtCheckout")}</span>
-                            <span className="font-medium tabular-nums">
-                              {fmtMoney(totals.proposedCharges)}
-                            </span>
-                          </div>
-                        )}
+                        ) : null}
+
+                        {/* Individual additional charges entered at checkout */}
+                        {EXTRA_CHARGE_FIELDS.map((field) => {
+                          const amount = Number.parseFloat(extras[field.key]) || 0;
+                          if (amount <= 0) return null;
+                          return (
+                            <div key={field.key} className="flex justify-between px-3 py-2">
+                              <span className="text-muted-foreground">{tp(field.labelKey)}</span>
+                              <span className="font-medium tabular-nums">{fmtMoney(amount)}</span>
+                            </div>
+                          );
+                        })}
+                        {totals.proposedCharges > 0 &&
+                          EXTRA_CHARGE_FIELDS.every(
+                            (f) => !(Number.parseFloat(extras[f.key]) > 0),
+                          ) && (
+                            <div className="flex justify-between px-3 py-2">
+                              <span className="text-muted-foreground">{tp("newChargesAtCheckout")}</span>
+                              <span className="font-medium tabular-nums">
+                                {fmtMoney(totals.proposedCharges)}
+                              </span>
+                            </div>
+                          )}
+
                         {totals.lateFee > 0 && (
                           <div className="flex justify-between px-3 py-2">
                             <span className="text-muted-foreground">{t("lateFee")}</span>
@@ -1134,16 +1161,14 @@ function CheckoutContent() {
                         {totals.discount > 0 && (
                           <div className="flex justify-between px-3 py-2">
                             <span className="text-muted-foreground">{tp("discount")}</span>
-                            {/* warning color: discount is a manager override, not a payment */}
-                            <span className="font-medium text-warning tabular-nums">
+                            <span className="font-medium text-emerald-600 tabular-nums">
                               −{fmtMoney(totals.discount)}
                             </span>
                           </div>
                         )}
                         <div className="flex justify-between px-3 py-2">
                           <span className="text-muted-foreground">{tp("advancePayment")}</span>
-                          {/* info/blue: advance is pre-paid, distinct from discount (warning) */}
-                          <span className="font-medium text-info tabular-nums">
+                          <span className="font-medium text-emerald-600 tabular-nums">
                             {fmtMoney(totals.advancePaid)}
                           </span>
                         </div>

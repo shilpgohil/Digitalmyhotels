@@ -279,6 +279,8 @@ async def billing_history(
     def _norm_mode(m: str | None) -> str | None:
         if m == "manual":
             return "other"
+        if m == "net_banking":
+            return "bank_transfer"
         return m
 
     # ── Owner subquery ──────────────────────────────────────────────────────
@@ -339,6 +341,8 @@ async def billing_history(
         # bank_transfer needs exact match; card covers credit_card/debit_card legacy values.
         if effective_mode == "card":
             base = base.where(Subscription.payment_mode.in_(["card", "credit_card", "debit_card"]))
+        elif effective_mode in ("bank_transfer", "net_banking"):
+            base = base.where(Subscription.payment_mode.in_(["bank_transfer", "net_banking"]))
         elif effective_mode == "other":
             base = base.where(Subscription.payment_mode.in_(["other", "manual"]))
         else:
@@ -380,7 +384,10 @@ async def billing_history(
             ).label("cash"),
             func.coalesce(
                 func.sum(sa_case(
-                    (Subscription.payment_mode == "bank_transfer", SubscriptionPlan.price),
+                    (
+                        Subscription.payment_mode.in_(["bank_transfer", "net_banking"]),
+                        SubscriptionPlan.price,
+                    ),
                     else_=_Dec("0"),
                 )), 0,
             ).label("bank_transfer"),

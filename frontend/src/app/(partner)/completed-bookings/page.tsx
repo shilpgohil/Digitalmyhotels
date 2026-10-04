@@ -438,25 +438,58 @@ function BookingDetailSheet({
                 label={`${t("adults")} / ${t("children")}`}
                 value={`${b.adults} / ${b.children}`}
               />
-              <SummaryRow label={t("total")} value={fmtINR(b.total_amount)} />
-              <SummaryRow label={t("tax")} value={fmtINR(b.tax_amount)} />
+              <SummaryRow
+                label={t("total")}
+                value={<span className="font-semibold text-foreground tabular-nums">{fmtINR(b.total_amount)}</span>}
+              />
+              <SummaryRow
+                label={t("tax")}
+                value={<span className="text-muted-foreground tabular-nums">{fmtINR(b.tax_amount)}</span>}
+              />
               <SummaryRow
                 label={t("discount")}
                 value={
                   Number(b.discount_amount) > 0 ? (
-                    <span className="font-medium text-warning tabular-nums">
+                    <span className="font-medium text-emerald-600 tabular-nums">
                       −{fmtINR(b.discount_amount)}
                     </span>
                   ) : (
-                    <span className="tabular-nums">{fmtINR(b.discount_amount)}</span>
+                    <span className="text-muted-foreground tabular-nums">{fmtINR(b.discount_amount)}</span>
                   )
                 }
               />
-              {actualAdvance > 0 && (
-                <SummaryRow label={t("advance")} value={fmtINR(actualAdvance)} />
-              )}
-              <SummaryRow label={t("securityDeposit")} value={fmtINR(b.security_deposit)} />
-              <SummaryRow label={t("due")} value={fmtINR(b.due_amount)} />
+              <SummaryRow
+                label={t("advance")}
+                value={
+                  actualAdvance > 0 ? (
+                    <span className="font-medium text-emerald-600 tabular-nums">{fmtINR(actualAdvance)}</span>
+                  ) : (
+                    <span className="text-muted-foreground tabular-nums">{fmtINR(0)}</span>
+                  )
+                }
+              />
+              <SummaryRow
+                label={t("securityDeposit")}
+                value={
+                  Number(b.security_deposit) > 0 ? (
+                    <span className="font-medium text-amber-700 dark:text-amber-500 tabular-nums">
+                      {fmtINR(b.security_deposit)}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground tabular-nums">{fmtINR(b.security_deposit)}</span>
+                  )
+                }
+              />
+              <SummaryRow
+                label={t("due")}
+                value={
+                  Number(b.due_amount) > 0 ? (
+                    <span className="font-semibold text-danger tabular-nums">{fmtINR(b.due_amount)}</span>
+                  ) : (
+                    <span className="text-muted-foreground tabular-nums">{fmtINR(b.due_amount)}</span>
+                  )
+                }
+              />
               {paymentModeDisplay && (
                 <SummaryRow
                   label={t("paymentMode")}

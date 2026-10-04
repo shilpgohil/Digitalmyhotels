@@ -345,6 +345,7 @@ class BillingHistorySummaryOut(BaseModel):
     this_month: Decimal
     cash: Decimal
     upi: Decimal
+    bank_transfer: Decimal = Decimal("0")
     card: Decimal
     other: Decimal
 
