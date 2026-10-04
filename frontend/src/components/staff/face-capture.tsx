@@ -1,41 +1,39 @@
 "use client";
 
 /**
- * FaceCapture — face-attendance style selfie capture for staff check-in
- * (client mockup "Staff Self-Service": "Position your face within the frame
- * to record your arrival time").
+ * FaceCapture — face-attendance style selfie capture for staff check-in and check-out.
  *
- * Full-screen dark stage (same treatment as the image editor), mirrored
- * front-camera preview, an oval face frame cut out of a dimmed overlay,
- * guidance text, and a large gold shutter. The captured frame is centre-
- * cropped to a portrait 3:4 around the face area and compressed to a small
- * JPEG (≤720 px) before it is handed to the caller.
+ * Full-screen dark stage, mirrored front-camera preview, an oval face frame
+ * cut out of a dimmed overlay, guidance text, and a large gold shutter.
+ * The captured frame is centre-cropped to a portrait 3:4 around the face area
+ * and compressed to a small JPEG (≤720 px) before upload.
  *
- * Callbacks fire EXACTLY once:
- *   onCapture(file) — a selfie was taken.
- *   onSkip()        — camera unavailable OR the user skipped; the caller
- *                     decides whether check-in proceeds without evidence.
+ * Mandatory face capture rule:
+ * Live face photo is strictly required for attendance. There is NO skip option.
+ * If camera access fails, the user is prompted to grant permission / retry or cancel.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ScanFace, X } from "lucide-react";
+import { CameraOff, ScanFace, X } from "lucide-react";
 import { InlineSpinner } from "@/components/ui/inline-spinner";
 import { compressSelfie } from "@/lib/compress-image";
 import { cn } from "@/lib/utils";
 
 export function FaceCapture({
+  mode = "in",
   onCapture,
   onCancel,
   onError,
 }: {
-  /** A selfie was taken successfully — proceed with check-in. */
+  /** "in" for check-in, "out" for check-out. */
+  readonly mode?: "in" | "out";
+  /** A selfie was taken successfully — proceed with check-in/out. */
   readonly onCapture: (file: File) => void;
-  /** User deliberately tapped X — ABORT check-in entirely. */
+  /** User deliberately cancelled or closed — aborts check-in/out entirely. */
   readonly onCancel: () => void;
-  /** Camera unavailable OR user tapped "Skip" — caller decides whether to
-   *  proceed without a selfie. */
-  readonly onError: () => void;
+  /** Camera permission or device error callback. */
+  readonly onError?: (message?: string) => void;
 }) {
   const t = useTranslations("staff");
   const tc = useTranslations("common");
@@ -44,52 +42,60 @@ export function FaceCapture({
   const doneRef = useRef(false);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   // Fire a callback at most once, then stop the camera.
-  const finish = (cb: () => void) => {
+  const finish = useCallback((cb: () => void) => {
     if (doneRef.current) return;
     doneRef.current = true;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     cb();
-  };
+  }, []);
+
+  const stopStream = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  }, []);
+
+  const initCamera = useCallback(async () => {
+    stopStream();
+    setReady(false);
+    setCameraError(null);
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Camera is not supported on this browser or connection.");
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setReady(true);
+    } catch (e) {
+      const msg =
+        e instanceof Error && e.name === "NotAllowedError"
+          ? t("cameraAccessDenied")
+          : t("cameraUnavailable");
+      setCameraError(msg);
+      onError?.(msg);
+    }
+  }, [stopStream, t, onError]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        if (!navigator.mediaDevices?.getUserMedia) throw new Error("unsupported");
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } },
-          audio: false,
-        });
-        if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-        }
-        setReady(true);
-      } catch {
-        // Camera unavailable (no permission, no hardware, not supported) —
-        // let the caller decide whether to proceed without evidence.
-        finish(onError);
-      }
-    })();
+    void initCamera();
     return () => {
-      cancelled = true;
-      streamRef.current?.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
+      stopStream();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [initCamera, stopStream]);
 
   const capture = async () => {
     const video = videoRef.current;
-    if (!video || busy) return;
+    if (!video || busy || cameraError) return;
     setBusy(true);
     try {
       const vw = video.videoWidth || 640;
@@ -104,7 +110,8 @@ export function FaceCapture({
       canvas.height = cropH;
       const ctx = canvas.getContext("2d");
       if (!ctx) {
-        finish(onError);
+        setCameraError(t("cameraCaptureFailed"));
+        setBusy(false);
         return;
       }
       // Mirror horizontally so the stored photo matches the preview.
@@ -116,7 +123,8 @@ export function FaceCapture({
         canvas.toBlob(resolve, "image/jpeg", 0.92),
       );
       if (!blob) {
-        finish(onError);
+        setCameraError(t("cameraCaptureFailed"));
+        setBusy(false);
         return;
       }
       const raw = new File([blob], "selfie.jpg", { type: "image/jpeg" });
@@ -124,21 +132,22 @@ export function FaceCapture({
       const compressed = await compressSelfie(raw);
       finish(() => onCapture(compressed));
     } catch {
-      finish(onError);
-    } finally {
+      setCameraError(t("cameraCaptureFailed"));
       setBusy(false);
     }
   };
+
+  const titleText = mode === "out" ? t("faceCheckOut") : t("faceCheckIn");
 
   return (
     <div
       className="fixed inset-0 z-[80] flex flex-col bg-black/95 text-white select-none"
       role="dialog"
-      aria-label={t("faceCheckIn")}
+      aria-label={titleText}
     >
       {/* Header */}
       <header className="flex shrink-0 items-center justify-between px-4 py-3">
-        {/* X = deliberate cancel — ABORTS check-in, does NOT proceed */}
+        {/* X = deliberate cancel — aborts check-in/out, does not proceed */}
         <button
           type="button"
           onClick={() => finish(onCancel)}
@@ -149,7 +158,7 @@ export function FaceCapture({
         </button>
         <p className="flex items-center gap-2 text-sm font-semibold">
           <ScanFace className="size-4 text-gold-400" aria-hidden />
-          {t("faceCheckIn")}
+          {titleText}
         </p>
         <span className="size-10" aria-hidden />
       </header>
@@ -172,9 +181,36 @@ export function FaceCapture({
             )}
           />
         </div>
-        {!ready && (
+
+        {!ready && !cameraError && (
           <div className="absolute inset-0 flex items-center justify-center">
             <InlineSpinner size={28} />
+          </div>
+        )}
+
+        {cameraError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 p-6 text-center">
+            <div className="mb-3 flex size-14 items-center justify-center rounded-full bg-danger/20 text-danger">
+              <CameraOff className="size-7" aria-hidden />
+            </div>
+            <p className="text-base font-semibold text-white">{t("cameraRequired")}</p>
+            <p className="mt-2 max-w-xs text-xs text-white/70">{cameraError}</p>
+            <div className="mt-5 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void initCamera()}
+                className="rounded-lg bg-gold-500 px-4 py-2 text-xs font-semibold text-navy-900 transition-colors hover:bg-gold-400"
+              >
+                {tc("retry")}
+              </button>
+              <button
+                type="button"
+                onClick={() => finish(onCancel)}
+                className="rounded-lg bg-white/10 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/20"
+              >
+                {tc("cancel")}
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -185,26 +221,16 @@ export function FaceCapture({
         style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
       >
         <p className="mx-auto max-w-xs text-sm text-white/70">{t("positionFace")}</p>
-        <div className="flex items-center justify-center gap-6">
-          {/* Skip = user knows they can't take a selfie now; check-in still goes through */}
+        <div className="flex items-center justify-center">
           <button
             type="button"
-            onClick={() => finish(onError)}
-            className="text-sm font-medium text-white/60 transition-colors hover:text-white"
-          >
-            {t("skipSelfie")}
-          </button>
-          <button
-            type="button"
-            disabled={!ready || busy}
+            disabled={!ready || busy || !!cameraError}
             onClick={() => void capture()}
             aria-label={t("captureSelfie")}
-            className="flex size-16 items-center justify-center rounded-full bg-gold-500 text-navy-900 shadow-[0_0_24px_rgba(212,175,55,0.4)] transition-all hover:bg-gold-400 active:scale-95 disabled:opacity-50"
+            className="flex size-16 items-center justify-center rounded-full bg-gold-500 text-navy-900 shadow-[0_0_24px_rgba(212,175,55,0.4)] transition-all hover:bg-gold-400 active:scale-95 disabled:opacity-40"
           >
             {busy ? <InlineSpinner size={22} /> : <ScanFace className="size-7" aria-hidden />}
           </button>
-          {/* Spacer to keep the shutter centred against the skip label */}
-          <span className="w-14" aria-hidden />
         </div>
       </footer>
     </div>

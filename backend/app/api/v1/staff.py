@@ -274,10 +274,13 @@ async def attendance_record_detail(
 @router.get("/attendance/records/{record_id}/selfie")
 async def attendance_record_selfie(
     record_id: UUID,
+    type: str = Query(default="in", pattern="^(in|out)$"),
     tenant: TenantContext = Depends(require_permissions(Permission.STAFF_ATTENDANCE_VIEW)),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    data, media = await attendance_service.record_selfie_bytes(db, tenant, record_id)
+    data, media = await attendance_service.record_selfie_bytes(
+        db, tenant, record_id, which=type
+    )
     return Response(content=data, media_type=media)
 
 

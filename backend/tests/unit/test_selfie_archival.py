@@ -45,3 +45,76 @@ class TestSelfieFingerprinting:
     def test_calendar_day_selfie_flushed_field(self) -> None:
         day = CalendarDayOut(day=date(2026, 10, 1), status="present", selfie_flushed=True)
         assert day.selfie_flushed is True
+
+    def test_attendance_schemas_checkout_selfie_fields(self) -> None:
+        from uuid import uuid4
+        from app.schemas.staff import AttendanceRecordOut, AttendanceRowOut, RecordDetailOut
+
+        sha = "b" * 64
+        rec = AttendanceRecordOut(
+            id=uuid4(),
+            staff_profile_id=uuid4(),
+            work_date=date(2026, 10, 4),
+            check_in_at=None,
+            check_out_at=None,
+            check_in_distance_m=None,
+            check_out_distance_m=None,
+            method_in=None,
+            method_out=None,
+            status="present",
+            late_minutes=None,
+            early_out_minutes=None,
+            note=None,
+            has_selfie=True,
+            has_checkout_selfie=True,
+            check_out_selfie_sha256=sha,
+        )
+        assert rec.has_checkout_selfie is True
+        assert rec.check_out_selfie_sha256 == sha
+
+        row = AttendanceRowOut(
+            record_id=uuid4(),
+            staff_profile_id=uuid4(),
+            staff_code="STF-01",
+            full_name="John Doe",
+            department="front_desk",
+            work_date=date(2026, 10, 4),
+            check_in_at=None,
+            check_out_at=None,
+            working_minutes=480,
+            late_minutes=0,
+            early_out_minutes=0,
+            status="present",
+            has_checkout_selfie=True,
+            check_out_selfie_sha256=sha,
+        )
+        assert row.has_checkout_selfie is True
+        assert row.check_out_selfie_sha256 == sha
+
+        detail = RecordDetailOut(
+            id=uuid4(),
+            staff_profile_id=uuid4(),
+            staff_code="STF-01",
+            full_name="John Doe",
+            department="front_desk",
+            work_date=date(2026, 10, 4),
+            status="present",
+            check_in_at=None,
+            check_out_at=None,
+            method_in="self_geo",
+            method_out="self_geo",
+            check_in_distance_m=None,
+            check_in_accuracy_m=None,
+            check_out_distance_m=None,
+            check_out_accuracy_m=None,
+            late_minutes=None,
+            early_out_minutes=None,
+            working_minutes=480,
+            has_selfie=True,
+            has_checkout_selfie=True,
+            check_out_selfie_sha256=sha,
+            performed_by_name=None,
+            note=None,
+        )
+        assert detail.has_checkout_selfie is True
+        assert detail.check_out_selfie_sha256 == sha

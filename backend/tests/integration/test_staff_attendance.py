@@ -63,6 +63,16 @@ async def _enable_geofence(client: AsyncClient, owner_headers: dict[str, str]) -
     assert r.status_code == 200, r.text
 
 
+async def _upload_selfie(client: AsyncClient, headers: dict[str, str]) -> str:
+    r = await client.post(
+        "/api/v1/staff/attendance/selfie",
+        headers=headers,
+        files={"file": ("selfie.jpg", b"fake-jpg-content", "image/jpeg")},
+    )
+    assert r.status_code == 200, r.text
+    return r.json()["selfie_key"]
+
+
 # ── Staff directory ──────────────────────────────────────────────────────────
 
 
@@ -125,11 +135,50 @@ async def test_geofence_toggle_requires_location(client: AsyncClient, hotel_a: H
     assert r.status_code == 422, r.text
 
 
-async def test_checkin_without_fence_needs_no_location(
+async def test_checkin_and_checkout_require_selfie(
     client: AsyncClient, hotel_a: HotelFixture
 ):
     manager = await _h(client, hotel_a, "manager")
+    # Check-in without selfie is rejected
     r = await client.post("/api/v1/staff/attendance/check-in", headers=manager, json={})
+    assert r.status_code == 422, r.text
+    assert "selfie_required" in r.text
+
+    # With selfie -> succeeds
+    sk = await _upload_selfie(client, manager)
+    r = await client.post(
+        "/api/v1/staff/attendance/check-in",
+        headers=manager,
+        json={"selfie_key": sk},
+    )
+    assert r.status_code == 200, r.text
+
+    # Check-out without selfie is rejected
+    r = await client.post("/api/v1/staff/attendance/check-out", headers=manager, json={})
+    assert r.status_code == 422, r.text
+    assert "selfie_required" in r.text
+
+    # Check-out with selfie -> succeeds
+    sk_out = await _upload_selfie(client, manager)
+    r = await client.post(
+        "/api/v1/staff/attendance/check-out",
+        headers=manager,
+        json={"selfie_key": sk_out},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["check_out_at"] is not None
+
+
+async def test_checkin_without_fence_needs_no_location(
+    client: AsyncClient, hotel_a: HotelFixture
+):
+    admin = await _h(client, hotel_a, "admin")
+    sk = await _upload_selfie(client, admin)
+    r = await client.post(
+        "/api/v1/staff/attendance/check-in",
+        headers=admin,
+        json={"selfie_key": sk},
+    )
     assert r.status_code == 200, r.text
     assert r.json()["method_in"] == "self_geo"
 
@@ -141,34 +190,56 @@ async def test_geofence_blocks_far_checkin_and_allows_near(
     await _enable_geofence(client, owner)
 
     # Far away → blocked with distance info.
-    r = await client.post("/api/v1/staff/attendance/check-in", headers=owner, json=FAR)
+    sk = await _upload_selfie(client, owner)
+    r = await client.post(
+        "/api/v1/staff/attendance/check-in",
+        headers=owner,
+        json={**FAR, "selfie_key": sk},
+    )
     assert r.status_code == 422, r.text
     assert "m from the property" in r.text
 
     # No location while fence enabled → blocked.
-    r = await client.post("/api/v1/staff/attendance/check-in", headers=owner, json={})
+    r = await client.post(
+        "/api/v1/staff/attendance/check-in",
+        headers=owner,
+        json={"selfie_key": sk},
+    )
     assert r.status_code == 422
 
     # Vague accuracy cannot cheat: 1 km away with accuracy=5000.
     r = await client.post(
         "/api/v1/staff/attendance/check-in",
         headers=owner,
-        json={**FAR, "accuracy_m": 5000},
+        json={**FAR, "accuracy_m": 5000, "selfie_key": sk},
     )
     assert r.status_code == 422
 
     # Inside the fence → OK, distance recorded.
-    r = await client.post("/api/v1/staff/attendance/check-in", headers=owner, json=NEAR)
+    r = await client.post(
+        "/api/v1/staff/attendance/check-in",
+        headers=owner,
+        json={**NEAR, "selfie_key": sk},
+    )
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["check_in_distance_m"] is not None
 
     # Double check-in → 409.
-    r = await client.post("/api/v1/staff/attendance/check-in", headers=owner, json=NEAR)
+    r = await client.post(
+        "/api/v1/staff/attendance/check-in",
+        headers=owner,
+        json={**NEAR, "selfie_key": sk},
+    )
     assert r.status_code == 409
 
     # Check-out inside fence → OK.
-    r = await client.post("/api/v1/staff/attendance/check-out", headers=owner, json=NEAR)
+    sk_out = await _upload_selfie(client, owner)
+    r = await client.post(
+        "/api/v1/staff/attendance/check-out",
+        headers=owner,
+        json={**NEAR, "selfie_key": sk_out},
+    )
     assert r.status_code == 200
     assert r.json()["check_out_at"] is not None
 
@@ -195,12 +266,22 @@ async def test_self_today_state_machine(client: AsyncClient, hotel_a: HotelFixtu
     assert r.status_code == 200
     assert r.json()["status"] == "not_checked_in"
 
-    r = await client.post("/api/v1/staff/attendance/check-in", headers=admin, json={})
+    sk_in = await _upload_selfie(client, admin)
+    r = await client.post(
+        "/api/v1/staff/attendance/check-in",
+        headers=admin,
+        json={"selfie_key": sk_in},
+    )
     assert r.status_code == 200
     r = await client.get("/api/v1/staff/me/attendance/today", headers=admin)
     assert r.json()["status"] == "working"
 
-    r = await client.post("/api/v1/staff/attendance/check-out", headers=admin, json={})
+    sk_out = await _upload_selfie(client, admin)
+    r = await client.post(
+        "/api/v1/staff/attendance/check-out",
+        headers=admin,
+        json={"selfie_key": sk_out},
+    )
     assert r.status_code == 200
     r = await client.get("/api/v1/staff/me/attendance/today", headers=admin)
     assert r.json()["status"] == "checked_out"

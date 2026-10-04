@@ -44,7 +44,13 @@ function fmtHrs(minutes: number | null): string {
 }
 
 /** Selfie image fetched with auth headers (object-URL lifecycle managed). */
-function SelfieImage({ recordId }: { readonly recordId: string }) {
+function SelfieImage({
+  recordId,
+  which = "in",
+}: {
+  readonly recordId: string;
+  readonly which?: "in" | "out";
+}) {
   const { activeHotelId } = useAuth();
   const [src, setSrc] = useState<string | null>(null);
 
@@ -54,7 +60,7 @@ function SelfieImage({ recordId }: { readonly recordId: string }) {
     (async () => {
       const token = getAccessToken();
       const res = await fetch(
-        `${API_BASE}/api/v1/staff/attendance/records/${recordId}/selfie`,
+        `${API_BASE}/api/v1/staff/attendance/records/${recordId}/selfie?type=${which}`,
         {
           headers: {
             Authorization: token ? `Bearer ${token}` : "",
@@ -71,7 +77,7 @@ function SelfieImage({ recordId }: { readonly recordId: string }) {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [recordId, activeHotelId]);
+  }, [recordId, which, activeHotelId]);
 
   if (!src) return <Skeleton className="h-40 w-32 rounded-lg" />;
   return (
@@ -136,7 +142,7 @@ export function RecordDetailDialog({
 
   return (
     <Dialog open={recordId !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ScanFace className="size-4 text-gold-600" aria-hidden />
@@ -165,14 +171,26 @@ export function RecordDetailDialog({
               <AttendanceStatusBadge status={d.status} />
             </div>
 
-            <div className="flex gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row">
               {/* Selfie evidence */}
-              {d.has_selfie ? (
-                <div className="shrink-0">
-                  <p className="mb-1.5 text-micro font-semibold uppercase tracking-widest text-muted-foreground">
-                    {t("selfieEvidence")}
-                  </p>
-                  <SelfieImage recordId={d.id} />
+              {d.has_selfie || d.has_checkout_selfie ? (
+                <div className="flex shrink-0 gap-3">
+                  {d.has_selfie && (
+                    <div>
+                      <p className="mb-1.5 text-micro font-semibold uppercase tracking-widest text-muted-foreground">
+                        {t("checkInSelfie")}
+                      </p>
+                      <SelfieImage recordId={d.id} which="in" />
+                    </div>
+                  )}
+                  {d.has_checkout_selfie && (
+                    <div>
+                      <p className="mb-1.5 text-micro font-semibold uppercase tracking-widest text-muted-foreground">
+                        {t("checkOutSelfie")}
+                      </p>
+                      <SelfieImage recordId={d.id} which="out" />
+                    </div>
+                  )}
                 </div>
               ) : d.selfie_flushed ? (
                 <div className="shrink-0 w-36 rounded-lg border border-amber-200 bg-amber-50/60 p-2.5 text-xs">
@@ -186,13 +204,26 @@ export function RecordDetailDialog({
                   {d.check_in_selfie_sha256 && (
                     <div className="mt-2">
                       <span className="text-[10px] font-medium text-muted-foreground uppercase">
-                        {t("sha256Fingerprint")}
+                        {t("sha256Fingerprint")} (In)
                       </span>
                       <code
                         className="mt-0.5 block max-w-full truncate rounded bg-white px-1 py-0.5 text-[9px] font-mono border select-all"
                         title={d.check_in_selfie_sha256}
                       >
                         {d.check_in_selfie_sha256.slice(0, 16)}…
+                      </code>
+                    </div>
+                  )}
+                  {d.check_out_selfie_sha256 && (
+                    <div className="mt-2">
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase">
+                        {t("sha256Fingerprint")} (Out)
+                      </span>
+                      <code
+                        className="mt-0.5 block max-w-full truncate rounded bg-white px-1 py-0.5 text-[9px] font-mono border select-all"
+                        title={d.check_out_selfie_sha256}
+                      >
+                        {d.check_out_selfie_sha256.slice(0, 16)}…
                       </code>
                     </div>
                   )}

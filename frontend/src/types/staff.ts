@@ -65,6 +65,11 @@ export interface AttendanceRecordOut {
   late_minutes: number | null;
   early_out_minutes: number | null;
   note: string | null;
+  has_selfie?: boolean;
+  selfie_flushed?: boolean;
+  check_in_selfie_sha256?: string | null;
+  has_checkout_selfie?: boolean;
+  check_out_selfie_sha256?: string | null;
 }
 
 export interface AttendanceRowOut {
@@ -85,6 +90,8 @@ export interface AttendanceRowOut {
   has_selfie?: boolean;
   selfie_flushed?: boolean;
   check_in_selfie_sha256?: string | null;
+  has_checkout_selfie?: boolean;
+  check_out_selfie_sha256?: string | null;
 }
 
 export interface TodayStatsOut {
@@ -169,6 +176,8 @@ export interface RecordDetailOut {
   has_selfie: boolean;
   selfie_flushed?: boolean;
   check_in_selfie_sha256?: string | null;
+  has_checkout_selfie?: boolean;
+  check_out_selfie_sha256?: string | null;
   performed_by_name: string | null;
   note: string | null;
 }

@@ -15,7 +15,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
@@ -234,6 +234,7 @@ def _apply_check_out(
     lng: float | None = None,
     accuracy_m: float | None = None,
     distance_m: float | None = None,
+    selfie_key: str | None = None,
     performed_by: UUID | None = None,
 ) -> None:
     record.check_out_at = now_utc
@@ -248,6 +249,8 @@ def _apply_check_out(
     record.check_out_distance_m = (
         Decimal(str(round(distance_m, 1))) if distance_m is not None else None
     )
+    if selfie_key:
+        record.check_out_selfie_key = selfie_key
     record.early_out_minutes = _early_out_minutes(profile, now_local)
 
 
@@ -301,17 +304,19 @@ async def self_check_in(
         )
         db.add(record)
 
-    # SECURITY (plan §1.6): the selfie key is client-supplied — accept ONLY keys
-    # produced by upload_selfie for THIS hotel and THIS user. Without this check
-    # a leaked/guessed key from another hotel could be attached here and later
-    # served to this hotel's managers (cross-tenant file read).
+    # SECURITY: Live face capture is MANDATORY for attendance check-in.
+    # The selfie key is client-supplied — accept ONLY keys produced by upload_selfie
+    # for THIS hotel and THIS user.
     selfie_key = body.selfie_key
-    if selfie_key is not None:
-        expected_prefix = f"hotels/{hotel.id}/staff/selfies/{profile.user_id}/"
-        if not selfie_key.startswith(expected_prefix):
-            raise ValidationAppError(
-                "Invalid selfie reference", code="invalid_selfie_key"
-            )
+    if not selfie_key:
+        raise ValidationAppError(
+            "Live face capture is required for check-in", code="selfie_required"
+        )
+    expected_prefix = f"hotels/{hotel.id}/staff/selfies/{profile.user_id}/"
+    if not selfie_key.startswith(expected_prefix):
+        raise ValidationAppError(
+            "Invalid selfie reference", code="invalid_selfie_key"
+        )
 
     _apply_check_in(
         record,
@@ -377,6 +382,18 @@ async def self_check_out(
     if record.check_out_at is not None:
         raise ConflictError("Already checked out", code="already_checked_out")
 
+    # SECURITY: Live face capture is MANDATORY for attendance check-out.
+    selfie_key = body.selfie_key
+    if not selfie_key:
+        raise ValidationAppError(
+            "Live face capture is required for check-out", code="selfie_required"
+        )
+    expected_prefix = f"hotels/{hotel.id}/staff/selfies/{profile.user_id}/"
+    if not selfie_key.startswith(expected_prefix):
+        raise ValidationAppError(
+            "Invalid selfie reference", code="invalid_selfie_key"
+        )
+
     _apply_check_out(
         record,
         profile,
@@ -387,6 +404,7 @@ async def self_check_out(
         lng=body.lng,
         accuracy_m=body.accuracy_m,
         distance_m=distance,
+        selfie_key=selfie_key,
     )
     await db.flush()
     return record
@@ -720,6 +738,8 @@ async def today_attendance(
                 has_selfie=bool(rec and rec.check_in_selfie_key),
                 selfie_flushed=bool(rec and rec.selfie_flushed_at),
                 check_in_selfie_sha256=rec.check_in_selfie_sha256 if rec else None,
+                has_checkout_selfie=bool(rec and rec.check_out_selfie_key),
+                check_out_selfie_sha256=rec.check_out_selfie_sha256 if rec else None,
             )
         )
     return TodayAttendanceOut(stats=TodayStatsOut(**stats), items=items)
@@ -785,6 +805,8 @@ async def history(
             has_selfie=bool(rec.check_in_selfie_key),
             selfie_flushed=bool(rec.selfie_flushed_at),
             check_in_selfie_sha256=rec.check_in_selfie_sha256,
+            has_checkout_selfie=bool(rec.check_out_selfie_key),
+            check_out_selfie_sha256=rec.check_out_selfie_sha256,
         )
         for rec, profile, user in rows
     ]
@@ -1086,13 +1108,18 @@ async def record_detail(
         has_selfie=rec.check_in_selfie_key is not None,
         selfie_flushed=rec.selfie_flushed_at is not None,
         check_in_selfie_sha256=rec.check_in_selfie_sha256,
+        has_checkout_selfie=rec.check_out_selfie_key is not None,
+        check_out_selfie_sha256=rec.check_out_selfie_sha256,
         performed_by_name=performed_by_name,
         note=rec.note,
     )
 
 
 async def record_selfie_bytes(
-    db: AsyncSession, tenant: TenantContext, record_id: UUID
+    db: AsyncSession,
+    tenant: TenantContext,
+    record_id: UUID,
+    which: str = "in",
 ) -> tuple[bytes, str]:
     from app.integrations.storage.base import get_storage
 
@@ -1105,10 +1132,15 @@ async def record_selfie_bytes(
             )
         )
     ).scalar_one_or_none()
-    if rec is None or not rec.check_in_selfie_key:
+    key = (
+        rec.check_out_selfie_key
+        if (rec and which == "out")
+        else (rec.check_in_selfie_key if rec else None)
+    )
+    if rec is None or not key:
         raise NotFoundError("No selfie recorded")
-    data = await get_storage().get_bytes(rec.check_in_selfie_key)
-    suffix = rec.check_in_selfie_key.rsplit(".", 1)[-1].lower()
+    data = await get_storage().get_bytes(key)
+    suffix = key.rsplit(".", 1)[-1].lower()
     media = {
         "png": "image/png",
         "jpg": "image/jpeg",
@@ -1382,11 +1414,14 @@ async def sweep_flushed_selfies(db: AsyncSession) -> dict[str, int]:
     # Default to 30 days for hotels without a settings row.
     DEFAULT_DAYS = 30
 
-    # Candidate records: have a selfie key, not yet flushed.
+    # Candidate records: have a check-in or check-out selfie key, not yet flushed.
     candidates = (
         await db.execute(
             select(AttendanceRecord).where(
-                AttendanceRecord.check_in_selfie_key.isnot(None),
+                or_(
+                    AttendanceRecord.check_in_selfie_key.isnot(None),
+                    AttendanceRecord.check_out_selfie_key.isnot(None),
+                ),
                 AttendanceRecord.selfie_flushed_at.is_(None),
             )
         )
@@ -1406,23 +1441,31 @@ async def sweep_flushed_selfies(db: AsyncSession) -> dict[str, int]:
         if record_age_date > cutoff:
             continue  # still within retention window
 
-        key = rec.check_in_selfie_key
-        if not key:
-            continue
-        try:
-            # Read bytes to compute SHA-256 before deletion.
-            raw = await storage.get_bytes(key=key)
-            sha256 = hashlib.sha256(raw).hexdigest()
-            await storage.delete(key=key)
-        except Exception:  # noqa: BLE001
-            errors += 1
-            continue
+        flushed_any = False
+        if rec.check_in_selfie_key:
+            try:
+                raw_in = await storage.get_bytes(key=rec.check_in_selfie_key)
+                rec.check_in_selfie_sha256 = hashlib.sha256(raw_in).hexdigest()
+                await storage.delete(key=rec.check_in_selfie_key)
+                rec.check_in_selfie_key = None
+                flushed_any = True
+            except Exception:  # noqa: BLE001
+                errors += 1
 
-        rec.check_in_selfie_sha256 = sha256
-        rec.check_in_selfie_key = None
-        rec.selfie_flushed_at = now_utc
-        db.add(rec)
-        flushed += 1
+        if rec.check_out_selfie_key:
+            try:
+                raw_out = await storage.get_bytes(key=rec.check_out_selfie_key)
+                rec.check_out_selfie_sha256 = hashlib.sha256(raw_out).hexdigest()
+                await storage.delete(key=rec.check_out_selfie_key)
+                rec.check_out_selfie_key = None
+                flushed_any = True
+            except Exception:  # noqa: BLE001
+                errors += 1
+
+        if flushed_any:
+            rec.selfie_flushed_at = now_utc
+            db.add(rec)
+            flushed += 1
 
     await db.flush()
     return {"scanned": scanned, "flushed": flushed, "errors": errors}

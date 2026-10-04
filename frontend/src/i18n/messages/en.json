@@ -749,7 +749,14 @@
     "selfieRetentionNote": "Selfie photos are retained for 30 days per hotel audit policy, after which photos are purged while cryptographic SHA-256 fingerprints are permanently preserved for audit verification.",
     "selfieAuditCol": "Selfie & Audit",
     "viewEvidence": "View Evidence",
-    "noRecordsForMonth": "No attendance records found for this month."
+    "noRecordsForMonth": "No attendance records found for this month.",
+    "faceCheckOut": "Face Check-Out",
+    "checkInSelfie": "Check-in Selfie",
+    "checkOutSelfie": "Check-out Selfie",
+    "cameraRequired": "Camera is required for attendance",
+    "cameraAccessDenied": "Camera permission was denied. Please allow camera access in browser settings to record attendance.",
+    "cameraUnavailable": "Camera is unavailable or not supported on this device.",
+    "cameraCaptureFailed": "Unable to capture image from camera. Please try again."
   },
   "guestPicker": {
     "searchByPhone": "Phone number (full or partial)",

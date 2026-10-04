@@ -140,6 +140,8 @@ class AttendanceRecordOut(ORMModel):
     has_selfie: bool = False          # True when check_in_selfie_key is set
     selfie_flushed: bool = False      # True when selfie_flushed_at is set
     check_in_selfie_sha256: str | None = None  # fingerprint kept post-flush
+    has_checkout_selfie: bool = False
+    check_out_selfie_sha256: str | None = None
 
 
 class AttendanceRowOut(BaseModel):
@@ -162,6 +164,8 @@ class AttendanceRowOut(BaseModel):
     has_selfie: bool = False
     selfie_flushed: bool = False
     check_in_selfie_sha256: str | None = None
+    has_checkout_selfie: bool = False
+    check_out_selfie_sha256: str | None = None
 
 
 class TodayStatsOut(BaseModel):
@@ -248,6 +252,8 @@ class RecordDetailOut(BaseModel):
     has_selfie: bool
     selfie_flushed: bool = False
     check_in_selfie_sha256: str | None = None
+    has_checkout_selfie: bool = False
+    check_out_selfie_sha256: str | None = None
     performed_by_name: str | None
     note: str | None
 

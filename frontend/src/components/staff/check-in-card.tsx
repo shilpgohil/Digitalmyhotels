@@ -17,7 +17,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { LogIn, LogOut, MapPinOff, ScanFace } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -54,7 +54,7 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
 
   const [busy, setBusy] = useState<"in" | "out" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showCamera, setShowCamera] = useState(false);
+  const [cameraMode, setCameraMode] = useState<"in" | "out" | null>(null);
   const [pendingPos, setPendingPos] = useState<GeoPosition | null>(null);
   // Live clock (30s tick keeps the working duration fresh).
   const [, setTick] = useState(0);
@@ -75,21 +75,6 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
     queryClient.invalidateQueries({ queryKey: ["staff-attendance", activeHotelId] });
   };
 
-  const checkOutMutation = useMutation({
-    mutationFn: (pos: GeoPosition | null) =>
-      api<AttendanceRecordOut>("/api/v1/staff/attendance/check-out", {
-        method: "POST",
-        body: pos ? { ...pos } : {},
-      }),
-    onSuccess: () => {
-      toast.success(t("checkedOutToast"));
-      setError(null);
-      invalidate();
-    },
-    onError: (e) => setError(e instanceof ApiError ? e.message : tc("error")),
-    onSettled: () => setBusy(null),
-  });
-
   /** Get a GPS fix when the fence is on; null (skip) when it's off. */
   const acquirePosition = async (): Promise<GeoPosition | null> => {
     if (!today.data?.geofence_enabled) return null;
@@ -109,48 +94,11 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
     try {
       const pos = await acquirePosition();
       setPendingPos(pos);
-      // Face Check-In: selfie evidence is part of the flow (mockup).
-      setShowCamera(true);
+      // Face Check-In: live selfie is required.
+      setCameraMode("in");
     } catch (e) {
       setError(e instanceof Error ? e.message : tc("error"));
       setBusy(null);
-    }
-  };
-
-  const completeCheckIn = async (selfie: File | null) => {
-    setShowCamera(false);
-    let selfieKey: string | null = null;
-    try {
-      if (selfie) {
-        const form = new FormData();
-        form.append("file", selfie, selfie.name);
-        const res = await apiUpload<{ selfie_key: string }>(
-          "/api/v1/staff/attendance/selfie",
-          form,
-          { hotelId: activeHotelId ?? undefined },
-        );
-        selfieKey = res.selfie_key;
-      }
-      await api<AttendanceRecordOut>("/api/v1/staff/attendance/check-in", {
-        method: "POST",
-        body: {
-          ...(pendingPos ?? {}),
-          ...(selfieKey ? { selfie_key: selfieKey } : {}),
-        },
-      });
-      toast.success(t("checkedInToast"));
-      setError(null);
-      invalidate();
-    } catch (e) {
-      // Orphan cleanup: if the selfie was uploaded but check-in failed (network
-      // error, geofence violation, etc.), the uploaded blob is now unreferenced
-      // in storage. We don't have a delete endpoint for selfies, but the key
-      // won't be linked to any record so it will eventually be swept. The more
-      // important thing is to not confuse the user — show the real error.
-      setError(e instanceof ApiError ? e.message : tc("error"));
-    } finally {
-      setBusy(null);
-      setPendingPos(null);
     }
   };
 
@@ -159,10 +107,51 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
     setError(null);
     try {
       const pos = await acquirePosition();
-      checkOutMutation.mutate(pos);
+      setPendingPos(pos);
+      // Face Check-Out: live selfie is required.
+      setCameraMode("out");
     } catch (e) {
       setError(e instanceof Error ? e.message : tc("error"));
       setBusy(null);
+    }
+  };
+
+  const handleCapture = async (selfie: File) => {
+    const currentMode = cameraMode;
+    setCameraMode(null);
+    try {
+      const form = new FormData();
+      form.append("file", selfie, selfie.name);
+      const res = await apiUpload<{ selfie_key: string }>(
+        "/api/v1/staff/attendance/selfie",
+        form,
+        { hotelId: activeHotelId ?? undefined },
+      );
+      const endpoint =
+        currentMode === "out"
+          ? "/api/v1/staff/attendance/check-out"
+          : "/api/v1/staff/attendance/check-in";
+
+      await api<AttendanceRecordOut>(endpoint, {
+        method: "POST",
+        body: {
+          ...(pendingPos ?? {}),
+          selfie_key: res.selfie_key,
+        },
+      });
+
+      if (currentMode === "out") {
+        toast.success(t("checkedOutToast"));
+      } else {
+        toast.success(t("checkedInToast"));
+      }
+      setError(null);
+      invalidate();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : tc("error"));
+    } finally {
+      setBusy(null);
+      setPendingPos(null);
     }
   };
 
@@ -179,21 +168,22 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
 
   return (
     <div className="rounded-xl border bg-card p-5 shadow-sm">
-      {showCamera && (
+      {cameraMode && (
         <FaceCapture
-          onCapture={(file) => void completeCheckIn(file)}
+          mode={cameraMode}
+          onCapture={(file) => void handleCapture(file)}
           onCancel={() => {
-            // User deliberately tapped X — ABORT check-in, reset state.
-            // The GPS fix and busy state are discarded; nothing is posted.
-            setShowCamera(false);
+            // User cancelled camera — abort check-in/out entirely.
+            setCameraMode(null);
             setBusy(null);
             setPendingPos(null);
-            setError(null);
           }}
-          onError={() => {
-            // Camera unavailable or user skipped — proceed without selfie.
-            // GPS + audit trail still apply; absence of selfie is noted.
-            void completeCheckIn(null);
+          onError={(msg) => {
+            // Camera unavailable or permission denied — do NOT proceed with attendance.
+            setCameraMode(null);
+            setBusy(null);
+            setPendingPos(null);
+            if (msg) setError(msg);
           }}
         />
       )}
