@@ -1136,6 +1136,11 @@ function NewGuestForm({
   const api = useApi();
   const [docs, setDocs] = useState<{ side: DocSide; file: File }[]>([]);
   const [ocrResult, setOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
+  // Separate state for back-face (address-only) OCR result.
+  // Using a dedicated state ensures replacing the back image ALWAYS re-shows
+  // the banner — even if the address fields are already filled (client bug:
+  // the previous || pattern silently discarded replacement scan results).
+  const [backOcrResult, setBackOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
   const [form, setForm] = useState<GuestCreatePayload>({
     full_name: "",
     phone: initialPhone,
@@ -1227,19 +1232,15 @@ function NewGuestForm({
           existingDocId={existingDocs.back}
           guestId={guestId ?? undefined}
           onOriginal={(_side, original) => {
-            // Back face → dedicated Aadhaar address/pincode parser.
+            // Back face → address/pincode parser.
+            // Always sets backOcrResult (never silent || merge) so that:
+            //  (a) a banner is shown on every upload, including replacements
+            //  (b) staff explicitly confirm before address fields are overwritten
             import("@/lib/id-ocr").then(({ parseIdDocument }) =>
               parseIdDocument(original, form.id_proof_type ?? "Aadhar Card", "back").then(
                 (result) => {
-                  if (result.fields.address) {
-                    setForm((prev) => ({
-                      ...prev,
-                      address: prev.address || result.fields.address || "",
-                      postal_code: prev.postal_code || result.fields.pincode || "",
-                      city: prev.city || result.fields.city || "",
-                      state: prev.state || result.fields.state || "",
-                    }));
-                    toast.success(t("formAutofilled"));
+                  if (result.fields.address || result.can_autofill) {
+                    setBackOcrResult(result);
                   } else {
                     toast.warning(result.message);
                   }
@@ -1257,7 +1258,7 @@ function NewGuestForm({
         />
       </div>
 
-      {/* OCR autofill banner */}
+      {/* Front-face OCR autofill banner (name, DOB, gender, ID number) */}
       {ocrResult && (
         <AutofillBanner
           result={ocrResult}
@@ -1278,6 +1279,24 @@ function NewGuestForm({
             toast.success(t("guestAutofilled"));
           }}
           onDismiss={() => setOcrResult(null)}
+        />
+      )}
+
+      {/* Back-face OCR banner — address fields only.
+          Shown every time a back image is uploaded (including replacements)
+          so staff always get an explicit prompt before any address is overwritten. */}
+      {backOcrResult && (
+        <AutofillBanner
+          result={backOcrResult}
+          onAccept={(fields) => {
+            if (fields.address) set("address", fields.address);
+            if (fields.pincode) set("postal_code", fields.pincode);
+            if (fields.city) set("city", fields.city);
+            if (fields.state) set("state", fields.state);
+            setBackOcrResult(null);
+            toast.success(t("addressAutofilled"));
+          }}
+          onDismiss={() => setBackOcrResult(null)}
         />
       )}
 
@@ -1561,30 +1580,29 @@ function AdditionalGuestEntry({
    * (security: only last-4 returned by API; full number re-entered if changed).
    */
   const buildEditInitial = (): Partial<GuestCreatePayload> => {
+    let base: Partial<GuestCreatePayload> = {};
     if (resolved?.guest_id.startsWith("__new__")) {
       const nf = (resolved as ResolvedCoGuest & { _newForm?: GuestCreatePayload })._newForm;
-      if (nf) return { ...nf };
+      if (nf) base = { ...nf };
     }
-    const base = autofill ?? null;
+    const af = autofill ?? null;
     return {
-      full_name:   base?.full_name   ?? resolved?.full_name ?? "",
-      phone:       base?.phone       ?? resolved?.phone    ?? "",
-      email:       base?.email       ?? "",
-      address:     base?.address     ?? "",
-      city:        base?.city        ?? "",
-      state:       base?.state       ?? "",
-      country:     base?.country     ?? "India",
-      postal_code: base?.postal_code ?? "",
-      gender:      base?.gender      ?? "",
-      date_of_birth: base?.date_of_birth ?? "",
-      id_proof_type: base?.id_proof_type ?? "Aadhar Card",
+      full_name:   af?.full_name   ?? base.full_name ?? resolved?.full_name ?? "",
+      phone:       af?.phone       ?? base.phone ?? resolved?.phone    ?? "",
+      email:       af?.email       ?? base.email ?? "",
+      address:     af?.address     ?? base.address ?? "",
+      city:        af?.city        ?? base.city ?? "",
+      state:       af?.state       ?? base.state ?? "",
+      country:     af?.country     ?? base.country ?? "India",
+      postal_code: af?.postal_code ?? base.postal_code ?? "",
+      gender:      af?.gender      ?? base.gender ?? "",
+      date_of_birth: af?.date_of_birth ?? base.date_of_birth ?? "",
+      id_proof_type: af?.id_proof_type ?? base.id_proof_type ?? "Aadhar Card",
       // Use the full OCR ID if captured (co-guest OCR accept flow).
       // Otherwise fall back to masked placeholder from last-4, or empty.
       id_number: coGuestOcrId
         ? coGuestOcrId
-        : base?.id_last4
-          ? `••••${base.id_last4}`
-          : "",
+        : base.id_number ?? (af?.id_last4 ? `••••${af.id_last4}` : ""),
     };
   };
 
@@ -1927,6 +1945,19 @@ function AdditionalGuestEntry({
                 ...(fields.state && { state: fields.state }),
                 ...(fields.id_number && { id_last4: fields.id_number.slice(-4) }),
               }));
+              if (resolved.guest_id.startsWith("__new__")) {
+                const resAny = resolved as ResolvedCoGuest & { _newForm?: GuestCreatePayload };
+                if (resAny._newForm) {
+                  if (fields.name) resAny._newForm.full_name = fields.name;
+                  if (fields.gender) resAny._newForm.gender = fields.gender;
+                  if (fields.date_of_birth) resAny._newForm.date_of_birth = fields.date_of_birth;
+                  if (fields.address) resAny._newForm.address = fields.address;
+                  if (fields.pincode) resAny._newForm.postal_code = fields.pincode;
+                  if (fields.city) resAny._newForm.city = fields.city;
+                  if (fields.state) resAny._newForm.state = fields.state;
+                }
+              }
+              toast.success(t("guestAutofilled"));
               // Store full OCR ID separately so buildEditInitial can pre-fill
               // the edit form with the real number (autofill only carries last-4).
               if (fields.id_number) {
@@ -2370,6 +2401,7 @@ function CheckinForm({
 
   // ── OCR autofill state (primary guest) ──
   const [pgOcrResult, setPgOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
+  const [pgBackOcrResult, setPgBackOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
 
   // ── Additional guests ──
   const [coGuests, setCoGuests] = useState<ResolvedCoGuest[]>([]);
@@ -2988,18 +3020,8 @@ function CheckinForm({
               idType={pgIdType}
               existingDocId={pgExistingDocs.back}
               onOcrResult={(result) => {
-                if (result.fields.address) {
-                  setPgAddress((prev) => prev || (result.fields.address ?? ""));
-                  if (result.fields.pincode) {
-                    setPgPostalCode((prev) => prev || (result.fields.pincode ?? ""));
-                  }
-                  if (result.fields.city) {
-                    setPgCity((prev) => prev || (result.fields.city ?? ""));
-                  }
-                  if (result.fields.state) {
-                    setPgState((prev) => prev || (result.fields.state ?? ""));
-                  }
-                  toast.success(t("formAutofilled"));
+                if (result.fields.address || result.can_autofill) {
+                  setPgBackOcrResult(result);
                 } else {
                   toast.warning(result.message);
                 }
@@ -3033,6 +3055,22 @@ function CheckinForm({
                 toast.success(t("formAutofilled"));
               }}
               onDismiss={() => setPgOcrResult(null)}
+            />
+          )}
+
+          {/* Back-face OCR autofill banner — address fields only */}
+          {pgBackOcrResult && (
+            <AutofillBanner
+              result={pgBackOcrResult}
+              onAccept={(fields) => {
+                if (fields.address) setPgAddress(fields.address);
+                if (fields.pincode) setPgPostalCode(fields.pincode);
+                if (fields.city) setPgCity(fields.city);
+                if (fields.state) setPgState(fields.state);
+                setPgBackOcrResult(null);
+                toast.success(t("addressAutofilled"));
+              }}
+              onDismiss={() => setPgBackOcrResult(null)}
             />
           )}
 
@@ -3702,6 +3740,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const [pgCountry, setPgCountry] = useState("India");
   const [pgCompany, setPgCompany] = useState("");
   const [pgOcrResult, setPgOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
+  const [pgBackOcrResult, setPgBackOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
 
   // Existing doc IDs for the selected returning guest — keyed by side.
   // DocUpload uses these to pre-fill tiles from B2.
@@ -5057,23 +5096,13 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   idType={pgIdType}
                   existingDocId={pgExistingDocs.back}
                   onOcrResult={(result) => {
-                    if (result.fields.address) {
-                      setPgAddress((prev) => prev || (result.fields.address ?? ""));
-                      if (result.fields.pincode) {
-                        setPgPostalCode((prev) => prev || (result.fields.pincode ?? ""));
-                      }
-                      if (result.fields.city) {
-                        setPgCity((prev) => prev || (result.fields.city ?? ""));
-                      }
-                      if (result.fields.state) {
-                        setPgState((prev) => prev || (result.fields.state ?? ""));
-                      }
-                      toast.success(t("formAutofilled"));
+                    if (result.fields.address || result.can_autofill) {
+                      setPgBackOcrResult(result);
                     } else {
                       toast.warning(result.message);
-                  }
-                }}
-              />
+                    }
+                  }}
+                />
                 <DocUpload
                   key={`${guest.id}-selfie`}
                   guestId={guest.id}
@@ -5102,6 +5131,22 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                     toast.success(t("formAutofilled"));
                   }}
                   onDismiss={() => setPgOcrResult(null)}
+                />
+              )}
+
+              {/* Back-face OCR banner — address fields only */}
+              {pgBackOcrResult && (
+                <AutofillBanner
+                  result={pgBackOcrResult}
+                  onAccept={(fields) => {
+                    if (fields.address) setPgAddress(fields.address);
+                    if (fields.pincode) setPgPostalCode(fields.pincode);
+                    if (fields.city) setPgCity(fields.city);
+                    if (fields.state) setPgState(fields.state);
+                    setPgBackOcrResult(null);
+                    toast.success(t("addressAutofilled"));
+                  }}
+                  onDismiss={() => setPgBackOcrResult(null)}
                 />
               )}
 

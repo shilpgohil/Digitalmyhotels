@@ -799,6 +799,7 @@ export function NewGuestFullForm({
   const tg = useTranslations("guestPicker");
   const [docs, setDocs] = useState<QueuedDoc[]>([]);
   const [ocrResult, setOcrResult] = useState<IdOcrResult | null>(null);
+  const [backOcrResult, setBackOcrResult] = useState<IdOcrResult | null>(null);
   const [form, setForm] = useState<GuestCreatePayload>({
     full_name: "",
     phone: initialPhone,
@@ -871,15 +872,8 @@ export function NewGuestFullForm({
             import("@/lib/id-ocr").then(({ parseIdDocument }) =>
               parseIdDocument(original, form.id_proof_type ?? "Aadhar Card", "back").then(
                 (result) => {
-                  if (result.fields.address) {
-                    setForm((prev) => ({
-                      ...prev,
-                      address: prev.address || result.fields.address || "",
-                      postal_code: prev.postal_code || result.fields.pincode || "",
-                      city: prev.city || result.fields.city || "",
-                      state: prev.state || result.fields.state || "",
-                    }));
-                    toast.success(t("formAutofilled"));
+                  if (result.fields.address || result.can_autofill) {
+                    setBackOcrResult(result);
                   } else {
                     toast.warning(result.message);
                   }
@@ -891,7 +885,7 @@ export function NewGuestFullForm({
         <QueuedDocUpload side="selfie" label={t("selfieCapture")} onQueued={handleQueueDoc} />
       </div>
 
-      {/* OCR autofill banner */}
+      {/* Front-face OCR autofill banner (name, DOB, gender, ID number) */}
       {ocrResult && (
         <AutofillBanner
           result={ocrResult}
@@ -906,6 +900,24 @@ export function NewGuestFullForm({
             toast.success(t("guestAutofilled"));
           }}
           onDismiss={() => setOcrResult(null)}
+        />
+      )}
+
+      {/* Back-face OCR banner — address fields only.
+          Shown every time a back image is uploaded (including replacements)
+          so staff always get an explicit prompt before any address is overwritten. */}
+      {backOcrResult && (
+        <AutofillBanner
+          result={backOcrResult}
+          onAccept={(fields) => {
+            if (fields.address) set("address", fields.address);
+            if (fields.pincode) set("postal_code", fields.pincode);
+            if (fields.city) set("city", fields.city);
+            if (fields.state) set("state", fields.state);
+            setBackOcrResult(null);
+            toast.success(t("addressAutofilled"));
+          }}
+          onDismiss={() => setBackOcrResult(null)}
         />
       )}
 

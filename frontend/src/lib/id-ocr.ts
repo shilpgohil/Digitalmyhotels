@@ -290,6 +290,9 @@ function decomposeAddress(raw: string, pincode: string | undefined): {
 /** 6-digit Indian PIN code, not part of a longer digit run. */
 const PIN_RE = /\b([1-9]\d{5})\b/;
 
+/** Devanagari unicode block — any token containing these chars is Hindi noise. */
+const DEVANAGARI_CHAR = /[\u0900-\u097F]/;
+
 // Short tokens that legitimately appear in Indian addresses and must survive
 // the junk filter (road/street/house abbreviations, directions, connectors).
 const ADDR_SHORT_ALLOW = new Set([
@@ -299,22 +302,25 @@ const ADDR_SHORT_ALLOW = new Set([
 ]);
 
 /**
- * Token-level junk scrubber for OCR'd address text (client 09/2026: the
- * address still carried garbage like "fe TT", "xzkq", stray VID digits).
+ * Token-level junk scrubber for OCR'd address text.
  *
  * Removes:
+ *  - Devanagari tokens that slipped through line-level Hindi filters
  *  - VID / long digit runs (Aadhaar fragments, phone numbers)
  *  - URLs and e-mail fragments
  *  - 1–2 letter tokens that aren't real address abbreviations
- *  - 3+ letter all-consonant runs (classic Tesseract garbage — no vowels)
+ *  - 2-letter ALL-CAPS tokens that aren't road initialisms ("TT", "YY" etc.)
+ *  - 3+ letter all-consonant runs (Tesseract garbage — "xzkq", "trn")
  *  - tokens that are mostly symbols
  */
 function cleanAddressText(raw: string): string {
+  // Pre-strip: VID lines, long digit runs, URLs, emails, bare Devanagari words.
   const prepared = raw
     .replace(/\bVID\s*[:.-]?\s*\d[\d\s]*/gi, " ")
-    .replace(/\b\d{7,}\b/g, " ") // long digit runs — never house numbers
+    .replace(/\b\d{7,}\b/g, " ")          // long digit runs — never house numbers
     .replace(/\bwww\.\S+/gi, " ")
-    .replace(/\S+@\S+/g, " ");
+    .replace(/\S+@\S+/g, " ")
+    .replace(/[\u0900-\u097F]+/g, " ");    // inline Devanagari chars
 
   // Road-type words: a 2-letter initialism BEFORE one of these is real
   // ("MG Road", "SG Highway", "CG Marg") — not OCR noise.
@@ -325,19 +331,24 @@ function cleanAddressText(raw: string): string {
     // Trailing punctuation (commas) is fine — judge the core token.
     const core = tok.replace(/[^A-Za-z0-9/'-]/g, "");
     if (!core) return false;
+    // Tokens containing any Devanagari chars are Hindi text — never address.
+    if (DEVANAGARI_CHAR.test(tok)) return false;
     // Relation markers are legitimate on Aadhaar backs (C/O, S/O, W/O, D/O).
     if (/^[CSWDH]\/O$/i.test(core)) return true;
     // Pure numbers (house/plot) and alphanumerics like "12A", "H-4" are fine.
     if (/\d/.test(core)) return core.length <= 6;
-    // 1–2 letter alpha tokens: keep known abbreviations, or uppercase
-    // initialisms directly before a road word ("MG Road").
+    // 1–2 letter alpha tokens:
     if (core.length <= 2) {
+      // Keep known address abbreviations.
       if (ADDR_SHORT_ALLOW.has(core.toLowerCase())) return true;
       const next = tokens[i + 1] ?? "";
-      return /^[A-Z]{2}$/.test(core) && ROAD_WORDS.test(next);
+      // Keep 2-letter uppercase initialism only when it directly precedes a road word.
+      if (/^[A-Z]{2}$/.test(core) && ROAD_WORDS.test(next)) return true;
+      // All other 2-letter tokens are OCR noise ("TT", "YY", "fe", "xe", "ii")
+      return false;
     }
     // 3+ letters without a single vowel → OCR garbage ("xzkq", "trn") —
-    // except ALL-CAPS acronyms (HDFC, SBI) which are real landmarks.
+    // except ALL-CAPS acronyms of 3–5 letters (HDFC, SBI, UIDAI landmarks).
     if (!/[aeiouy]/i.test(core) && !/^[A-Z]{3,5}$/.test(core)) return false;
     // Mostly symbols → garbage.
     return core.length / tok.length > 0.5;
@@ -414,10 +425,12 @@ function parseAadharBack(text: string): Partial<ParsedIdFields> & { score: numbe
       .replace(/^[,\s]+|[,\s]+$/g, ""),
   );
 
-  // Quality gate: valid pincode AND ≥ 60% word characters, else reject.
+  // Quality gate: valid pincode AND ≥ 70% word characters, else reject.
+  // 0.70 (raised from 0.60) ensures borderline noisy results fall through to
+  // manual entry rather than offering garbled text for autofill.
   const wordChars = joined.replace(/[^A-Za-z0-9,./\- ]/g, "").length;
   const quality = joined.length > 0 ? wordChars / joined.length : 0;
-  if (pincode && quality >= 0.6 && joined.length >= 10) {
+  if (pincode && quality >= 0.7 && joined.length >= 10) {
     // Field purity: pincode/state/district land ONLY in their own fields —
     // the address text keeps street/locality parts exclusively.
     const parts = decomposeAddress(joined, pincode);
@@ -426,7 +439,7 @@ function parseAadharBack(text: string): Partial<ParsedIdFields> & { score: numbe
       fields.pincode = pincode;
       if (parts.city) fields.city = parts.city;
       if (parts.state) fields.state = parts.state;
-      score += 0.55; // address + pincode is the whole point of the back face
+      score += 0.75; // address + pincode is the whole point of the back face
     }
   }
 
@@ -734,27 +747,45 @@ export async function parseIdDocument(
 
     if (isAadhaarBack) {
       // MULTI-PASS: Otsu-binarized upscale first (best for the noisy address
-      // block), raw original as fallback. Keep whichever pass produces a
-      // valid address WITH pincode; if both do, keep the longer address.
+      // block), raw original as fallback.
+      // Selection rule: prefer the pass whose address has the HIGHER quality
+      // ratio (word-chars / total-length). If quality is equal, prefer the
+      // one that has both address AND pincode; tie-break on address length.
+      // This prevents a noisier binarized result from winning just by being
+      // longer than a cleaner raw-pass result.
       const passes: (Blob | File)[] = [await preprocessForOcr(imageFile), imageFile];
       let best: {
         parsed: Partial<ParsedIdFields> & { score: number };
         text: string;
         conf: number;
+        quality: number;
       } | null = null;
       for (const input of passes) {
         const { data } = await worker.recognize(input);
         const text = data.text ?? "";
         const conf = (data.confidence ?? 0) / 100;
         const attempt = parseAadharBack(text);
+        // Compute word-char quality of this attempt's address.
+        const addr = attempt.address ?? "";
+        const wc = addr.replace(/[^A-Za-z0-9,./\- ]/g, "").length;
+        const quality = addr.length > 0 ? wc / addr.length : 0;
+        const hasBoth = !!(attempt.address && attempt.pincode);
+        const bestHasBoth = !!(best?.parsed.address && best?.parsed.pincode);
         const better =
           best === null ||
+          // New pass has address when previous had none
           (attempt.address && !best.parsed.address) ||
-          (attempt.address &&
-            best.parsed.address &&
-            attempt.address.length > best.parsed.address.length);
-        if (better) best = { parsed: attempt, text, conf };
-        if (attempt.address && attempt.pincode) break; // good enough — stop
+          // Both have addresses: prefer higher quality ratio
+          (attempt.address && best.parsed.address && quality > best.quality + 0.05) ||
+          // Same quality within 5%: prefer address + pincode pair
+          (attempt.address && best.parsed.address &&
+            Math.abs(quality - best.quality) <= 0.05 && hasBoth && !bestHasBoth) ||
+          // Same quality, both complete: prefer longer address
+          (attempt.address && best.parsed.address &&
+            Math.abs(quality - best.quality) <= 0.05 && hasBoth === bestHasBoth &&
+            addr.length > (best.parsed.address?.length ?? 0));
+        if (better) best = { parsed: attempt, text, conf, quality };
+        if (hasBoth && quality >= 0.7) break; // clean result — stop early
       }
       await worker.terminate();
       parsed = best!.parsed;

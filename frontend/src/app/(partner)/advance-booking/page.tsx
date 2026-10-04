@@ -191,6 +191,7 @@ function AdvanceBookingContent() {
   const [pgContactOverride, setPgContactOverride] = useState("");
   const [pgEditing, setPgEditing] = useState(false);
   const [pgOcrResult, setPgOcrResult] = useState<IdOcrResult | null>(null);
+  const [pgBackOcrResult, setPgBackOcrResult] = useState<IdOcrResult | null>(null);
 
   // Foreign guest state (Form C)
   const [fgEnabled, setFgEnabled] = useState(false);
@@ -888,12 +889,8 @@ function AdvanceBookingContent() {
                       idType={pgIdType}
                       existingDocId={pgExistingDocs.back}
                       onOcrResult={(result) => {
-                        if (result.fields.address) {
-                          setPgAddress((prev) => prev || (result.fields.address ?? ""));
-                          if (result.fields.pincode) setPgPostalCode((prev) => prev || (result.fields.pincode ?? ""));
-                          if (result.fields.city) setPgCity((prev) => prev || (result.fields.city ?? ""));
-                          if (result.fields.state) setPgState((prev) => prev || (result.fields.state ?? ""));
-                          toast.success(t("formAutofilled"));
+                        if (result.fields.address || result.can_autofill) {
+                          setPgBackOcrResult(result);
                         } else {
                           toast.warning(result.message);
                         }
@@ -927,6 +924,22 @@ function AdvanceBookingContent() {
                         toast.success(t("formAutofilled"));
                       }}
                       onDismiss={() => setPgOcrResult(null)}
+                    />
+                  )}
+
+                  {/* Back-face OCR autofill banner — address fields only */}
+                  {pgBackOcrResult && (
+                    <AutofillBanner
+                      result={pgBackOcrResult}
+                      onAccept={(fields) => {
+                        if (fields.address) setPgAddress(fields.address);
+                        if (fields.pincode) setPgPostalCode(fields.pincode);
+                        if (fields.city) setPgCity(fields.city);
+                        if (fields.state) setPgState(fields.state);
+                        setPgBackOcrResult(null);
+                        toast.success(t("addressAutofilled"));
+                      }}
+                      onDismiss={() => setPgBackOcrResult(null)}
                     />
                   )}
 
