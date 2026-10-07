@@ -14,6 +14,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.auth import (
     AdminResetRequestIn,
+    AdminResetRequestOut,
     ChangePasswordRequest,
     LoginRequest,
     MembershipOut,
@@ -227,12 +228,12 @@ async def password_reset_request(
     return MessageOut(message="If the email is registered, a reset token has been sent.")
 
 
-@router.post("/password-reset/request-admin", response_model=MessageOut)
+@router.post("/password-reset/request-admin", response_model=AdminResetRequestOut)
 async def password_reset_request_admin(
     body: AdminResetRequestIn,
     request: Request,
     db: AsyncSession = Depends(get_db),
-) -> MessageOut:
+) -> AdminResetRequestOut:
     """Hierarchical reset request (client 9-08 item 34): staff requests reach
     their hotel administrator, owner/admin requests reach the Super Admin.
     Returns an error when the identifier is not found in the system so staff
@@ -242,14 +243,30 @@ async def password_reset_request_admin(
     from app.services.password_requests import create_request
 
     check_login_rate(request.client.host if request.client else body.identifier)
-    found = await create_request(db, body.identifier, raise_if_not_found=True)
-    if not found:
+    res = await create_request(db, body.identifier, raise_if_not_found=True)
+    if not res.found:
         raise NotFoundError(
             "Email or phone number not found. Please check and try again.",
             code="identifier_not_found",
         )
-    return MessageOut(
-        message="Your administrator has been notified and will reset your password."
+
+    if res.audience == "super_admin":
+        support_num = res.support_phone or "+91 78029 12592"
+        message = (
+            "Password reset request sent successfully. The DigitalMyHotels Support Team "
+            "will contact you with a temporary password. You can also reach support at "
+            f"{support_num}."
+        )
+    else:
+        message = (
+            "Password reset request sent successfully. Your Hotel Owner or Hotel Manager "
+            "will contact you with a temporary password."
+        )
+
+    return AdminResetRequestOut(
+        message=message,
+        audience=res.audience,
+        support_phone=res.support_phone,
     )
 
 

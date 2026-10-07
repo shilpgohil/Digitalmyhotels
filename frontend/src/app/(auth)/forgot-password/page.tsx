@@ -19,20 +19,31 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiFetch, ApiError } from "@/lib/api/client";
 
+interface ResetResponse {
+  message: string;
+  audience?: "hotel_admin" | "super_admin";
+  support_phone?: string | null;
+}
+
 export default function ForgotPasswordPage() {
   const t = useTranslations("auth");
   const [identifier, setIdentifier] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [resetResult, setResetResult] = useState<ResetResponse | null>(null);
 
   const submit = async () => {
     setBusy(true);
     try {
-      await apiFetch("/api/v1/auth/password-reset/request-admin", {
-        method: "POST",
-        body: { identifier: identifier.trim() },
-        skipAuthRetry: true,
-      });
+      const res = await apiFetch<ResetResponse>(
+        "/api/v1/auth/password-reset/request-admin",
+        {
+          method: "POST",
+          body: { identifier: identifier.trim() },
+          skipAuthRetry: true,
+        }
+      );
+      setResetResult(res);
       setSent(true);
     } catch (e) {
       // Show the server-provided message (e.g. "Email or Phone not found") as
@@ -54,7 +65,15 @@ export default function ForgotPasswordPage() {
         {/* One-click request — notifies the right administrator (item 34). */}
         <div className="mt-6 rounded-xl border bg-white p-4 shadow-sm">
           {sent ? (
-            <p className="text-sm font-medium text-success">{t("requestSent")}</p>
+            <p className="text-sm font-medium text-success leading-relaxed">
+              {resetResult?.audience === "super_admin"
+                ? t("requestSentOwner", {
+                    phone: resetResult.support_phone || "+91 78029 12592",
+                  })
+                : resetResult?.audience === "hotel_admin"
+                ? t("requestSentStaff")
+                : (resetResult?.message || t("requestSent"))}
+            </p>
           ) : (
             <>
               <Label htmlFor="fp-identifier">{t("requestIdentifierLabel")}</Label>

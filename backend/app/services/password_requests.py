@@ -15,6 +15,7 @@ request completed and are themselves audited + session-revoking.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import NamedTuple
 from uuid import UUID
 
 from sqlalchemy import select
@@ -29,13 +30,46 @@ from app.schemas.guest import normalize_phone
 from app.services.audit import write_audit
 
 
+class PasswordResetRequestResult(NamedTuple):
+    found: bool
+    audience: str = "hotel_admin"
+    support_phone: str | None = None
+
+    def __bool__(self) -> bool:
+        return self.found
+
+
+def _format_support_phone(phone: str | None) -> str:
+    default_phone = "+91 78029 12592"
+    if not phone:
+        return default_phone
+    cleaned = "".join(ch for ch in phone if ch.isdigit())
+    if len(cleaned) == 10:
+        return f"+91 {cleaned[:5]} {cleaned[5:]}"
+    elif len(cleaned) == 12 and cleaned.startswith("91"):
+        return f"+91 {cleaned[2:7]} {cleaned[7:]}"
+    return phone.strip()
+
+
+async def get_support_phone(db: AsyncSession) -> str:
+    """Retrieve the platform super admin support contact phone number."""
+    phone = (
+        await db.execute(
+            select(User.phone)
+            .where(User.is_super_admin.is_(True), User.phone.isnot(None))
+            .order_by(User.created_at)
+        )
+    ).scalars().first()
+    return _format_support_phone(phone)
+
+
 async def create_request(
     db: AsyncSession, identifier: str, *, raise_if_not_found: bool = False
-) -> bool:
+) -> PasswordResetRequestResult:
     """Public: record a reset request for an email/phone.
 
-    Returns True if the account was found, False otherwise. When
-    `raise_if_not_found=True` the caller handles the not-found case.
+    Returns a PasswordResetRequestResult containing found status, audience
+    ('hotel_admin' for staff, 'super_admin' for owners), and support_phone.
     """
     ident = identifier.strip().lower()
     user: User | None = None
@@ -50,7 +84,7 @@ async def create_request(
                 await db.execute(select(User).where(User.phone == normalized))
             ).scalar_one_or_none()
     if user is None:
-        return False
+        return PasswordResetRequestResult(found=False)
 
     # One pending request per user — repeat submissions are a no-op.
     existing = (
@@ -62,7 +96,14 @@ async def create_request(
         )
     ).scalars().first()
     if existing is not None:
-        return True  # already have a pending request — treated as success
+        support_phone = (
+            await get_support_phone(db) if existing.audience == "super_admin" else None
+        )
+        return PasswordResetRequestResult(
+            found=True,
+            audience=existing.audience,
+            support_phone=support_phone,
+        )
 
     # Routing: owner (or super admin / no staff membership) → super admin;
     # staff → their hotel's administrators.
@@ -126,7 +167,14 @@ async def create_request(
             deep_link="/team",
         )
 
-    return True
+    support_phone = (
+        await get_support_phone(db) if audience == "super_admin" else None
+    )
+    return PasswordResetRequestResult(
+        found=True,
+        audience=audience,
+        support_phone=support_phone,
+    )
 
 
 def _request_row(

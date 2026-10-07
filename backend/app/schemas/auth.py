@@ -71,6 +71,12 @@ class AdminResetRequestIn(BaseModel):
     identifier: str = Field(min_length=3, max_length=320)
 
 
+class AdminResetRequestOut(BaseModel):
+    message: str
+    audience: str = "hotel_admin"  # "hotel_admin" | "super_admin"
+    support_phone: str | None = None
+
+
 class PasswordResetConfirm(BaseModel):
     token: str
     new_password: str = Field(min_length=8)
