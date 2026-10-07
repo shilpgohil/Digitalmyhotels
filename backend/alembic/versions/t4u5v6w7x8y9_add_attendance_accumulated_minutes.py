@@ -15,39 +15,38 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "attendance_records",
-        sa.Column(
-            "accumulated_minutes",
-            sa.Integer(),
-            nullable=False,
-            server_default="0",
-        ),
+    # ADD COLUMN IF NOT EXISTS — idempotent: safe whether the column is already
+    # there (e.g. from a previous failed Render deploy) or brand-new.
+    # Single statement per op.execute for asyncpg compatibility.
+    op.execute(
+        "ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS "
+        "accumulated_minutes INTEGER NOT NULL DEFAULT 0"
     )
-    op.add_column(
-        "attendance_records",
-        sa.Column(
-            "first_check_in_at",
-            sa.DateTime(timezone=True),
-            nullable=True,
-        ),
+    op.execute(
+        "ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS "
+        "first_check_in_at TIMESTAMPTZ"
     )
+
     # Backfill historical attendance records:
     # 1. Closed shifts calculate duration from check_out_at - check_in_at
-    # 2. first_check_in_at defaults to check_in_at
     op.execute(
         """
         UPDATE attendance_records
         SET accumulated_minutes = GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (check_out_at - check_in_at)) / 60)::integer)
-        WHERE check_out_at IS NOT NULL AND check_in_at IS NOT NULL;
+        WHERE check_out_at IS NOT NULL AND check_in_at IS NOT NULL
+        """
+    )
 
+    # 2. first_check_in_at defaults to check_in_at
+    op.execute(
+        """
         UPDATE attendance_records
         SET first_check_in_at = check_in_at
-        WHERE first_check_in_at IS NULL AND check_in_at IS NOT NULL;
+        WHERE first_check_in_at IS NULL AND check_in_at IS NOT NULL
         """
     )
 
 
 def downgrade() -> None:
-    op.drop_column("attendance_records", "accumulated_minutes")
-    op.drop_column("attendance_records", "first_check_in_at")
+    op.execute("ALTER TABLE attendance_records DROP COLUMN IF EXISTS first_check_in_at")
+    op.execute("ALTER TABLE attendance_records DROP COLUMN IF EXISTS accumulated_minutes")

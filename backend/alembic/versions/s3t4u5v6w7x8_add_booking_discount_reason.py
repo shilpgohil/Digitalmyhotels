@@ -15,14 +15,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "bookings",
-        sa.Column(
-            "discount_reason",
-            sa.Text(),
-            nullable=True,
-        ),
-    )
+    # ADD COLUMN IF NOT EXISTS — idempotent: safe whether column already exists or is brand-new.
+    op.execute("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS discount_reason TEXT")
+
     # Backfill historical discount reasons from checkout audit logs if any exist
     op.execute(
         """
@@ -33,10 +28,10 @@ def upgrade() -> None:
           AND a.entity_id = b.id::text
           AND a.action = 'stay.checkout_discount'
           AND a.after->>'reason' IS NOT NULL
-          AND b.discount_reason IS NULL;
+          AND b.discount_reason IS NULL
         """
     )
 
 
 def downgrade() -> None:
-    op.drop_column("bookings", "discount_reason")
+    op.execute("ALTER TABLE bookings DROP COLUMN IF EXISTS discount_reason")
