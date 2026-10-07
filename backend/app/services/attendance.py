@@ -46,8 +46,9 @@ from app.services.staff import get_profile, hotel_today, hotel_tz
 LATE_GRACE_MINUTES = 10
 # Missing check-outs auto-close this long after shift end (or at 23:59).
 AUTO_CLOSE_AFTER_HOURS = 4
-# GPS accuracy grace is capped so a vague IP-based fix can't bypass the fence.
-MAX_ACCURACY_GRACE_M = 100.0
+# GPS accuracy grace is capped so a vague IP-based fix can't bypass the fence,
+# but gives realistic tolerance for indoor smartphone GPS signal attenuation.
+MAX_ACCURACY_GRACE_M = 150.0
 
 ALLOWED_SELFIE_TYPES = {"image/png", "image/jpeg", "image/webp"}
 MAX_SELFIE_BYTES = 5 * 1024 * 1024
@@ -74,6 +75,9 @@ def enforce_geofence(
     if hotel.latitude is None or hotel.longitude is None:
         # Toggle on but no coordinates (shouldn't happen — PATCH validates) —
         # fail open rather than lock every employee out.
+        return None
+    if abs(float(hotel.latitude)) < 0.0001 and abs(float(hotel.longitude)) < 0.0001:
+        # 0.0, 0.0 is Null Island (unconfigured coordinates) — fail open safely.
         return None
     if lat is None or lng is None:
         raise ValidationAppError(
@@ -451,6 +455,9 @@ async def self_today(db: AsyncSession, tenant: TenantContext) -> SelfTodayOut:
         full_name=user.full_name if user else "",
         department=profile.department if profile else None,
         geofence_enabled=bool(hotel.geofence_enabled),
+        geofence_radius_m=hotel.geofence_radius_m if hotel.geofence_enabled else None,
+        hotel_latitude=hotel.latitude if hotel.geofence_enabled else None,
+        hotel_longitude=hotel.longitude if hotel.geofence_enabled else None,
         work_date=record.work_date if record else today,
         check_in_at=record.check_in_at if record else None,
         check_out_at=record.check_out_at if record else None,

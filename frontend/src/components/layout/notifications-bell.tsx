@@ -236,14 +236,14 @@ export function NotificationsBell() {
   const t = useTranslations("notifications");
   const router = useRouter();
   const api = useApi();
-  const { activeHotelId, can, activeRoleCode } = useAuth();
+  const { activeHotelId, can, activeRoleCode, user } = useAuth();
   const queryClient = useQueryClient();
   const enabled = !!activeHotelId && can(PERMISSIONS.notificationsView);
   // Categories this role is allowed to see (client 9-08 items 1, 2, 36).
   const allowedCategories = notificationCategoriesForRole(activeRoleCode);
 
   const notifications = useQuery({
-    queryKey: ["notifications", activeHotelId],
+    queryKey: ["notifications", activeHotelId, user?.id],
     queryFn: () => api<NotificationList>("/api/v1/notifications?limit=40"),
     enabled,
     refetchInterval: 12_000,

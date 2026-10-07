@@ -212,6 +212,9 @@ export interface SelfTodayOut {
   full_name: string;
   department: string | null;
   geofence_enabled: boolean;
+  geofence_radius_m?: number | null;
+  hotel_latitude?: string | number | null;
+  hotel_longitude?: string | number | null;
   work_date: string;
   check_in_at: string | null;
   check_out_at: string | null;

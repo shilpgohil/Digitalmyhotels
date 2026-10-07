@@ -153,6 +153,10 @@ function InvoicesContent() {
       Number(invoice.igst_amount)
     : 0;
 
+  const showExGst =
+    gst.data?.gst_mode === "included_by_customer" ||
+    (!gst.data?.gst_mode && gstTotal > 0);
+
   const hotelAddress = hotel.data
     ? [
         hotel.data.address_line1,
@@ -518,10 +522,10 @@ function InvoicesContent() {
                         {/* First letter capital (covers pre-existing items) */}
                         <td className="py-2">
                           {(item.description.charAt(0).toUpperCase() + item.description.slice(1)).replace(/charges at checkout/gi, "Charges at Checkout")}
-                          {item.quantity > 1 ? ` × ${item.quantity}` : ""}
+                          {item.quantity > 1 && !/night/i.test(item.description) ? ` × ${item.quantity}` : ""}
                         </td>
                         <td className="py-2 text-right tabular-nums">
-                          {fmtINR(item.total_amount)}
+                          {fmtINR(showExGst ? item.taxable_amount : item.total_amount)}
                         </td>
                       </tr>
                     ))}
@@ -546,13 +550,13 @@ function InvoicesContent() {
                     <span className="text-muted-foreground">{tp("subtotal")}</span>
                     <span className="tabular-nums">
                       {fmtINR(
-                        gst.data?.gst_mode === "included_by_customer"
+                        showExGst
                           ? invoice.subtotal
                           : Number(invoice.subtotal) + gstTotal,
                       )}
                     </span>
                   </div>
-                  {gst.data?.gst_mode === "included_by_customer" && gstTotal > 0 && (
+                  {showExGst && gstTotal > 0 && (
                     <>
                       {/* Show CGST + SGST (or IGST) separately when non-zero */}
                       {Number(invoice.cgst_amount) > 0 && (

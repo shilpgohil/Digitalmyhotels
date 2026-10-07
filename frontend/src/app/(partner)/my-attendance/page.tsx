@@ -25,19 +25,21 @@ function MyAttendanceContent() {
   const t = useTranslations("staff");
   const tn = useTranslations("nav");
   const api = useApi();
-  const { activeHotelId } = useAuth();
+  const { activeHotelId, user } = useAuth();
 
   const today = useQuery({
-    queryKey: ["staff-self-today", activeHotelId],
+    queryKey: ["staff-self-today", activeHotelId, user?.id],
     queryFn: () => api<SelfTodayOut>("/api/v1/staff/me/attendance/today"),
-    enabled: !!activeHotelId,
+    enabled: !!activeHotelId && !!user?.id,
+    staleTime: 0,
   });
 
   const month = localToday().slice(0, 7);
   const calendar = useQuery({
-    queryKey: ["staff-self-calendar", activeHotelId, month],
+    queryKey: ["staff-self-calendar", activeHotelId, user?.id, month],
     queryFn: () => api<CalendarOut>(`/api/v1/staff/me/attendance/calendar?month=${month}`),
-    enabled: !!activeHotelId,
+    enabled: !!activeHotelId && !!user?.id,
+    staleTime: 0,
   });
 
   const greeting = (() => {

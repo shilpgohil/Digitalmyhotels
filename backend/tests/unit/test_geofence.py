@@ -59,6 +59,9 @@ class TestEnforceGeofence:
     def test_unconfigured_coordinates_fail_open(self):
         assert enforce_geofence(make_hotel(lat=None, lng=None), None, None, None) is None
 
+    def test_null_island_coordinates_fail_open(self):
+        assert enforce_geofence(make_hotel(lat=0.0, lng=0.0), 23.0, 72.0, 10) is None
+
     def test_location_required_when_enabled(self):
         with pytest.raises(ValidationAppError) as exc:
             enforce_geofence(make_hotel(), None, None, None)
@@ -66,10 +69,10 @@ class TestEnforceGeofence:
 
     def test_accuracy_grace_is_capped(self):
         # 1 km away with a 5000 m "accuracy" must NOT pass a 200 m fence:
-        # grace caps at MAX_ACCURACY_GRACE_M (100 m) → 200+100 < 1000.
+        # grace caps at MAX_ACCURACY_GRACE_M (150 m) → 200+150 < 1000.
         with pytest.raises(ValidationAppError):
             enforce_geofence(make_hotel(), HOTEL_LAT + 0.009, HOTEL_LNG, 5000)
-        assert MAX_ACCURACY_GRACE_M == 100.0
+        assert MAX_ACCURACY_GRACE_M == 150.0
 
     def test_accuracy_grace_helps_borderline_fix(self):
         # ~250 m away, radius 200, accuracy 80 → 200+80=280 ≥ 250 → allowed.

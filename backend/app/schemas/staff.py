@@ -308,6 +308,9 @@ class SelfTodayOut(BaseModel):
     full_name: str
     department: str | None
     geofence_enabled: bool
+    geofence_radius_m: int | None = None
+    hotel_latitude: Decimal | None = None
+    hotel_longitude: Decimal | None = None
     work_date: date
     check_in_at: datetime | None
     check_out_at: datetime | None

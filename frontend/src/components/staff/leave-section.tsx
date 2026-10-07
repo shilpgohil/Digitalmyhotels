@@ -41,7 +41,7 @@ export function LeaveSection() {
   const t = useTranslations("staff");
   const tc = useTranslations("common");
   const api = useApi();
-  const { activeHotelId } = useAuth();
+  const { activeHotelId, user } = useAuth();
   const queryClient = useQueryClient();
 
   const [open, setOpen] = useState(false);
@@ -52,9 +52,10 @@ export function LeaveSection() {
   const [error, setError] = useState<string | null>(null);
 
   const leaves = useQuery({
-    queryKey: ["staff-leaves", activeHotelId, "mine"],
+    queryKey: ["staff-leaves", activeHotelId, user?.id, "mine"],
     queryFn: () => api<LeaveListOut>("/api/v1/staff/leaves?mine=true&limit=10"),
-    enabled: !!activeHotelId,
+    enabled: !!activeHotelId && !!user?.id,
+    staleTime: 0,
   });
 
   const mutation = useMutation({

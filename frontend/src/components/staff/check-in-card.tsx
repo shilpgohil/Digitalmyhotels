@@ -19,7 +19,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { LogIn, LogOut, MapPinOff, ScanFace } from "lucide-react";
+import { CheckCircle2, LogIn, LogOut, MapPinOff, Navigation, ScanFace } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineSpinner } from "@/components/ui/inline-spinner";
@@ -27,7 +27,7 @@ import { FaceCapture } from "@/components/staff/face-capture";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { apiUpload, ApiError } from "@/lib/api/client";
-import { GeoError, getPosition, type GeoPosition } from "@/lib/geo";
+import { GeoError, getPosition, haversineMeters, type GeoPosition } from "@/lib/geo";
 import { cn } from "@/lib/utils";
 import type { AttendanceRecordOut, SelfTodayOut } from "@/types/staff";
 
@@ -49,13 +49,14 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
   const t = useTranslations("staff");
   const tc = useTranslations("common");
   const api = useApi();
-  const { activeHotelId } = useAuth();
+  const { activeHotelId, user } = useAuth();
   const queryClient = useQueryClient();
 
   const [busy, setBusy] = useState<"in" | "out" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState<"in" | "out" | null>(null);
   const [pendingPos, setPendingPos] = useState<GeoPosition | null>(null);
+  const [verifiedDist, setVerifiedDist] = useState<{ distance: number; accuracy: number } | null>(null);
   // Live clock (30s tick keeps the working duration fresh).
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -64,10 +65,11 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
   }, []);
 
   const today = useQuery({
-    queryKey: ["staff-self-today", activeHotelId],
+    queryKey: ["staff-self-today", activeHotelId, user?.id],
     queryFn: () => api<SelfTodayOut>("/api/v1/staff/me/attendance/today"),
-    enabled: !!activeHotelId,
-    refetchInterval: 60_000,
+    enabled: !!activeHotelId && !!user?.id,
+    staleTime: 0,
+    refetchInterval: 30_000,
   });
 
   const invalidate = () => {
@@ -75,24 +77,51 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
     queryClient.invalidateQueries({ queryKey: ["staff-attendance", activeHotelId] });
   };
 
-  /** Get a GPS fix when the fence is on; null (skip) when it's off. */
-  const acquirePosition = async (): Promise<GeoPosition | null> => {
+  /** Get a GPS fix when the fence is on; verify distance client-side before camera launch. */
+  const acquireAndVerifyPosition = async (): Promise<GeoPosition | null> => {
     if (!today.data?.geofence_enabled) return null;
+    let pos: GeoPosition;
     try {
-      return await getPosition();
+      pos = await getPosition();
     } catch (e) {
       if (e instanceof GeoError && e.kind === "denied") {
         throw new Error(t("locationDenied"));
       }
       throw new Error(t("locationUnavailable"));
     }
+
+    const hotelLat = today.data.hotel_latitude != null ? Number(today.data.hotel_latitude) : null;
+    const hotelLng = today.data.hotel_longitude != null ? Number(today.data.hotel_longitude) : null;
+    const hasHotelCoords =
+      hotelLat !== null &&
+      hotelLng !== null &&
+      (Math.abs(hotelLat) > 0.0001 || Math.abs(hotelLng) > 0.0001);
+
+    if (hasHotelCoords && hotelLat !== null && hotelLng !== null) {
+      const dist = haversineMeters(pos.lat, pos.lng, hotelLat, hotelLng);
+      const radius = today.data.geofence_radius_m ?? 200;
+      const grace = Math.min(pos.accuracy_m, 150);
+      if (dist > radius + grace) {
+        throw new Error(
+          t("geofenceDistanceViolation", {
+            distance: dist,
+            radius,
+            accuracy: pos.accuracy_m,
+          }),
+        );
+      }
+      setVerifiedDist({ distance: dist, accuracy: pos.accuracy_m });
+    }
+
+    return pos;
   };
 
   const startCheckIn = async () => {
     setBusy("in");
     setError(null);
+    setVerifiedDist(null);
     try {
-      const pos = await acquirePosition();
+      const pos = await acquireAndVerifyPosition();
       setPendingPos(pos);
       // Face Check-In: live selfie is required.
       setCameraMode("in");
@@ -105,8 +134,9 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
   const startCheckOut = async () => {
     setBusy("out");
     setError(null);
+    setVerifiedDist(null);
     try {
-      const pos = await acquirePosition();
+      const pos = await acquireAndVerifyPosition();
       setPendingPos(pos);
       // Face Check-Out: live selfie is required.
       setCameraMode("out");
@@ -246,6 +276,23 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
           </Button>
         )}
 
+        {busy !== null && !cameraMode && (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground animate-pulse">
+            <InlineSpinner size={14} />
+            {t("acquiringLocation")}
+          </p>
+        )}
+
+        {verifiedDist && (
+          <p className="flex items-center gap-1 text-xs font-medium text-success">
+            <CheckCircle2 className="size-3.5 shrink-0" aria-hidden />
+            {t("withinPropertyRange", {
+              distance: verifiedDist.distance,
+              accuracy: verifiedDist.accuracy,
+            })}
+          </p>
+        )}
+
         {d.geofence_enabled && d.status === "not_checked_in" && (
           <p className="text-center text-label text-muted-foreground">
             {t("geofenceHint")}
@@ -253,13 +300,30 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
         )}
 
         {error && (
-          <p
+          <div
             role="alert"
-            className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-sm text-danger"
+            className="flex flex-col items-start gap-2 rounded-lg border border-danger/30 bg-danger-bg p-3 text-sm text-danger w-full max-w-sm"
           >
-            <MapPinOff className="mt-0.5 size-4 shrink-0" aria-hidden />
-            {error}
-          </p>
+            <div className="flex items-start gap-2">
+              <MapPinOff className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <span className="leading-snug">{error}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                if (d.status === "working") {
+                  void startCheckOut();
+                } else {
+                  void startCheckIn();
+                }
+              }}
+              className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-danger/40 bg-white/80 px-2.5 py-1 text-xs font-semibold text-danger hover:bg-white"
+            >
+              <Navigation className="size-3" aria-hidden />
+              {t("retryGpsLocation")}
+            </button>
+          </div>
         )}
       </div>
 

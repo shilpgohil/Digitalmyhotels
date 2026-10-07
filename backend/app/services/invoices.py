@@ -495,6 +495,16 @@ async def render_invoice_pdf(
 
     pdf.ln(6)
 
+    gst_total = invoice.cgst_amount + invoice.sgst_amount + invoice.igst_amount
+    # Client 09/2026 GST modes on the customer-facing document:
+    # - included_by_customer: Subtotal + GST rows (tax added on top, shown)
+    # - included_by_hotel:    GST hidden — subtotal shown GROSS (tax inside)
+    # - no_gst:               GST hidden, tax is zero anyway
+    show_gst_row = gst_registered and not gst_inclusive
+    display_subtotal = (
+        invoice.subtotal if show_gst_row else money(invoice.subtotal + gst_total)
+    )
+
     # ── Line items: DESCRIPTION | AMOUNT ──
     pdf.set_x(14)
     pdf.set_font("helvetica", "B", 7)
@@ -509,11 +519,12 @@ async def render_invoice_pdf(
     for item in invoice.items:
         desc = item.description[:1].upper() + item.description[1:]
         desc = desc.replace("charges at checkout", "Charges at Checkout")
-        if item.quantity > 1:
+        if item.quantity > 1 and "night" not in desc.lower():
             desc = f"{desc} x {item.quantity}"
+        item_amount = item.taxable_amount if show_gst_row else item.total_amount
         pdf.set_x(14)
         pdf.cell(140, 8, latin1(desc[:80]))
-        pdf.cell(42, 8, latin1(inr(item.total_amount)), align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(42, 8, latin1(inr(item_amount)), align="R", new_x="LMARGIN", new_y="NEXT")
         pdf.line(14, pdf.get_y(), 196, pdf.get_y())
 
     pdf.ln(4)
@@ -533,15 +544,6 @@ async def render_invoice_pdf(
         pdf.set_text_color(*(color or INK))
         pdf.cell(36, 6.5, latin1(value), align="R", new_x="LMARGIN", new_y="NEXT")
 
-    gst_total = invoice.cgst_amount + invoice.sgst_amount + invoice.igst_amount
-    # Client 09/2026 GST modes on the customer-facing document:
-    # - included_by_customer: Subtotal + GST rows (tax added on top, shown)
-    # - included_by_hotel:    GST hidden — subtotal shown GROSS (tax inside)
-    # - no_gst:               GST hidden, tax is zero anyway
-    show_gst_row = gst_registered and not gst_inclusive
-    display_subtotal = (
-        invoice.subtotal if show_gst_row else money(invoice.subtotal + gst_total)
-    )
     summary_row("Subtotal", inr(display_subtotal))
     if show_gst_row:
         # Client 17/09: show CGST + SGST separately; fall back to combined if

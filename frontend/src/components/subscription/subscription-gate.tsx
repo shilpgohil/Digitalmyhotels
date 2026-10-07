@@ -149,10 +149,10 @@ export function SubscriptionGate({ children }: { readonly children?: React.React
 
   // Pending renewal request surfaced on the blocking panel
   const myRenewal = useQuery({
-    queryKey: ["renewal-request-mine", activeHotelId],
+    queryKey: ["renewal-request-mine", activeHotelId, user?.id],
     queryFn: () =>
       api<{ status: string } | null>("/api/v1/subscriptions/renewal-requests/mine"),
-    enabled: !!activeHotelId && blocked,
+    enabled: !!activeHotelId && !!user?.id && blocked,
     staleTime: 60_000,
   });
   const renewalPending = myRenewal.data?.status === "pending";

@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, ApiError, refreshAccessToken } from "@/lib/api/client";
 import {
   clearSession,
@@ -56,6 +56,7 @@ const AuthContext = createContext<AuthState | null>(null);
 const HOTEL_KEY = "dmh.activeHotelId";
 
 export function AuthProvider({ children }: { readonly children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<UserOut | null>(null);
   const [memberships, setMemberships] = useState<MembershipOut[]>([]);
@@ -65,7 +66,12 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
   const [activeHotelId, _setActiveHotelId] = useState<string | null>(null);
 
   const applySession = useCallback((me: MeResponse) => {
-    setUser(me.user);
+    setUser((prevUser) => {
+      if (prevUser && prevUser.id !== me.user.id) {
+        queryClient.clear();
+      }
+      return me.user;
+    });
     setMemberships(me.memberships);
     setPermissions(me.permissions);
     setStatus("authenticated");
@@ -74,12 +80,14 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     const hotelId = validStored ? stored : (me.memberships[0]?.hotel_id ?? null);
     _setActiveHotelId(hotelId);
     if (hotelId) sessionStorage.setItem(HOTEL_KEY, hotelId);
-  }, []);
+  }, [queryClient]);
 
   // Listen for auth-expired events dispatched from apiFetch/apiUpload
   useEffect(() => {
     const handleAuthExpired = () => {
       clearSession();
+      sessionStorage.removeItem(HOTEL_KEY);
+      queryClient.clear();
       setUser(null);
       setMemberships([]);
       setPermissions([]);
@@ -90,7 +98,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     return () => {
       window.removeEventListener("dmh:auth-expired", handleAuthExpired);
     };
-  }, []);
+  }, [queryClient]);
 
   // Session restoration after reload.
   //
@@ -217,6 +225,11 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
+      // Clear previous cached session, storage, and queries before logging in
+      clearSession();
+      sessionStorage.removeItem(HOTEL_KEY);
+      queryClient.clear();
+
       const data = await apiFetch<TokenResponse>("/api/v1/auth/login", {
         method: "POST",
         body: { email, password },
@@ -228,10 +241,11 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
       }
       const me = await apiFetch<MeResponse>("/api/v1/auth/me");
       setCachedUser(me);   // cache so next F5 is instant
+      queryClient.clear(); // wipe query cache so newly logged in user starts with clean state
       applySession(me);
       return data.user;
     },
-    [applySession],
+    [applySession, queryClient],
   );
 
   const logout = useCallback(async () => {
@@ -247,12 +261,13 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     }
     clearSession();
     sessionStorage.removeItem(HOTEL_KEY);
+    queryClient.clear();
     setUser(null);
     setMemberships([]);
     setPermissions([]);
     _setActiveHotelId(null);
     setStatus("unauthenticated");
-  }, []);
+  }, [queryClient]);
 
   const setActiveHotelId = useCallback((hotelId: string) => {
     _setActiveHotelId(hotelId);
