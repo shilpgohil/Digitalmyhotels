@@ -237,7 +237,7 @@ export function RecordDetailDialog({
                     {t("checkInCol")}
                   </dt>
                   <dd className="mt-0.5 font-semibold tabular-nums">
-                    {fmtClock(d.check_in_at)}
+                    {fmtClock(d.first_check_in_at || d.check_in_at)}
                     {d.late_minutes ? (
                       <span className="ml-1.5 text-label font-semibold text-warning">
                         +{d.late_minutes}m

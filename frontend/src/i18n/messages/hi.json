@@ -273,10 +273,10 @@
     "revenueTrend": "14-दिन की आय",
     "totalN": "कुल:",
     "smartInsights": "स्मार्ट अंतर्दृष्टि",
-    "revpar": "RevPAR",
-    "adr": "ADR",
-    "alos": "ALOS",
-    "leadDays": "लीड टाइम",
+    "revpar": "प्रति उपलब्ध कमरा राजस्व (RevPAR)",
+    "adr": "औसत दैनिक दर (ADR)",
+    "alos": "ठहरने की औसत अवधि (ALOS)",
+    "leadDays": "बुकिंग लीड समय",
     "occupancyNow": "अधिभोग",
     "per30days": "30-दिन औसत",
     "perOccRoomNight": "प्रति भरे कमरे/रात",
@@ -290,7 +290,10 @@
     "weekPattern": "साप्ताहिक माँग",
     "roomTypeRevenue": "कमरे के प्रकार के अनुसार आय",
     "noGuestData": "इस अवधि में कोई अतिथि प्रकार डेटा नहीं।",
-    "creditDebitCard": "क्रेडिट/डेबिट कार्ड"
+    "creditDebitCard": "क्रेडिट/डेबिट कार्ड",
+    "avgDailyRate": "औसत दैनिक दर",
+    "legendRevenue": "राजस्व (₹)",
+    "legendOccupancy": "ऑक्यूपेंसी दर (%)"
   },
   "rooms": {
     "title": "कमरे की स्थिति",

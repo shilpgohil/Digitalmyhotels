@@ -72,6 +72,7 @@ export interface BookingOut {
   children: number;
   room_count: number;
   discount_amount: string;
+  discount_reason?: string | null;
   tax_amount: string;
   total_amount: string;
   advance_amount: string;

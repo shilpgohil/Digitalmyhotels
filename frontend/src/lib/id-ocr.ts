@@ -5,13 +5,14 @@
  * Supports: Aadhar Card, PAN Card, Passport, Driving Licence, Voter ID.
  *
  * Returns structured fields + a 0–1 confidence score.
- * Callers decide: ≥ 0.55 → offer autofill, < 0.55 → warn user.
+ * Multi-pass execution, intelligent grayscale histogram normalization,
+ * bilingual Hindi/English handling, and robust Indian ID regex matching.
  */
 
 export interface ParsedIdFields {
   name?: string;
   id_number?: string;
-  date_of_birth?: string;  // YYYY-MM-DD  (HTML date input format)
+  date_of_birth?: string; // YYYY-MM-DD  (HTML date input format)
   gender?: string;
   /** Street/locality address ONLY — pincode/state/district are decomposed
    *  into their own fields and stripped from this text (field purity: no
@@ -19,7 +20,7 @@ export interface ParsedIdFields {
   address?: string;
   /** 6-digit Indian PIN code extracted from the address block. */
   pincode?: string;
-  /** District/city when the back face carries a "DIST:" marker. */
+  /** District/city when the back face carries a "DIST:" marker or known district. */
   city?: string;
   /** Indian state/UT name recognized at the end of the address block. */
   state?: string;
@@ -28,7 +29,7 @@ export interface ParsedIdFields {
 
 export interface IdOcrResult {
   fields: ParsedIdFields;
-  /** 0–1 normalised confidence. ≥ 0.55 = can autofill. */
+  /** 0–1 normalised confidence. */
   confidence: number;
   /** Human-readable description for the user. */
   message: string;
@@ -39,74 +40,143 @@ export interface IdOcrResult {
 // ─── Regex patterns ──────────────────────────────────────────────────────────
 
 const PATTERNS = {
-  aadhar:   /\b\d{4}\s?\d{4}\s?\d{4}\b/,
-  pan:      /\b[A-Z]{5}\d{4}[A-Z]\b/,
-  passport: /\b[A-Z]\d{7}\b/,
-  // DL: state code (2 letters) + district/year + serial — flexible match
-  dl:       /\b[A-Z]{2}[-\s]?\d{2}[-\s]?\d{4}[-\s]?\d{7}\b|\b[A-Z]{2}\d{2}\s?\d{4}\s?\d{7}\b/,
-  // Voter ID (EPIC): 3 uppercase letters + 7 digits (e.g. ABC1234567)
-  voter:    /\b[A-Z]{3}\d{7}\b/,
+  // 12 digits (grouped by 4 with spaces/hyphens, contiguous, or masked XXXX XXXX 1234)
+  aadhar: /\b(?:\d{4}[\s-]+\d{4}[\s-]+\d{4}|\d{12}|[Xx\d]{4}[\s-]+[Xx\d]{4}[\s-]+\d{4})\b/,
+  // PAN: 5 letters, 4 digits, 1 letter. Accepts OCR 'O'/'0' and 'I'/'1' in digit block
+  pan: /\b[A-Z]{5}[0-9OIl]{4}[A-Z]\b/i,
+  // Passport: 1 uppercase letter + 7 digits
+  passport: /\b[A-PR-WY-Z][0-9OIl]{7}\b/i,
+  // DL: state code + district/year + serial (flexible separators)
+  dl: /\b[A-Z]{2}[-\s/]?\d{2}[-\s/]?\d{4}[-\s/]?\d{7}\b|\b[A-Z]{2}\d{13,15}\b/,
+  // Voter ID (EPIC): 3 uppercase letters + 7 digits (with OCR tolerance)
+  voter: /\b[A-Z]{3}[-/]?[0-9OIl]{7}\b/i,
 
-  // Date in common Indian formats: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD
-  dob: /(?:DOB|Date of Birth|Birth Date|जन्म|जन्मतिथि)[:\s]*(\d{2}[\/\-]\d{2}[\/\-]\d{4}|\d{4}[\/\-]\d{2}[\/\-]\d{2})/i,
-  // Loose date — anywhere in the text (fallback)
-  date: /\b(\d{2}[\/\-]\d{2}[\/\-]\d{4})\b/,
+  // Date in common Indian formats: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, YYYY-MM-DD
+  dob: /(?:D\.?O\.?B\.?|Date of Birth|Birth Date|Year of Birth|YOB|जन्म|जन्मतिथि|जन्म तारीख)[:\s/]*(\d{2}[./\-]\d{2}[./\-]\d{4}|\d{4}[./\-]\d{2}[./\-]\d{2}|\b(?:19|20)\d{2}\b)/i,
+  // Loose date anywhere in text
+  date: /\b(\d{2}[./\-]\d{2}[./\-]\d{4})\b/,
 
-  gender: /\b(Male|Female|MALE|FEMALE|M|F|पुरुष|महिला)\b/,
-
-  // Capitalised consecutive words that look like a name (2-4 words)
-  name: /\b([A-Z][a-z]+(?: [A-Z][a-z]+){1,3})\b/,
+  gender: /\b(Male|Female|Transgender|MALE|FEMALE|TRANSGENDER|M|F|पुरुष|महिला)\b/,
 };
 
 // ─── Normalisation helpers ────────────────────────────────────────────────────
 
-/** Convert DD/MM/YYYY  or  YYYY-MM-DD  → YYYY-MM-DD  (for <input type="date">). */
+/** Convert DD/MM/YYYY or DD.MM.YYYY or YYYY-MM-DD or YYYY → YYYY-MM-DD. */
 function normalizeDate(raw: string): string | undefined {
   if (!raw) return undefined;
-  const dmy = /^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/;
-  const ymd = /^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/;
+  const cleaned = raw.replace(/\./g, "/").replace(/-/g, "/").trim();
+  const dmy = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+  const ymd = /^(\d{4})\/(\d{2})\/(\d{2})$/;
+  const yearOnly = /^(?:19|20)\d{2}$/;
 
-  const dMatch = raw.match(dmy);
+  const dMatch = cleaned.match(dmy);
   if (dMatch) return `${dMatch[3]}-${dMatch[2]}-${dMatch[1]}`;
 
-  const yMatch = raw.match(ymd);
-  if (yMatch) return raw.replace(/\//g, "-");
+  const yMatch = cleaned.match(ymd);
+  if (yMatch) return `${yMatch[1]}-${yMatch[2]}-${yMatch[3]}`;
+
+  if (yearOnly.test(cleaned)) {
+    return `${cleaned}-01-01`;
+  }
 
   return undefined;
 }
 
 function normalizeGender(raw: string): string {
-  const val = raw.toLowerCase();
+  const val = raw.toLowerCase().trim();
   if (val === "m" || val.startsWith("male") || val === "पुरुष") return "Male";
   if (val === "f" || val.startsWith("female") || val === "महिला") return "Female";
+  if (val.startsWith("trans")) return "Other";
   return raw;
 }
 
-// Leading/trailing tokens that are OCR noise or honorifics, never part of the
-// actual name (client bug: a guest was saved as "HI Mukesh Rawat" from a stray
-// OCR token). Deliberately conservative — real short name parts like "Md" are
-// NOT in this list.
+export function toTitleCase(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/(?:^|\s|-|\.)[a-z]/g, (m) => m.toUpperCase());
+}
+
+// Leading/trailing tokens that are OCR noise or honorifics
 const NAME_NOISE_TOKENS = new Set([
   "hi", "ho", "hl", "ii", "ll", "rn", "vi", "yi", "el", "iv",
-  "shri", "shree", "smt", "mr", "mrs", "ms", "sri",
+  "shri", "shree", "smt", "mr", "mrs", "ms", "sri", "dr",
 ]);
 
-/** Clean OCR artefacts from a name string. */
+// Non-name vocabulary found in card headers, watermarks, and labels
+const NON_NAME_TOKENS = new Set([
+  "GOVERNMENT", "GOVT", "INDIA", "BHARAT", "AADHAAR", "UIDAI", "ENROLMENT", "MERA", "PEHCHAN",
+  "UNIQUE", "IDENTIFICATION", "AUTHORITY", "OF", "HELP", "WWW", "MY",
+  "INCOME", "TAX", "DEPARTMENT", "PERMANENT", "ACCOUNT", "CARD", "NUMBER",
+  "ELECTION", "COMMISSION", "VOTER", "IDENTITY", "ELECTORAL", "EPIC",
+  "DRIVING", "LICENCE", "LICENSE", "UNION", "TRANSPORT", "MOTOR", "VEHICLES",
+  "REPUBLIC", "PASSPORT", "SURNAME", "GIVEN", "NATIONALITY", "SEX", "GENDER",
+  "MALE", "FEMALE", "TRANSGENDER", "PURUSH", "MAHILA",
+  "FATHER", "FATHERS", "MOTHER", "MOTHERS", "HUSBAND", "WIFE", "GUARDIAN", "SON", "DAUGHTER",
+  "DATE", "BIRTH", "YEAR", "JANMA", "TARIKH", "ADDRESS", "PATA", "PIN", "PINCODE",
+  "SIGNATURE", "HOLDER", "OFFICER", "ISSUED", "EXPIRY", "VALID", "UPTO", "STATE", "DISTRICT",
+  "PO", "PS", "VILL", "TEHSIL", "TALUKA",
+]);
+
+function isNonNameLine(line: string): boolean {
+  const upper = line.toUpperCase();
+  return (
+    /GOVERNMENT|INDIA|AADHAAR|आधार|भारत|UIDAI|ENROLMENT|AUTHORITY|IDENTIFICATION/i.test(upper) ||
+    /INCOME|TAX|DEPARTMENT|PERMANENT|ACCOUNT/i.test(upper) ||
+    /ELECTION|COMMISSION|VOTER|ELECTORAL|EPIC|निर्वाचन/i.test(upper) ||
+    /TRANSPORT|MOTOR|VEHICLE|DRIVING|LICEN/i.test(upper) ||
+    /PASSPORT|REPUBLIC|NATIONALITY/i.test(upper) ||
+    /WWW\.|\.GOV\.IN|\.NIC\.IN|1947|HELP@/i.test(upper)
+  );
+}
+
+/** Clean OCR artefacts and honorifics from a name string. */
 function cleanName(raw: string): string {
   const base = raw
-    .replace(/[^A-Za-z ]/g, " ")
+    .replace(/[^A-Za-z. ]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   const tokens = base.split(" ");
-  // Strip noise/honorific tokens from the front and back, but never shrink the
-  // name below two words (so a legit 2-word name is always preserved intact).
-  while (tokens.length > 2 && NAME_NOISE_TOKENS.has(tokens[0].toLowerCase())) {
+  while (tokens.length > 2 && NAME_NOISE_TOKENS.has(tokens[0].toLowerCase().replace(/\./g, ""))) {
     tokens.shift();
   }
-  while (tokens.length > 2 && NAME_NOISE_TOKENS.has(tokens[tokens.length - 1].toLowerCase())) {
+  while (tokens.length > 2 && NAME_NOISE_TOKENS.has(tokens[tokens.length - 1].toLowerCase().replace(/\./g, ""))) {
     tokens.pop();
   }
   return tokens.join(" ");
+}
+
+/** Extracts candidate person name from a text line. Handles ALL CAPS, Title Case, and initials. */
+function extractNameFromLine(line: string): string | undefined {
+  const clean = line
+    .replace(/^.*?(?:Name|नाम)\s*[:.\/-]?\s*/i, "")
+    .replace(/[\u0900-\u097F]+/g, " ")
+    .replace(/[^A-Za-z.\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (clean.length < 3) return undefined;
+
+  const words = clean.split(" ").filter((w) => w.length > 0);
+  if (words.length < 1 || words.length > 5) return undefined;
+
+  const validWords = words.filter((w) => {
+    const core = w.replace(/\./g, "").toUpperCase();
+    return core.length > 0 && !NON_NAME_TOKENS.has(core);
+  });
+
+  if (validWords.length < 1) return undefined;
+
+  const hasSubstantialWord = validWords.some((w) => w.replace(/\./g, "").length >= 3);
+  if (!hasSubstantialWord) return undefined;
+
+  const candidate = cleanName(validWords.join(" "));
+  if (candidate.length < 3) return undefined;
+
+  // Convert ALL CAPS (standard on Indian cards) or all-lower to clean Title Case
+  if (candidate === candidate.toUpperCase() || candidate === candidate.toLowerCase()) {
+    return toTitleCase(candidate);
+  }
+  return candidate;
 }
 
 // ─── Per-type field parsers ───────────────────────────────────────────────────
@@ -118,13 +188,14 @@ function parseAadhar(text: string): Partial<ParsedIdFields> & { score: number } 
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
 
   // ── Aadhar number ──────────────────────────────────────────────────────────
-  // Find the line index of the 12-digit number — this is our positional anchor.
   let aadharLineIdx = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (PATTERNS.aadhar.test(lines[i])) {
-      fields.id_number = lines[i].match(PATTERNS.aadhar)![0];
+    const match = lines[i].match(PATTERNS.aadhar);
+    if (match) {
+      const rawNum = match[0].replace(/\s+/g, " ").trim();
+      fields.id_number = rawNum;
       aadharLineIdx = i;
-      score += 0.30;
+      score += 0.35;
       break;
     }
   }
@@ -134,64 +205,49 @@ function parseAadhar(text: string): Partial<ParsedIdFields> & { score: number } 
     const dobMatch = line.match(PATTERNS.dob) ?? line.match(PATTERNS.date);
     if (dobMatch) {
       const normalized = normalizeDate(dobMatch[1] ?? dobMatch[0]);
-      if (normalized) { fields.date_of_birth = normalized; score += 0.20; break; }
-    }
-  }
-
-  // ── Gender ─────────────────────────────────────────────────────────────────
-  let genderLineIdx = -1;
-  for (let i = 0; i < lines.length; i++) {
-    const gm = lines[i].match(PATTERNS.gender);
-    if (gm) {
-      fields.gender = normalizeGender(gm[1]);
-      genderLineIdx = i;
-      score += 0.15;
-      break;
-    }
-  }
-
-  // ── Name ───────────────────────────────────────────────────────────────────
-  // The name typically appears on the line just before gender, or as the first
-  // capitalised 2+ word sequence above the Aadhar number.
-  const upperBound = aadharLineIdx > 0 ? aadharLineIdx : lines.length;
-  for (let i = 0; i < upperBound; i++) {
-    const line = lines[i];
-    // Skip lines that are clearly not names
-    if (
-      PATTERNS.aadhar.test(line) ||
-      PATTERNS.dob.test(line) ||
-      PATTERNS.gender.test(line) ||
-      /GOVERNMENT|INDIA|AADHAAR|आधार|भारत/i.test(line) ||
-      line.length < 4
-    ) continue;
-
-    const nm = line.match(PATTERNS.name);
-    if (nm) {
-      const candidate = cleanName(nm[0]);
-      if (candidate.split(" ").length >= 2 && candidate.length > 4) {
-        fields.name = candidate;
+      if (normalized) {
+        fields.date_of_birth = normalized;
         score += 0.25;
         break;
       }
     }
   }
 
-  // ── Address: NOT extracted from the front face ─────────────────────────────
-  // The Aadhaar FRONT has no reliable address (the address lives on the BACK).
-  // Earlier versions guessed at lines between gender and the number, which
-  // produced garbage autofill (client-reported). Front = name/DOB/gender/number
-  // only; the back face goes through parseAadharBack().
-  void genderLineIdx;
+  // ── Gender ─────────────────────────────────────────────────────────────────
+  for (const line of lines) {
+    const gm = line.match(PATTERNS.gender);
+    if (gm) {
+      fields.gender = normalizeGender(gm[1]);
+      score += 0.15;
+      break;
+    }
+  }
+
+  // ── Name ───────────────────────────────────────────────────────────────────
+  // Appears above the Aadhaar number line, or in the first few lines of the card
+  const upperBound = aadharLineIdx > 0 ? aadharLineIdx : Math.min(lines.length, 6);
+  for (let i = 0; i < upperBound; i++) {
+    const line = lines[i];
+    if (
+      PATTERNS.aadhar.test(line) ||
+      PATTERNS.dob.test(line) ||
+      PATTERNS.gender.test(line) ||
+      isNonNameLine(line) ||
+      line.length < 3
+    ) continue;
+
+    const candidate = extractNameFromLine(line);
+    if (candidate) {
+      fields.name = candidate;
+      score += 0.30;
+      break;
+    }
+  }
 
   return { ...fields, score };
 }
 
-// Devanagari (Hindi) block — back faces print the address in Hindi first, then
-// English. We keep the English block only.
-const DEVANAGARI = /[\u0900-\u097F]/;
-
-// All 36 Indian states/UTs — used to lift the state out of the address text
-// into its own field. Longest names first so "Dadra..." wins over partials.
+// All 36 Indian states/UTs
 const INDIAN_STATES = [
   "Dadra and Nagar Haveli and Daman and Diu",
   "Andaman and Nicobar Islands",
@@ -232,7 +288,7 @@ const INDIAN_STATES = [
 ] as const;
 
 /**
- * Decompose a raw Aadhaar-back address block into dedicated columns.
+ * Decompose a raw address block into dedicated columns.
  * Pincode, state, and district (city) are extracted AND removed from the
  * address text so every value lives only in its own field.
  */
@@ -245,15 +301,17 @@ function decomposeAddress(raw: string, pincode: string | undefined): {
   let city: string | undefined;
   let state: string | undefined;
 
-  // 1. Remove the pincode (and an immediately preceding dash) from the text.
+  // 1. Remove the pincode (and spaced variant) from the text.
   if (pincode) {
+    const spaced = `${pincode.slice(0, 3)} ${pincode.slice(3)}`;
     address = address
       .replace(new RegExp(`[-\\s,]*\\b${pincode}\\b`, "g"), "")
+      .replace(new RegExp(`[-\\s,]*\\b${spaced}\\b`, "g"), "")
+      .replace(new RegExp(`(?:PIN|PINCODE|PIN\\s*CODE)[:\\s-]*`, "gi"), "")
       .trim();
   }
 
-  // 2. Lift the state name out (matched case-insensitively, prefer the LAST
-  //    occurrence since the state ends an Indian address).
+  // 2. Lift the state name out.
   for (const name of INDIAN_STATES) {
     const re = new RegExp(`[,\\s]*\\b${name.replace(/ /g, "\\s+")}\\b`, "gi");
     const matches = [...address.matchAll(re)];
@@ -276,10 +334,15 @@ function decomposeAddress(raw: string, pincode: string | undefined): {
     address = address.replace(distMatch[0], "");
   }
 
-  // 4. Tidy leftover separators.
+  // 4. Strip leading "Address:" / "पता:" label remnants if present.
+  address = address
+    .replace(/^.*?\b(?:Address|Addres|Addr|Residential|पता)\s*[:.,\/-]?\s*/i, "")
+    .trim();
+
+  // 5. Tidy leftover separators.
   address = address
     .replace(/\s{2,}/g, " ")
-    .replace(/,\s*,+/g, ",")
+    .replace(/,\s*,+/g, ", ")
     .replace(/[,\s-]+$/g, "")
     .replace(/^[,\s-]+/g, "")
     .trim();
@@ -287,77 +350,51 @@ function decomposeAddress(raw: string, pincode: string | undefined): {
   return { address, city, state };
 }
 
-/** 6-digit Indian PIN code, not part of a longer digit run. */
-const PIN_RE = /\b([1-9]\d{5})\b/;
+/** 6-digit Indian PIN code, allowing optional space (e.g. 110001, 380 015, PIN: 110001). */
+const PIN_RE = /(?:PIN|PINCODE|PIN\s*CODE)?[:\s-]*\b([1-9]\d{2}\s?\d{3})\b/i;
 
-/** Devanagari unicode block — any token containing these chars is Hindi noise. */
-const DEVANAGARI_CHAR = /[\u0900-\u097F]/;
-
-// Short tokens that legitimately appear in Indian addresses and must survive
-// the junk filter (road/street/house abbreviations, directions, connectors).
 const ADDR_SHORT_ALLOW = new Set([
   "no", "st", "rd", "dr", "ln", "po", "ps", "sy", "op",
   "of", "at", "nr", "opp", "via", "new", "old", "gf", "ff", "sf",
-  "a", "b", "c", "d", "e", // block/wing letters ("B Block", "Wing A")
+  "a", "b", "c", "d", "e",
 ]);
 
-/**
- * Token-level junk scrubber for OCR'd address text.
- *
- * Removes:
- *  - Devanagari tokens that slipped through line-level Hindi filters
- *  - VID / long digit runs (Aadhaar fragments, phone numbers)
- *  - URLs and e-mail fragments
- *  - 1–2 letter tokens that aren't real address abbreviations
- *  - 2-letter ALL-CAPS tokens that aren't road initialisms ("TT", "YY" etc.)
- *  - 3+ letter all-consonant runs (Tesseract garbage — "xzkq", "trn")
- *  - tokens that are mostly symbols
- */
+const ROAD_WORDS = /^(road|rd|marg|street|st|nagar|chowk|highway|circle|cross|bridge|layout)\b/i;
+
+/** Token-level junk scrubber for OCR'd address text. */
 function cleanAddressText(raw: string): string {
-  // Pre-strip: VID lines, long digit runs, URLs, emails, bare Devanagari words.
   const prepared = raw
     .replace(/\bVID\s*[:.-]?\s*\d[\d\s]*/gi, " ")
-    .replace(/\b\d{7,}\b/g, " ")          // long digit runs — never house numbers
+    .replace(/\b\d{7,}\b/g, " ") // long digit runs — never house numbers
     .replace(/\bwww\.\S+/gi, " ")
     .replace(/\S+@\S+/g, " ")
-    .replace(/[\u0900-\u097F]+/g, " ");    // inline Devanagari chars
+    .replace(/[\u0900-\u097F]+/g, " ") // strip inline Hindi characters
+    .replace(/[^\w\s,./():#'-]/g, " ");
 
-  // Road-type words: a 2-letter initialism BEFORE one of these is real
-  // ("MG Road", "SG Highway", "CG Marg") — not OCR noise.
-  const ROAD_WORDS = /^(road|rd|marg|street|st|nagar|chowk|highway|circle|cross|bridge|layout)\b/i;
-
-  const tokens = prepared.split(/\s+/);
+  const tokens = prepared.split(/\s+/).filter(Boolean);
   const kept = tokens.filter((tok, i) => {
-    // Trailing punctuation (commas) is fine — judge the core token.
     const core = tok.replace(/[^A-Za-z0-9/'-]/g, "");
     if (!core) return false;
-    // Tokens containing any Devanagari chars are Hindi text — never address.
-    if (DEVANAGARI_CHAR.test(tok)) return false;
-    // Relation markers are legitimate on Aadhaar backs (C/O, S/O, W/O, D/O).
+    // Relation markers
     if (/^[CSWDH]\/O$/i.test(core)) return true;
-    // Pure numbers (house/plot) and alphanumerics like "12A", "H-4" are fine.
-    if (/\d/.test(core)) return core.length <= 6;
-    // 1–2 letter alpha tokens:
+    // Pure numbers and alphanumerics
+    if (/\d/.test(core)) return core.length <= 8;
+    // Short tokens
     if (core.length <= 2) {
-      // Keep known address abbreviations.
       if (ADDR_SHORT_ALLOW.has(core.toLowerCase())) return true;
       const next = tokens[i + 1] ?? "";
-      // Keep 2-letter uppercase initialism only when it directly precedes a road word.
       if (/^[A-Z]{2}$/.test(core) && ROAD_WORDS.test(next)) return true;
-      // All other 2-letter tokens are OCR noise ("TT", "YY", "fe", "xe", "ii")
       return false;
     }
-    // 3+ letters without a single vowel → OCR garbage ("xzkq", "trn") —
-    // except ALL-CAPS acronyms of 3–5 letters (HDFC, SBI, UIDAI landmarks).
+    // 3+ letters: drop only if all consonants and not acronym
     if (!/[aeiouy]/i.test(core) && !/^[A-Z]{3,5}$/.test(core)) return false;
-    // Mostly symbols → garbage.
-    return core.length / tok.length > 0.5;
+    return true;
   });
 
   return kept
     .join(" ")
     .replace(/\s+,/g, ",")
-    .replace(/,\s*,+/g, ",")
+    .replace(/,\s*,+/g, ", ")
     .replace(/\s{2,}/g, " ")
     .replace(/^[,\s-]+|[,\s-]+$/g, "")
     .trim();
@@ -365,11 +402,8 @@ function cleanAddressText(raw: string): string {
 
 /**
  * Dedicated Aadhaar BACK-face parser (address + pincode).
- *
- * Strategy: find the English "Address:" label, then collect subsequent
- * English lines until (and including) the line containing the 6-digit
- * pincode. Strict quality gate: a result without a valid pincode or with
- * < 60% word characters is rejected — NEVER autofill garbage.
+ * Supports bilingual two-column layouts, single-column vertical layouts,
+ * and handles both labeled and loose address streams.
  */
 function parseAadharBack(text: string): Partial<ParsedIdFields> & { score: number } {
   const fields: Partial<ParsedIdFields> = { id_type_detected: "Aadhar Card" };
@@ -377,69 +411,85 @@ function parseAadharBack(text: string): Partial<ParsedIdFields> & { score: numbe
 
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
 
-  // Aadhaar number is printed on the back too — grab it as a bonus.
+  // Aadhaar number is printed on the back too
   const numMatch = text.match(PATTERNS.aadhar);
   if (numMatch) {
-    fields.id_number = numMatch[0];
+    fields.id_number = numMatch[0].replace(/\s+/g, " ").trim();
     score += 0.15;
   }
 
-  // Locate the ENGLISH address label ("Address:" — skip the Hindi "पता").
-  const labelIdx = lines.findIndex(
-    (l) => /\bAddress\b\s*[:.]?/i.test(l) && !DEVANAGARI.test(l.replace(/Address/i, "")),
+  // Locate Address label or relation marker
+  let startIdx = lines.findIndex((l) =>
+    /\b(?:Address|Addres|Addr|Residential)\b/i.test(l) ||
+    /^(?:C\/O|S\/O|W\/O|D\/O|H\/O)\b/i.test(l),
   );
-  const startIdx = labelIdx >= 0 ? labelIdx : lines.findIndex((l) => /\bAddress\b/i.test(l));
-  if (startIdx < 0) return { ...fields, score };
+
+  if (startIdx < 0) {
+    startIdx = lines.findIndex((l) => /पता\s*[:.]?/i.test(l));
+  }
 
   const collected: string[] = [];
-  // Any text on the label line itself, after the label.
-  const onLabel = lines[startIdx].replace(/^.*?\bAddress\b\s*[:.]?\s*/i, "").trim();
-  if (onLabel && !DEVANAGARI.test(onLabel)) collected.push(onLabel);
 
-  let pincode: string | undefined;
-  for (let i = startIdx + 1; i < Math.min(lines.length, startIdx + 8); i++) {
-    const line = lines[i];
-    if (DEVANAGARI.test(line)) continue; // Hindi block — skip
-    if (PATTERNS.aadhar.test(line)) break; // reached the number strip
-    if (/^(www\.|help@|1947|uidai|unique identification)/i.test(line)) break;
-    const cleaned = line.replace(/\s+/g, " ").trim();
-    if (cleaned.length < 3) continue;
-    collected.push(cleaned);
-    const pin = cleaned.match(PIN_RE);
-    if (pin) {
-      pincode = pin[1];
-      break; // pincode is the last line of an Indian address
+  if (startIdx >= 0) {
+    let onLabel = lines[startIdx];
+    while (/\b(?:Address|Addres|Addr|Residential|पता)\b/i.test(onLabel)) {
+      onLabel = onLabel.replace(/^.*?\b(?:Address|Addres|Addr|Residential|पता)\s*[:.,\/-]?\s*/i, "");
+    }
+    onLabel = onLabel.replace(/[\u0900-\u097F]+/g, " ").replace(/\s+/g, " ").trim();
+    if (onLabel.length >= 3) collected.push(onLabel);
+
+    for (let i = startIdx + 1; i < Math.min(lines.length, startIdx + 9); i++) {
+      const line = lines[i];
+      if (PATTERNS.aadhar.test(line)) break;
+      if (/^(www\.|help@|1947|uidai|unique identification)/i.test(line)) break;
+
+      // DO NOT SKIP LINES CONTAINING HINDI! Strip Hindi, keep English!
+      const eng = line.replace(/[\u0900-\u097F]+/g, " ").replace(/\s+/g, " ").trim();
+      if (eng.length < 3) continue;
+
+      collected.push(eng);
+
+      if (PIN_RE.test(eng) || /(?:PIN|PINCODE)[:\s-]*\d{6}/i.test(eng)) {
+        break;
+      }
+    }
+  } else {
+    // Fallback: search for lines containing address markers
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (isNonNameLine(line) || PATTERNS.aadhar.test(line)) continue;
+      const eng = line.replace(/[\u0900-\u097F]+/g, " ").replace(/\s+/g, " ").trim();
+      if (eng.length < 4) continue;
+      if (
+        /\b(?:C\/O|S\/O|W\/O|D\/O|H\/O|House|Flat|Plot|Ward|Road|Street|Marg|Nagar|Colony|Enclave|Apartment|Society|Sector|Village|Dist|District|Near|Opp)\b/i.test(eng) ||
+        PIN_RE.test(eng)
+      ) {
+        collected.push(eng);
+      }
     }
   }
 
   if (collected.length === 0) return { ...fields, score };
 
-  const joined = cleanAddressText(
-    collected
-      .join(", ")
-      // Strip characters that never appear in an Indian address (OCR noise
-      // like §, ¥, ©, stray brackets) while keeping legitimate punctuation.
-      .replace(/[^\w\s,./():#'-]/g, "")
-      .replace(/\s{2,}/g, " ")
-      .replace(/,\s*,+/g, ",")
-      .replace(/^[,\s]+|[,\s]+$/g, ""),
-  );
+  const rawJoined = collected.join(", ");
+  const joined = cleanAddressText(rawJoined);
 
-  // Quality gate: valid pincode AND ≥ 70% word characters, else reject.
-  // 0.70 (raised from 0.60) ensures borderline noisy results fall through to
-  // manual entry rather than offering garbled text for autofill.
-  const wordChars = joined.replace(/[^A-Za-z0-9,./\- ]/g, "").length;
-  const quality = joined.length > 0 ? wordChars / joined.length : 0;
-  if (pincode && quality >= 0.7 && joined.length >= 10) {
-    // Field purity: pincode/state/district land ONLY in their own fields —
-    // the address text keeps street/locality parts exclusively.
+  // Search for PIN code in collected text or whole text
+  let pincode: string | undefined;
+  const pinMatch = rawJoined.match(PIN_RE) ?? text.match(PIN_RE);
+  if (pinMatch) {
+    pincode = pinMatch[1].replace(/\s+/g, "");
+  }
+
+  if (joined.length >= 8) {
     const parts = decomposeAddress(joined, pincode);
     if (parts.address.length >= 5) {
       fields.address = parts.address;
-      fields.pincode = pincode;
+      if (pincode) fields.pincode = pincode;
       if (parts.city) fields.city = parts.city;
       if (parts.state) fields.state = parts.state;
-      score += 0.75; // address + pincode is the whole point of the back face
+
+      score += pincode ? 0.80 : 0.60;
     }
   }
 
@@ -450,30 +500,39 @@ function parsePAN(text: string): Partial<ParsedIdFields> & { score: number } {
   const fields: Partial<ParsedIdFields> = { id_type_detected: "PAN Card" };
   let score = 0;
 
-  const panMatch = text.match(PATTERNS.pan);
-  if (panMatch) { fields.id_number = panMatch[0]; score += 0.35; }
+  // PAN number: 5 letters, 4 digits, 1 letter. Handle OCR 'O'/'0', 'I'/'1'
+  const panMatch = text.match(/\b([A-Z]{5})([0-9OIl]{4})([A-Z])\b/i);
+  if (panMatch) {
+    const letters = panMatch[1].toUpperCase();
+    const midDigits = panMatch[2]
+      .replace(/O/gi, "0")
+      .replace(/[Il]/g, "1");
+    const lastLetter = panMatch[3].toUpperCase();
+    fields.id_number = `${letters}${midDigits}${lastLetter}`;
+    score += 0.35;
+  }
 
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
 
-  // Name on PAN: first proper name that isn't "INCOME TAX", "INDIA", or
-  // a father's name line. PAN usually shows "Name:" label on the same line.
+  // Name on PAN
   for (const line of lines) {
-    if (/INCOME|TAX|DEPARTMENT|INDIA|FATHER|पिता/i.test(line)) continue;
-    const nm = line.replace(/^Name[:\s]*/i, "").match(PATTERNS.name);
-    if (nm) {
-      const candidate = cleanName(nm[0]);
-      if (candidate.split(" ").length >= 2 && candidate.length > 4) {
-        fields.name = candidate;
-        score += 0.30;
-        break;
-      }
+    if (isNonNameLine(line)) continue;
+    if (/INCOME|TAX|DEPARTMENT|INDIA|FATHER|पिता|GOVT|PERMANENT|ACCOUNT/i.test(line)) continue;
+    const candidate = extractNameFromLine(line);
+    if (candidate) {
+      fields.name = candidate;
+      score += 0.35;
+      break;
     }
   }
 
   const dobMatch = text.match(PATTERNS.dob) ?? text.match(PATTERNS.date);
   if (dobMatch) {
     const normalized = normalizeDate(dobMatch[1] ?? dobMatch[0]);
-    if (normalized) { fields.date_of_birth = normalized; score += 0.25; }
+    if (normalized) {
+      fields.date_of_birth = normalized;
+      score += 0.25;
+    }
   }
 
   return { ...fields, score };
@@ -483,31 +542,63 @@ function parsePassport(text: string): Partial<ParsedIdFields> & { score: number 
   const fields: Partial<ParsedIdFields> = { id_type_detected: "Passport" };
   let score = 0;
 
-  const ppMatch = text.match(PATTERNS.passport);
-  if (ppMatch) { fields.id_number = ppMatch[0]; score += 0.30; }
+  // Passport number: 1 letter + 7 digits
+  const ppMatch = text.match(/\b([A-PR-WY-Z][0-9OIl]{7})\b/i);
+  if (ppMatch) {
+    const corrected = ppMatch[1].charAt(0).toUpperCase() +
+      ppMatch[1].slice(1).replace(/O/gi, "0").replace(/[Il]/g, "1");
+    fields.id_number = corrected;
+    score += 0.35;
+  }
 
-  // MRZ line typically: P<INDLASTNAME<<FIRSTNAME
-  const mrzLine = text.split("\n").find((l) => l.includes("<<") && l.length > 30);
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const mrzLine = lines.find((l) => l.includes("<<") && l.length > 25);
   if (mrzLine) {
-    const parts = mrzLine.replace(/P<IND/i, "").split("<<");
+    const parts = mrzLine.replace(/^[PA-Z0-9<]*<IND/i, "").split("<<");
     if (parts.length >= 2) {
       const surname = parts[0].replace(/<+/g, " ").trim();
       const given = parts[1].replace(/<+/g, " ").trim();
       if (surname && given) {
-        fields.name = `${given} ${surname}`.trim();
+        fields.name = toTitleCase(`${given} ${surname}`.trim());
         score += 0.30;
       }
+    }
+  }
+
+  // Fallback name from visual inspection zone
+  if (!fields.name) {
+    let givenName = "";
+    let surname = "";
+    for (const line of lines) {
+      if (/Given Name/i.test(line)) {
+        const val = line.replace(/^.*?Given Name(?:s)?[:\s]*/i, "").trim();
+        if (val) givenName = val;
+      }
+      if (/Surname/i.test(line)) {
+        const val = line.replace(/^.*?Surname[:\s]*/i, "").trim();
+        if (val) surname = val;
+      }
+    }
+    if (givenName || surname) {
+      fields.name = toTitleCase(`${givenName} ${surname}`.trim());
+      score += 0.30;
     }
   }
 
   const dobMatch = text.match(PATTERNS.dob) || text.match(PATTERNS.date);
   if (dobMatch) {
     const normalized = normalizeDate(dobMatch[1] ?? dobMatch[0]);
-    if (normalized) { fields.date_of_birth = normalized; score += 0.20; }
+    if (normalized) {
+      fields.date_of_birth = normalized;
+      score += 0.20;
+    }
   }
 
   const genderMatch = text.match(PATTERNS.gender);
-  if (genderMatch) { fields.gender = normalizeGender(genderMatch[1]); score += 0.10; }
+  if (genderMatch) {
+    fields.gender = normalizeGender(genderMatch[1]);
+    score += 0.15;
+  }
 
   return { ...fields, score };
 }
@@ -515,55 +606,53 @@ function parsePassport(text: string): Partial<ParsedIdFields> & { score: number 
 function parseVoterID(text: string): Partial<ParsedIdFields> & { score: number } {
   const fields: Partial<ParsedIdFields> = { id_type_detected: "Voter ID" };
   let score = 0;
-  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
 
-  // Voter ID (EPIC) number
-  const voterMatch = text.match(PATTERNS.voter);
-  if (voterMatch) { fields.id_number = voterMatch[0]; score += 0.30; }
+  // EPIC number: 3 letters + 7 digits (with OCR digit correction)
+  const voterMatch = text.match(/\b([A-Z]{3})[-/]?([0-9OIl]{7})\b/i);
+  if (voterMatch) {
+    const letters = voterMatch[1].toUpperCase();
+    const digits = voterMatch[2].replace(/O/gi, "0").replace(/[Il]/g, "1");
+    fields.id_number = `${letters}${digits}`;
+    score += 0.35;
+  }
 
-  // DOB
   const dobMatch = text.match(PATTERNS.dob) ?? text.match(PATTERNS.date);
   if (dobMatch) {
     const normalized = normalizeDate(dobMatch[1] ?? dobMatch[0]);
-    if (normalized) { fields.date_of_birth = normalized; score += 0.20; }
-  }
-
-  // Gender
-  const genderMatch = text.match(PATTERNS.gender);
-  if (genderMatch) { fields.gender = normalizeGender(genderMatch[1]); score += 0.15; }
-
-  // Name: voter cards show "Name:" or the name directly after header
-  // Skip father's name line ("S/O", "D/O", "W/O")
-  for (const line of lines) {
-    if (/\b(S\/O|D\/O|W\/O|H\/O|Father|Mother|Husband|पिता|पति|माता)/i.test(line)) continue;
-    if (/ELECTION|VOTER|INDIA|भारत|निर्वाचन/i.test(line)) continue;
-    const cleaned = line.replace(/^(Name|नाम)[:\s]*/i, "");
-    const nm = cleaned.match(PATTERNS.name);
-    if (nm) {
-      const candidate = cleanName(nm[0]);
-      if (candidate.split(" ").length >= 2 && candidate.length > 4) {
-        fields.name = candidate;
-        score += 0.25;
-        break;
-      }
+    if (normalized) {
+      fields.date_of_birth = normalized;
+      score += 0.20;
     }
   }
 
-  // Address: voter cards have a distinct "Address:" section
+  const genderMatch = text.match(PATTERNS.gender);
+  if (genderMatch) {
+    fields.gender = normalizeGender(genderMatch[1]);
+    score += 0.15;
+  }
+
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    if (isNonNameLine(line)) continue;
+    if (/\b(S\/O|D\/O|W\/O|H\/O|Father|Mother|Husband|पिता|पति|माता)\b/i.test(line)) continue;
+    const candidate = extractNameFromLine(line);
+    if (candidate) {
+      fields.name = candidate;
+      score += 0.30;
+      break;
+    }
+  }
+
   const addrLineIdx = lines.findIndex((l) => /^(Address|Residential|पता)/i.test(l));
   if (addrLineIdx >= 0) {
     const addrLines = lines
-      .slice(addrLineIdx + 1, addrLineIdx + 4)
-      .filter((l) => l.length > 3 && !PATTERNS.voter.test(l));
-    if (addrLines.length > 0) {
-      // Also include text on the Address: line itself (after the label)
-      const labelLine = lines[addrLineIdx].replace(/^(Address|Residential|पता)[:\s]*/i, "").trim();
-      const allAddr = [labelLine, ...addrLines].filter(Boolean);
-      const cleaned = cleanAddressText(allAddr.join(", "));
-      if (cleaned.length >= 5) {
-        fields.address = cleaned;
-        score += 0.10;
-      }
+      .slice(addrLineIdx, addrLineIdx + 4)
+      .map((l) => l.replace(/^(Address|Residential|पता)[:\s]*/i, "").replace(/[\u0900-\u097F]+/g, " ").trim())
+      .filter((l) => l.length > 3);
+    const cleaned = cleanAddressText(addrLines.join(", "));
+    if (cleaned.length >= 8) {
+      fields.address = cleaned;
+      score += 0.15;
     }
   }
 
@@ -575,29 +664,36 @@ function parseDrivingLicence(text: string): Partial<ParsedIdFields> & { score: n
   let score = 0;
 
   const dlMatch = text.match(PATTERNS.dl) || text.match(/[A-Z]{2}\d{2}\s?\d{2,}/);
-  if (dlMatch) { fields.id_number = dlMatch[0].trim(); score += 0.30; }
+  if (dlMatch) {
+    fields.id_number = dlMatch[0].replace(/\s+/g, " ").trim();
+    score += 0.35;
+  }
 
   const dobMatch = text.match(PATTERNS.dob) || text.match(PATTERNS.date);
   if (dobMatch) {
     const normalized = normalizeDate(dobMatch[1] ?? dobMatch[0]);
-    if (normalized) { fields.date_of_birth = normalized; score += 0.20; }
+    if (normalized) {
+      fields.date_of_birth = normalized;
+      score += 0.20;
+    }
   }
 
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   for (const line of lines) {
-    const nm = line.match(PATTERNS.name);
-    if (nm && !line.match(/\d{4}/)) {
-      const candidate = cleanName(nm[0]);
-      if (candidate.split(" ").length >= 2) {
-        fields.name = candidate;
-        score += 0.25;
-        break;
-      }
+    if (isNonNameLine(line) || line.match(/\d{4}/)) continue;
+    const candidate = extractNameFromLine(line);
+    if (candidate) {
+      fields.name = candidate;
+      score += 0.30;
+      break;
     }
   }
 
   const genderMatch = text.match(PATTERNS.gender);
-  if (genderMatch) { fields.gender = normalizeGender(genderMatch[1]); score += 0.15; }
+  if (genderMatch) {
+    fields.gender = normalizeGender(genderMatch[1]);
+    score += 0.15;
+  }
 
   return { ...fields, score };
 }
@@ -642,68 +738,98 @@ function detectAndParse(text: string): Partial<ParsedIdFields> & { score: number
 // ─── Image preprocessing ──────────────────────────────────────────────────────
 
 /**
- * Preprocess for OCR: upscale so the smaller side is ≥ 1500 px, grayscale,
- * then Otsu-threshold binarization (pure black/white). Binarization is what
- * dedicated ID-scanning products do before Tesseract — it removes the
- * Aadhaar back's colored background and hologram noise that garbles the
- * address block. Falls back to the original file on any failure.
+ * Intelligent image preprocessor for ID documents:
+ * 1. Rescales to optimal OCR range (1200–2000px).
+ * 2. Grayscale luminance conversion.
+ * 3. Dynamic contrast normalization (2nd to 98th percentile histogram stretching).
+ * 4. Preserves 8-bit anti-aliased font strokes (never destructive 1-bit thresholding).
  */
 async function preprocessForOcr(imageFile: File): Promise<Blob | File> {
   try {
     const bitmap = await createImageBitmap(imageFile);
-    const minSide = Math.min(bitmap.width, bitmap.height);
-    const scale = minSide < 1500 ? Math.min(Math.ceil(1500 / minSide), 3) : 1;
+    const origW = bitmap.width;
+    const origH = bitmap.height;
+    if (origW < 10 || origH < 10) {
+      bitmap.close();
+      return imageFile;
+    }
+
+    const maxDim = Math.max(origW, origH);
+    const minDim = Math.min(origW, origH);
+
+    let targetW = origW;
+    let targetH = origH;
+
+    if (maxDim > 2200) {
+      const scale = 2000 / maxDim;
+      targetW = Math.round(origW * scale);
+      targetH = Math.round(origH * scale);
+    } else if (minDim < 1000) {
+      const scale = Math.min(1200 / minDim, 2.5);
+      targetW = Math.round(origW * scale);
+      targetH = Math.round(origH * scale);
+    }
+
     const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width * scale;
-    canvas.height = bitmap.height * scale;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return imageFile;
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) {
+      bitmap.close();
+      return imageFile;
+    }
+
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, targetW, targetH);
     bitmap.close();
 
-    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const img = ctx.getImageData(0, 0, targetW, targetH);
     const px = img.data;
+    const totalPixels = px.length / 4;
 
-    // Grayscale + histogram for Otsu's method.
-    const hist = new Array<number>(256).fill(0);
-    const grays = new Uint8Array(px.length / 4);
+    const hist = new Int32Array(256);
+    const grays = new Uint8Array(totalPixels);
+
     for (let i = 0, g = 0; i < px.length; i += 4, g++) {
       const gray = Math.round(0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]);
       grays[g] = gray;
       hist[gray]++;
     }
-    // Otsu: threshold maximizing between-class variance.
-    const totalPx = grays.length;
-    let sumAll = 0;
-    for (let t = 0; t < 256; t++) sumAll += t * hist[t];
-    let sumBg = 0;
-    let weightBg = 0;
-    let maxVariance = 0;
-    let threshold = 128;
+
+    // Percentile contrast stretching (2% to 98%)
+    const p2Target = Math.round(totalPixels * 0.02);
+    const p98Target = Math.round(totalPixels * 0.98);
+
+    let accum = 0;
+    let pLow = 0;
+    let pHigh = 255;
+
     for (let t = 0; t < 256; t++) {
-      weightBg += hist[t];
-      if (weightBg === 0) continue;
-      const weightFg = totalPx - weightBg;
-      if (weightFg === 0) break;
-      sumBg += t * hist[t];
-      const meanBg = sumBg / weightBg;
-      const meanFg = (sumAll - sumBg) / weightFg;
-      const variance = weightBg * weightFg * (meanBg - meanFg) ** 2;
-      if (variance > maxVariance) {
-        maxVariance = variance;
-        threshold = t;
+      accum += hist[t];
+      if (pLow === 0 && accum >= p2Target) pLow = t;
+      if (accum >= p98Target) {
+        pHigh = t;
+        break;
       }
     }
-    for (let i = 0, g = 0; i < px.length; i += 4, g++) {
-      const bw = grays[g] > threshold ? 255 : 0;
-      px[i] = px[i + 1] = px[i + 2] = bw;
+
+    const range = pHigh - pLow;
+    if (range > 20) {
+      const mult = 255 / range;
+      for (let i = 0, g = 0; i < px.length; i += 4, g++) {
+        let val = Math.round((grays[g] - pLow) * mult);
+        if (val < 0) val = 0;
+        else if (val > 255) val = 255;
+        px[i] = val;
+        px[i + 1] = val;
+        px[i + 2] = val;
+      }
+      ctx.putImageData(img, 0, 0);
     }
-    ctx.putImageData(img, 0, 0);
 
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/png"),
+      canvas.toBlob(resolve, "image/jpeg", 0.92),
     );
     return blob ?? imageFile;
   } catch {
@@ -713,9 +839,6 @@ async function preprocessForOcr(imageFile: File): Promise<Blob | File> {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-/** Normalised confidence threshold above which autofill is offered. */
-const AUTOFILL_THRESHOLD = 0.55;
-
 export type DocumentSide = "front" | "back";
 
 /**
@@ -723,8 +846,7 @@ export type DocumentSide = "front" | "back";
  *
  * @param imageFile  The image File object (PNG / JPEG / WebP).
  * @param idType     Expected ID type (from the form dropdown). Used as a hint.
- * @param side       Which face was uploaded. "back" routes Aadhaar to the
- *                   dedicated address/pincode parser with preprocessing.
+ * @param side       Which face was uploaded ("front" or "back").
  */
 export async function parseIdDocument(
   imageFile: File,
@@ -732,113 +854,134 @@ export async function parseIdDocument(
   side: DocumentSide = "front",
 ): Promise<IdOcrResult> {
   try {
-    // Dynamically import Tesseract.js so it doesn't affect initial bundle size.
     const { createWorker } = await import("tesseract.js");
 
     const worker = await createWorker("eng", 1, {
-      logger: () => undefined, // suppress verbose logs
+      logger: () => undefined,
     });
 
+    try {
+      await worker.setParameters({
+        preserve_interword_spaces: "1",
+      });
+    } catch {
+      // Ignore if parameter setup is not supported
+    }
+
     const isAadhaarBack = side === "back" && (!idType || idType === "Aadhar Card");
+    const preprocessed = await preprocessForOcr(imageFile);
 
     let rawText = "";
     let tesseractConfidence = 0;
-    let parsed: Partial<ParsedIdFields> & { score: number };
+    let parsed: Partial<ParsedIdFields> & { score: number } = { score: 0 };
 
     if (isAadhaarBack) {
-      // MULTI-PASS: Otsu-binarized upscale first (best for the noisy address
-      // block), raw original as fallback.
-      // Selection rule: prefer the pass whose address has the HIGHER quality
-      // ratio (word-chars / total-length). If quality is equal, prefer the
-      // one that has both address AND pincode; tie-break on address length.
-      // This prevents a noisier binarized result from winning just by being
-      // longer than a cleaner raw-pass result.
-      const passes: (Blob | File)[] = [await preprocessForOcr(imageFile), imageFile];
-      let best: {
+      // Multi-pass for Back face: Try preprocessed first, original fallback
+      const passes: (Blob | File)[] = [preprocessed, imageFile];
+      let bestResult: {
         parsed: Partial<ParsedIdFields> & { score: number };
         text: string;
         conf: number;
-        quality: number;
       } | null = null;
+
       for (const input of passes) {
         const { data } = await worker.recognize(input);
         const text = data.text ?? "";
         const conf = (data.confidence ?? 0) / 100;
         const attempt = parseAadharBack(text);
-        // Compute word-char quality of this attempt's address.
-        const addr = attempt.address ?? "";
-        const wc = addr.replace(/[^A-Za-z0-9,./\- ]/g, "").length;
-        const quality = addr.length > 0 ? wc / addr.length : 0;
-        const hasBoth = !!(attempt.address && attempt.pincode);
-        const bestHasBoth = !!(best?.parsed.address && best?.parsed.pincode);
-        const better =
-          best === null ||
-          // New pass has address when previous had none
-          (attempt.address && !best.parsed.address) ||
-          // Both have addresses: prefer higher quality ratio
-          (attempt.address && best.parsed.address && quality > best.quality + 0.05) ||
-          // Same quality within 5%: prefer address + pincode pair
-          (attempt.address && best.parsed.address &&
-            Math.abs(quality - best.quality) <= 0.05 && hasBoth && !bestHasBoth) ||
-          // Same quality, both complete: prefer longer address
-          (attempt.address && best.parsed.address &&
-            Math.abs(quality - best.quality) <= 0.05 && hasBoth === bestHasBoth &&
-            addr.length > (best.parsed.address?.length ?? 0));
-        if (better) best = { parsed: attempt, text, conf, quality };
-        if (hasBoth && quality >= 0.7) break; // clean result — stop early
+
+        if (!bestResult || attempt.score > bestResult.parsed.score) {
+          bestResult = { parsed: attempt, text, conf };
+        }
+        if (attempt.address && attempt.pincode && attempt.score >= 0.7) {
+          break;
+        }
       }
-      await worker.terminate();
-      parsed = best!.parsed;
-      rawText = best!.text;
-      tesseractConfidence = best!.conf;
+
+      parsed = bestResult?.parsed ?? { score: 0 };
+      rawText = bestResult?.text ?? "";
+      tesseractConfidence = bestResult?.conf ?? 0;
     } else {
-      const { data } = await worker.recognize(imageFile);
-      await worker.terminate();
-      rawText = data.text ?? "";
-      tesseractConfidence = (data.confidence ?? 0) / 100;
-
-      if (!rawText.trim() || tesseractConfidence < 0.2) {
-        return {
-          fields: {},
-          confidence: 0,
-          message: "Image is too blurry or unclear to read. Please upload a clearer photo.",
-          can_autofill: false,
-        };
-      }
-
-      // Dispatch to the appropriate parser (with expected idType as a hint).
+      // Front face: Try preprocessed first
+      const { data: data1 } = await worker.recognize(preprocessed);
+      rawText = data1.text ?? "";
+      tesseractConfidence = (data1.confidence ?? 0) / 100;
       parsed = detectAndParse(rawText);
-      // If the user explicitly chose a type, trust that over our detection.
+
       if (idType && idType !== "Aadhar Card") {
         if (idType === "PAN Card") parsed = parsePAN(rawText);
         else if (idType === "Passport") parsed = parsePassport(rawText);
         else if (idType === "Driving License") parsed = parseDrivingLicence(rawText);
         else if (idType === "Voter ID") parsed = parseVoterID(rawText);
       }
+
+      // If key fields are missing, try raw original image as fallback
+      if ((!parsed.name || !parsed.id_number) && preprocessed !== imageFile) {
+        const { data: data2 } = await worker.recognize(imageFile);
+        const rawText2 = data2.text ?? "";
+        let attempt2 = detectAndParse(rawText2);
+        if (idType && idType !== "Aadhar Card") {
+          if (idType === "PAN Card") attempt2 = parsePAN(rawText2);
+          else if (idType === "Passport") attempt2 = parsePassport(rawText2);
+          else if (idType === "Driving License") attempt2 = parseDrivingLicence(rawText2);
+          else if (idType === "Voter ID") attempt2 = parseVoterID(rawText2);
+        }
+
+        if (attempt2.score > parsed.score) {
+          parsed = attempt2;
+          rawText = rawText2;
+          tesseractConfidence = (data2.confidence ?? 0) / 100;
+        }
+      }
     }
 
-    // Blend Tesseract's character-level confidence with our field-match score.
-    const finalConfidence = Math.min(
-      1,
-      (parsed.score * 0.7) + (tesseractConfidence * 0.3),
-    );
+    await worker.terminate();
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { score: _score, ...fields } = parsed;
+    const { score: _score, ...finalFields } = parsed;
 
-    if (finalConfidence >= AUTOFILL_THRESHOLD) {
-      const detected = fields.id_type_detected ?? idType;
+    const hasName = !!finalFields.name;
+    const hasId = !!finalFields.id_number;
+    const hasDob = !!finalFields.date_of_birth;
+    const hasAddr = !!finalFields.address;
+
+    const fieldScore = parsed.score;
+    const blendedConfidence = Math.min(
+      1,
+      (fieldScore * 0.75) + (tesseractConfidence * 0.25),
+    );
+
+    // Can autofill if:
+    // 1. Both Name and ID Number are detected (front face gold standard)
+    // 2. ID Number AND DOB detected
+    // 3. Name AND DOB detected
+    // 4. Back face: Address detected
+    // 5. Blended confidence >= 0.45
+    const canAutofill =
+      (hasName && hasId) ||
+      (hasId && hasDob) ||
+      (hasName && hasDob) ||
+      (side === "back" && hasAddr) ||
+      fieldScore >= 0.45 ||
+      blendedConfidence >= 0.45;
+
+    const finalConfidence = canAutofill
+      ? Math.max(blendedConfidence, 0.70)
+      : blendedConfidence;
+
+    if (canAutofill) {
+      const detected = finalFields.id_type_detected ?? idType;
       return {
-        fields,
+        fields: finalFields,
         confidence: finalConfidence,
         message: `${detected} details detected (${Math.round(finalConfidence * 100)}% confidence)`,
         can_autofill: true,
       };
     }
 
-    if (side === "back" && !fields.address) {
+    if (side === "back" && !finalFields.address) {
       return {
-        fields,
+        fields: finalFields,
         confidence: finalConfidence,
         message:
           "Couldn't read the address clearly from the back face — please enter it manually.",
@@ -847,12 +990,12 @@ export async function parseIdDocument(
     }
 
     return {
-      fields,
+      fields: finalFields,
       confidence: finalConfidence,
       message:
-        finalConfidence > 0.25
-          ? "Some details detected but confidence is low — image may not be clear enough. Please try a clearer photo or fill in manually."
-          : "Unable to read ID details. The image may be blurry, too dark, or at an angle. Please upload a clearer photo.",
+        finalConfidence > 0.20
+          ? "Some details detected but confidence is low. Please verify and fill in manually."
+          : "Unable to read ID details. Please ensure the card is well-lit, fully in frame, and not blurry.",
       can_autofill: false,
     };
   } catch (err) {
@@ -864,4 +1007,43 @@ export async function parseIdDocument(
       can_autofill: false,
     };
   }
+}
+
+/**
+ * Merges front and back OCR results into a single unified result.
+ * Front face provides name, id_number, date_of_birth, gender, id_type.
+ * Back face provides address, pincode, city, state.
+ */
+export function mergeOcrResults(
+  front: IdOcrResult | null | undefined,
+  back: IdOcrResult | null | undefined,
+): IdOcrResult | null {
+  if (!front && !back) return null;
+  if (!front) return back ?? null;
+  if (!back) return front ?? null;
+
+  const mergedFields: ParsedIdFields = {
+    ...front.fields,
+    ...back.fields,
+    name: front.fields.name || back.fields.name,
+    id_number: front.fields.id_number || back.fields.id_number,
+    date_of_birth: front.fields.date_of_birth || back.fields.date_of_birth,
+    gender: front.fields.gender || back.fields.gender,
+    id_type_detected: front.fields.id_type_detected || back.fields.id_type_detected,
+    address: back.fields.address || front.fields.address,
+    pincode: back.fields.pincode || front.fields.pincode,
+    city: back.fields.city || front.fields.city,
+    state: back.fields.state || front.fields.state,
+  };
+
+  const confidence = Math.max(front.confidence, back.confidence);
+  const canAutofill = front.can_autofill || back.can_autofill;
+  const detected = mergedFields.id_type_detected ?? "ID Document";
+
+  return {
+    fields: mergedFields,
+    confidence,
+    message: `${detected} details detected (${Math.round(confidence * 100)}% confidence)`,
+    can_autofill: canAutofill,
+  };
 }

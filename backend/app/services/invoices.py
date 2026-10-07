@@ -207,19 +207,31 @@ async def generate_invoice(
         else Decimal("0.00")
     )
     if late_fee > 0:
+        late_breakup = calculate_gst(
+            late_fee,
+            rates,
+            is_interstate=interstate,
+            is_registered=gst_registered,
+            inclusive=gst_inclusive,
+        )
         db.add(
             InvoiceItem(
                 hotel_id=hotel_id,
                 invoice_id=invoice.id,
                 description="Late checkout fee",
                 quantity=1,
-                rate=late_fee,
-                taxable_amount=late_fee,
-                tax_amount=Decimal("0.00"),
-                total_amount=late_fee,
+                rate=late_breakup.taxable_amount,
+                taxable_amount=late_breakup.taxable_amount,
+                tax_amount=late_breakup.total_tax,
+                total_amount=late_breakup.total_amount,
             )
         )
-        subtotal += late_fee
+        subtotal += late_breakup.taxable_amount
+        if interstate:
+            igst_total += late_breakup.igst_amount
+        else:
+            cgst_total += late_breakup.cgst_amount
+            sgst_total += late_breakup.sgst_amount
 
     total = money(
         subtotal + cgst_total + sgst_total + igst_total - booking.discount_amount

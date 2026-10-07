@@ -154,6 +154,7 @@ class AttendanceRowOut(BaseModel):
     department: str
     work_date: date
     check_in_at: datetime | None
+    first_check_in_at: datetime | None = None
     check_out_at: datetime | None
     working_minutes: int | None
     late_minutes: int | None
@@ -239,6 +240,7 @@ class RecordDetailOut(BaseModel):
     work_date: date
     status: str
     check_in_at: datetime | None
+    first_check_in_at: datetime | None = None
     check_out_at: datetime | None
     method_in: str | None
     method_out: str | None
@@ -313,6 +315,7 @@ class SelfTodayOut(BaseModel):
     hotel_longitude: Decimal | None = None
     work_date: date
     check_in_at: datetime | None
+    first_check_in_at: datetime | None = None
     check_out_at: datetime | None
     working_minutes: int | None
     status: str  # not_checked_in | working | late | checked_out

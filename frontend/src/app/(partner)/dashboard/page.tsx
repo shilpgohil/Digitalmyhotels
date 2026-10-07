@@ -10,13 +10,14 @@
  *
  * Sections
  * ─────────
- * 1. Smart Insights panel  — colour-coded AI-like statements
- * 2. Hero KPIs row         — RevPAR · ADR · ALOS · Occupancy · Revenue
- * 3. 30-day area trend     — revenue + occupancy overlay, interactive
- * 4. Mid row               — Room-status donut · Guest-mix donut · Week pattern bars
- * 5. Room-type revenue     — horizontal bar (ADR by room type)
- * 6. Bottom row            — Arrivals today · Cash/UPI split · In-house table
- * 7. Quick Actions
+ * 1. Room-status cards     — Live room inventory counts (top)
+ * 2. Operational top row   — Guest-mix donut · Cash/UPI split · Quick Actions
+ * 3. In-House guests table — Elevated to row 2 for immediate front-desk operations
+ * 4. Operational mid row   — Arrivals today · Week pattern bars
+ * 5. Room-type revenue     — Horizontal bar (ADR by room type)
+ * 6. Smart Insights panel  — Operational intelligence statements
+ * 7. Hero KPIs row         — RevPAR · ADR · ALOS · Occupancy · Revenue
+ * 8. 30-day area trend     — Revenue + occupancy overlay, interactive
  */
 
 import Link from "next/link";
@@ -61,6 +62,7 @@ import {
   TrendingDown,
   TrendingUp,
   UserCheck,
+  Users,
   UserX,
   Wallet,
   Wrench,
@@ -250,7 +252,7 @@ function RoomStatusCards() {
 // ── Custom tooltips ────────────────────────────────────────────────────────────
 function RevTooltip({ active, payload, label }: {
   active?: boolean;
-  payload?: { name: string; value: number | undefined; color: string }[];
+  payload?: { name: string; value: number | undefined; color: string; dataKey?: string }[];
   label?: string;
 }) {
   if (!active || !payload?.length) return null;
@@ -259,12 +261,13 @@ function RevTooltip({ active, payload, label }: {
       <p className="mb-1 font-semibold">{label}</p>
       {payload.map((entry) => {
         const v = entry.value ?? 0;
+        const dk = (entry as { dataKey?: string }).dataKey ?? entry.name;
         const text =
-          entry.name === "revenue"
-            ? fmtINR(v)
-            : entry.name === "occupancy_pct"
-              ? `${v.toFixed(0)}% occupied`
-              : `${v} check-ins`;
+          dk === "revenue" || entry.name.toLowerCase().includes("rev")
+            ? `${entry.name}: ${fmtINR(v)}`
+            : dk === "occupancy_pct" || entry.name.toLowerCase().includes("occupan")
+              ? `${entry.name}: ${v.toFixed(0)}%`
+              : `${entry.name}: ${v}`;
         return (
           <p key={entry.name} style={{ color: entry.color }}>
             {text}
@@ -384,37 +387,38 @@ export default function DashboardPage() {
         {/* ── 1. Live room-status cards (top of page per client 09/2026 final order) ── */}
         <RoomStatusCards />
 
-        {/* ── 2. Arrivals · Payment split · Quick Actions ─────────────────────── */}
+        {/* ── 2. Guest Mix · Payment split · Quick Actions ─────────────────────── */}
         <section className="grid gap-4 lg:grid-cols-3">
-          {/* Arrivals Today */}
-          {can(PERMISSIONS.bookingsView) && (
-            <SectionCard
-              title={t("arrivingTodayTitle")}
-              icon={BookOpen}
-              action={d?.arrivals_today ? (
-                <span className="text-xs font-bold text-gold-700">{d.arrivals_today} Total</span>
-              ) : undefined}
-            >
-              {dash.isLoading && <Skeleton className="h-24" />}
-              {!dash.isLoading && (d?.arrivals_today ?? 0) === 0 && (
-                <p className="text-sm text-muted-foreground py-3">{t("noArrivalsToday")}</p>
-              )}
-              {!dash.isLoading && (d?.arrivals_today ?? 0) > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    {d!.arrivals_today} confirmed guest{d!.arrivals_today > 1 ? "s" : ""} expected today.
-                  </p>
-                  <Link
-                    href="/checkin"
-                    className={cn(buttonVariants(), "w-full gap-2 bg-gold-500 text-navy-900 hover:bg-gold-400")}
-                  >
-                    <CheckSquare className="size-4" />
-                    {t("checkInBtn")}
-                  </Link>
-                </div>
-              )}
-            </SectionCard>
-          )}
+          {/* Guest type mix donut */}
+          <SectionCard title={t("guestMix")} icon={BookOpen}>
+            {dash.isLoading && <Skeleton className="h-44 w-full" />}
+            {donutData.length > 0 && (
+              <div className="flex items-center gap-3">
+                <ResponsiveContainer width={140} height={140}>
+                  <PieChart>
+                    <Pie data={donutData} dataKey="count" cx="50%" cy="50%" innerRadius={42} outerRadius={68} paddingAngle={2}>
+                      {donutData.map((_, i) => (
+                        <Cell key={i} fill={GUEST_COLORS[i % GUEST_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ fontSize: 12 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <ul className="flex-1 space-y-1.5 text-xs min-w-0">
+                  {donutData.map((item, i) => (
+                    <li key={item.guest_type} className="flex items-center gap-1.5 truncate">
+                      <span className="size-2.5 shrink-0 rounded-full" style={{ background: GUEST_COLORS[i % GUEST_COLORS.length] }} />
+                      <span className="text-muted-foreground capitalize truncate">{item.guest_type || "Unknown"}</span>
+                      <span className="ml-auto font-semibold tabular-nums">{item.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {!dash.isLoading && donutData.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">{t("noGuestData")}</p>
+            )}
+          </SectionCard>
 
           {/* Cash / UPI split */}
           {can(PERMISSIONS.paymentsView) && (
@@ -463,6 +467,11 @@ export default function DashboardPage() {
                   <UserCheck className="size-4" />{tn("myAttendance")}
                 </Link>
               )}
+              {activeRoleCode !== "housekeeping" && can(PERMISSIONS.staffView) && (
+                <Link href="/staff" className={cn(buttonVariants({ variant: "outline" }), "w-full justify-start gap-2")}>
+                  <Users className="size-4" />{tn("staffList")}
+                </Link>
+              )}
               <Link href="/rooms" className={cn(buttonVariants({ variant: "outline" }), "w-full justify-start gap-2")}>
                 <BedDouble className="size-4" />{t("viewRoomStatus")}
               </Link>
@@ -475,178 +484,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ── 3. Mid row: Guest mix · Week pattern ─────────────────────────── */}
-        <section className="grid gap-4 lg:grid-cols-2">
-          {/* Guest type mix donut */}
-          <SectionCard title={t("guestMix")} icon={BookOpen}>
-            {dash.isLoading && <Skeleton className="h-44 w-full" />}
-            {donutData.length > 0 && (
-              <div className="flex items-center gap-4">
-                <ResponsiveContainer width={170} height={170}>
-                  <PieChart>
-                    <Pie data={donutData} dataKey="count" cx="50%" cy="50%" innerRadius={50} outerRadius={78} paddingAngle={2}>
-                      {donutData.map((_, i) => (
-                        <Cell key={i} fill={GUEST_COLORS[i % GUEST_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ fontSize: 12 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <ul className="flex-1 space-y-1.5 text-xs">
-                  {donutData.map((item, i) => (
-                    <li key={item.guest_type} className="flex items-center gap-2">
-                      <span className="size-2.5 shrink-0 rounded-full" style={{ background: GUEST_COLORS[i % GUEST_COLORS.length] }} />
-                      <span className="text-muted-foreground capitalize">{item.guest_type || "Unknown"}</span>
-                      <span className="ml-auto font-semibold">{item.count}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {!dash.isLoading && donutData.length === 0 && (
-              <p className="py-6 text-center text-sm text-muted-foreground">{t("noGuestData")}</p>
-            )}
-          </SectionCard>
-
-          {/* Week pattern — which days are busiest */}
-          <SectionCard title={t("weekPattern")} icon={CalendarDays}>
-            {dash.isLoading && <Skeleton className="h-44 w-full" />}
-            {weekData.length > 0 && (
-              <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={weekData} margin={{ top: 0, right: 4, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="dow" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                  <YAxis tickFormatter={fmtRev} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={44} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="revenue" name="Avg Revenue" fill="#a08236" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                  <Bar dataKey="checkins" name="Avg Checkins" fill="#1e3a5f" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </SectionCard>
-        </section>
-
-        {/* ── 4. Room-type revenue horizontal bar ───────────────────────────── */}
-        {roomRevData.length > 0 && (
-          <SectionCard title={t("roomTypeRevenue")} icon={BedDouble}>
-            <div className="space-y-2.5">
-              {(() => {
-                const maxRev = Math.max(...roomRevData.map((r) => r.revenue), 1);
-                return roomRevData.map((r) => (
-                  <div key={r.name} className="flex items-center gap-3">
-                    <p className="w-28 shrink-0 text-xs font-medium truncate">{r.name}</p>
-                    <div className="flex-1 h-5 rounded bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded bg-gold-500 flex items-center justify-end pr-1.5"
-                        style={{ width: `${Math.round(r.revenue / maxRev * 100)}%` }}
-                      >
-                        {r.revenue / maxRev > 0.3 && (
-                          <span className="text-micro font-bold text-navy-900">{fmtRev(r.revenue)}</span>
-                        )}
-                      </div>
-                    </div>
-                    {r.revenue / maxRev <= 0.3 && (
-                      <span className="text-micro text-muted-foreground tabular-nums">{fmtRev(r.revenue)}</span>
-                    )}
-                    <p className="w-16 shrink-0 text-right text-label text-muted-foreground">
-                      ADR {fmtRev(r.adr)}
-                    </p>
-                  </div>
-                ));
-              })()}
-            </div>
-          </SectionCard>
-        )}
-
-        {/* ── 5. Smart Insights + KPIs + trend (client 09/2026: moved above In-House) ── */}
-        {/* Finance/Admin insights hidden from Housekeeping role           */}
-        {dash.isLoading && (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {[0, 1, 2].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
-          </div>
-        )}
-        {d?.insights && d.insights.length > 0 && (
-          <section>
-            <p className="mb-2 text-label font-bold uppercase tracking-widest text-muted-foreground">
-              {t("smartInsights")}
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {d.insights.map((ins) => {
-                const style = LEVEL_STYLES[ins.level] ?? LEVEL_STYLES.info;
-                const Icon = ICON_MAP[ins.icon] ?? TrendingUp;
-                return (
-                  <div
-                    key={ins.id}
-                    className={cn(
-                      "rounded-xl border p-4 flex gap-3",
-                      style.bg, style.border,
-                      ins.link && "cursor-pointer hover:opacity-90 transition-opacity",
-                    )}
-                    onClick={() => ins.link && router.push(ins.link)}
-                    role={ins.link ? "button" : undefined}
-                  >
-                    <Icon className={cn("size-5 shrink-0 mt-0.5", style.icon)} />
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-foreground">{ins.title}</p>
-                      <p className="mt-0.5 text-label leading-relaxed text-foreground/80">
-                        {ins.body}
-                      </p>
-                      {ins.metric && (
-                        <p className={cn("mt-1 text-xs font-bold", style.icon)}>{ins.metric}</p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* ── 6. Hero KPI chips — finance metrics only for Owner/Manager ─── */}
-        {showFinanceMetrics && (
-          <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <StatCard tone="white" isLoading={dash.isLoading} label={t("revpar")}       value={fmtINR(p(kpis?.revpar))}                                    subtitle={t("per30days")}          trend={p(kpis?.revpar_wow)} />
-            <StatCard tone="white" isLoading={dash.isLoading} label={t("adr")}          value={fmtINR(p(kpis?.adr))}                                       subtitle={t("perOccRoomNight")} />
-            <StatCard tone="white" isLoading={dash.isLoading} label={t("alos")}         value={`${p(kpis?.alos).toFixed(1)} ${t("nights")}`}                subtitle={t("avgStay")} />
-            <StatCard tone="white" isLoading={dash.isLoading} label={t("leadDays")}     value={`${p(kpis?.lead_days).toFixed(0)} ${t("days")}`}             subtitle={t("bookingLead")} />
-            <StatCard tone="white" isLoading={dash.isLoading} label={t("occupancyNow")} value={`${Math.round(p(d?.today_occupancy_pct))}%`}                 subtitle={`${d?.in_house_count ?? 0} in-house · ${d?.available_rooms ?? 0} free`} />
-          </section>
-        )}
-
-        {/* ── 7. 30-day trend (area + occupancy line, composed) ──────────── */}
-        <SectionCard
-          title={t("trend30d")}
-          icon={TrendingUp}
-          action={
-            <span className="text-label text-muted-foreground">
-              {t("last30days")}
-            </span>
-          }
-        >
-          {dash.isLoading && <Skeleton className="h-56 w-full" />}
-          {trendData.length > 0 && (
-            <ResponsiveContainer width="100%" height={220}>
-              <ComposedChart data={trendData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#a08236" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#a08236" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} interval={4} />
-                <YAxis yAxisId="rev" tickFormatter={fmtRev} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={48} />
-                <YAxis yAxisId="occ" orientation="right" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={36} />
-                <Tooltip content={<RevTooltip />} />
-                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                <Area yAxisId="rev" type="monotone" dataKey="revenue" name="revenue" fill="url(#revGrad)" stroke="#a08236" strokeWidth={2} dot={false} />
-                <Line yAxisId="occ" type="monotone" dataKey="occupancy_pct" name="occupancy_pct" stroke="#1e3a5f" strokeWidth={2} dot={false} strokeDasharray="4 2" />
-              </ComposedChart>
-            </ResponsiveContainer>
-          )}
-        </SectionCard>
-
-        {/* ── 8. In-House guests table ─────────────────────────────────────── */}
+        {/* ── 3. In-House guests table (elevated to row 2 for immediate front-desk visibility) ── */}
         {can(PERMISSIONS.guestsView) && (
           <SectionCard
             title={t("inHouseGuests")}
@@ -712,6 +550,176 @@ export default function DashboardPage() {
             )}
           </SectionCard>
         )}
+
+        {/* ── 4. Mid row: Arriving Today · Week pattern ───────────────────── */}
+        <section className={cn("grid gap-4", can(PERMISSIONS.bookingsView) ? "lg:grid-cols-2" : "grid-cols-1")}>
+          {/* Arrivals Today */}
+          {can(PERMISSIONS.bookingsView) && (
+            <SectionCard
+              title={t("arrivingTodayTitle")}
+              icon={BookOpen}
+              action={d?.arrivals_today ? (
+                <span className="text-xs font-bold text-gold-700">{d.arrivals_today} Total</span>
+              ) : undefined}
+            >
+              {dash.isLoading && <Skeleton className="h-40 w-full" />}
+              {!dash.isLoading && (d?.arrivals_today ?? 0) === 0 && (
+                <p className="text-sm text-muted-foreground py-6 text-center">{t("noArrivalsToday")}</p>
+              )}
+              {!dash.isLoading && (d?.arrivals_today ?? 0) > 0 && (
+                <div className="space-y-3 py-2">
+                  <p className="text-sm text-muted-foreground">
+                    {d!.arrivals_today} confirmed guest{d!.arrivals_today > 1 ? "s" : ""} expected today.
+                  </p>
+                  <Link
+                    href="/checkin"
+                    className={cn(buttonVariants(), "w-full gap-2 bg-gold-500 text-navy-900 hover:bg-gold-400")}
+                  >
+                    <CheckSquare className="size-4" />
+                    {t("checkInBtn")}
+                  </Link>
+                </div>
+              )}
+            </SectionCard>
+          )}
+
+          {/* Week pattern — which days are busiest */}
+          <SectionCard title={t("weekPattern")} icon={CalendarDays}>
+            {dash.isLoading && <Skeleton className="h-40 w-full" />}
+            {weekData.length > 0 && (
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={weekData} margin={{ top: 0, right: 4, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="dow" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                  <YAxis tickFormatter={fmtRev} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={44} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="revenue" name="Avg Revenue" fill="#a08236" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey="checkins" name="Avg Checkins" fill="#1e3a5f" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </SectionCard>
+        </section>
+
+        {/* ── 5. Room-type revenue horizontal bar ───────────────────────────── */}
+        {roomRevData.length > 0 && (
+          <SectionCard title={t("roomTypeRevenue")} icon={BedDouble}>
+            <div className="space-y-2.5">
+              {(() => {
+                const maxRev = Math.max(...roomRevData.map((r) => r.revenue), 1);
+                return roomRevData.map((r) => (
+                  <div key={r.name} className="flex items-center gap-3">
+                    <p className="w-28 shrink-0 text-xs font-medium truncate">{r.name}</p>
+                    <div className="flex-1 h-5 rounded bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded bg-gold-500 flex items-center justify-end pr-1.5"
+                        style={{ width: `${Math.round(r.revenue / maxRev * 100)}%` }}
+                      >
+                        {r.revenue / maxRev > 0.3 && (
+                          <span className="text-micro font-bold text-navy-900">{fmtRev(r.revenue)}</span>
+                        )}
+                      </div>
+                    </div>
+                    {r.revenue / maxRev <= 0.3 && (
+                      <span className="text-micro text-muted-foreground tabular-nums">{fmtRev(r.revenue)}</span>
+                    )}
+                    <p className="w-auto shrink-0 text-right text-label text-muted-foreground">
+                      {t("avgDailyRate")}: {fmtRev(r.adr)}
+                    </p>
+                  </div>
+                ));
+              })()}
+            </div>
+          </SectionCard>
+        )}
+
+        {/* ── 6. Smart Insights + KPIs + trend (client 09/2026: moved above In-House) ── */}
+        {/* Finance/Admin insights hidden from Housekeeping role           */}
+        {dash.isLoading && (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
+          </div>
+        )}
+        {d?.insights && d.insights.length > 0 && (
+          <section>
+            <p className="mb-2 text-label font-bold uppercase tracking-widest text-muted-foreground">
+              {t("smartInsights")}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {d.insights.map((ins) => {
+                const style = LEVEL_STYLES[ins.level] ?? LEVEL_STYLES.info;
+                const Icon = ICON_MAP[ins.icon] ?? TrendingUp;
+                return (
+                  <div
+                    key={ins.id}
+                    className={cn(
+                      "rounded-xl border p-4 flex gap-3",
+                      style.bg, style.border,
+                      ins.link && "cursor-pointer hover:opacity-90 transition-opacity",
+                    )}
+                    onClick={() => ins.link && router.push(ins.link)}
+                    role={ins.link ? "button" : undefined}
+                  >
+                    <Icon className={cn("size-5 shrink-0 mt-0.5", style.icon)} />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-foreground">{ins.title}</p>
+                      <p className="mt-0.5 text-label leading-relaxed text-foreground/80">
+                        {ins.body}
+                      </p>
+                      {ins.metric && (
+                        <p className={cn("mt-1 text-xs font-bold", style.icon)}>{ins.metric}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* ── 7. Hero KPI chips — finance metrics only for Owner/Manager ─── */}
+        {showFinanceMetrics && (
+          <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <StatCard tone="white" isLoading={dash.isLoading} label={t("revpar")}       value={fmtINR(p(kpis?.revpar))}                                    subtitle={t("per30days")}          trend={p(kpis?.revpar_wow)} />
+            <StatCard tone="white" isLoading={dash.isLoading} label={t("adr")}          value={fmtINR(p(kpis?.adr))}                                       subtitle={t("perOccRoomNight")} />
+            <StatCard tone="white" isLoading={dash.isLoading} label={t("alos")}         value={`${p(kpis?.alos).toFixed(1)} ${t("nights")}`}                subtitle={t("avgStay")} />
+            <StatCard tone="white" isLoading={dash.isLoading} label={t("leadDays")}     value={`${p(kpis?.lead_days).toFixed(0)} ${t("days")}`}             subtitle={t("bookingLead")} />
+            <StatCard tone="white" isLoading={dash.isLoading} label={t("occupancyNow")} value={`${Math.round(p(d?.today_occupancy_pct))}%`}                 subtitle={`${d?.in_house_count ?? 0} in-house · ${d?.available_rooms ?? 0} free`} />
+          </section>
+        )}
+
+        {/* ── 8. 30-day trend (area + occupancy line, composed) ──────────── */}
+        <SectionCard
+          title={t("trend30d")}
+          icon={TrendingUp}
+          action={
+            <span className="text-label text-muted-foreground">
+              {t("last30days")}
+            </span>
+          }
+        >
+          {dash.isLoading && <Skeleton className="h-56 w-full" />}
+          {trendData.length > 0 && (
+            <ResponsiveContainer width="100%" height={220}>
+              <ComposedChart data={trendData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#a08236" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#a08236" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} interval={4} />
+                <YAxis yAxisId="rev" tickFormatter={fmtRev} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={48} />
+                <YAxis yAxisId="occ" orientation="right" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={36} />
+                <Tooltip content={<RevTooltip />} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                <Area yAxisId="rev" type="monotone" dataKey="revenue" name={t("legendRevenue")} fill="url(#revGrad)" stroke="#a08236" strokeWidth={2} dot={false} />
+                <Line yAxisId="occ" type="monotone" dataKey="occupancy_pct" name={t("legendOccupancy")} stroke="#1e3a5f" strokeWidth={2} dot={false} strokeDasharray="4 2" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </SectionCard>
 
       </main>
     </>

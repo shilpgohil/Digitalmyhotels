@@ -180,7 +180,7 @@ function HistoryContent() {
                 <TableCell
                   className={cn("tabular-nums", row.late_minutes && "font-semibold text-warning")}
                 >
-                  {fmtClock(row.check_in_at)}
+                  {fmtClock(row.first_check_in_at || row.check_in_at)}
                 </TableCell>
                 <TableCell className="tabular-nums">{fmtClock(row.check_out_at)}</TableCell>
                 <TableCell>

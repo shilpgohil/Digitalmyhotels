@@ -450,9 +450,19 @@ function BookingDetailSheet({
                 label={t("discount")}
                 value={
                   Number(b.discount_amount) > 0 ? (
-                    <span className="font-medium text-emerald-600 tabular-nums">
-                      −{fmtINR(b.discount_amount)}
-                    </span>
+                    <div className="flex flex-col items-end text-right">
+                      <span className="font-medium text-emerald-600 tabular-nums">
+                        −{fmtINR(b.discount_amount)}
+                      </span>
+                      {b.discount_reason && (
+                        <span
+                          className="mt-0.5 text-xs text-muted-foreground font-normal max-w-[240px] break-words"
+                          title={b.discount_reason}
+                        >
+                          {b.discount_reason}
+                        </span>
+                      )}
+                    </div>
                   ) : (
                     <span className="text-muted-foreground tabular-nums">{fmtINR(b.discount_amount)}</span>
                   )

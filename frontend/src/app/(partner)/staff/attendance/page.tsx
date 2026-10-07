@@ -256,7 +256,9 @@ function TodaysAttendanceContent() {
                 </span>
               </TableCell>
               <TableCell>{t(`dept_${row.department}`)}</TableCell>
-              <TableCell className="tabular-nums">{fmtClock(row.check_in_at)}</TableCell>
+              <TableCell className="tabular-nums">
+                {fmtClock(row.first_check_in_at || row.check_in_at)}
+              </TableCell>
               <TableCell className="tabular-nums">{fmtClock(row.check_out_at)}</TableCell>
               <TableCell className="tabular-nums">{fmtHrs(row.working_minutes)}</TableCell>
               <TableCell>

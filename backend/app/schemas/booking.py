@@ -34,6 +34,7 @@ class BookingOut(ORMModel):
     children: int
     room_count: int
     discount_amount: Decimal
+    discount_reason: str | None = None
     tax_amount: Decimal
     total_amount: Decimal
     advance_amount: Decimal
@@ -110,6 +111,7 @@ class BookingCreate(BaseModel):
     check_out_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
     special_requests: str | None = Field(default=None, max_length=2000)
     discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
+    discount_reason: str | None = Field(default=None, max_length=1000)
     security_deposit: Decimal = Field(default=Decimal("0.00"), ge=0)
     emergency_contact_name: str | None = Field(default=None, max_length=200)
     emergency_contact_relation: str | None = Field(default=None, max_length=100)
@@ -174,6 +176,7 @@ class BookingUpdate(BaseModel):
     children: int | None = Field(default=None, ge=0, le=40)
     special_requests: str | None = Field(default=None, max_length=2000)
     discount_amount: Decimal | None = Field(default=None, ge=0)
+    discount_reason: str | None = Field(default=None, max_length=1000)
     emergency_contact_name: str | None = Field(default=None, max_length=200)
     emergency_contact_relation: str | None = Field(default=None, max_length=100)
     emergency_contact_phone: str | None = Field(default=None, max_length=32)

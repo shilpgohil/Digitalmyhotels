@@ -28,6 +28,7 @@ import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
+import { formatStatus } from "@/lib/format-status";
 import { PERMISSIONS } from "@/lib/permissions";
 import { RequirePermission } from "@/components/auth/require-permission";
 import type {
@@ -155,7 +156,7 @@ function ReportsContent() {
     const header = ["Booking No", "Guest", "Invoice No", "Date", "Taxable", "CGST", "SGST", "IGST", "Total", "Status"];
     const rowData = gstRows.data.items.map((r) => [
       r.booking_number, r.guest_name, r.invoice_number, r.invoice_date,
-      r.taxable, r.cgst, r.sgst, r.igst, r.total, r.status,
+      r.taxable, r.cgst, r.sgst, r.igst, r.total, formatStatus(r.status),
     ]);
     const totals = ["TOTAL", "", "", "",
       gstRows.data.total_taxable, "", "", "",

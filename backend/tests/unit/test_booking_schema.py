@@ -44,3 +44,41 @@ def test_source_accepts_allowed_values(source: str) -> None:
 def test_source_rejects_unknown() -> None:
     with pytest.raises(ValidationError):
         BookingCreate.model_validate({**_BASE, "source": "ota"})
+
+
+def test_discount_reason_accepted_in_booking_create() -> None:
+    body = BookingCreate.model_validate({**_BASE, "discount_reason": "VIP repeat guest discount"})
+    assert body.discount_reason == "VIP repeat guest discount"
+
+
+def test_discount_reason_in_booking_out() -> None:
+    import uuid
+    from datetime import datetime
+    from decimal import Decimal
+    from app.schemas.booking import BookingOut
+
+    data = {
+        "id": uuid.uuid4(),
+        "booking_number": "BK-0049",
+        "status": "checked_out",
+        "payment_status": "paid",
+        "source": "walk_in",
+        "check_in_date": TODAY,
+        "check_out_date": TODAY + timedelta(days=1),
+        "adults": 1,
+        "children": 0,
+        "room_count": 1,
+        "discount_amount": Decimal("200.00"),
+        "discount_reason": "Special manager discount",
+        "tax_amount": Decimal("24.00"),
+        "total_amount": Decimal("1000.00"),
+        "advance_amount": Decimal("0.00"),
+        "security_deposit": Decimal("0.00"),
+        "due_amount": Decimal("0.00"),
+        "special_requests": None,
+        "primary_guest_id": uuid.uuid4(),
+        "created_at": datetime.now(),
+    }
+    out = BookingOut.model_validate(data)
+    assert out.discount_reason == "Special manager discount"
+

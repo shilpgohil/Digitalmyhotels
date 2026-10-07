@@ -209,6 +209,8 @@ def _apply_check_in(
     selfie_key: str | None = None,
     performed_by: UUID | None = None,
 ) -> None:
+    if record.first_check_in_at is None:
+        record.first_check_in_at = now_utc
     record.check_in_at = now_utc
     record.method_in = method
     record.performed_by_id = performed_by
@@ -241,6 +243,9 @@ def _apply_check_out(
     selfie_key: str | None = None,
     performed_by: UUID | None = None,
 ) -> None:
+    if record.check_in_at is not None:
+        session_mins = max(0, int((now_utc - record.check_in_at).total_seconds() // 60))
+        record.accumulated_minutes = (record.accumulated_minutes or 0) + session_mins
     record.check_out_at = now_utc
     record.method_out = method
     if performed_by is not None:
@@ -283,6 +288,10 @@ async def self_check_in(
         # We reset the checkout fields and tag the record as a re-entry —
         # the earlier checkout time is preserved in the note for audit purposes.
         if record.check_out_at is not None:
+            if not record.accumulated_minutes and record.check_in_at is not None:
+                record.accumulated_minutes = max(
+                    0, int((record.check_out_at - record.check_in_at).total_seconds() // 60)
+                )
             prev_out = record.check_out_at.strftime("%H:%M")
             record.check_out_at = None
             record.check_out_lat = None
@@ -440,15 +449,9 @@ async def self_today(db: AsyncSession, tenant: TenantContext) -> SelfTodayOut:
     if record is not None and record.check_in_at is not None:
         if record.check_out_at is None:
             status = "late" if record.status == "late" else "working"
-            working_minutes = int(
-                (datetime.now(UTC) - record.check_in_at).total_seconds()
-                // 60
-            )
         else:
             status = "checked_out"
-            working_minutes = int(
-                (record.check_out_at - record.check_in_at).total_seconds() // 60
-            )
+        working_minutes = _working_minutes(record)
     return SelfTodayOut(
         staff_profile_id=profile.id if profile else None,
         staff_code=profile.staff_code if profile else None,
@@ -460,6 +463,7 @@ async def self_today(db: AsyncSession, tenant: TenantContext) -> SelfTodayOut:
         hotel_longitude=hotel.longitude if hotel.geofence_enabled else None,
         work_date=record.work_date if record else today,
         check_in_at=record.check_in_at if record else None,
+        first_check_in_at=(record.first_check_in_at or record.check_in_at) if record else None,
         check_out_at=record.check_out_at if record else None,
         working_minutes=working_minutes,
         status=status,
@@ -487,6 +491,10 @@ async def front_desk_record(
     if action == "in":
         if record is not None and record.check_in_at is not None:
             if record.check_out_at is not None:
+                if not record.accumulated_minutes and record.check_in_at is not None:
+                    record.accumulated_minutes = max(
+                        0, int((record.check_out_at - record.check_in_at).total_seconds() // 60)
+                    )
                 # Re-check-in after checkout — same logic as self_check_in.
                 prev_out = record.check_out_at.strftime("%H:%M")
                 record.check_out_at = None
@@ -582,10 +590,16 @@ async def correct_record(
     }
     if body.check_in_at is not None:
         record.check_in_at = body.check_in_at
+        if record.first_check_in_at is None:
+            record.first_check_in_at = body.check_in_at
         record.method_in = "manual"
     if body.check_out_at is not None:
         record.check_out_at = body.check_out_at
         record.method_out = "manual"
+    if record.check_in_at is not None and record.check_out_at is not None:
+        record.accumulated_minutes = max(
+            0, int((record.check_out_at - record.check_in_at).total_seconds() // 60)
+        )
     if body.status is not None:
         record.status = body.status
     record.note = body.note
@@ -628,8 +642,14 @@ def _row_status(profile_status: str, rec: AttendanceRecord | None) -> str:
 def _working_minutes(rec: AttendanceRecord | None) -> int | None:
     if rec is None or rec.check_in_at is None:
         return None
-    end = rec.check_out_at or datetime.now(tz=rec.check_in_at.tzinfo)
-    return int((end - rec.check_in_at).total_seconds() // 60)
+    accumulated = rec.accumulated_minutes or 0
+    if rec.check_out_at is not None:
+        if accumulated == 0 and rec.check_out_at > rec.check_in_at:
+            return max(0, int((rec.check_out_at - rec.check_in_at).total_seconds() // 60))
+        return accumulated
+    now_tz = datetime.now(tz=rec.check_in_at.tzinfo)
+    current_session = max(0, int((now_tz - rec.check_in_at).total_seconds() // 60))
+    return accumulated + current_session
 
 
 async def today_attendance(
@@ -735,6 +755,7 @@ async def today_attendance(
                 department=profile.department,
                 work_date=day,
                 check_in_at=rec.check_in_at if rec else None,
+                first_check_in_at=rec.first_check_in_at or rec.check_in_at if rec else None,
                 check_out_at=rec.check_out_at if rec else None,
                 working_minutes=_working_minutes(rec),
                 late_minutes=rec.late_minutes if rec else None,
@@ -802,6 +823,7 @@ async def history(
             department=profile.department,
             work_date=rec.work_date,
             check_in_at=rec.check_in_at,
+            first_check_in_at=rec.first_check_in_at or rec.check_in_at,
             check_out_at=rec.check_out_at,
             working_minutes=_working_minutes(rec),
             late_minutes=rec.late_minutes,
@@ -1102,6 +1124,7 @@ async def record_detail(
         work_date=rec.work_date,
         status=_row_status(profile.status, rec),
         check_in_at=rec.check_in_at,
+        first_check_in_at=rec.first_check_in_at or rec.check_in_at,
         check_out_at=rec.check_out_at,
         method_in=rec.method_in,
         method_out=rec.method_out,

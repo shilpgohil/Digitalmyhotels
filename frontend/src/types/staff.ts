@@ -80,6 +80,7 @@ export interface AttendanceRowOut {
   department: StaffDepartment;
   work_date: string;
   check_in_at: string | null;
+  first_check_in_at?: string | null;
   check_out_at: string | null;
   working_minutes: number | null;
   late_minutes: number | null;
@@ -163,6 +164,7 @@ export interface RecordDetailOut {
   work_date: string;
   status: string;
   check_in_at: string | null;
+  first_check_in_at?: string | null;
   check_out_at: string | null;
   method_in: string | null;
   method_out: string | null;
@@ -217,6 +219,7 @@ export interface SelfTodayOut {
   hotel_longitude?: string | number | null;
   work_date: string;
   check_in_at: string | null;
+  first_check_in_at?: string | null;
   check_out_at: string | null;
   working_minutes: number | null;
   status: "not_checked_in" | "working" | "late" | "checked_out";

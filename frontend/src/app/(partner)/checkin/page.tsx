@@ -107,6 +107,7 @@ import { RoomReplaceControl } from "@/components/checkin/room-replace-control";
 import { SelectedServicesList } from "@/components/checkin/selected-services-list";
 import { ServiceChips } from "@/components/checkin/service-chips";
 import { AutofillBanner } from "@/components/checkin/autofill-banner";
+import { mergeOcrResults } from "@/lib/id-ocr";
 import { serviceChargeAmount } from "@/components/checkin/service-utils";
 import type { ServiceItem, DocSide } from "@/components/checkin/types";
 
@@ -693,6 +694,19 @@ function DocUpload({
   const [ocrRunning, setOcrRunning] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCameraClick = () => {
+    const isMobile =
+      typeof navigator !== "undefined" &&
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile && cameraInputRef.current) {
+      cameraInputRef.current.click();
+    } else {
+      setCameraOpen(true);
+    }
+  };
 
   // Clean up blob URL when component unmounts
   useEffect(() => {
@@ -827,7 +841,18 @@ function DocUpload({
 
   return (
     <div className="space-y-1.5">
-      <label
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => {
+          if (guestId && !busy) fileInputRef.current?.click();
+        }}
+        onKeyDown={(e) => {
+          if (guestId && !busy && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
         className={cn(
           "relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 overflow-hidden text-center text-xs transition-colors",
           !guestId && "pointer-events-none opacity-40",
@@ -849,7 +874,7 @@ function DocUpload({
               uploaded ? "bg-success/80 text-white" : "bg-gold-500/80 text-navy-900",
             )}>
               {overlayStatusText}
-        </div>
+            </div>
           </>
         ) : (
           <>
@@ -863,27 +888,52 @@ function DocUpload({
           </>
         )}
         <input
+          ref={fileInputRef}
           type="file"
-          // Selfie tile: any image + front camera on mobile.
-          accept={side === "selfie" ? "image/*" : "image/png,image/jpeg,image/webp"}
-          capture={side === "selfie" ? "user" : undefined}
+          accept="image/png,image/jpeg,image/webp,application/pdf"
           className="hidden"
           disabled={!guestId || busy}
-          onChange={(e) => onFile(e.target.files?.[0])}
+          onChange={(e) => {
+            onFile(e.target.files?.[0]);
+            e.target.value = "";
+          }}
         />
-      </label>
-      {side === "selfie" && !cameraOpen && (
-        <button
-          type="button"
-          onClick={() => setCameraOpen(true)}
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture={side === "selfie" ? "user" : "environment"}
+          className="hidden"
           disabled={!guestId || busy}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-label font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors disabled:opacity-40"
-        >
-          <Camera className="size-3.5" aria-hidden />
-          {t("useCamera")}
-        </button>
+          onChange={(e) => {
+            onFile(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+      </div>
+      {!cameraOpen && (
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleCameraClick}
+            disabled={!guestId || busy}
+            className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white py-1.5 text-label font-medium text-slate-700 hover:border-gold-400 hover:text-gold-700 transition-colors shadow-xs disabled:opacity-40"
+          >
+            <Camera className="size-3 text-gold-600" aria-hidden />
+            {t("useCamera")}
+          </button>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!guestId || busy}
+            className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white py-1.5 text-label font-medium text-slate-700 hover:border-gold-400 hover:text-gold-700 transition-colors shadow-xs disabled:opacity-40"
+          >
+            <Upload className="size-3 text-slate-500" aria-hidden />
+            {t("uploadPhoto")}
+          </button>
+        </div>
       )}
-      {side === "selfie" && cameraOpen && (
+      {cameraOpen && (
         <InlineCameraCapture
           onCapture={(file) => onFile(file)}
           onClose={() => setCameraOpen(false)}
@@ -944,6 +994,19 @@ function QueuedDocUpload({
   /** True while the preview shows the SAVED document (nothing new queued). */
   const [showingExisting, setShowingExisting] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCameraClick = () => {
+    const isMobile =
+      typeof navigator !== "undefined" &&
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile && cameraInputRef.current) {
+      cameraInputRef.current.click();
+    } else {
+      setCameraOpen(true);
+    }
+  };
 
   useEffect(() => {
     return () => { if (preview) URL.revokeObjectURL(preview); };
@@ -1025,7 +1088,16 @@ function QueuedDocUpload({
 
   return (
     <div className="space-y-1.5">
-      <label
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => fileInputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
         className={cn(
           "relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 overflow-hidden text-center text-xs transition-colors",
           preview
@@ -1058,25 +1130,48 @@ function QueuedDocUpload({
           </>
         )}
         <input
+          ref={fileInputRef}
           type="file"
-          // Selfie tile: any image + front camera on mobile.
-          accept={side === "selfie" ? "image/*" : "image/png,image/jpeg,image/webp"}
-          capture={side === "selfie" ? "user" : undefined}
+          accept="image/png,image/jpeg,image/webp,application/pdf"
           className="hidden"
-          onChange={(e) => onFile(e.target.files?.[0])}
+          onChange={(e) => {
+            onFile(e.target.files?.[0]);
+            e.target.value = "";
+          }}
         />
-      </label>
-      {side === "selfie" && !cameraOpen && (
-        <button
-          type="button"
-          onClick={() => setCameraOpen(true)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-label font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
-        >
-          <Camera className="size-3.5" aria-hidden />
-          {t("useCamera")}
-              </button>
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture={side === "selfie" ? "user" : "environment"}
+          className="hidden"
+          onChange={(e) => {
+            onFile(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+      </div>
+      {!cameraOpen && (
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleCameraClick}
+            className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white py-1.5 text-label font-medium text-slate-700 hover:border-gold-400 hover:text-gold-700 transition-colors shadow-xs"
+          >
+            <Camera className="size-3 text-gold-600" aria-hidden />
+            {t("useCamera")}
+          </button>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white py-1.5 text-label font-medium text-slate-700 hover:border-gold-400 hover:text-gold-700 transition-colors shadow-xs"
+          >
+            <Upload className="size-3 text-slate-500" aria-hidden />
+            {t("uploadPhoto")}
+          </button>
+        </div>
       )}
-      {side === "selfie" && cameraOpen && (
+      {cameraOpen && (
         <InlineCameraCapture
           onCapture={(file) => onFile(file)}
           onClose={() => setCameraOpen(false)}
@@ -1136,11 +1231,11 @@ function NewGuestForm({
   const api = useApi();
   const [docs, setDocs] = useState<{ side: DocSide; file: File }[]>([]);
   const [ocrResult, setOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
-  // Separate state for back-face (address-only) OCR result.
-  // Using a dedicated state ensures replacing the back image ALWAYS re-shows
-  // the banner — even if the address fields are already filled (client bug:
-  // the previous || pattern silently discarded replacement scan results).
   const [backOcrResult, setBackOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
+  const unifiedOcrResult = useMemo(
+    () => mergeOcrResults(ocrResult, backOcrResult),
+    [ocrResult, backOcrResult],
+  );
   const [form, setForm] = useState<GuestCreatePayload>({
     full_name: "",
     phone: initialPhone,
@@ -1258,10 +1353,10 @@ function NewGuestForm({
         />
       </div>
 
-      {/* Front-face OCR autofill banner (name, DOB, gender, ID number) */}
-      {ocrResult && (
+      {/* Unified OCR autofill banner (merges front + back cards into a single preview box) */}
+      {unifiedOcrResult && (
         <AutofillBanner
-          result={ocrResult}
+          result={unifiedOcrResult}
           onAccept={(fields) => {
             if (fields.name) set("full_name", fields.name);
             if (fields.id_number && !isIdMask(fields.id_number)) {
@@ -1274,29 +1369,18 @@ function NewGuestForm({
             if (fields.gender) set("gender", fields.gender);
             if (fields.date_of_birth) set("date_of_birth", fields.date_of_birth);
             if (fields.address) set("address", fields.address);
-            if (fields.id_type_detected) set("id_proof_type", fields.id_type_detected);
-            setOcrResult(null);
-            toast.success(t("guestAutofilled"));
-          }}
-          onDismiss={() => setOcrResult(null)}
-        />
-      )}
-
-      {/* Back-face OCR banner — address fields only.
-          Shown every time a back image is uploaded (including replacements)
-          so staff always get an explicit prompt before any address is overwritten. */}
-      {backOcrResult && (
-        <AutofillBanner
-          result={backOcrResult}
-          onAccept={(fields) => {
-            if (fields.address) set("address", fields.address);
             if (fields.pincode) set("postal_code", fields.pincode);
             if (fields.city) set("city", fields.city);
             if (fields.state) set("state", fields.state);
+            if (fields.id_type_detected) set("id_proof_type", fields.id_type_detected);
+            setOcrResult(null);
             setBackOcrResult(null);
-            toast.success(t("addressAutofilled"));
+            toast.success(t("guestAutofilled"));
           }}
-          onDismiss={() => setBackOcrResult(null)}
+          onDismiss={() => {
+            setOcrResult(null);
+            setBackOcrResult(null);
+          }}
         />
       )}
 
@@ -1980,7 +2064,7 @@ function AdditionalGuestEntry({
             side="front"
             label={t("uploadFront")}
             onQueued={handleQueueDoc}
-            onOcrResult={(r) => { setCoGuestOcrResult(r); }}
+            onOcrResult={(r) => { setCoGuestOcrResult((prev) => prev ? mergeOcrResults(r, prev) : r); }}
             guestId={resolved.guest_id}
             existingDocId={existingDocs.front}
             initialFile={docs.find((d) => d.side === "front")?.file ?? null}
@@ -1989,7 +2073,7 @@ function AdditionalGuestEntry({
             side="back"
             label={t("uploadBack")}
             onQueued={handleQueueDoc}
-            onOcrResult={(r) => { setCoGuestOcrResult(r); }}
+            onOcrResult={(r) => { setCoGuestOcrResult((prev) => prev ? mergeOcrResults(prev, r) : r); }}
             guestId={resolved.guest_id}
             existingDocId={existingDocs.back}
             initialFile={docs.find((d) => d.side === "back")?.file ?? null}

@@ -1098,14 +1098,6 @@ function CheckoutContent() {
                             {fmtMoney(totals.roomSubtotal)}
                           </span>
                         </div>
-                        {/* GST row only for "GST Including Customer" hotels
-                            (client 09/2026 modes) */}
-                        {showGstRow && totals.gst > 0 && (
-                          <div className="flex justify-between px-3 py-2">
-                            <span className="text-muted-foreground">{tp("gst")}</span>
-                            <span className="font-medium tabular-nums">{fmtMoney(totals.gst)}</span>
-                          </div>
-                        )}
                         {/* Prior stay charges — shown individually if available, else lumped */}
                         {priorCharges.length > 0 ? (
                           priorCharges
@@ -1164,6 +1156,13 @@ function CheckoutContent() {
                             <span className="font-medium text-emerald-600 tabular-nums">
                               −{fmtMoney(totals.discount)}
                             </span>
+                          </div>
+                        )}
+                        {/* GST row only for "GST Including Customer" hotels (client 09/2026 modes) */}
+                        {showGstRow && totals.gst > 0 && (
+                          <div className="flex justify-between px-3 py-2">
+                            <span className="text-muted-foreground">{tp("gst")}</span>
+                            <span className="font-medium tabular-nums">{fmtMoney(totals.gst)}</span>
                           </div>
                         )}
                         <div className="flex justify-between px-3 py-2">

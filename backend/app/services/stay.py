@@ -862,6 +862,9 @@ async def quote_checkout(
         if overtime_hours > 0 and hourly_rate > 0
         else Decimal("0.00")
     )
+    overtime_breakup = calculate_gst(
+        overtime_amount, rates, is_registered=gst_registered, inclusive=gst_inclusive
+    )
 
     # ── totals ─────────────────────────────────────────────────────────────
     final_total = _m(
@@ -869,7 +872,7 @@ async def quote_checkout(
             room_breakup.total_amount
             + existing_total
             + proposed_total
-            + overtime_amount
+            + overtime_breakup.total_amount
             - effective_discount,
             Decimal("0.00"),
         )
@@ -888,7 +891,12 @@ async def quote_checkout(
         "proposed_charges_tax": proposed_tax,
         "proposed_charges_total": proposed_total,
         "charges_total": _m(existing_total + proposed_total),
-        "gst_amount": _m(room_breakup.total_tax + existing_tax + proposed_tax),
+        "gst_amount": _m(
+            room_breakup.total_tax
+            + existing_tax
+            + proposed_tax
+            + overtime_breakup.total_tax
+        ),
         "overtime_hours": overtime_hours,
         "overtime_rate_per_hour": hourly_rate,
         "overtime_amount": overtime_amount,
@@ -951,9 +959,18 @@ async def compute_settlement(
     charges_total = _m(sum((c.total_amount for c in charges), Decimal("0.00")))
     charges_tax = _m(sum((c.tax_amount for c in charges), Decimal("0.00")))
 
+    late_tax = Decimal("0.00")
+    late_total = _m(late_fee)
+    if late_fee > 0:
+        late_breakup = calculate_gst(
+            late_fee, rates, is_registered=gst_registered, inclusive=gst_inclusive
+        )
+        late_tax = late_breakup.total_tax
+        late_total = late_breakup.total_amount
+
     final_total = _m(
         max(
-            room_breakup.total_amount + charges_total + late_fee - booking.discount_amount,
+            room_breakup.total_amount + charges_total + late_total - booking.discount_amount,
             Decimal("0.00"),
         )
     )
@@ -963,7 +980,7 @@ async def compute_settlement(
 
     return {
         "room_subtotal": room_taxable,
-        "gst_amount": _m(room_breakup.total_tax + charges_tax),
+        "gst_amount": _m(room_breakup.total_tax + charges_tax + late_tax),
         "charges_total": charges_total,
         "late_fee": _m(late_fee),
         "discount": booking.discount_amount,
@@ -1023,6 +1040,7 @@ async def check_out(
     if discount_changed:
         previous_discount = booking.discount_amount
         booking.discount_amount = _m(body.discount_amount)  # type: ignore[arg-type]
+        booking.discount_reason = body.discount_reason.strip() if body.discount_reason else None
         await write_audit(
             db,
             action="stay.checkout_discount",
@@ -1037,6 +1055,8 @@ async def check_out(
             },
             correlation_id=correlation_id,
         )
+    elif body.discount_reason and body.discount_reason.strip():
+        booking.discount_reason = body.discount_reason.strip()
 
     # ── stage the desk's new charges (same pricing as the quote) ───────────
     if body.charges:

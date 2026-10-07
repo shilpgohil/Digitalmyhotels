@@ -96,6 +96,14 @@ class AttendanceRecord(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     check_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     check_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # First check-in timestamp of the day (preserved across re-entries/split shifts)
+    first_check_in_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Cumulative minutes worked across earlier closed sessions for the day
+    accumulated_minutes: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
 
     # Geofence evidence — stored for audit even when the fence is disabled.
     check_in_lat: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)

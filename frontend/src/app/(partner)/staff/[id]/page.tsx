@@ -404,7 +404,7 @@ function StaffProfileContent({ staffId }: { readonly staffId: string }) {
                         <TableCell className="tabular-nums">
                           <div className="flex flex-col gap-0.5">
                             <span className="font-medium">
-                              {fmtClock(row.check_in_at)}
+                              {fmtClock(row.first_check_in_at || row.check_in_at)}
                               {row.late_minutes ? (
                                 <span className="ml-1 text-xs font-semibold text-warning">
                                   +{row.late_minutes}m

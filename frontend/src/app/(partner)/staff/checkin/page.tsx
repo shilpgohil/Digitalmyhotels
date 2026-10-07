@@ -134,16 +134,18 @@ function StaffCheckinContent() {
               const working =
                 !!row?.check_in_at && !row.check_out_at;
               const done = !!row?.check_out_at;
-              const durationMin = row?.check_in_at
-                ? Math.max(
-                    0,
-                    Math.floor(
-                      ((row.check_out_at ? new Date(row.check_out_at).getTime() : now) -
-                        new Date(row.check_in_at).getTime()) /
-                        60000,
-                    ),
-                  )
-                : 0;
+              const durationMin =
+                row?.working_minutes ??
+                (row?.check_in_at
+                  ? Math.max(
+                      0,
+                      Math.floor(
+                        ((row.check_out_at ? new Date(row.check_out_at).getTime() : now) -
+                          new Date(row.check_in_at).getTime()) /
+                          60000,
+                      ),
+                    )
+                  : 0);
               return (
                 <div
                   key={s.id}
@@ -202,7 +204,7 @@ function StaffCheckinContent() {
                               {t("checkInCol")}
                             </p>
                             <p className="mt-0.5 font-semibold tabular-nums">
-                              {fmtClock(row?.check_in_at ?? null)}
+                              {fmtClock(row?.first_check_in_at || row?.check_in_at || null)}
                             </p>
                           </div>
                           <div>

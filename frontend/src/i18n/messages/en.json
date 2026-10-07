@@ -273,10 +273,10 @@
     "revenueTrend": "14-Day Revenue Trend",
     "totalN": "Total:",
     "smartInsights": "Smart Insights",
-    "revpar": "RevPAR",
-    "adr": "ADR",
-    "alos": "ALOS",
-    "leadDays": "Lead Time",
+    "revpar": "Revenue Per Available Room (RevPAR)",
+    "adr": "Average Daily Rate (ADR)",
+    "alos": "Average Length of Stay (ALOS)",
+    "leadDays": "Booking Lead Time",
     "occupancyNow": "Occupancy",
     "per30days": "30-Day Avg",
     "perOccRoomNight": "Per Occupied Room-Night",
@@ -290,7 +290,10 @@
     "weekPattern": "Weekly Demand Pattern",
     "roomTypeRevenue": "Revenue by Room Type",
     "noGuestData": "No guest type data for this period.",
-    "creditDebitCard": "Credit/Debit Card"
+    "creditDebitCard": "Credit/Debit Card",
+    "avgDailyRate": "Avg Daily Rate",
+    "legendRevenue": "Revenue (₹)",
+    "legendOccupancy": "Occupancy Rate (%)"
   },
   "rooms": {
     "title": "Room Status",

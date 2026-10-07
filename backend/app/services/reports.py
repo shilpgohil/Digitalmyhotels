@@ -1289,7 +1289,7 @@ async def smart_dashboard(
             id="revpar",
             level="info" if abs(revpar_wow) <= 5 else ("success" if revpar_wow > 0 else "warning"),
             icon="IndianRupee",
-            title="RevPAR",
+            title="Revenue Per Available Room (RevPAR)",
             body=f"Revenue per available room over 30 days is ₹{int(revpar):,}{wow_str}.",
             metric=f"₹{int(revpar):,}",
         ))

@@ -696,7 +696,7 @@ function StayDetailDialog({
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {t("registeredGuestsLabel")}
             </p>
-            <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+            <div className="max-h-[30rem] overflow-y-auto space-y-2 pr-1">
               {registeredGuests.data.map((g) => (
                 <RegisteredGuestCard
                   key={g.guest_id}
@@ -820,6 +820,7 @@ function RegisteredGuestCard({
 }) {
   const t = useTranslations("stay");
   const tb = useTranslations("bookings");
+  const tck = useTranslations("checkin");
   const [showFormC, setShowFormC] = useState(false);
   return (
     <div className="rounded-lg border p-3 space-y-2">
@@ -881,47 +882,93 @@ function RegisteredGuestCard({
           <button
             type="button"
             onClick={() => setShowFormC(!showFormC)}
-            className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wide text-info hover:opacity-80"
+            className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wide text-info hover:opacity-80 py-1"
           >
-            {t("foreignGuestDetails")}
+            {tck("foreignGuestDetails")}
             {showFormC ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
           </button>
           {showFormC && (
-            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            <dl className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs bg-slate-50 p-2.5 rounded-md border border-slate-200">
               {foreignGuest.passport_number && (
                 <div>
-                  <dt className="text-muted-foreground">{t("passportNumber")}</dt>
+                  <dt className="text-muted-foreground">{tck("passportNumber")}</dt>
                   <dd className="font-medium">{foreignGuest.passport_number}</dd>
                 </div>
               )}
               {foreignGuest.passport_place_of_issue && (
                 <div>
-                  <dt className="text-muted-foreground">{t("placeOfIssue")}</dt>
+                  <dt className="text-muted-foreground">{tck("placeOfIssue")}</dt>
                   <dd className="font-medium">{foreignGuest.passport_place_of_issue}</dd>
                 </div>
               )}
               {foreignGuest.passport_expiry && (
                 <div>
-                  <dt className="text-muted-foreground">{t("passportExpiry")}</dt>
+                  <dt className="text-muted-foreground">{tck("passportExpiry")}</dt>
                   <dd className="font-medium">{foreignGuest.passport_expiry}</dd>
                 </div>
               )}
               {foreignGuest.visa_number && (
                 <div>
-                  <dt className="text-muted-foreground">{t("visaNumber")}</dt>
+                  <dt className="text-muted-foreground">{tck("visaNumber")}</dt>
                   <dd className="font-medium">{foreignGuest.visa_number}</dd>
                 </div>
               )}
               {foreignGuest.visa_type && (
                 <div>
-                  <dt className="text-muted-foreground">{t("visaType")}</dt>
+                  <dt className="text-muted-foreground">{tck("visaType")}</dt>
                   <dd className="font-medium">{foreignGuest.visa_type}</dd>
+                </div>
+              )}
+              {foreignGuest.visa_expiry && (
+                <div>
+                  <dt className="text-muted-foreground">{tck("visaExpiry")}</dt>
+                  <dd className="font-medium">{foreignGuest.visa_expiry}</dd>
                 </div>
               )}
               {foreignGuest.nationality && (
                 <div>
-                  <dt className="text-muted-foreground">{t("nationality")}</dt>
+                  <dt className="text-muted-foreground">{tck("nationality")}</dt>
                   <dd className="font-medium">{foreignGuest.nationality}</dd>
+                </div>
+              )}
+              {foreignGuest.place_of_birth && (
+                <div>
+                  <dt className="text-muted-foreground">{tck("placeOfBirth")}</dt>
+                  <dd className="font-medium">{foreignGuest.place_of_birth}</dd>
+                </div>
+              )}
+              {foreignGuest.country_of_birth && (
+                <div>
+                  <dt className="text-muted-foreground">{tck("countryOfBirth")}</dt>
+                  <dd className="font-medium">{foreignGuest.country_of_birth}</dd>
+                </div>
+              )}
+              {foreignGuest.arrived_in_india_on && (
+                <div>
+                  <dt className="text-muted-foreground">{tck("arrivedInIndiaOn")}</dt>
+                  <dd className="font-medium">{foreignGuest.arrived_in_india_on}</dd>
+                </div>
+              )}
+              {foreignGuest.arrival_place && (
+                <div>
+                  <dt className="text-muted-foreground">{tck("arrivalPlace")}</dt>
+                  <dd className="font-medium">{foreignGuest.arrival_place}</dd>
+                </div>
+              )}
+              {(foreignGuest.coming_from_city || foreignGuest.coming_from_country) && (
+                <div>
+                  <dt className="text-muted-foreground">{tck("comingFromCity")}</dt>
+                  <dd className="font-medium">
+                    {[foreignGuest.coming_from_city, foreignGuest.coming_from_country].filter(Boolean).join(", ")}
+                  </dd>
+                </div>
+              )}
+              {(foreignGuest.next_destination || foreignGuest.next_destination_country) && (
+                <div>
+                  <dt className="text-muted-foreground">{tck("nextDestination")}</dt>
+                  <dd className="font-medium">
+                    {[foreignGuest.next_destination, foreignGuest.next_destination_country].filter(Boolean).join(", ")}
+                  </dd>
                 </div>
               )}
             </dl>

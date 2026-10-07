@@ -331,6 +331,7 @@ async def create_booking(
         children=body.children,
         room_count=len(rooms),
         discount_amount=body.discount_amount,
+        discount_reason=body.discount_reason,
         total_amount=total,
         tax_amount=room_breakup.total_tax,
         security_deposit=body.security_deposit,
@@ -1068,6 +1069,7 @@ _BOOKING_SCALAR_FIELDS = (
     "children",
     "room_count",
     "discount_amount",
+    "discount_reason",
     "tax_amount",
     "total_amount",
     "advance_amount",
@@ -1117,6 +1119,37 @@ async def to_out_many(db: AsyncSession, bookings: list[Booking]) -> list[Booking
         guest_result = await db.execute(select(Guest).where(Guest.id.in_(guest_ids)))
         guests_by_id = {g.id: g for g in guest_result.scalars().all()}
 
+    # Fallback for historical bookings where discount_reason was not yet backfilled on the model
+    bookings_needing_reason = [
+        b
+        for b in bookings
+        if getattr(b, "discount_amount", None)
+        and b.discount_amount > 0
+        and not getattr(b, "discount_reason", None)
+    ]
+    historical_reasons: dict[UUID, str] = {}
+    if bookings_needing_reason:
+        from app.models.audit import AuditLog
+
+        needing_ids = [str(b.id) for b in bookings_needing_reason]
+        audit_res = await db.execute(
+            select(AuditLog.entity_id, AuditLog.after)
+            .where(
+                AuditLog.entity_type == "booking",
+                AuditLog.entity_id.in_(needing_ids),
+                AuditLog.action == "stay.checkout_discount",
+            )
+            .order_by(AuditLog.created_at.desc())
+        )
+        for ent_id, after_payload in audit_res.all():
+            if ent_id and isinstance(after_payload, dict) and after_payload.get("reason"):
+                try:
+                    u_id = UUID(ent_id)
+                    if u_id not in historical_reasons:
+                        historical_reasons[u_id] = str(after_payload["reason"])
+                except ValueError:
+                    pass
+
     outs: list[BookingOut] = []
     for booking in bookings:
         guest = guests_by_id.get(booking.primary_guest_id) if booking.primary_guest_id else None
@@ -1132,6 +1165,8 @@ async def to_out_many(db: AsyncSession, bookings: list[Booking]) -> list[Booking
             if br.room_id in rooms_by_id
         ]
         data = {field: getattr(booking, field) for field in _BOOKING_SCALAR_FIELDS}
+        if not data.get("discount_reason") and booking.id in historical_reasons:
+            data["discount_reason"] = historical_reasons[booking.id]
         outs.append(
             BookingOut(
                 **data,

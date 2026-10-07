@@ -333,7 +333,9 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
           <p className="flex items-center justify-center gap-1 text-micro font-semibold uppercase tracking-widest text-muted-foreground">
             <LogIn className="size-3" aria-hidden /> {t("checkInCol")}
           </p>
-          <p className="mt-1 font-semibold tabular-nums">{fmtClock(d.check_in_at)}</p>
+          <p className="mt-1 font-semibold tabular-nums">
+            {fmtClock(d.first_check_in_at || d.check_in_at)}
+          </p>
         </div>
         <div className="px-2 py-3">
           <p className="flex items-center justify-center gap-1 text-micro font-semibold uppercase tracking-widest text-muted-foreground">
