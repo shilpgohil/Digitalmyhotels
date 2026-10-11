@@ -852,7 +852,42 @@ export async function parseIdDocument(
   imageFile: File,
   idType: string,
   side: DocumentSide = "front",
+  options?: { hotelId?: string },
 ): Promise<IdOcrResult> {
+  // ─── TIER 1: SERVER-SIDE SMART CASCADE (QR -> MRZ -> RapidOCR) ─────────────
+  try {
+    const { apiUpload } = await import("@/lib/api/client");
+    const formData = new FormData();
+    formData.append("file", imageFile);
+    if (idType) formData.append("id_type_hint", idType);
+    formData.append("side", side);
+
+    const serverRes = await apiUpload<{
+      success: boolean;
+      source: string;
+      confidence: number;
+      fields: ParsedIdFields;
+      can_autofill: boolean;
+      message: string;
+    }>("/api/v1/guests/ocr-scan", formData, {
+      hotelId: options?.hotelId,
+    });
+
+    if (serverRes && serverRes.success && serverRes.can_autofill) {
+      return {
+        fields: serverRes.fields,
+        confidence: serverRes.confidence,
+        message: serverRes.message,
+        can_autofill: serverRes.can_autofill,
+      };
+    }
+  } catch (err) {
+    // If backend is unreachable or throws (e.g. offline, network error),
+    // gracefully fall through to browser-side Tesseract.js fallback below.
+    console.warn("[id-ocr] Server-side OCR unavailable or failed, falling back to local OCR:", err);
+  }
+
+  // ─── TIER 2: BROWSER-SIDE OFFLINE FALLBACK (Tesseract.js) ───────────────────
   try {
     const { createWorker } = await import("tesseract.js");
 

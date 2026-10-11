@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permissions
+from app.core.errors import AppError
 from app.core.permissions import Permission
 from app.core.tenant import TenantContext
 from app.db.session import get_db
@@ -19,6 +20,7 @@ from app.schemas.guest import (
     GuestOut,
     GuestSearchOut,
     GuestUpdate,
+    IdScanResponse,
 )
 from app.services import guests as guests_service
 
@@ -52,6 +54,29 @@ async def search_guests(
 ) -> GuestSearchOut:
     items = await guests_service.search_guests(db, tenant, phone=phone, id_last4=id_last4)
     return GuestSearchOut(items=items)
+
+
+@router.post("/ocr-scan", response_model=IdScanResponse)
+async def scan_guest_id_document(
+    file: UploadFile = File(...),
+    id_type_hint: str | None = Form(default=None),
+    side: str = Form(default="front"),
+    tenant: TenantContext = Depends(require_permissions(Permission.GUESTS_VIEW)),
+) -> IdScanResponse:
+    """Server-side high-accuracy cascade OCR for Indian ID documents.
+
+    Tier 1: Aadhaar Secure QR / XML decoding (100% accurate, zero OCR noise).
+    Tier 2: Passport MRZ (Machine Readable Zone) decoding.
+    Tier 3: ONNX-powered Deep Learning OCR (RapidOCR) on CPU with regex & spatial anchors.
+    """
+    data = await file.read()
+    if not data:
+        raise AppError(
+            code="bad_request", message="Empty file uploaded for OCR scan", status_code=400
+        )
+    from app.services.id_scanner import scan_id_document
+
+    return scan_id_document(data, id_type_hint=id_type_hint, side=side)
 
 
 @router.post("/{guest_id}/autofill", response_model=GuestAutofillOut)

@@ -239,3 +239,25 @@ class GuestListOut(BaseModel):
 
 class GuestSearchOut(BaseModel):
     items: list[GuestSearchResultOut]
+
+
+class IdScanFields(BaseModel):
+    name: str | None = None
+    id_number: str | None = None
+    date_of_birth: str | None = None  # YYYY-MM-DD
+    gender: str | None = None
+    address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    pincode: str | None = None
+    care_of: str | None = None
+    id_type_detected: str | None = None
+
+
+class IdScanResponse(BaseModel):
+    success: bool
+    source: str  # "qr" | "mrz" | "rapidocr" | "none"
+    confidence: float
+    fields: IdScanFields
+    can_autofill: bool
+    message: str
