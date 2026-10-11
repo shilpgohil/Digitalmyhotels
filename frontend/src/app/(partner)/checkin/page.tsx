@@ -106,7 +106,7 @@ import { CollapsibleSection } from "@/components/checkin/collapsible-section";
 import { RoomReplaceControl } from "@/components/checkin/room-replace-control";
 import { SelectedServicesList } from "@/components/checkin/selected-services-list";
 import { ServiceChips } from "@/components/checkin/service-chips";
-import { AutofillBanner } from "@/components/checkin/autofill-banner";
+import { AutofillBanner, AutofillSkeletonBanner } from "@/components/checkin/autofill-banner";
 import { mergeOcrResults } from "@/lib/id-ocr";
 import { serviceChargeAmount } from "@/components/checkin/service-utils";
 import type { ServiceItem, DocSide } from "@/components/checkin/types";
@@ -1230,8 +1230,10 @@ function NewGuestForm({
   const tg = useTranslations("guestPicker");
   const api = useApi();
   const [docs, setDocs] = useState<{ side: DocSide; file: File }[]>([]);
+  const [ocrScanningCount, setOcrScanningCount] = useState(0);
   const [ocrResult, setOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
   const [backOcrResult, setBackOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
+  const isOcrScanning = ocrScanningCount > 0;
   const unifiedOcrResult = useMemo(
     () => mergeOcrResults(ocrResult, backOcrResult),
     [ocrResult, backOcrResult],
@@ -1314,9 +1316,13 @@ function NewGuestForm({
           guestId={guestId ?? undefined}
           onOriginal={(_side, original) => {
             // OCR runs on the ORIGINAL (full-resolution) image.
-            import("@/lib/id-ocr").then(({ parseIdDocument }) =>
-              parseIdDocument(original, form.id_proof_type ?? "Aadhar Card").then(setOcrResult),
-            );
+            setOcrScanningCount((c) => c + 1);
+            import("@/lib/id-ocr")
+              .then(({ parseIdDocument }) =>
+                parseIdDocument(original, form.id_proof_type ?? "Aadhar Card").then(setOcrResult),
+              )
+              .catch(() => toast.warning(t("ocrFailed")))
+              .finally(() => setOcrScanningCount((c) => Math.max(0, c - 1)));
           }}
         />
         <QueuedDocUpload
@@ -1331,17 +1337,21 @@ function NewGuestForm({
             // Always sets backOcrResult (never silent || merge) so that:
             //  (a) a banner is shown on every upload, including replacements
             //  (b) staff explicitly confirm before address fields are overwritten
-            import("@/lib/id-ocr").then(({ parseIdDocument }) =>
-              parseIdDocument(original, form.id_proof_type ?? "Aadhar Card", "back").then(
-                (result) => {
-                  if (result.fields.address || result.can_autofill) {
-                    setBackOcrResult(result);
-                  } else {
-                    toast.warning(result.message);
-                  }
-                },
-              ),
-            );
+            setOcrScanningCount((c) => c + 1);
+            import("@/lib/id-ocr")
+              .then(({ parseIdDocument }) =>
+                parseIdDocument(original, form.id_proof_type ?? "Aadhar Card", "back").then(
+                  (result) => {
+                    if (result.fields.address || result.can_autofill) {
+                      setBackOcrResult(result);
+                    } else {
+                      toast.warning(result.message);
+                    }
+                  },
+                ),
+              )
+              .catch(() => toast.warning(t("ocrFailed")))
+              .finally(() => setOcrScanningCount((c) => Math.max(0, c - 1)));
           }}
         />
         <QueuedDocUpload
@@ -1352,6 +1362,9 @@ function NewGuestForm({
           guestId={guestId ?? undefined}
         />
       </div>
+
+      {/* OCR Shimmer Loading Banner */}
+      {isOcrScanning && !unifiedOcrResult && <AutofillSkeletonBanner />}
 
       {/* Unified OCR autofill banner (merges front + back cards into a single preview box) */}
       {unifiedOcrResult && (

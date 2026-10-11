@@ -6,7 +6,7 @@
  *  - Failure: warning panel explaining why autofill isn't available
  */
 import { useTranslations } from "next-intl";
-import { AlertTriangle, BadgeCheck } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Loader2 } from "lucide-react";
 import type { IdOcrResult, ParsedIdFields } from "@/lib/id-ocr";
 
 interface AutofillBannerProps {
@@ -97,6 +97,71 @@ export function AutofillBanner({ result, onAccept, onDismiss }: AutofillBannerPr
         >
           {t("skipManual")}
         </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Shimmer loading banner shown while the backend OCR or Secure QR code
+ * scanner processes the uploaded ID card image. Matches AutofillBanner geometry.
+ */
+export function AutofillSkeletonBanner() {
+  const t = useTranslations("checkin");
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="relative overflow-hidden rounded-xl border border-success/30 bg-success-bg/70 shadow-xs"
+    >
+      {/* Animated glowing scanning beam across the top */}
+      <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-success/70 to-transparent animate-pulse" />
+
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-success/20">
+        <div className="flex items-center gap-2">
+          <Loader2 className="size-4 animate-spin text-success" aria-hidden />
+          <span className="text-sm font-semibold text-success">{t("readingId")}</span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-micro font-bold text-success animate-pulse">
+            <span className="size-1.5 rounded-full bg-success animate-ping" />
+            {t("extractingDetails")}
+          </span>
+        </div>
+      </div>
+
+      {/* Shimmering field rows matching detected data */}
+      <div className="px-4 py-3 space-y-2">
+        <div className="flex items-center gap-3">
+          <div className="h-3 w-20 rounded bg-success/25 animate-pulse" />
+          <div className="h-3 w-48 rounded bg-success/15 animate-pulse" />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="h-3 w-24 rounded bg-success/25 animate-pulse" />
+          <div className="h-3 w-36 rounded bg-success/15 animate-pulse" />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="h-3 w-20 rounded bg-success/25 animate-pulse" />
+          <div className="h-3 w-28 rounded bg-success/15 animate-pulse" />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="h-3 w-16 rounded bg-success/25 animate-pulse" />
+          <div className="h-3 w-20 rounded bg-success/15 animate-pulse" />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="h-3 w-20 rounded bg-success/25 animate-pulse" />
+          <div className="h-3 w-64 rounded bg-success/15 animate-pulse" />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="h-3 w-16 rounded bg-success/25 animate-pulse" />
+          <div className="h-3 w-32 rounded bg-success/15 animate-pulse" />
+        </div>
+      </div>
+
+      {/* Action buttons placeholder */}
+      <div className="flex items-center gap-3 px-4 py-3 border-t border-success/20 bg-success-bg/40">
+        <div className="h-8 w-28 rounded-lg bg-success/30 animate-pulse" />
+        <div className="h-4 w-24 rounded bg-success/20 animate-pulse" />
       </div>
     </div>
   );

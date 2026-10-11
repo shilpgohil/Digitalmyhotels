@@ -37,12 +37,12 @@ import { getAccessToken } from "@/lib/auth/session";
 import { API_BASE, ApiError, apiUpload } from "@/lib/api/client";
 import { isIdMask, liveNameCase, sanitizeAadhaarOcr, sanitizeGuestPhone } from "@/lib/input-discipline";
 import { MaskedIdInput } from "@/components/checkin/masked-id-input";
-import { AutofillBanner } from "@/components/checkin/autofill-banner";
+import { AutofillBanner, AutofillSkeletonBanner } from "@/components/checkin/autofill-banner";
 import { type IdOcrResult, mergeOcrResults } from "@/lib/id-ocr";
 import type { ForeignGuestIn, GuestCreatePayload } from "@/types/stay";
 
 export { MaskedIdInput } from "@/components/checkin/masked-id-input";
-export { AutofillBanner } from "@/components/checkin/autofill-banner";
+export { AutofillBanner, AutofillSkeletonBanner } from "@/components/checkin/autofill-banner";
 
 /** Which face of an ID document (or selfie) a tile handles. */
 export type DocSide = "front" | "back" | "selfie";
@@ -893,8 +893,10 @@ export function NewGuestFullForm({
   const tc = useTranslations("common");
   const tg = useTranslations("guestPicker");
   const [docs, setDocs] = useState<QueuedDoc[]>([]);
+  const [ocrScanningCount, setOcrScanningCount] = useState(0);
   const [ocrResult, setOcrResult] = useState<IdOcrResult | null>(null);
   const [backOcrResult, setBackOcrResult] = useState<IdOcrResult | null>(null);
+  const isOcrScanning = ocrScanningCount > 0;
   const unifiedOcrResult = useMemo(
     () => mergeOcrResults(ocrResult, backOcrResult),
     [ocrResult, backOcrResult],
@@ -957,9 +959,13 @@ export function NewGuestFullForm({
           onQueued={handleQueueDoc}
           idType={form.id_proof_type}
           onOriginal={(_side, original) => {
-            import("@/lib/id-ocr").then(({ parseIdDocument }) =>
-              parseIdDocument(original, form.id_proof_type ?? "Aadhar Card").then(setOcrResult),
-            );
+            setOcrScanningCount((c) => c + 1);
+            import("@/lib/id-ocr")
+              .then(({ parseIdDocument }) =>
+                parseIdDocument(original, form.id_proof_type ?? "Aadhar Card").then(setOcrResult),
+              )
+              .catch(() => toast.warning(t("ocrFailed")))
+              .finally(() => setOcrScanningCount((c) => Math.max(0, c - 1)));
           }}
         />
         <QueuedDocUpload
@@ -968,21 +974,28 @@ export function NewGuestFullForm({
           onQueued={handleQueueDoc}
           idType={form.id_proof_type}
           onOriginal={(_side, original) => {
-            import("@/lib/id-ocr").then(({ parseIdDocument }) =>
-              parseIdDocument(original, form.id_proof_type ?? "Aadhar Card", "back").then(
-                (result) => {
-                  if (result.fields.address || result.can_autofill) {
-                    setBackOcrResult(result);
-                  } else {
-                    toast.warning(result.message);
-                  }
-                },
-              ),
-            );
+            setOcrScanningCount((c) => c + 1);
+            import("@/lib/id-ocr")
+              .then(({ parseIdDocument }) =>
+                parseIdDocument(original, form.id_proof_type ?? "Aadhar Card", "back").then(
+                  (result) => {
+                    if (result.fields.address || result.can_autofill) {
+                      setBackOcrResult(result);
+                    } else {
+                      toast.warning(result.message);
+                    }
+                  },
+                ),
+              )
+              .catch(() => toast.warning(t("ocrFailed")))
+              .finally(() => setOcrScanningCount((c) => Math.max(0, c - 1)));
           }}
         />
         <QueuedDocUpload side="selfie" label={t("selfieCapture")} onQueued={handleQueueDoc} />
       </div>
+
+      {/* OCR Shimmer Loading Banner */}
+      {isOcrScanning && !unifiedOcrResult && <AutofillSkeletonBanner />}
 
       {/* Unified OCR autofill banner (merges front + back cards into a single preview box) */}
       {unifiedOcrResult && (

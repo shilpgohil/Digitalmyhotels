@@ -67,7 +67,7 @@ class StaffUpdate(BaseModel):
     base_salary: Decimal | None = Field(default=None, ge=0)
     status: str | None = Field(default=None, pattern="^(active|on_leave|inactive)$")
     access_role: str | None = Field(
-        default=None, pattern="^(manager|receptionist|general_staff|housekeeping)$"
+        default=None, pattern="^(owner|manager|receptionist|general_staff|housekeeping)$"
     )
 
 

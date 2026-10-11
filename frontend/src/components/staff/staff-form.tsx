@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Camera, FileBadge, IdCard, KeyRound, UserRound } from "lucide-react";
+import { Camera, FileBadge, IdCard, KeyRound, Lock, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -465,34 +465,61 @@ export function StaffForm({
           <div className="space-y-1.5">
             <Label>{t("systemAccessRole")} *</Label>
             <div className="space-y-2">
-              {STAFF_ACCESS_ROLES.map((role) => (
-                <label
-                  key={role}
-                  className={cn(
-                    "flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors",
-                    accessRole === role
-                      ? "border-navy-900 bg-muted/40"
-                      : "border-input hover:bg-muted/30",
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="access_role"
-                    value={role}
-                    checked={accessRole === role}
-                    onChange={() => setAccessRole(role)}
-                    className="mt-1"
-                  />
-                  <span>
-                    <span className="block text-sm font-semibold">
-                      {t(`role_${role}`)}
-                    </span>
-                    <span className="block text-label text-muted-foreground">
-                      {t(`roleHint_${role}`)}
-                    </span>
-                  </span>
-                </label>
-              ))}
+              {(() => {
+                const isOwner = existing?.role_code === "owner";
+                const rolesToDisplay = isOwner
+                  ? (["owner", ...STAFF_ACCESS_ROLES] as const)
+                  : STAFF_ACCESS_ROLES;
+
+                return rolesToDisplay.map((role) => {
+                  const isSelected = accessRole === role;
+                  const isOwnerCard = role === "owner";
+
+                  return (
+                    <label
+                      key={role}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors",
+                        isSelected
+                          ? "border-navy-900 bg-muted/40"
+                          : "border-input hover:bg-muted/30",
+                        isOwner && !isOwnerCard && "opacity-50 cursor-not-allowed",
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="access_role"
+                        value={role}
+                        checked={isSelected}
+                        disabled={isOwner}
+                        onChange={() => setAccessRole(role)}
+                        className="mt-1"
+                      />
+                      <span className="flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className="block text-sm font-semibold">
+                            {t(`role_${role}`)}
+                          </span>
+                          {isOwnerCard && (
+                            <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-micro font-medium text-amber-800">
+                              <Lock className="size-3" aria-hidden />
+                              {t("ownerRoleBadge")}
+                            </span>
+                          )}
+                        </span>
+                        <span className="block text-label text-muted-foreground">
+                          {t(`roleHint_${role}`)}
+                        </span>
+                        {isOwnerCard && (
+                          <span className="block text-micro text-amber-700 mt-1 font-medium">
+                            {t("roleOwnerPermanent")}
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  );
+                });
+              })()}
             </div>
           </div>
         </div>

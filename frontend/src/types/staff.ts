@@ -19,7 +19,15 @@ export const STAFF_ACCESS_ROLES = [
   "general_staff",
   "housekeeping",
 ] as const;
-export type StaffAccessRole = (typeof STAFF_ACCESS_ROLES)[number];
+
+export const ALL_STAFF_ACCESS_ROLES = [
+  "owner",
+  "manager",
+  "receptionist",
+  "general_staff",
+  "housekeeping",
+] as const;
+export type StaffAccessRole = (typeof ALL_STAFF_ACCESS_ROLES)[number];
 
 export interface StaffOut {
   id: string;

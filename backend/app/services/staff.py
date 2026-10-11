@@ -321,9 +321,20 @@ async def update_staff(
         new_role = changes.pop("access_role")
         membership = await _membership_for(db, profile.hotel_id, user.id)
         if membership is not None:
-            role = await _get_role(db, new_role)
-            before["access_role"] = str(membership.role_id)
-            membership.role_id = role.id
+            current_role = await db.get(Role, membership.role_id)
+            current_code = current_role.code if current_role else None
+            if current_code == RoleCode.OWNER.value and new_role != RoleCode.OWNER.value:
+                raise ValidationAppError(
+                    "Cannot demote the primary hotel owner", code="cannot_demote_owner"
+                )
+            if new_role == RoleCode.OWNER.value and current_code != RoleCode.OWNER.value:
+                raise ValidationAppError(
+                    "Cannot grant hotel owner role via staff update", code="cannot_promote_to_owner"
+                )
+            if new_role != current_code:
+                role = await _get_role(db, new_role)
+                before["access_role"] = str(membership.role_id)
+                membership.role_id = role.id
 
     # Profile fields
     for key, value in changes.items():

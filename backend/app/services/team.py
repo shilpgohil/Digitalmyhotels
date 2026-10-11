@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -109,6 +110,32 @@ async def list_team(
             )
         ).all()
         profile_map = {row.user_id: row.id for row in profile_rows}
+
+        missing_members = [m for m in memberships if m.user.id not in profile_map]
+        if missing_members:
+            from app.models.hotel import Hotel as _Hotel
+            from app.services.staff import _next_staff_code, hotel_tz
+            hotel = await db.get(_Hotel, hotel_id)
+            today = datetime.now(hotel_tz(hotel)).date() if hotel else date.today()
+            for m in missing_members:
+                role_code = m.role.code if m.role else ""
+                dept = "management" if role_code in ("owner", "manager") else (
+                    "housekeeping" if role_code == "housekeeping" else (
+                        "reception" if role_code in ("receptionist", "admin") else "other"
+                    )
+                )
+                new_profile = StaffProfile(
+                    hotel_id=hotel_id,
+                    user_id=m.user.id,
+                    staff_code=await _next_staff_code(db, hotel_id),
+                    department=dept,
+                    joining_date=today,
+                    status="active" if m.status == "active" else "inactive",
+                )
+                db.add(new_profile)
+                await db.flush()
+                profile_map[m.user.id] = new_profile.id
+
     return (
         [_to_out(m, profile_map.get(m.user.id)) for m in memberships],
         total,
@@ -214,6 +241,28 @@ async def create_team_member(
     )
     db.add(membership)
     await db.flush()
+
+    # Automatically create StaffProfile for new team member
+    from app.models.hotel import Hotel as _Hotel
+    from app.services.staff import _next_staff_code, hotel_tz
+    hotel_obj = await db.get(_Hotel, hotel_id)
+    today = datetime.now(hotel_tz(hotel_obj)).date() if hotel_obj else date.today()
+    dept = "management" if role_code in (RoleCode.OWNER, RoleCode.MANAGER) else (
+        "housekeeping" if role_code == RoleCode.HOUSEKEEPING else (
+            "reception" if role_code in (RoleCode.RECEPTIONIST, RoleCode.ADMIN) else "other"
+        )
+    )
+    profile = StaffProfile(
+        hotel_id=hotel_id,
+        user_id=user.id,
+        staff_code=await _next_staff_code(db, hotel_id),
+        department=dept,
+        joining_date=today,
+        status="active",
+    )
+    db.add(profile)
+    await db.flush()
+
     await write_audit(
         db,
         action="team.member_created",
@@ -231,7 +280,7 @@ async def create_team_member(
     await _fire(db, hotel_id=hotel_id, event=NE.TEAM_MEMBER_ADDED, data={
         "member_name": body.full_name, "role": role_code.value,
     })
-    return _to_out(membership)
+    return _to_out(membership, profile.id)
 
 
 async def update_team_member(
