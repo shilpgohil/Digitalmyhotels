@@ -1106,7 +1106,7 @@ function CheckoutContent() {
                               <div key={c.id} className="flex justify-between px-3 py-2">
                                 <span className="text-muted-foreground">{c.description || tp("existingCharges")}</span>
                                 <span className="font-medium tabular-nums">
-                                  {fmtMoney(money(c.total_amount))}
+                                  {fmtMoney(money(showGstRow ? c.taxable_amount : c.total_amount))}
                                 </span>
                               </div>
                             ))
@@ -1114,7 +1114,11 @@ function CheckoutContent() {
                           <div className="flex justify-between px-3 py-2">
                             <span className="text-muted-foreground">{tp("existingCharges")}</span>
                             <span className="font-medium tabular-nums">
-                              {fmtMoney(totals.existingCharges)}
+                              {fmtMoney(
+                                showGstRow
+                                  ? totals.existingCharges - money(quote?.existing_charges_tax)
+                                  : totals.existingCharges,
+                              )}
                             </span>
                           </div>
                         ) : null}
@@ -1137,7 +1141,11 @@ function CheckoutContent() {
                             <div className="flex justify-between px-3 py-2">
                               <span className="text-muted-foreground">{tp("newChargesAtCheckout")}</span>
                               <span className="font-medium tabular-nums">
-                                {fmtMoney(totals.proposedCharges)}
+                                {fmtMoney(
+                                  showGstRow
+                                    ? money(quote?.proposed_charges_taxable)
+                                    : totals.proposedCharges,
+                                )}
                               </span>
                             </div>
                           )}
