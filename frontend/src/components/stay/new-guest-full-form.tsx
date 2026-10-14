@@ -35,7 +35,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
 import { getAccessToken } from "@/lib/auth/session";
 import { API_BASE, ApiError, apiUpload } from "@/lib/api/client";
-import { isIdMask, liveNameCase, sanitizeAadhaarOcr, sanitizeGuestPhone } from "@/lib/input-discipline";
+import { liveNameCase, sanitizeAadhaarOcr, sanitizeGuestPhone } from "@/lib/input-discipline";
 import { MaskedIdInput } from "@/components/checkin/masked-id-input";
 import { AutofillBanner, AutofillSkeletonBanner } from "@/components/checkin/autofill-banner";
 import { type IdOcrResult, mergeOcrResults } from "@/lib/id-ocr";
@@ -408,7 +408,7 @@ export function DocUpload({
         const { parseIdDocument } = await import("@/lib/id-ocr");
         parseIdDocument(edited, idType ?? "Aadhar Card", side)
           .then((result) => {
-            if (side === "back") {
+            if (side === "back" && !result.fields.name && !result.fields.id_number) {
               const addressOnly = {
                 ...result,
                 fields: {
@@ -1003,7 +1003,7 @@ export function NewGuestFullForm({
           result={unifiedOcrResult}
           onAccept={(fields) => {
             if (fields.name) set("full_name", fields.name);
-            if (fields.id_number && !isIdMask(fields.id_number)) {
+            if (fields.id_number) {
               const rawId = fields.id_number;
               const idType = fields.id_type_detected ?? form.id_proof_type ?? "Aadhar Card";
               const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(rawId) : rawId.trim();

@@ -9,6 +9,8 @@
  * bilingual Hindi/English handling, and robust Indian ID regex matching.
  */
 
+import { isIdMask } from "@/lib/input-discipline";
+
 export interface ParsedIdFields {
   name?: string;
   id_number?: string;
@@ -873,9 +875,9 @@ export async function parseIdDocument(
       hotelId: options?.hotelId,
     });
 
-    if (serverRes && serverRes.success && serverRes.can_autofill) {
+    if (serverRes) {
       return {
-        fields: serverRes.fields,
+        fields: serverRes.fields || {},
         confidence: serverRes.confidence,
         message: serverRes.message,
         can_autofill: serverRes.can_autofill,
@@ -1046,8 +1048,11 @@ export async function parseIdDocument(
 
 /**
  * Merges front and back OCR results into a single unified result.
- * Front face provides name, id_number, date_of_birth, gender, id_type.
- * Back face provides address, pincode, city, state.
+ * Smart authority ranking:
+ * - If either side was decoded from a digital QR code (front on paper Aadhaar, back on PVC smart card),
+ *   the digitally verified UIDAI data (Name, DOB, Gender, Address) takes precedence over noisy OCR text.
+ * - For ID Number: A complete 12-digit number (e.g. from printed front face) always beats a 4-digit mask (••••••••1234).
+ * - Full resilience regardless of whether hotel staff upload front or back first, or cards with QR on front vs back.
  */
 export function mergeOcrResults(
   front: IdOcrResult | null | undefined,
@@ -1057,22 +1062,99 @@ export function mergeOcrResults(
   if (!front) return back ?? null;
   if (!back) return front ?? null;
 
+  const fFields = front.fields || {};
+  const bFields = back.fields || {};
+
+  // Check if either face was decoded via digital QR code
+  const frontIsQr = front.confidence >= 0.98 || front.message?.includes("QR");
+  const backIsQr = back.confidence >= 0.98 || back.message?.includes("QR");
+
+  // Name: Prefer digital QR name if available, else front, then back
+  let name = "";
+  if (frontIsQr && fFields.name) {
+    name = fFields.name;
+  } else if (backIsQr && bFields.name) {
+    name = bFields.name;
+  } else {
+    name = fFields.name || bFields.name || "";
+  }
+
+  // ID Number: Full 12 digits always beats a masked ID
+  let idNumber = "";
+  const fId = fFields.id_number || "";
+  const bId = bFields.id_number || "";
+  const fIsFull = /^\d{12}$/.test(fId.replace(/\s/g, ""));
+  const bIsFull = /^\d{12}$/.test(bId.replace(/\s/g, ""));
+
+  if (fIsFull) {
+    idNumber = fId;
+  } else if (bIsFull) {
+    idNumber = bId;
+  } else if (fId && !isIdMask(fId)) {
+    idNumber = fId;
+  } else if (bId && !isIdMask(bId)) {
+    idNumber = bId;
+  } else {
+    idNumber = fId || bId || "";
+  }
+
+  // DOB & Gender: Prefer QR, fallback to whichever is present
+  const dob =
+    (frontIsQr && fFields.date_of_birth) ||
+    (backIsQr && bFields.date_of_birth) ||
+    fFields.date_of_birth ||
+    bFields.date_of_birth ||
+    "";
+
+  const gender =
+    (frontIsQr && fFields.gender) ||
+    (backIsQr && bFields.gender) ||
+    fFields.gender ||
+    bFields.gender ||
+    "";
+
+  // Address: If decoded from QR, it is 100% digital from UIDAI with zero OCR typos
+  let address = "";
+  let pincode = "";
+  let city = "";
+  let state = "";
+
+  if (backIsQr && bFields.address) {
+    address = bFields.address;
+    pincode = bFields.pincode || fFields.pincode || "";
+    city = bFields.city || fFields.city || "";
+    state = bFields.state || fFields.state || "";
+  } else if (frontIsQr && fFields.address) {
+    address = fFields.address;
+    pincode = fFields.pincode || bFields.pincode || "";
+    city = fFields.city || bFields.city || "";
+    state = fFields.state || bFields.state || "";
+  } else {
+    address = bFields.address || fFields.address || "";
+    pincode = bFields.pincode || fFields.pincode || "";
+    city = bFields.city || fFields.city || "";
+    state = bFields.state || fFields.state || "";
+  }
+
+  const idTypeDetected = fFields.id_type_detected || bFields.id_type_detected || "Aadhar Card";
+
   const mergedFields: ParsedIdFields = {
-    ...front.fields,
-    ...back.fields,
-    name: front.fields.name || back.fields.name,
-    id_number: front.fields.id_number || back.fields.id_number,
-    date_of_birth: front.fields.date_of_birth || back.fields.date_of_birth,
-    gender: front.fields.gender || back.fields.gender,
-    id_type_detected: front.fields.id_type_detected || back.fields.id_type_detected,
-    address: back.fields.address || front.fields.address,
-    pincode: back.fields.pincode || front.fields.pincode,
-    city: back.fields.city || front.fields.city,
-    state: back.fields.state || front.fields.state,
+    name: name || undefined,
+    id_number: idNumber || undefined,
+    date_of_birth: dob || undefined,
+    gender: gender || undefined,
+    address: address || undefined,
+    pincode: pincode || undefined,
+    city: city || undefined,
+    state: state || undefined,
+    id_type_detected: idTypeDetected,
   };
 
   const confidence = Math.max(front.confidence, back.confidence);
-  const canAutofill = front.can_autofill || back.can_autofill;
+  const canAutofill =
+    front.can_autofill ||
+    back.can_autofill ||
+    Object.values(mergedFields).some(Boolean);
   const detected = mergedFields.id_type_detected ?? "ID Document";
 
   return {

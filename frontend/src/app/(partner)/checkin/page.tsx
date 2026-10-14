@@ -766,11 +766,9 @@ function DocUpload({
         const { parseIdDocument } = await import("@/lib/id-ocr");
         parseIdDocument(edited, idType ?? "Aadhar Card", side)
           .then((result) => {
-            if (side === "back") {
-              // Back face: surface address + pincode only — don't overwrite
-              // name/DOB/gender already captured from the front. The back
-              // parser has a strict quality gate (valid pincode required),
-              // so garbage is never offered for autofill.
+            if (side === "back" && !result.fields.name && !result.fields.id_number) {
+              // Back face: surface address + pincode only if name/id were not
+              // already captured from back QR.
               const addressOnly = {
                 ...result,
                 fields: {
@@ -1372,7 +1370,7 @@ function NewGuestForm({
           result={unifiedOcrResult}
           onAccept={(fields) => {
             if (fields.name) set("full_name", fields.name);
-            if (fields.id_number && !isIdMask(fields.id_number)) {
+            if (fields.id_number) {
               // Strip spaces (OCR returns "1234 5678 9012" — spaces inflate length past 12)
               const rawId = fields.id_number;
               const idType = fields.id_type_detected ?? form.id_proof_type ?? "Aadhar Card";
@@ -3139,7 +3137,7 @@ function CheckinForm({
               result={pgOcrResult}
               onAccept={(fields) => {
                 if (fields.name) setPgName(fields.name);
-                if (fields.id_number && !isIdMask(fields.id_number)) {
+                if (fields.id_number) {
                   const idType = fields.id_type_detected ?? pgIdType ?? "Aadhar Card";
                   const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(fields.id_number) : fields.id_number.trim();
                   setPgIdNumber(cleaned);
@@ -3155,17 +3153,26 @@ function CheckinForm({
             />
           )}
 
-          {/* Back-face OCR autofill banner — address fields only */}
+          {/* Back-face OCR autofill banner (supports both back text address and back QR codes) */}
           {pgBackOcrResult && (
             <AutofillBanner
               result={pgBackOcrResult}
               onAccept={(fields) => {
+                if (fields.name) setPgName(fields.name);
+                if (fields.id_number) {
+                  const idType = fields.id_type_detected ?? pgIdType ?? "Aadhar Card";
+                  const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(fields.id_number) : fields.id_number.trim();
+                  setPgIdNumber(cleaned);
+                }
+                if (fields.gender) setPgGender(fields.gender);
+                if (fields.date_of_birth) setPgDob(fields.date_of_birth);
                 if (fields.address) setPgAddress(fields.address);
                 if (fields.pincode) setPgPostalCode(fields.pincode);
                 if (fields.city) setPgCity(fields.city);
                 if (fields.state) setPgState(fields.state);
+                if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
                 setPgBackOcrResult(null);
-                toast.success(t("addressAutofilled"));
+                toast.success(fields.name ? t("guestAutofilled") : t("addressAutofilled"));
               }}
               onDismiss={() => setPgBackOcrResult(null)}
             />
@@ -5215,7 +5222,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   result={pgOcrResult}
                   onAccept={(fields) => {
                     if (fields.name) setPgName(fields.name);
-                    if (fields.id_number && !isIdMask(fields.id_number)) {
+                    if (fields.id_number) {
                       const idType = fields.id_type_detected ?? pgIdType ?? "Aadhar Card";
                       const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(fields.id_number) : fields.id_number.trim();
                       setPgIdNumber(cleaned);
@@ -5231,17 +5238,26 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                 />
               )}
 
-              {/* Back-face OCR banner — address fields only */}
+              {/* Back-face OCR banner (supports both back text address and back QR codes) */}
               {pgBackOcrResult && (
                 <AutofillBanner
                   result={pgBackOcrResult}
                   onAccept={(fields) => {
+                    if (fields.name) setPgName(fields.name);
+                    if (fields.id_number) {
+                      const idType = fields.id_type_detected ?? pgIdType ?? "Aadhar Card";
+                      const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(fields.id_number) : fields.id_number.trim();
+                      setPgIdNumber(cleaned);
+                    }
+                    if (fields.gender) setPgGender(fields.gender);
+                    if (fields.date_of_birth) setPgDob(fields.date_of_birth);
                     if (fields.address) setPgAddress(fields.address);
                     if (fields.pincode) setPgPostalCode(fields.pincode);
                     if (fields.city) setPgCity(fields.city);
                     if (fields.state) setPgState(fields.state);
+                    if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
                     setPgBackOcrResult(null);
-                    toast.success(t("addressAutofilled"));
+                    toast.success(fields.name ? t("guestAutofilled") : t("addressAutofilled"));
                   }}
                   onDismiss={() => setPgBackOcrResult(null)}
                 />

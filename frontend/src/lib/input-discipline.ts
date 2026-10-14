@@ -68,8 +68,8 @@ export const ID_RULES: Record<string, IdRule> = {
   "Aadhar Card": {
     maxLength: 12,
     inputMode: "numeric",
-    sanitize: (v) => digits(v).slice(0, 12),
-    isComplete: (v) => /^\d{12}$/.test(v),
+    sanitize: (v) => (isIdMask(v) ? sanitizeAadhaarOcr(v) : digits(v).slice(0, 12)),
+    isComplete: (v) => /^\d{12}$/.test(v) || isIdMask(v),
     placeholder: "123412341234",
   },
   "PAN Card": {
@@ -103,21 +103,30 @@ export const ID_RULES: Record<string, IdRule> = {
 };
 
 /**
- * Strip whitespace and non-digit characters from a raw Aadhaar string.
+ * Return true if the value is a masked placeholder (contains bullet chars or Xs).
+ * When true, the id_number should NOT be sent to the backend — treat as unchanged.
+ */
+export function isIdMask(value: string | undefined | null): boolean {
+  return !!(value && (value.includes("•") || /[Xx*]{4}/.test(value)));
+}
+
+/**
+ * Strip whitespace and non-digit characters from a raw Aadhaar string,
+ * preserving masked strings (e.g. ••••••••1234 or XXXX XXXX 1234).
  * OCR often produces "1234 5678 9012" (with spaces) which inflates len()
  * past the 12-char limit. Call this before setting the id_number in state
  * when the ID type is digits-only (Aadhaar).
  */
 export function sanitizeAadhaarOcr(raw: string): string {
+  if (isIdMask(raw)) {
+    const last4Match = raw.match(/\d{4}$/);
+    const last4 = last4Match ? last4Match[0] : raw.replace(/\D/g, "").slice(-4);
+    if (last4.length === 4) {
+      return `••••••••${last4}`;
+    }
+    return raw;
+  }
   return raw.replace(/\s/g, "").replace(/\D/g, "").slice(0, 12);
-}
-
-/**
- * Return true if the value is a masked placeholder (contains bullet chars).
- * When true, the id_number should NOT be sent to the backend — treat as unchanged.
- */
-export function isIdMask(value: string | undefined | null): boolean {
-  return !!(value && value.includes("•"));
 }
 
 /** Rule lookup tolerant of unknown/legacy type labels. */

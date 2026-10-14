@@ -18,7 +18,19 @@ interface AutofillBannerProps {
 export function AutofillBanner({ result, onAccept, onDismiss }: AutofillBannerProps) {
   const t = useTranslations("checkin");
 
-  if (!result.can_autofill) {
+  const { fields } = result;
+  const detectedItems = [
+    fields.name && { label: t("fieldName"), value: fields.name },
+    fields.id_number && { label: t("fieldIdNumber"), value: fields.id_number },
+    fields.date_of_birth && { label: t("fieldDob"), value: fields.date_of_birth },
+    fields.gender && { label: t("fieldGender"), value: fields.gender },
+    fields.address && { label: t("fieldAddress"), value: fields.address.slice(0, 60) + (fields.address.length > 60 ? "…" : "") },
+    fields.pincode && { label: t("pincode"), value: fields.pincode },
+    fields.city && { label: t("fieldCity"), value: fields.city },
+    fields.state && { label: t("fieldState"), value: fields.state },
+  ].filter(Boolean) as { label: string; value: string }[];
+
+  if (!result.can_autofill && detectedItems.length === 0) {
     return (
       <div className="flex items-start gap-3 rounded-xl border border-warning/20 bg-warning-bg px-4 py-3 text-sm">
         <AlertTriangle className="size-4 shrink-0 text-warning mt-0.5" aria-hidden />
@@ -37,18 +49,6 @@ export function AutofillBanner({ result, onAccept, onDismiss }: AutofillBannerPr
       </div>
     );
   }
-
-  const { fields } = result;
-  const detectedItems = [
-    fields.name && { label: t("fieldName"), value: fields.name },
-    fields.id_number && { label: t("fieldIdNumber"), value: fields.id_number },
-    fields.date_of_birth && { label: t("fieldDob"), value: fields.date_of_birth },
-    fields.gender && { label: t("fieldGender"), value: fields.gender },
-    fields.address && { label: t("fieldAddress"), value: fields.address.slice(0, 60) + (fields.address.length > 60 ? "…" : "") },
-    fields.pincode && { label: t("pincode"), value: fields.pincode },
-    fields.city && { label: t("fieldCity"), value: fields.city },
-    fields.state && { label: t("fieldState"), value: fields.state },
-  ].filter(Boolean) as { label: string; value: string }[];
 
   const pct = Math.round(result.confidence * 100);
 

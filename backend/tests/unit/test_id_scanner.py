@@ -8,6 +8,7 @@ from app.services.id_scanner import (
     clean_name,
     normalize_date,
     normalize_gender,
+    normalize_scan_image,
     scan_id_document,
     scan_mrz_stage,
     scan_ocr_stage,
@@ -28,12 +29,34 @@ def test_normalization_helpers() -> None:
     assert normalize_gender("F") == "Female"
     assert normalize_gender("FEMALE") == "Female"
     assert normalize_gender("महिला") == "Female"
+    assert normalize_gender("T") == "Other"
+    assert normalize_gender("TG") == "Other"
+    assert normalize_gender("TRANSGENDER") == "Other"
     assert normalize_gender(None) is None
 
     # Name cleaning
     assert clean_name("GOHIL SHILP JITENDRAKUMAR") == "Gohil Shilp Jitendrakumar"
     assert clean_name("MR. RAJESH KUMAR") == "Rajesh Kumar"
     assert clean_name("AADHAAR CARD HOLDER") is None
+
+
+def test_normalize_scan_image() -> None:
+    import numpy as np
+
+    # Huge 4000x3000 image should be scaled down to max_dim 1600
+    huge = np.zeros((4000, 3000, 3), dtype=np.uint8)
+    scaled = normalize_scan_image(huge, max_dim=1600, min_dim=900)
+    assert max(scaled.shape[:2]) == 1600
+
+    # Small 400x300 image should be scaled up (capped at 2.5x)
+    small = np.zeros((300, 400, 3), dtype=np.uint8)
+    scaled_small = normalize_scan_image(small, max_dim=1600, min_dim=900)
+    assert scaled_small.shape == (750, 1000, 3)
+
+    # Optimal 1200x900 image should remain unchanged
+    optimal = np.zeros((900, 1200, 3), dtype=np.uint8)
+    scaled_optimal = normalize_scan_image(optimal, max_dim=1600, min_dim=900)
+    assert scaled_optimal.shape == (900, 1200, 3)
 
 
 def test_parse_aadhaar_xml() -> None:

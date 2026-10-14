@@ -911,7 +911,7 @@ function AdvanceBookingContent() {
                       result={pgOcrResult}
                       onAccept={(fields) => {
                         if (fields.name) setPgName(fields.name);
-                        if (fields.id_number && !isIdMask(fields.id_number)) {
+                        if (fields.id_number) {
                           const idType = fields.id_type_detected ?? pgIdType ?? "Aadhar Card";
                           const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(fields.id_number) : fields.id_number.trim();
                           setPgIdNumber(cleaned);
@@ -927,17 +927,26 @@ function AdvanceBookingContent() {
                     />
                   )}
 
-                  {/* Back-face OCR autofill banner — address fields only */}
+                  {/* Back-face OCR autofill banner (supports both back text address and back QR codes) */}
                   {pgBackOcrResult && (
                     <AutofillBanner
                       result={pgBackOcrResult}
                       onAccept={(fields) => {
+                        if (fields.name) setPgName(fields.name);
+                        if (fields.id_number) {
+                          const idType = fields.id_type_detected ?? pgIdType ?? "Aadhar Card";
+                          const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(fields.id_number) : fields.id_number.trim();
+                          setPgIdNumber(cleaned);
+                        }
+                        if (fields.gender) setPgGender(fields.gender);
+                        if (fields.date_of_birth) setPgDob(fields.date_of_birth);
                         if (fields.address) setPgAddress(fields.address);
                         if (fields.pincode) setPgPostalCode(fields.pincode);
                         if (fields.city) setPgCity(fields.city);
                         if (fields.state) setPgState(fields.state);
+                        if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
                         setPgBackOcrResult(null);
-                        toast.success(t("addressAutofilled"));
+                        toast.success(fields.name ? t("formAutofilled") : t("addressAutofilled"));
                       }}
                       onDismiss={() => setPgBackOcrResult(null)}
                     />
