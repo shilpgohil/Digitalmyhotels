@@ -341,6 +341,15 @@ function decomposeAddress(raw: string, pincode: string | undefined): {
     .replace(/^.*?\b(?:Address|Addres|Addr|Residential|पता)\s*[:.,\/-]?\s*/i, "")
     .trim();
 
+  // 4b. Strip leading father/guardian/spouse relational prefixes (S/O, C/O, D/O, W/O)
+  // so father's name does not contaminate the physical street address column.
+  address = address
+    .replace(
+      /^(?:(?:[SCDW]\/O|Care\s+of|Son\s+of|Daughter\s+of|Wife\s+of|आत्मज|सुपुत्र|पत्नी|सुपुत्री)\s*[:.-]?\s*[^,]+[,\s]*)+/i,
+      "",
+    )
+    .trim();
+
   // 5. Tidy leftover separators.
   address = address
     .replace(/\s{2,}/g, " ")
@@ -1050,6 +1059,20 @@ export async function parseIdDocument(
   }
 }
 
+/** Strip father/guardian/spouse relational prefixes (S/O, C/O, D/O, W/O) from address. */
+export function stripRelationPrefix(addr: string | undefined): string | undefined {
+  if (!addr) return undefined;
+  const cleaned = addr
+    .replace(
+      /^(?:(?:[SCDW]\/O|Care\s+of|Son\s+of|Daughter\s+of|Wife\s+of|आत्मज|सुपुत्र|पत्नी|सुपुत्री)\s*[:.-]?\s*[^,]+[,\s]*)+/i,
+      "",
+    )
+    .replace(/^[,\s-]+/, "")
+    .replace(/[,\s-]+$/, "")
+    .trim();
+  return cleaned || undefined;
+}
+
 /**
  * Merges front and back OCR results into a single unified result.
  * Smart authority ranking:
@@ -1147,7 +1170,7 @@ export function mergeOcrResults(
     id_number: idNumber || undefined,
     date_of_birth: dob || undefined,
     gender: gender || undefined,
-    address: address || undefined,
+    address: stripRelationPrefix(address) || undefined,
     pincode: pincode || undefined,
     city: city || undefined,
     state: state || undefined,

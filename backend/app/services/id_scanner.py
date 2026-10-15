@@ -54,6 +54,18 @@ PIN_RE = re.compile(r"\b([1-9]\d{2}\s?\d{3})\b")
 GENDER_RE = re.compile(
     r"\b(Male|Female|Transgender|MALE|FEMALE|TRANSGENDER|M|F|पुरुष|महिला)\b", re.IGNORECASE
 )
+RELATION_PREFIX_RE = re.compile(
+    r"^(?:(?:[SCDW]/O|Care\s+of|Son\s+of|Daughter\s+of|Wife\s+of|आत्मज|सुपुत्र|पत्नी|सुपुत्री)\s*[:.-]?\s*[^,]+[,\s]*)+",
+    re.IGNORECASE,
+)
+
+
+def strip_relation_prefix(addr: str | None) -> str | None:
+    """Strip father/guardian/spouse relational prefixes (e.g. S/O: Jitendrakumar) from address."""
+    if not addr:
+        return None
+    cleaned = RELATION_PREFIX_RE.sub("", addr).strip().lstrip(",").rstrip(",").strip()
+    return cleaned if cleaned else None
 
 NON_NAME_TOKENS = {
     "GOVERNMENT",
@@ -505,16 +517,15 @@ def _parse_aadhaar_xml(xml_str: str) -> IdScanFields | None:
         dob = normalize_date(attr.get("dob") or attr.get("yob"))
         co = attr.get("co")
 
-        # Address parts
+        # Address parts (physical location only — care_of / father's name is kept in care_of)
         addr_parts: list[str] = []
-        if co:
-            addr_parts.append(co)
         for k in ("house", "street", "lm", "loc"):
             v = attr.get(k)
             if v and v.strip():
                 addr_parts.append(v.strip())
 
-        full_addr = ", ".join(addr_parts) if addr_parts else None
+        raw_addr = ", ".join(addr_parts) if addr_parts else None
+        full_addr = strip_relation_prefix(raw_addr)
         city = attr.get("vtc") or attr.get("dist")
         state = attr.get("state")
         pincode = attr.get("pc")
@@ -561,15 +572,15 @@ def _parse_aadhaar_secure_qr(
         dob = normalize_date(data.get("dob"))
         co = data.get("careof")
 
+        # Address parts (physical location only — care_of / father's name is kept in care_of)
         addr_parts: list[str] = []
-        if co:
-            addr_parts.append(co)
         for k in ("house", "street", "landmark", "location"):
             v = data.get(k)
             if v and v.strip():
                 addr_parts.append(v.strip())
 
-        full_addr = ", ".join(addr_parts) if addr_parts else None
+        raw_addr = ", ".join(addr_parts) if addr_parts else None
+        full_addr = strip_relation_prefix(raw_addr)
         city = data.get("vtc") or data.get("district")
         state = data.get("state")
         pincode = data.get("pincode")
@@ -860,7 +871,12 @@ def scan_ocr_stage(
                 state_found = st
                 break
 
-        fields.address = ", ".join(addr_lines) if addr_lines else None
+        raw_addr = ", ".join(addr_lines) if addr_lines else None
+        if raw_addr and not fields.care_of:
+            rel_m = RELATION_PREFIX_RE.search(raw_addr)
+            if rel_m:
+                fields.care_of = rel_m.group(0).strip().rstrip(",").strip()
+        fields.address = strip_relation_prefix(raw_addr)
         fields.pincode = pincode_found
         fields.state = state_found
         if fields.address or fields.pincode:

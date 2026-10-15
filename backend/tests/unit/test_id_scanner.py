@@ -87,7 +87,8 @@ def test_parse_aadhaar_xml() -> None:
     assert res.city == "Ahmedabad City"
     assert res.state == "Gujarat"
     assert res.pincode == "380052"
-    assert "e/112" in (res.address or "")
+    assert res.address == "e/112, jayant park, adinath nagar"
+    assert "S/O" not in (res.address or "")
 
 
 def test_scan_mrz_stage() -> None:
@@ -126,6 +127,9 @@ def test_scan_id_document_real_image_if_available() -> None:
         assert res.fields.city == "Ahmedabad City"
         assert res.fields.state == "Gujarat"
         assert res.fields.pincode == "380052"
+        assert res.fields.care_of == "S/O: Jitendrakumar"
+        assert res.fields.address == "e/112, jayant park, adinath nagar, memnagar"
+        assert "S/O" not in (res.fields.address or "")
 
 
 def test_decode_qr_portrait_gallery_photo() -> None:
