@@ -269,14 +269,25 @@ def _read_qr(image_crop: np.ndarray) -> list[Any]:
     b = zxingcpp.read_barcodes(enhanced, formats=_QR_FORMATS, try_rotate=True)
     if b:
         return list(b)
-    # 3. Targeted scale-up if crop is under 1200px
+
+    # 3. Otsu thresholding on contrast-enhanced grayscale
+    _, otsu = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    b = zxingcpp.read_barcodes(otsu, formats=_QR_FORMATS, try_rotate=True)
+    if b:
+        return list(b)
+
+    # 4. Targeted scale-up of enhanced image if modules might be too small
     cw = image_crop.shape[1]
-    if cw < 1200:
-        scale = min(2.5, 1400.0 / max(1, cw))
-        scaled = cv2.resize(image_crop, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-        b = zxingcpp.read_barcodes(scaled, formats=_QR_FORMATS, try_rotate=True)
-        if b:
-            return list(b)
+    ch = image_crop.shape[0]
+    if max(cw, ch) < 2200:
+        scale = min(2.5, 1600.0 / max(1, cw))
+        if scale > 1.15:
+            scaled_gray = cv2.resize(
+                enhanced, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
+            )
+            b = zxingcpp.read_barcodes(scaled_gray, formats=_QR_FORMATS, try_rotate=True)
+            if b:
+                return list(b)
     return []
 
 
@@ -285,11 +296,12 @@ def _decode_qr_barcodes(
 ) -> list[Any]:
     """Finds QR codes on image with fast, targeted scans in < 80ms.
 
-    Handles all Indian Aadhaar card variations and mobile camera captures:
+    Handles all Indian Aadhaar card variations and mobile camera / gallery captures:
     - Traditional / e-Aadhaar cards: QR code on FRONT (right half / lower right).
     - New PVC smart cards: QR code on BACK (left half / center-left).
     - Mobile phone camera captures: Portrait photos (h > w), 90°/180°/270° orientations,
       and flash glare on glossy plastic cards.
+    - Gallery uploads: horizontal cards embedded inside portrait photos with padding.
     """
     # 1. Direct scan on full image
     b = _read_qr(img)
@@ -298,21 +310,45 @@ def _decode_qr_barcodes(
 
     h, w = img.shape[:2]
 
-    # 2. Mobile camera captures: Handle portrait images (h > w)
+    # 2. Mobile camera / gallery captures: Handle portrait images (h > w)
     if h > w:
-        # On a vertical card or horizontal card inside portrait frame:
-        # Check bottom half (where QR appears when card is vertical)
-        bottom_crop = img[int(h * 0.40) : h, :]
+        # Gallery / mobile photo: horizontal card inside a vertical portrait photo frame:
+        # Aadhaar front QR is on the right of the card, back QR on left of the card.
+        mid_right = img[int(h * 0.15) : int(h * 0.85), int(w * 0.35) :]
+        mid_left = img[int(h * 0.15) : int(h * 0.85), : int(w * 0.65)]
+        mid_band = img[int(h * 0.15) : int(h * 0.85), :]
+
+        if side == "back":
+            b = _read_qr(mid_left)
+            if b:
+                return b
+            b = _read_qr(mid_right)
+            if b:
+                return b
+        else:
+            b = _read_qr(mid_right)
+            if b:
+                return b
+            b = _read_qr(mid_left)
+            if b:
+                return b
+
+        b = _read_qr(mid_band)
+        if b:
+            return b
+
+        # Vertical card in portrait photo: bottom half or top half
+        bottom_crop = img[int(h * 0.35) : h, :]
         b = _read_qr(bottom_crop)
         if b:
             return b
-        # Check top half
-        top_crop = img[: int(h * 0.60), :]
+
+        top_crop = img[: int(h * 0.65), :]
         b = _read_qr(top_crop)
         if b:
             return b
 
-        # If still not found, rotate 90° CW to test landscape
+        # Rotations for portrait captures (cards placed at 90°, 270°, or 180°)
         if allow_rotation:
             rot90 = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
             b = _decode_qr_barcodes(rot90, side=side, allow_rotation=False)
@@ -322,19 +358,23 @@ def _decode_qr_barcodes(
             b = _decode_qr_barcodes(rot270, side=side, allow_rotation=False)
             if b:
                 return b
+            rot180 = cv2.rotate(img, cv2.ROTATE_180)
+            b = _decode_qr_barcodes(rot180, side=side, allow_rotation=False)
+            if b:
+                return b
         return []
 
     # 3. Standard landscape orientation (w >= h)
     def _scan_right_half() -> list[Any]:
-        right_crop = img[:, int(w * 0.45) : w]
+        right_crop = img[:, int(w * 0.38) : w]
         return _read_qr(right_crop)
 
     def _scan_left_half() -> list[Any]:
-        left_crop = img[:, : int(w * 0.55)]
+        left_crop = img[:, : int(w * 0.62)]
         return _read_qr(left_crop)
 
     def _scan_center() -> list[Any]:
-        center_crop = img[:, int(w * 0.20) : int(w * 0.80)]
+        center_crop = img[:, int(w * 0.15) : int(w * 0.85)]
         return _read_qr(center_crop)
 
     # Prioritize scan order based on side hint
@@ -359,21 +399,56 @@ def _decode_qr_barcodes(
         if b:
             return b
 
-    # Quadrant fallbacks (lower-right, upper-right)
-    lr_crop = img[int(h * 0.35) : h, int(w * 0.45) : w]
+    # Quadrant fallbacks (lower-right, upper-right, lower-left, upper-left)
+    lr_crop = img[int(h * 0.30) : h, int(w * 0.38) : w]
     b = _read_qr(lr_crop)
     if b:
         return b
 
-    ur_crop = img[: int(h * 0.65), int(w * 0.45) : w]
+    ur_crop = img[: int(h * 0.70), int(w * 0.38) : w]
     b = _read_qr(ur_crop)
     if b:
         return b
 
+    ll_crop = img[int(h * 0.30) : h, : int(w * 0.62)]
+    b = _read_qr(ll_crop)
+    if b:
+        return b
+
+    ul_crop = img[: int(h * 0.70), : int(w * 0.62)]
+    b = _read_qr(ul_crop)
+    if b:
+        return b
+
+    # Aggressive scale-up of right and left zones for gallery photos where QR is tiny
+    right_zone = img[:, int(w * 0.38) :]
+    rh, rw = right_zone.shape[:2]
+    if rw < 1400:
+        scale = min(3.0, 1600.0 / max(1, rw))
+        if scale > 1.2:
+            scaled_right = cv2.resize(
+                right_zone, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
+            )
+            b = _read_qr(scaled_right)
+            if b:
+                return b
+
+    left_zone = img[:, : int(w * 0.62)]
+    lh, lw = left_zone.shape[:2]
+    if lw < 1400:
+        scale = min(3.0, 1600.0 / max(1, lw))
+        if scale > 1.2:
+            scaled_left = cv2.resize(
+                left_zone, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
+            )
+            b = _read_qr(scaled_left)
+            if b:
+                return b
+
     # Upside-down card upload fallback (180° rotation)
     if allow_rotation:
         rot180 = cv2.rotate(img, cv2.ROTATE_180)
-        b = _read_qr(rot180)
+        b = _decode_qr_barcodes(rot180, side=side, allow_rotation=False)
         if b:
             return b
 
@@ -925,15 +1000,26 @@ def scan_id_document(
                 message="Unable to decode image file format.",
             )
 
-        img = normalize_scan_image(img)
+        # For QR code detection, preserve higher resolution (up to 2400px) so dense
+        # Aadhaar Secure QR modules (65x65 to 97x97) from mobile gallery uploads
+        # don't get blurred or averaged down below the readable module threshold.
+        qr_img = normalize_scan_image(img, max_dim=2400, min_dim=900)
 
         # STAGE 1: QR Code (Fastest & 100% accurate for Aadhaar - front or back)
-        qr_result = scan_qr_stage(img, side=side)
+        qr_result = scan_qr_stage(qr_img, side=side)
         if qr_result and qr_result.success:
             return qr_result
 
+        # If QR was not found on qr_img and original image was larger, try raw image
+        if max(img.shape[:2]) > 2400:
+            qr_result = scan_qr_stage(img, side=side)
+            if qr_result and qr_result.success:
+                return qr_result
+
         # STAGE 2 & 3: Deep Learning RapidOCR (with MRZ auto-detection)
-        ocr_result = scan_ocr_stage(img, id_type_hint=id_type_hint, side=side)
+        # Normalize to max_dim=1600 to keep CPU RapidOCR inference under 2 seconds.
+        ocr_img = normalize_scan_image(img, max_dim=1600, min_dim=900)
+        ocr_result = scan_ocr_stage(ocr_img, id_type_hint=id_type_hint, side=side)
         return ocr_result
 
     except Exception as e:

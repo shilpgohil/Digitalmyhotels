@@ -1421,7 +1421,7 @@ function NewGuestForm({
       </div>
 
       {/* OCR Shimmer Loading Banner */}
-      {isOcrScanning && !unifiedOcrResult && <AutofillSkeletonBanner />}
+      {!autofillAccepted && isOcrScanning && !unifiedOcrResult && <AutofillSkeletonBanner />}
 
       {/* Unified OCR autofill banner (merges front + back cards into a single preview box) */}
       {!autofillAccepted && unifiedOcrResult && (
@@ -1444,11 +1444,13 @@ function NewGuestForm({
             if (fields.state) set("state", fields.state);
             if (fields.id_type_detected) set("id_proof_type", fields.id_type_detected);
             setAutofillAccepted(true);
+            setOcrScanningCount(0);
             setOcrResult(null);
             setBackOcrResult(null);
             toast.success(t("guestAutofilled"));
           }}
           onDismiss={() => {
+            setOcrScanningCount(0);
             setOcrResult(null);
             setBackOcrResult(null);
           }}

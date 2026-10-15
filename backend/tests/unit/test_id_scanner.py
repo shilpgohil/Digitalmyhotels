@@ -117,3 +117,33 @@ def test_scan_id_document_real_image_if_available() -> None:
         assert res.fields.city == "Ahmedabad City"
         assert res.fields.state == "Gujarat"
         assert res.fields.pincode == "380052"
+
+
+def test_decode_qr_portrait_gallery_photo() -> None:
+    """Verifies that horizontal ID cards embedded inside vertical mobile portrait gallery photos
+    with background padding and various phone rotations are correctly decoded via QR.
+    """
+    import cv2
+    import numpy as np
+    from app.services.id_scanner import _decode_qr_barcodes
+
+    path = r"C:\Users\BAPS\.gemini\antigravity-ide\brain\037deb20-576b-4c4a-987f-64683db997cc\.user_uploaded\media_1791726464391.jpg"
+    if os.path.exists(path):
+        card = cv2.imread(path)
+        ch, cw = card.shape[:2]
+        # Simulate mobile portrait capture: phone held vertically, card resting in the middle
+        canvas = np.full((int(cw * 1.33), cw, 3), 220, dtype=np.uint8)
+        y_off = (canvas.shape[0] - ch) // 2
+        canvas[y_off : y_off + ch, :] = card
+
+        # Upright portrait frame
+        b = _decode_qr_barcodes(canvas)
+        assert len(b) >= 1
+
+        # 90-degree and 180-degree phone rotations
+        rot90 = cv2.rotate(canvas, cv2.ROTATE_90_CLOCKWISE)
+        assert len(_decode_qr_barcodes(rot90)) >= 1
+
+        rot180 = cv2.rotate(canvas, cv2.ROTATE_180)
+        assert len(_decode_qr_barcodes(rot180)) >= 1
+
