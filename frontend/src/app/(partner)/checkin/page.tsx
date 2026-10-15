@@ -676,6 +676,7 @@ function DocUpload({
   existingDocId,
   onUploaded,
   onOcrResult,
+  onScanStart,
 }: {
   readonly guestId: string | null;
   readonly side: DocSide;
@@ -685,6 +686,7 @@ function DocUpload({
   readonly existingDocId?: string | null;
   readonly onUploaded?: () => void;
   readonly onOcrResult?: (result: import("@/lib/id-ocr").IdOcrResult) => void;
+  readonly onScanStart?: () => void;
 }) {
   const t = useTranslations("checkin");
   const { activeHotelId } = useAuth();
@@ -696,6 +698,7 @@ function DocUpload({
   const [cameraOpen, setCameraOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleCameraClick = () => {
     const isMobile =
@@ -710,7 +713,12 @@ function DocUpload({
 
   // Clean up blob URL when component unmounts
   useEffect(() => {
-    return () => { if (preview) URL.revokeObjectURL(preview); };
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (preview) URL.revokeObjectURL(preview);
+    };
   }, [preview]);
 
   // Pre-fill tile from Backblaze when a returning guest has existing documents.
@@ -741,6 +749,15 @@ function DocUpload({
 
   const onFile = async (file: File | undefined) => {
     if (!file || !guestId) return;
+    // Cancel in-flight OCR if replacing photo
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    onScanStart?.();
+
     // Selfie: 1000px (face recognition doesn't need more).
     // ID docs: 1800px (Tesseract OCR works best at full card resolution).
     // Crop frame matches the document shape (Aadhaar/DL card vs passport page).
@@ -764,7 +781,7 @@ function DocUpload({
       if ((side === "front" || side === "back") && onOcrResult) {
         setOcrRunning(true);
         const { parseIdDocument } = await import("@/lib/id-ocr");
-        parseIdDocument(edited, idType ?? "Aadhar Card", side)
+        parseIdDocument(edited, idType ?? "Aadhar Card", side, { signal: controller.signal })
           .then((result) => {
             if (side === "back" && !result.fields.name && !result.fields.id_number) {
               // Back face: surface address + pincode only if name/id were not
@@ -785,7 +802,10 @@ function DocUpload({
           })
           // OCR failure must not be silent — staff wonder where the autofill
           // banner went (plan §4.3). Upload continues regardless.
-          .catch(() => toast.warning(t("ocrFailed")))
+          .catch((err) => {
+            if (err instanceof DOMException && err.name === "AbortError") return;
+            toast.warning(t("ocrFailed"));
+          })
           .finally(() => setOcrRunning(false));
       }
 
@@ -960,6 +980,7 @@ function QueuedDocUpload({
   existingDocId,
   idType,
   onOcrResult,
+  onScanStart,
   initialFile,
 }: {
   readonly side: DocSide;
@@ -977,6 +998,7 @@ function QueuedDocUpload({
   /** OCR result — wired when front/back face is uploaded; same behaviour as
    *  primary-guest DocUpload so co-guest identity can also be auto-filled. */
   readonly onOcrResult?: (result: import("@/lib/id-ocr").IdOcrResult) => void;
+  readonly onScanStart?: () => void;
   /** Already-QUEUED file (plan §5.1): when the tile remounts after "Confirm
    *  Guest Details", the parent passes the queued file back so the preview
    *  survives — previously the card showed three BLANK tiles (client bug). */
@@ -994,6 +1016,7 @@ function QueuedDocUpload({
   const [cameraOpen, setCameraOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleCameraClick = () => {
     const isMobile =
@@ -1007,7 +1030,12 @@ function QueuedDocUpload({
   };
 
   useEffect(() => {
-    return () => { if (preview) URL.revokeObjectURL(preview); };
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (preview) URL.revokeObjectURL(preview);
+    };
   }, [preview]);
 
   // Preload the saved document for returning guests (same pattern as the
@@ -1039,6 +1067,14 @@ function QueuedDocUpload({
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    onScanStart?.();
+
     const edited = await edit(file, {
       aspect: docAspectFor(idType, side),
       maxDimension: side === "selfie" ? 1000 : 1800,
@@ -1072,9 +1108,11 @@ function QueuedDocUpload({
           ocrFile,
           idType ?? "Aadhar Card",
           side === "back" ? "back" : "front",
+          { signal: controller.signal },
         );
         if (result) onOcrResult(result);
-      } catch {
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         // OCR failure is non-fatal, but no longer SILENT — staff must know
         // why no autofill banner appeared (plan §4.3).
         toast.warning(t("ocrFailed"));
@@ -1231,6 +1269,7 @@ function NewGuestForm({
   const [ocrScanningCount, setOcrScanningCount] = useState(0);
   const [ocrResult, setOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
   const [backOcrResult, setBackOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
+  const [autofillAccepted, setAutofillAccepted] = useState(false);
   const isOcrScanning = ocrScanningCount > 0;
   const unifiedOcrResult = useMemo(
     () => mergeOcrResults(ocrResult, backOcrResult),
@@ -1314,6 +1353,8 @@ function NewGuestForm({
           guestId={guestId ?? undefined}
           onOriginal={(_side, original) => {
             // OCR runs on the ORIGINAL (full-resolution) image.
+            setOcrResult(null);
+            setAutofillAccepted(false);
             setOcrScanningCount((c) => c + 1);
             import("@/lib/id-ocr")
               .then(({ parseIdDocument }) =>
@@ -1331,16 +1372,34 @@ function NewGuestForm({
           existingDocId={existingDocs.back}
           guestId={guestId ?? undefined}
           onOriginal={(_side, original) => {
-            // Back face → address/pincode parser.
-            // Always sets backOcrResult (never silent || merge) so that:
-            //  (a) a banner is shown on every upload, including replacements
-            //  (b) staff explicitly confirm before address fields are overwritten
+            setBackOcrResult(null);
             setOcrScanningCount((c) => c + 1);
             import("@/lib/id-ocr")
               .then(({ parseIdDocument }) =>
                 parseIdDocument(original, form.id_proof_type ?? "Aadhar Card", "back").then(
                   (result) => {
-                    if (result.fields.address || result.can_autofill) {
+                    if (autofillAccepted) {
+                      let filledAny = false;
+                      if (result.fields.address && !form.address) {
+                        set("address", result.fields.address);
+                        filledAny = true;
+                      }
+                      if (result.fields.pincode && !form.postal_code) {
+                        set("postal_code", result.fields.pincode);
+                        filledAny = true;
+                      }
+                      if (result.fields.city && !form.city) {
+                        set("city", result.fields.city);
+                        filledAny = true;
+                      }
+                      if (result.fields.state && !form.state) {
+                        set("state", result.fields.state);
+                        filledAny = true;
+                      }
+                      if (filledAny) {
+                        toast.info(t("addressAutofilled"));
+                      }
+                    } else if (result.fields.address || result.can_autofill) {
                       setBackOcrResult(result);
                     } else {
                       toast.warning(result.message);
@@ -1365,7 +1424,7 @@ function NewGuestForm({
       {isOcrScanning && !unifiedOcrResult && <AutofillSkeletonBanner />}
 
       {/* Unified OCR autofill banner (merges front + back cards into a single preview box) */}
-      {unifiedOcrResult && (
+      {!autofillAccepted && unifiedOcrResult && (
         <AutofillBanner
           result={unifiedOcrResult}
           onAccept={(fields) => {
@@ -1384,6 +1443,7 @@ function NewGuestForm({
             if (fields.city) set("city", fields.city);
             if (fields.state) set("state", fields.state);
             if (fields.id_type_detected) set("id_proof_type", fields.id_type_detected);
+            setAutofillAccepted(true);
             setOcrResult(null);
             setBackOcrResult(null);
             toast.success(t("guestAutofilled"));
@@ -2075,6 +2135,18 @@ function AdditionalGuestEntry({
             side="front"
             label={t("uploadFront")}
             onQueued={handleQueueDoc}
+            onScanStart={() => {
+              setCoGuestOcrResult((prev) => {
+                if (!prev) return null;
+                const rest = {
+                  address: prev.fields.address,
+                  pincode: prev.fields.pincode,
+                  city: prev.fields.city,
+                  state: prev.fields.state,
+                };
+                return { ...prev, fields: rest, can_autofill: Boolean(rest.address) };
+              });
+            }}
             onOcrResult={(r) => { setCoGuestOcrResult((prev) => prev ? mergeOcrResults(r, prev) : r); }}
             guestId={resolved.guest_id}
             existingDocId={existingDocs.front}
@@ -2084,6 +2156,19 @@ function AdditionalGuestEntry({
             side="back"
             label={t("uploadBack")}
             onQueued={handleQueueDoc}
+            onScanStart={() => {
+              setCoGuestOcrResult((prev) => {
+                if (!prev) return null;
+                const rest = {
+                  name: prev.fields.name,
+                  id_number: prev.fields.id_number,
+                  gender: prev.fields.gender,
+                  date_of_birth: prev.fields.date_of_birth,
+                  id_type_detected: prev.fields.id_type_detected,
+                };
+                return { ...prev, fields: rest, can_autofill: Boolean(rest.name || rest.id_number) };
+              });
+            }}
             onOcrResult={(r) => { setCoGuestOcrResult((prev) => prev ? mergeOcrResults(prev, r) : r); }}
             guestId={resolved.guest_id}
             existingDocId={existingDocs.back}
@@ -2497,6 +2582,11 @@ function CheckinForm({
   // ── OCR autofill state (primary guest) ──
   const [pgOcrResult, setPgOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
   const [pgBackOcrResult, setPgBackOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
+  const [pgAutofillAccepted, setPgAutofillAccepted] = useState(false);
+  const unifiedPgOcrResult = useMemo(
+    () => mergeOcrResults(pgOcrResult, pgBackOcrResult),
+    [pgOcrResult, pgBackOcrResult],
+  );
 
   // ── Additional guests ──
   const [coGuests, setCoGuests] = useState<ResolvedCoGuest[]>([]);
@@ -3105,6 +3195,10 @@ function CheckinForm({
               label={t("uploadFrontFace")}
               idType={pgIdType}
               existingDocId={pgExistingDocs.front}
+              onScanStart={() => {
+                setPgOcrResult(null);
+                setPgAutofillAccepted(false);
+              }}
               onOcrResult={(result) => setPgOcrResult(result)}
             />
             <DocUpload
@@ -3114,8 +3208,32 @@ function CheckinForm({
               label={t("uploadBackFace")}
               idType={pgIdType}
               existingDocId={pgExistingDocs.back}
+              onScanStart={() => {
+                setPgBackOcrResult(null);
+              }}
               onOcrResult={(result) => {
-                if (result.fields.address || result.can_autofill) {
+                if (pgAutofillAccepted) {
+                  let filledAny = false;
+                  if (result.fields.address && !pgAddress) {
+                    setPgAddress(result.fields.address);
+                    filledAny = true;
+                  }
+                  if (result.fields.pincode && !pgPostalCode) {
+                    setPgPostalCode(result.fields.pincode);
+                    filledAny = true;
+                  }
+                  if (result.fields.city && !pgCity) {
+                    setPgCity(result.fields.city);
+                    filledAny = true;
+                  }
+                  if (result.fields.state && !pgState) {
+                    setPgState(result.fields.state);
+                    filledAny = true;
+                  }
+                  if (filledAny) {
+                    toast.info(t("addressAutofilled"));
+                  }
+                } else if (result.fields.address || result.can_autofill) {
                   setPgBackOcrResult(result);
                 } else {
                   toast.warning(result.message);
@@ -3131,32 +3249,10 @@ function CheckinForm({
             />
           </div>
 
-          {/* OCR autofill banner — appears after front-face upload */}
-          {pgOcrResult && (
+          {/* Unified OCR autofill banner */}
+          {!pgAutofillAccepted && unifiedPgOcrResult && (
             <AutofillBanner
-              result={pgOcrResult}
-              onAccept={(fields) => {
-                if (fields.name) setPgName(fields.name);
-                if (fields.id_number) {
-                  const idType = fields.id_type_detected ?? pgIdType ?? "Aadhar Card";
-                  const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(fields.id_number) : fields.id_number.trim();
-                  setPgIdNumber(cleaned);
-                }
-                if (fields.gender) setPgGender(fields.gender);
-                if (fields.date_of_birth) setPgDob(fields.date_of_birth);
-                if (fields.address) setPgAddress(fields.address);
-                if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
-                setPgOcrResult(null);
-                toast.success(t("formAutofilled"));
-              }}
-              onDismiss={() => setPgOcrResult(null)}
-            />
-          )}
-
-          {/* Back-face OCR autofill banner (supports both back text address and back QR codes) */}
-          {pgBackOcrResult && (
-            <AutofillBanner
-              result={pgBackOcrResult}
+              result={unifiedPgOcrResult}
               onAccept={(fields) => {
                 if (fields.name) setPgName(fields.name);
                 if (fields.id_number) {
@@ -3171,10 +3267,15 @@ function CheckinForm({
                 if (fields.city) setPgCity(fields.city);
                 if (fields.state) setPgState(fields.state);
                 if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
+                setPgAutofillAccepted(true);
+                setPgOcrResult(null);
                 setPgBackOcrResult(null);
-                toast.success(fields.name ? t("guestAutofilled") : t("addressAutofilled"));
+                toast.success(t("formAutofilled"));
               }}
-              onDismiss={() => setPgBackOcrResult(null)}
+              onDismiss={() => {
+                setPgOcrResult(null);
+                setPgBackOcrResult(null);
+              }}
             />
           )}
 
@@ -3845,6 +3946,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const [pgCompany, setPgCompany] = useState("");
   const [pgOcrResult, setPgOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
   const [pgBackOcrResult, setPgBackOcrResult] = useState<import("@/lib/id-ocr").IdOcrResult | null>(null);
+  const [pgAutofillAccepted, setPgAutofillAccepted] = useState(false);
+  const unifiedPgOcrResult = useMemo(
+    () => mergeOcrResults(pgOcrResult, pgBackOcrResult),
+    [pgOcrResult, pgBackOcrResult],
+  );
 
   // Existing doc IDs for the selected returning guest — keyed by side.
   // DocUpload uses these to pre-fill tiles from B2.
@@ -5190,6 +5296,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   label={t("uploadFrontFace")}
                   idType={pgIdType}
                   existingDocId={pgExistingDocs.front}
+                  onScanStart={() => {
+                    setPgOcrResult(null);
+                    setPgAutofillAccepted(false);
+                  }}
                   onOcrResult={(result) => setPgOcrResult(result)}
                 />
                 <DocUpload
@@ -5199,8 +5309,32 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   label={t("uploadBackFace")}
                   idType={pgIdType}
                   existingDocId={pgExistingDocs.back}
+                  onScanStart={() => {
+                    setPgBackOcrResult(null);
+                  }}
                   onOcrResult={(result) => {
-                    if (result.fields.address || result.can_autofill) {
+                    if (pgAutofillAccepted) {
+                      let filledAny = false;
+                      if (result.fields.address && !pgAddress) {
+                        setPgAddress(result.fields.address);
+                        filledAny = true;
+                      }
+                      if (result.fields.pincode && !pgPostalCode) {
+                        setPgPostalCode(result.fields.pincode);
+                        filledAny = true;
+                      }
+                      if (result.fields.city && !pgCity) {
+                        setPgCity(result.fields.city);
+                        filledAny = true;
+                      }
+                      if (result.fields.state && !pgState) {
+                        setPgState(result.fields.state);
+                        filledAny = true;
+                      }
+                      if (filledAny) {
+                        toast.info(t("addressAutofilled"));
+                      }
+                    } else if (result.fields.address || result.can_autofill) {
                       setPgBackOcrResult(result);
                     } else {
                       toast.warning(result.message);
@@ -5216,32 +5350,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                 />
               </div>
 
-              {/* OCR autofill banner */}
-              {pgOcrResult && (
+              {/* Unified OCR autofill banner */}
+              {!pgAutofillAccepted && unifiedPgOcrResult && (
                 <AutofillBanner
-                  result={pgOcrResult}
-                  onAccept={(fields) => {
-                    if (fields.name) setPgName(fields.name);
-                    if (fields.id_number) {
-                      const idType = fields.id_type_detected ?? pgIdType ?? "Aadhar Card";
-                      const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(fields.id_number) : fields.id_number.trim();
-                      setPgIdNumber(cleaned);
-                    }
-                    if (fields.gender) setPgGender(fields.gender);
-                    if (fields.date_of_birth) setPgDob(fields.date_of_birth);
-                    if (fields.address) setPgAddress(fields.address);
-                    if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
-                    setPgOcrResult(null);
-                    toast.success(t("formAutofilled"));
-                  }}
-                  onDismiss={() => setPgOcrResult(null)}
-                />
-              )}
-
-              {/* Back-face OCR banner (supports both back text address and back QR codes) */}
-              {pgBackOcrResult && (
-                <AutofillBanner
-                  result={pgBackOcrResult}
+                  result={unifiedPgOcrResult}
                   onAccept={(fields) => {
                     if (fields.name) setPgName(fields.name);
                     if (fields.id_number) {
@@ -5256,10 +5368,15 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                     if (fields.city) setPgCity(fields.city);
                     if (fields.state) setPgState(fields.state);
                     if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
+                    setPgAutofillAccepted(true);
+                    setPgOcrResult(null);
                     setPgBackOcrResult(null);
-                    toast.success(fields.name ? t("guestAutofilled") : t("addressAutofilled"));
+                    toast.success(t("formAutofilled"));
                   }}
-                  onDismiss={() => setPgBackOcrResult(null)}
+                  onDismiss={() => {
+                    setPgOcrResult(null);
+                    setPgBackOcrResult(null);
+                  }}
                 />
               )}
 

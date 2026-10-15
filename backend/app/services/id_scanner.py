@@ -249,77 +249,93 @@ def normalize_scan_image(
     return img
 
 
-def _decode_qr_barcodes(img: np.ndarray, side: str = "front") -> list[Any]:
+_QR_FORMATS = zxingcpp.BarcodeFormats(zxingcpp.BarcodeFormat.QRCode)
+
+
+def _read_qr(image_crop: np.ndarray) -> list[Any]:
+    if image_crop is None or image_crop.size == 0:
+        return []
+    # 1. Direct read with QRCode format filter
+    b = zxingcpp.read_barcodes(image_crop, formats=_QR_FORMATS, try_rotate=True)
+    if b:
+        return list(b)
+    # 2. Local contrast enhancement (CLAHE) for glossy PVC cards, glare, or dim lighting
+    if len(image_crop.shape) == 3:
+        gray = cv2.cvtColor(image_crop, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = image_crop
+    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+    enhanced = clahe.apply(gray)
+    b = zxingcpp.read_barcodes(enhanced, formats=_QR_FORMATS, try_rotate=True)
+    if b:
+        return list(b)
+    # 3. Targeted scale-up if crop is under 1200px
+    cw = image_crop.shape[1]
+    if cw < 1200:
+        scale = min(2.5, 1400.0 / max(1, cw))
+        scaled = cv2.resize(image_crop, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        b = zxingcpp.read_barcodes(scaled, formats=_QR_FORMATS, try_rotate=True)
+        if b:
+            return list(b)
+    return []
+
+
+def _decode_qr_barcodes(
+    img: np.ndarray, side: str = "front", allow_rotation: bool = True
+) -> list[Any]:
     """Finds QR codes on image with fast, targeted scans in < 80ms.
 
-    Handles all Indian Aadhaar card variations:
+    Handles all Indian Aadhaar card variations and mobile camera captures:
     - Traditional / e-Aadhaar cards: QR code on FRONT (right half / lower right).
     - New PVC smart cards: QR code on BACK (left half / center-left).
-    - Horizontal flips and inverted uploads.
+    - Mobile phone camera captures: Portrait photos (h > w), 90°/180°/270° orientations,
+      and flash glare on glossy plastic cards.
     """
     # 1. Direct scan on full image
-    barcodes = zxingcpp.read_barcodes(img)
-    if barcodes:
-        return list(barcodes)
+    b = _read_qr(img)
+    if b:
+        return b
 
     h, w = img.shape[:2]
 
-    def _scan_right_half() -> list[Any]:
-        # Standard front Aadhaar card places QR on the right half
-        right_crop = img[:, int(w * 0.45) : w]
-        if right_crop.size == 0:
-            return []
-        b = zxingcpp.read_barcodes(right_crop)
+    # 2. Mobile camera captures: Handle portrait images (h > w)
+    if h > w:
+        # On a vertical card or horizontal card inside portrait frame:
+        # Check bottom half (where QR appears when card is vertical)
+        bottom_crop = img[int(h * 0.40) : h, :]
+        b = _read_qr(bottom_crop)
         if b:
-            return list(b)
-        rw = right_crop.shape[1]
-        if rw < 1200:
-            scale = min(3.0, 1400.0 / rw)
-            scaled = cv2.resize(
-                right_crop, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
-            )
-            b = zxingcpp.read_barcodes(scaled)
+            return b
+        # Check top half
+        top_crop = img[: int(h * 0.60), :]
+        b = _read_qr(top_crop)
+        if b:
+            return b
+
+        # If still not found, rotate 90° CW to test landscape
+        if allow_rotation:
+            rot90 = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+            b = _decode_qr_barcodes(rot90, side=side, allow_rotation=False)
             if b:
-                return list(b)
+                return b
+            rot270 = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            b = _decode_qr_barcodes(rot270, side=side, allow_rotation=False)
+            if b:
+                return b
         return []
+
+    # 3. Standard landscape orientation (w >= h)
+    def _scan_right_half() -> list[Any]:
+        right_crop = img[:, int(w * 0.45) : w]
+        return _read_qr(right_crop)
 
     def _scan_left_half() -> list[Any]:
-        # PVC Aadhaar back side places large Secure QR on the left half
         left_crop = img[:, : int(w * 0.55)]
-        if left_crop.size == 0:
-            return []
-        b = zxingcpp.read_barcodes(left_crop)
-        if b:
-            return list(b)
-        lw = left_crop.shape[1]
-        if lw < 1200:
-            scale = min(3.0, 1400.0 / lw)
-            scaled = cv2.resize(
-                left_crop, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
-            )
-            b = zxingcpp.read_barcodes(scaled)
-            if b:
-                return list(b)
-        return []
+        return _read_qr(left_crop)
 
     def _scan_center() -> list[Any]:
-        # Letter printout slips with QR centered
         center_crop = img[:, int(w * 0.20) : int(w * 0.80)]
-        if center_crop.size == 0:
-            return []
-        b = zxingcpp.read_barcodes(center_crop)
-        if b:
-            return list(b)
-        cw = center_crop.shape[1]
-        if cw < 1200:
-            scale = min(3.0, 1400.0 / cw)
-            scaled = cv2.resize(
-                center_crop, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
-            )
-            b = zxingcpp.read_barcodes(scaled)
-            if b:
-                return list(b)
-        return []
+        return _read_qr(center_crop)
 
     # Prioritize scan order based on side hint
     if side == "back":
@@ -345,25 +361,21 @@ def _decode_qr_barcodes(img: np.ndarray, side: str = "front") -> list[Any]:
 
     # Quadrant fallbacks (lower-right, upper-right)
     lr_crop = img[int(h * 0.35) : h, int(w * 0.45) : w]
-    if lr_crop.size > 0:
-        b = zxingcpp.read_barcodes(lr_crop)
-        if b:
-            return list(b)
-        lw = lr_crop.shape[1]
-        if lw < 1000:
-            scale = min(3.0, 1200.0 / lw)
-            scaled_lr = cv2.resize(
-                lr_crop, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
-            )
-            b = zxingcpp.read_barcodes(scaled_lr)
-            if b:
-                return list(b)
+    b = _read_qr(lr_crop)
+    if b:
+        return b
 
     ur_crop = img[: int(h * 0.65), int(w * 0.45) : w]
-    if ur_crop.size > 0:
-        b = zxingcpp.read_barcodes(ur_crop)
+    b = _read_qr(ur_crop)
+    if b:
+        return b
+
+    # Upside-down card upload fallback (180° rotation)
+    if allow_rotation:
+        rot180 = cv2.rotate(img, cv2.ROTATE_180)
+        b = _read_qr(rot180)
         if b:
-            return list(b)
+            return b
 
     return []
 

@@ -212,7 +212,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
 export async function apiUpload<T>(
   path: string,
   formData: FormData,
-  options: { hotelId?: string; method?: "POST" | "PUT" } = {},
+  options: { hotelId?: string; method?: "POST" | "PUT"; signal?: AbortSignal } = {},
 ): Promise<T> {
   const doFetch = async (): Promise<Response> => {
     const headers: Record<string, string> = { Accept: "application/json" };
@@ -224,6 +224,7 @@ export async function apiUpload<T>(
       headers,
       body: formData,
       credentials: "include",
+      signal: options.signal,
     });
   };
 

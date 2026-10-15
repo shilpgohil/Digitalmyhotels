@@ -326,6 +326,7 @@ export function DocUpload({
   existingDocId,
   onUploaded,
   onOcrResult,
+  onScanStart,
 }: {
   readonly guestId: string | null;
   readonly side: DocSide;
@@ -335,6 +336,7 @@ export function DocUpload({
   readonly existingDocId?: string | null;
   readonly onUploaded?: () => void;
   readonly onOcrResult?: (result: import("@/lib/id-ocr").IdOcrResult) => void;
+  readonly onScanStart?: () => void;
 }) {
   const t = useTranslations("checkin");
   const { activeHotelId } = useAuth();
@@ -346,6 +348,7 @@ export function DocUpload({
   const [cameraOpen, setCameraOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleCameraClick = () => {
     const isMobile =
@@ -360,6 +363,9 @@ export function DocUpload({
 
   useEffect(() => {
     return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
       if (preview) URL.revokeObjectURL(preview);
     };
   }, [preview]);
@@ -392,6 +398,15 @@ export function DocUpload({
 
   const onFile = async (file: File | undefined) => {
     if (!file || !guestId) return;
+    // Cancel in-flight OCR if replacing photo
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    onScanStart?.();
+
     const edited = await edit(file, {
       aspect: docAspectFor(idType, side),
       maxDimension: side === "selfie" ? 1000 : 1800,
@@ -406,7 +421,7 @@ export function DocUpload({
       if ((side === "front" || side === "back") && onOcrResult) {
         setOcrRunning(true);
         const { parseIdDocument } = await import("@/lib/id-ocr");
-        parseIdDocument(edited, idType ?? "Aadhar Card", side)
+        parseIdDocument(edited, idType ?? "Aadhar Card", side, { signal: controller.signal })
           .then((result) => {
             if (side === "back" && !result.fields.name && !result.fields.id_number) {
               const addressOnly = {
@@ -423,7 +438,10 @@ export function DocUpload({
               onOcrResult(result);
             }
           })
-          .catch(() => toast.warning(t("ocrFailed")))
+          .catch((err) => {
+            if (err instanceof DOMException && err.name === "AbortError") return;
+            toast.warning(t("ocrFailed"));
+          })
           .finally(() => setOcrRunning(false));
       }
 
@@ -896,6 +914,7 @@ export function NewGuestFullForm({
   const [ocrScanningCount, setOcrScanningCount] = useState(0);
   const [ocrResult, setOcrResult] = useState<IdOcrResult | null>(null);
   const [backOcrResult, setBackOcrResult] = useState<IdOcrResult | null>(null);
+  const [autofillAccepted, setAutofillAccepted] = useState(false);
   const isOcrScanning = ocrScanningCount > 0;
   const unifiedOcrResult = useMemo(
     () => mergeOcrResults(ocrResult, backOcrResult),
@@ -959,6 +978,8 @@ export function NewGuestFullForm({
           onQueued={handleQueueDoc}
           idType={form.id_proof_type}
           onOriginal={(_side, original) => {
+            setOcrResult(null);
+            setAutofillAccepted(false);
             setOcrScanningCount((c) => c + 1);
             import("@/lib/id-ocr")
               .then(({ parseIdDocument }) =>
@@ -974,12 +995,34 @@ export function NewGuestFullForm({
           onQueued={handleQueueDoc}
           idType={form.id_proof_type}
           onOriginal={(_side, original) => {
+            setBackOcrResult(null);
             setOcrScanningCount((c) => c + 1);
             import("@/lib/id-ocr")
               .then(({ parseIdDocument }) =>
                 parseIdDocument(original, form.id_proof_type ?? "Aadhar Card", "back").then(
                   (result) => {
-                    if (result.fields.address || result.can_autofill) {
+                    if (autofillAccepted) {
+                      let filledAny = false;
+                      if (result.fields.address && !form.address) {
+                        set("address", result.fields.address);
+                        filledAny = true;
+                      }
+                      if (result.fields.pincode && !form.postal_code) {
+                        set("postal_code", result.fields.pincode);
+                        filledAny = true;
+                      }
+                      if (result.fields.city && !form.city) {
+                        set("city", result.fields.city);
+                        filledAny = true;
+                      }
+                      if (result.fields.state && !form.state) {
+                        set("state", result.fields.state);
+                        filledAny = true;
+                      }
+                      if (filledAny) {
+                        toast.info(t("addressAutofilled"));
+                      }
+                    } else if (result.fields.address || result.can_autofill) {
                       setBackOcrResult(result);
                     } else {
                       toast.warning(result.message);
@@ -998,7 +1041,7 @@ export function NewGuestFullForm({
       {isOcrScanning && !unifiedOcrResult && <AutofillSkeletonBanner />}
 
       {/* Unified OCR autofill banner (merges front + back cards into a single preview box) */}
-      {unifiedOcrResult && (
+      {!autofillAccepted && unifiedOcrResult && (
         <AutofillBanner
           result={unifiedOcrResult}
           onAccept={(fields) => {
@@ -1016,6 +1059,7 @@ export function NewGuestFullForm({
             if (fields.city) set("city", fields.city);
             if (fields.state) set("state", fields.state);
             if (fields.id_type_detected) set("id_proof_type", fields.id_type_detected);
+            setAutofillAccepted(true);
             setOcrResult(null);
             setBackOcrResult(null);
             toast.success(t("guestAutofilled"));

@@ -82,7 +82,7 @@ import {
   EMPTY_FOREIGN_GUEST,
   buildForeignGuestPayload,
 } from "@/components/stay/new-guest-full-form";
-import type { IdOcrResult } from "@/lib/id-ocr";
+import { mergeOcrResults, type IdOcrResult } from "@/lib/id-ocr";
 
 const GUEST_TYPE_OPTIONS: { value: GuestType; label: string }[] = GUEST_TYPES.map(
   (value) => ({ value, label: value[0].toUpperCase() + value.slice(1) }),
@@ -192,6 +192,11 @@ function AdvanceBookingContent() {
   const [pgEditing, setPgEditing] = useState(false);
   const [pgOcrResult, setPgOcrResult] = useState<IdOcrResult | null>(null);
   const [pgBackOcrResult, setPgBackOcrResult] = useState<IdOcrResult | null>(null);
+  const [pgAutofillAccepted, setPgAutofillAccepted] = useState(false);
+  const unifiedPgOcrResult = useMemo(
+    () => mergeOcrResults(pgOcrResult, pgBackOcrResult),
+    [pgOcrResult, pgBackOcrResult],
+  );
 
   // Foreign guest state (Form C)
   const [fgEnabled, setFgEnabled] = useState(false);
@@ -206,6 +211,9 @@ function AdvanceBookingContent() {
     if (!g?.id) {
       setGuest(null);
       setPgBaseline(null);
+      setPgOcrResult(null);
+      setPgBackOcrResult(null);
+      setPgAutofillAccepted(false);
       return;
     }
     setGuest({ id: g.id, full_name: g.full_name });
@@ -215,6 +223,9 @@ function AdvanceBookingContent() {
     setPgWasIdSearch(g.wasIdSearch ?? false);
     setPgContactOverride("");
     setPgEditing(false);
+    setPgOcrResult(null);
+    setPgBackOcrResult(null);
+    setPgAutofillAccepted(false);
 
     const [autofillResult, docsResult] = await Promise.allSettled([
       api<GuestAutofill>(`/api/v1/guests/${g.id}/autofill`, { method: "POST" }),
@@ -879,6 +890,10 @@ function AdvanceBookingContent() {
                       label={t("uploadFrontFace")}
                       idType={pgIdType}
                       existingDocId={pgExistingDocs.front}
+                      onScanStart={() => {
+                        setPgOcrResult(null);
+                        setPgAutofillAccepted(false);
+                      }}
                       onOcrResult={(result) => setPgOcrResult(result)}
                     />
                     <DocUpload
@@ -888,8 +903,30 @@ function AdvanceBookingContent() {
                       label={t("uploadBackFace")}
                       idType={pgIdType}
                       existingDocId={pgExistingDocs.back}
+                      onScanStart={() => setPgBackOcrResult(null)}
                       onOcrResult={(result) => {
-                        if (result.fields.address || result.can_autofill) {
+                        if (pgAutofillAccepted) {
+                          let filledAny = false;
+                          if (result.fields.address && !pgAddress) {
+                            setPgAddress(result.fields.address);
+                            filledAny = true;
+                          }
+                          if (result.fields.pincode && !pgPostalCode) {
+                            setPgPostalCode(result.fields.pincode);
+                            filledAny = true;
+                          }
+                          if (result.fields.city && !pgCity) {
+                            setPgCity(result.fields.city);
+                            filledAny = true;
+                          }
+                          if (result.fields.state && !pgState) {
+                            setPgState(result.fields.state);
+                            filledAny = true;
+                          }
+                          if (filledAny) {
+                            toast.info(t("addressAutofilled"));
+                          }
+                        } else if (result.fields.address || result.can_autofill) {
                           setPgBackOcrResult(result);
                         } else {
                           toast.warning(result.message);
@@ -905,32 +942,10 @@ function AdvanceBookingContent() {
                     />
                   </div>
 
-                  {/* OCR autofill banner */}
-                  {pgOcrResult && (
+                  {/* Unified OCR autofill banner (merges front identity + back address) */}
+                  {!pgAutofillAccepted && unifiedPgOcrResult && (
                     <AutofillBanner
-                      result={pgOcrResult}
-                      onAccept={(fields) => {
-                        if (fields.name) setPgName(fields.name);
-                        if (fields.id_number) {
-                          const idType = fields.id_type_detected ?? pgIdType ?? "Aadhar Card";
-                          const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(fields.id_number) : fields.id_number.trim();
-                          setPgIdNumber(cleaned);
-                        }
-                        if (fields.gender) setPgGender(fields.gender);
-                        if (fields.date_of_birth) setPgDob(fields.date_of_birth);
-                        if (fields.address) setPgAddress(fields.address);
-                        if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
-                        setPgOcrResult(null);
-                        toast.success(t("formAutofilled"));
-                      }}
-                      onDismiss={() => setPgOcrResult(null)}
-                    />
-                  )}
-
-                  {/* Back-face OCR autofill banner (supports both back text address and back QR codes) */}
-                  {pgBackOcrResult && (
-                    <AutofillBanner
-                      result={pgBackOcrResult}
+                      result={unifiedPgOcrResult}
                       onAccept={(fields) => {
                         if (fields.name) setPgName(fields.name);
                         if (fields.id_number) {
@@ -945,10 +960,15 @@ function AdvanceBookingContent() {
                         if (fields.city) setPgCity(fields.city);
                         if (fields.state) setPgState(fields.state);
                         if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
+                        setPgOcrResult(null);
                         setPgBackOcrResult(null);
+                        setPgAutofillAccepted(true);
                         toast.success(fields.name ? t("formAutofilled") : t("addressAutofilled"));
                       }}
-                      onDismiss={() => setPgBackOcrResult(null)}
+                      onDismiss={() => {
+                        setPgOcrResult(null);
+                        setPgBackOcrResult(null);
+                      }}
                     />
                   )}
 

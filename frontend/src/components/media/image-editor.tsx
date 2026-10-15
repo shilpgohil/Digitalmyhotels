@@ -420,7 +420,14 @@ function ImageEditorDialog({
     if (!src) return;
     setBusy(true);
     try {
-      const bitmap = await createImageBitmap(file);
+      let bitmap: ImageBitmap;
+      try {
+        bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      } catch {
+        bitmap = await createImageBitmap(file);
+      }
+      const bw = bitmap.width || natural.w;
+      const bh = bitmap.height || natural.h;
       const cropWInImage = cropBox.w / scale;
       const cropHInImage = cropBox.h / scale;
       const longestSide = Math.max(cropWInImage, cropHInImage);
@@ -441,7 +448,7 @@ function ImageEditorDialog({
       ctx.translate(offset.x * pixelScale, offset.y * pixelScale);
       ctx.rotate(totalAngleRad);
       ctx.scale(scale * pixelScale, scale * pixelScale);
-      ctx.drawImage(bitmap, -natural.w / 2, -natural.h / 2);
+      ctx.drawImage(bitmap, -bw / 2, -bh / 2);
       ctx.restore();
       bitmap.close();
 

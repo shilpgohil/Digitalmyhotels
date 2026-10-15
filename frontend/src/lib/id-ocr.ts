@@ -854,7 +854,7 @@ export async function parseIdDocument(
   imageFile: File,
   idType: string,
   side: DocumentSide = "front",
-  options?: { hotelId?: string },
+  options?: { hotelId?: string; signal?: AbortSignal },
 ): Promise<IdOcrResult> {
   // ─── TIER 1: SERVER-SIDE SMART CASCADE (QR -> MRZ -> RapidOCR) ─────────────
   try {
@@ -873,6 +873,7 @@ export async function parseIdDocument(
       message: string;
     }>("/api/v1/guests/ocr-scan", formData, {
       hotelId: options?.hotelId,
+      signal: options?.signal,
     });
 
     if (serverRes) {
@@ -883,7 +884,10 @@ export async function parseIdDocument(
         can_autofill: serverRes.can_autofill,
       };
     }
-  } catch (err) {
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw err;
+    }
     // If backend is unreachable or throws (e.g. offline, network error),
     // gracefully fall through to browser-side Tesseract.js fallback below.
     console.warn("[id-ocr] Server-side OCR unavailable or failed, falling back to local OCR:", err);

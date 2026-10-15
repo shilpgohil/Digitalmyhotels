@@ -14,7 +14,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { idRuleFor } from "@/lib/input-discipline";
+import { idRuleFor, isIdMask } from "@/lib/input-discipline";
 
 interface MaskedIdInputProps {
   label: string;
@@ -61,9 +61,9 @@ export function MaskedIdInput({
   const rule = idRuleFor(idType);
 
   const handleChange = (raw: string) => {
-    // Saved-ID hints look like "••••••••1234" — never sanitize a value that
-    // still carries mask bullets, or the hint gets destroyed mid-edit.
-    if (raw.includes("•")) {
+    // Saved-ID hints look like "••••••••1234" or "XXXX XXXX 1234" — never sanitize
+    // a value that still carries mask characters, or the hint gets destroyed mid-edit.
+    if (isIdMask(raw)) {
       onChange(raw);
       return;
     }
@@ -71,7 +71,7 @@ export function MaskedIdInput({
   };
 
   const handleShowToggle = async (checked: boolean) => {
-    if (checked && value.includes("•") && onReveal) {
+    if (checked && isIdMask(value) && onReveal) {
       // Value is a masked placeholder — call onReveal() to decrypt the full ID.
       setRevealing(true);
       try {
