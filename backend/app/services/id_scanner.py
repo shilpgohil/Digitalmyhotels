@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import logging
 import re
 import xml.etree.ElementTree as ET
@@ -228,6 +229,36 @@ def clean_name(raw: str | None) -> str | None:
 # ─── TIER 1: QR CODE EXTRACTION ──────────────────────────────────────────────
 
 
+def decode_image_bytes(file_bytes: bytes) -> np.ndarray | None:
+    """Decode image bytes into an OpenCV BGR numpy array, honoring EXIF orientation.
+
+    Smartphone cameras store the raw sensor buffer (often landscape) and set an EXIF
+    Orientation tag (e.g. 6 = 90° CW, 8 = 270° CW, 3 = 180°). cv2.imdecode ignores
+    EXIF orientation completely, causing vertical phone photos to load sideways and
+    failing QR detection. PIL.ImageOps.exif_transpose physically rotates the pixel
+    array to match the user's intended orientation before converting to OpenCV BGR.
+    """
+    try:
+        from PIL import Image, ImageOps
+
+        with Image.open(io.BytesIO(file_bytes)) as opened_img:
+            transposed = ImageOps.exif_transpose(opened_img)
+            active_img: Image.Image = transposed if transposed is not None else opened_img
+            if active_img.mode != "RGB":
+                active_img = active_img.convert("RGB")
+            rgb_arr = np.array(active_img)
+            return cv2.cvtColor(rgb_arr, cv2.COLOR_RGB2BGR)
+    except Exception as e:
+        logger.debug("PIL exif_transpose decode failed, falling back to cv2.imdecode: %s", e)
+
+    try:
+        np_arr = np.frombuffer(file_bytes, np.uint8)
+        return cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    except Exception as e:
+        logger.warning("cv2.imdecode failed: %s", e)
+        return None
+
+
 def normalize_scan_image(
     img: np.ndarray, max_dim: int = 1600, min_dim: int = 900
 ) -> np.ndarray:
@@ -445,10 +476,18 @@ def _decode_qr_barcodes(
             if b:
                 return b
 
-    # Upside-down card upload fallback (180° rotation)
+    # Upside-down or sideways card upload fallback (180°, 90°, 270° rotation)
     if allow_rotation:
         rot180 = cv2.rotate(img, cv2.ROTATE_180)
         b = _decode_qr_barcodes(rot180, side=side, allow_rotation=False)
+        if b:
+            return b
+        rot90 = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+        b = _decode_qr_barcodes(rot90, side=side, allow_rotation=False)
+        if b:
+            return b
+        rot270 = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        b = _decode_qr_barcodes(rot270, side=side, allow_rotation=False)
         if b:
             return b
 
@@ -988,8 +1027,7 @@ def scan_id_document(
 ) -> IdScanResponse:
     """Master cascade: QR Code (100%) -> MRZ (98%) -> RapidOCR ONNX (Deep Learning)."""
     try:
-        np_arr = np.frombuffer(file_bytes, np.uint8)
-        img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        img = decode_image_bytes(file_bytes)
         if img is None:
             return IdScanResponse(
                 success=False,

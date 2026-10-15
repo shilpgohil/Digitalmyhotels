@@ -212,7 +212,7 @@ export function QueuedDocUpload({
     if (!edited) return;
     const previewUrl = URL.createObjectURL(edited);
     setPreview(previewUrl);
-    onOriginal?.(side, edited);
+    onOriginal?.(side, file);
     try {
       const compressed = await compressDocument(edited);
       onQueued(side, compressed);
@@ -421,7 +421,7 @@ export function DocUpload({
       if ((side === "front" || side === "back") && onOcrResult) {
         setOcrRunning(true);
         const { parseIdDocument } = await import("@/lib/id-ocr");
-        parseIdDocument(edited, idType ?? "Aadhar Card", side, { signal: controller.signal })
+        parseIdDocument(file, idType ?? "Aadhar Card", side, { signal: controller.signal })
           .then((result) => {
             if (side === "back" && !result.fields.name && !result.fields.id_number) {
               const addressOnly = {

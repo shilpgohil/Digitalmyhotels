@@ -781,7 +781,7 @@ function DocUpload({
       if ((side === "front" || side === "back") && onOcrResult) {
         setOcrRunning(true);
         const { parseIdDocument } = await import("@/lib/id-ocr");
-        parseIdDocument(edited, idType ?? "Aadhar Card", side, { signal: controller.signal })
+        parseIdDocument(file, idType ?? "Aadhar Card", side, { signal: controller.signal })
           .then((result) => {
             if (side === "back" && !result.fields.name && !result.fields.id_number) {
               // Back face: surface address + pincode only if name/id were not
@@ -1083,7 +1083,7 @@ function QueuedDocUpload({
     const previewUrl = URL.createObjectURL(edited);
     setPreview(previewUrl);
     setShowingExisting(false);
-    onOriginal?.(side, edited);
+    onOriginal?.(side, file);
     try {
       const compressed = await compressDocument(edited);
       onQueued(side, compressed);
@@ -1099,7 +1099,7 @@ function QueuedDocUpload({
       setOcrRunning(true);
       try {
         const { parseIdDocument } = await import("@/lib/id-ocr");
-        const ocrFile = edited; // use the cropped high-res image
+        const ocrFile = file; // use the uncropped full-resolution camera/gallery photo
         // BUG FIX (plan §4.3): the side was passed as the ID TYPE, so back
         // faces never reached the back-face address parser and the autofill
         // banner silently never appeared (client: "Autofill button not

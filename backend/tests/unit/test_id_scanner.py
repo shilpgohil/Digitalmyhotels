@@ -1,17 +1,27 @@
 from __future__ import annotations
 
+import io
 import os
-from unittest.mock import MagicMock, patch
+
+import cv2
+import numpy as np
+from PIL import Image
 
 from app.services.id_scanner import (
+    _decode_qr_barcodes,
     _parse_aadhaar_xml,
     clean_name,
+    decode_image_bytes,
     normalize_date,
     normalize_gender,
     normalize_scan_image,
     scan_id_document,
     scan_mrz_stage,
-    scan_ocr_stage,
+)
+
+TEST_IMG_PATH = (
+    r"C:\Users\BAPS\.gemini\antigravity-ide\brain"
+    r"\037deb20-576b-4c4a-987f-64683db997cc\.user_uploaded\media_1791726464391.jpg"
 )
 
 
@@ -103,9 +113,8 @@ def test_scan_id_document_invalid_bytes() -> None:
 
 
 def test_scan_id_document_real_image_if_available() -> None:
-    path = r"C:\Users\BAPS\.gemini\antigravity-ide\brain\037deb20-576b-4c4a-987f-64683db997cc\.user_uploaded\media_1791726464391.jpg"
-    if os.path.exists(path):
-        with open(path, "rb") as f:
+    if os.path.exists(TEST_IMG_PATH):
+        with open(TEST_IMG_PATH, "rb") as f:
             data = f.read()
         res = scan_id_document(data)
         assert res.success is True
@@ -123,13 +132,8 @@ def test_decode_qr_portrait_gallery_photo() -> None:
     """Verifies that horizontal ID cards embedded inside vertical mobile portrait gallery photos
     with background padding and various phone rotations are correctly decoded via QR.
     """
-    import cv2
-    import numpy as np
-    from app.services.id_scanner import _decode_qr_barcodes
-
-    path = r"C:\Users\BAPS\.gemini\antigravity-ide\brain\037deb20-576b-4c4a-987f-64683db997cc\.user_uploaded\media_1791726464391.jpg"
-    if os.path.exists(path):
-        card = cv2.imread(path)
+    if os.path.exists(TEST_IMG_PATH):
+        card = cv2.imread(TEST_IMG_PATH)
         ch, cw = card.shape[:2]
         # Simulate mobile portrait capture: phone held vertically, card resting in the middle
         canvas = np.full((int(cw * 1.33), cw, 3), 220, dtype=np.uint8)
@@ -146,4 +150,33 @@ def test_decode_qr_portrait_gallery_photo() -> None:
 
         rot180 = cv2.rotate(canvas, cv2.ROTATE_180)
         assert len(_decode_qr_barcodes(rot180)) >= 1
+
+        rot270 = cv2.rotate(canvas, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        assert len(_decode_qr_barcodes(rot270)) >= 1
+
+
+def test_decode_image_bytes_exif_orientation() -> None:
+    """Verifies that smartphone camera EXIF orientation tags (6=90CW, 8=270CW)
+    are respected by decode_image_bytes and allow scan_id_document to decode QR codes.
+    """
+    # Invalid bytes
+    assert decode_image_bytes(b"invalid bytes") is None
+
+    # Test real card with EXIF orientations if available
+    if os.path.exists(TEST_IMG_PATH):
+        base_img = Image.open(TEST_IMG_PATH)
+        for orient, rot_action in [
+            (6, base_img.rotate(-90, expand=True)),  # Smartphone saved sensor landscape, EXIF=6
+            (8, base_img.rotate(90, expand=True)),   # Smartphone saved sensor landscape, EXIF=8
+        ]:
+            exif_dict = rot_action.getexif()
+            exif_dict[0x0112] = orient  # 0x0112 is EXIF Orientation tag
+            buf = io.BytesIO()
+            rot_action.save(buf, format="JPEG", exif=exif_dict)
+            file_bytes = buf.getvalue()
+
+            res = scan_id_document(file_bytes)
+            assert res.success is True
+            assert res.source == "qr"
+            assert res.fields.id_number == "652556104777"
 
