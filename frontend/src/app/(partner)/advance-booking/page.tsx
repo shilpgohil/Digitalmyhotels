@@ -82,7 +82,7 @@ import {
   EMPTY_FOREIGN_GUEST,
   buildForeignGuestPayload,
 } from "@/components/stay/new-guest-full-form";
-import { mergeOcrResults, type IdOcrResult } from "@/lib/id-ocr";
+import { useCoordinatedIdScan } from "@/lib/use-coordinated-id-scan";
 
 const GUEST_TYPE_OPTIONS: { value: GuestType; label: string }[] = GUEST_TYPES.map(
   (value) => ({ value, label: value[0].toUpperCase() + value.slice(1) }),
@@ -190,13 +190,35 @@ function AdvanceBookingContent() {
   const [pgWasIdSearch, setPgWasIdSearch] = useState(false);
   const [pgContactOverride, setPgContactOverride] = useState("");
   const [pgEditing, setPgEditing] = useState(false);
-  const [pgOcrResult, setPgOcrResult] = useState<IdOcrResult | null>(null);
-  const [pgBackOcrResult, setPgBackOcrResult] = useState<IdOcrResult | null>(null);
-  const [pgAutofillAccepted, setPgAutofillAccepted] = useState(false);
-  const unifiedPgOcrResult = useMemo(
-    () => mergeOcrResults(pgOcrResult, pgBackOcrResult),
-    [pgOcrResult, pgBackOcrResult],
-  );
+  const pgScan = useCoordinatedIdScan({
+    idType: pgIdType,
+    hotelId: activeHotelId ?? undefined,
+    onAddressAutofill: (fields) => {
+      let filledAny = false;
+      if (fields.address && !pgAddress) {
+        setPgAddress(fields.address);
+        filledAny = true;
+      }
+      if (fields.pincode && !pgPostalCode) {
+        setPgPostalCode(fields.pincode);
+        filledAny = true;
+      }
+      if (fields.city && !pgCity) {
+        setPgCity(fields.city);
+        filledAny = true;
+      }
+      if (fields.state && !pgState) {
+        setPgState(fields.state);
+        filledAny = true;
+      }
+      if (filledAny) {
+        toast.info(t("addressAutofilled"));
+      }
+    },
+    onScanError: (msg) => toast.warning(msg),
+  });
+  const unifiedPgOcrResult = pgScan.unifiedResult;
+  const pgAutofillAccepted = pgScan.autofillAccepted;
 
   // Foreign guest state (Form C)
   const [fgEnabled, setFgEnabled] = useState(false);
@@ -211,9 +233,7 @@ function AdvanceBookingContent() {
     if (!g?.id) {
       setGuest(null);
       setPgBaseline(null);
-      setPgOcrResult(null);
-      setPgBackOcrResult(null);
-      setPgAutofillAccepted(false);
+      pgScan.reset();
       return;
     }
     setGuest({ id: g.id, full_name: g.full_name });
@@ -223,9 +243,7 @@ function AdvanceBookingContent() {
     setPgWasIdSearch(g.wasIdSearch ?? false);
     setPgContactOverride("");
     setPgEditing(false);
-    setPgOcrResult(null);
-    setPgBackOcrResult(null);
-    setPgAutofillAccepted(false);
+    pgScan.reset();
 
     const [autofillResult, docsResult] = await Promise.allSettled([
       api<GuestAutofill>(`/api/v1/guests/${g.id}/autofill`, { method: "POST" }),
@@ -890,11 +908,7 @@ function AdvanceBookingContent() {
                       label={t("uploadFrontFace")}
                       idType={pgIdType}
                       existingDocId={pgExistingDocs.front}
-                      onScanStart={() => {
-                        setPgOcrResult(null);
-                        setPgAutofillAccepted(false);
-                      }}
-                      onOcrResult={(result) => setPgOcrResult(result)}
+                      onOriginal={(_side, original) => pgScan.handleFrontUpload(original)}
                     />
                     <DocUpload
                       key={`${guest.id}-back`}
@@ -903,35 +917,7 @@ function AdvanceBookingContent() {
                       label={t("uploadBackFace")}
                       idType={pgIdType}
                       existingDocId={pgExistingDocs.back}
-                      onScanStart={() => setPgBackOcrResult(null)}
-                      onOcrResult={(result) => {
-                        if (pgAutofillAccepted) {
-                          let filledAny = false;
-                          if (result.fields.address && !pgAddress) {
-                            setPgAddress(result.fields.address);
-                            filledAny = true;
-                          }
-                          if (result.fields.pincode && !pgPostalCode) {
-                            setPgPostalCode(result.fields.pincode);
-                            filledAny = true;
-                          }
-                          if (result.fields.city && !pgCity) {
-                            setPgCity(result.fields.city);
-                            filledAny = true;
-                          }
-                          if (result.fields.state && !pgState) {
-                            setPgState(result.fields.state);
-                            filledAny = true;
-                          }
-                          if (filledAny) {
-                            toast.info(t("addressAutofilled"));
-                          }
-                        } else if (result.fields.address || result.can_autofill) {
-                          setPgBackOcrResult(result);
-                        } else {
-                          toast.warning(result.message);
-                        }
-                      }}
+                      onOriginal={(_side, original) => pgScan.handleBackUpload(original)}
                     />
                     <DocUpload
                       key={`${guest.id}-selfie`}
@@ -941,6 +927,14 @@ function AdvanceBookingContent() {
                       existingDocId={pgExistingDocs.selfie}
                     />
                   </div>
+
+                  {/* OCR Shimmer loading */}
+                  {!pgScan.autofillAccepted && pgScan.isScanning && !pgScan.unifiedResult && (
+                    <div className="flex items-center gap-3 rounded-xl border border-gold-400 bg-gold-50/70 p-3 text-gold-800 animate-pulse">
+                      <div className="size-4 animate-spin rounded-full border-2 border-gold-600 border-t-transparent" />
+                      <span className="text-xs font-medium">{t("extractingDetails")}</span>
+                    </div>
+                  )}
 
                   {/* Unified OCR autofill banner (merges front identity + back address) */}
                   {!pgAutofillAccepted && unifiedPgOcrResult && (
@@ -960,14 +954,11 @@ function AdvanceBookingContent() {
                         if (fields.city) setPgCity(fields.city);
                         if (fields.state) setPgState(fields.state);
                         if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
-                        setPgOcrResult(null);
-                        setPgBackOcrResult(null);
-                        setPgAutofillAccepted(true);
+                        pgScan.setAutofillAccepted(true);
                         toast.success(fields.name ? t("formAutofilled") : t("addressAutofilled"));
                       }}
                       onDismiss={() => {
-                        setPgOcrResult(null);
-                        setPgBackOcrResult(null);
+                        pgScan.reset();
                       }}
                     />
                   )}

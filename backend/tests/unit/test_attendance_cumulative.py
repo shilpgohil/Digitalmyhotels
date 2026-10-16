@@ -1,5 +1,5 @@
-from datetime import UTC, datetime, timedelta
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from app.models.staff import AttendanceRecord
 from app.services.attendance import _working_minutes

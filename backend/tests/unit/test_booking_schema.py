@@ -55,6 +55,7 @@ def test_discount_reason_in_booking_out() -> None:
     import uuid
     from datetime import datetime
     from decimal import Decimal
+
     from app.schemas.booking import BookingOut
 
     data = {

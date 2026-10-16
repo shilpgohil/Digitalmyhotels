@@ -63,6 +63,7 @@ async def scan_guest_id_document(
     file: UploadFile = File(...),
     id_type_hint: str | None = Form(default=None),
     side: str = Form(default="front"),
+    qr_only: bool = Form(default=False),
     tenant: TenantContext = Depends(require_permissions(Permission.GUESTS_VIEW)),
 ) -> IdScanResponse:
     """Server-side high-accuracy cascade OCR for Indian ID documents.
@@ -77,7 +78,7 @@ async def scan_guest_id_document(
             code="bad_request", message="Empty file uploaded for OCR scan", status_code=400
         )
     return await asyncio.to_thread(
-        scan_id_document, data, id_type_hint=id_type_hint, side=side
+        scan_id_document, data, id_type_hint=id_type_hint, side=side, qr_only=qr_only
     )
 
 

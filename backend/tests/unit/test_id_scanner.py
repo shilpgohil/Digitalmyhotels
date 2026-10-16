@@ -184,3 +184,65 @@ def test_decode_image_bytes_exif_orientation() -> None:
             assert res.source == "qr"
             assert res.fields.id_number == "652556104777"
 
+
+def test_scan_id_document_qr_only() -> None:
+    """Verifies that qr_only=True returns immediately when no QR code is found
+    without executing heavy CPU OCR fallback.
+    """
+    # Create image with no QR code (e.g. front face of a PVC card with text only)
+    blank_img = np.full((600, 900, 3), 255, dtype=np.uint8)
+    cv2.putText(
+        blank_img,
+        "GOVERNMENT OF INDIA",
+        (50, 100),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (0, 0, 0),
+        2,
+    )
+    cv2.putText(
+        blank_img,
+        "Shilp Gohil",
+        (50, 200),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (0, 0, 0),
+        2,
+    )
+    cv2.putText(
+        blank_img,
+        "DOB: 04/12/2000",
+        (50, 300),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (0, 0, 0),
+        2,
+    )
+    cv2.putText(
+        blank_img,
+        "6525 5610 4777",
+        (50, 400),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (0, 0, 0),
+        2,
+    )
+    _, buf = cv2.imencode(".png", blank_img)
+    img_bytes = buf.tobytes()
+
+    # Fast probe: should return in milliseconds with success=False, source="none"
+    res = scan_id_document(img_bytes, qr_only=True)
+    assert res.success is False
+    assert res.source == "none"
+    assert res.confidence == 0.0
+    assert "No QR code found" in res.message
+
+    # When TEST_IMG_PATH is present (has QR), qr_only=True should successfully decode it
+    if os.path.exists(TEST_IMG_PATH):
+        with open(TEST_IMG_PATH, "rb") as f:
+            qr_bytes = f.read()
+        res_qr = scan_id_document(qr_bytes, qr_only=True)
+        assert res_qr.success is True
+        assert res_qr.source == "qr"
+        assert res_qr.fields.id_number == "652556104777"
+

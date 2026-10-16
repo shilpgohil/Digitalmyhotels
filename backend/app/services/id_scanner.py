@@ -292,34 +292,67 @@ def normalize_scan_image(
     return img
 
 
-_QR_FORMATS = zxingcpp.BarcodeFormats(zxingcpp.BarcodeFormat.QRCode)
+_QR_FORMATS = zxingcpp.BarcodeFormats(
+    [zxingcpp.BarcodeFormat.QRCode, zxingcpp.BarcodeFormat.MicroQRCode]
+)
 
 
 def _read_qr(image_crop: np.ndarray) -> list[Any]:
     if image_crop is None or image_crop.size == 0:
         return []
-    # 1. Direct read with QRCode format filter
-    b = zxingcpp.read_barcodes(image_crop, formats=_QR_FORMATS, try_rotate=True)
+    # 1. Direct read with QRCode/MicroQRCode filter, rotation, downscale and invert
+    b = zxingcpp.read_barcodes(
+        image_crop,
+        formats=_QR_FORMATS,
+        try_rotate=True,
+        try_downscale=True,
+        try_invert=True,
+    )
     if b:
         return list(b)
-    # 2. Local contrast enhancement (CLAHE) for glossy PVC cards, glare, or dim lighting
+
+    # 2. Global histogram binarizer (catches high-contrast or inverted mobile photos)
+    b = zxingcpp.read_barcodes(
+        image_crop,
+        formats=_QR_FORMATS,
+        try_rotate=True,
+        try_downscale=True,
+        try_invert=True,
+        binarizer=zxingcpp.Binarizer.GlobalHistogram,
+    )
+    if b:
+        return list(b)
+
+    # 3. Local contrast enhancement (CLAHE) for glossy PVC cards, glare, or dim lighting
     if len(image_crop.shape) == 3:
         gray = cv2.cvtColor(image_crop, cv2.COLOR_BGR2GRAY)
     else:
         gray = image_crop
     clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
-    b = zxingcpp.read_barcodes(enhanced, formats=_QR_FORMATS, try_rotate=True)
+    b = zxingcpp.read_barcodes(
+        enhanced,
+        formats=_QR_FORMATS,
+        try_rotate=True,
+        try_downscale=True,
+        try_invert=True,
+    )
     if b:
         return list(b)
 
-    # 3. Otsu thresholding on contrast-enhanced grayscale
+    # 4. Otsu thresholding on contrast-enhanced grayscale
     _, otsu = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    b = zxingcpp.read_barcodes(otsu, formats=_QR_FORMATS, try_rotate=True)
+    b = zxingcpp.read_barcodes(
+        otsu,
+        formats=_QR_FORMATS,
+        try_rotate=True,
+        try_downscale=True,
+        try_invert=True,
+    )
     if b:
         return list(b)
 
-    # 4. Targeted scale-up of enhanced image if modules might be too small
+    # 5. Targeted scale-up of enhanced image if modules might be too small
     cw = image_crop.shape[1]
     ch = image_crop.shape[0]
     if max(cw, ch) < 2200:
@@ -328,7 +361,13 @@ def _read_qr(image_crop: np.ndarray) -> list[Any]:
             scaled_gray = cv2.resize(
                 enhanced, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
             )
-            b = zxingcpp.read_barcodes(scaled_gray, formats=_QR_FORMATS, try_rotate=True)
+            b = zxingcpp.read_barcodes(
+                scaled_gray,
+                formats=_QR_FORMATS,
+                try_rotate=True,
+                try_downscale=True,
+                try_invert=True,
+            )
             if b:
                 return list(b)
     return []
@@ -1039,9 +1078,16 @@ def scan_ocr_stage(
 
 
 def scan_id_document(
-    file_bytes: bytes, id_type_hint: str | None = None, side: str = "front"
+    file_bytes: bytes,
+    id_type_hint: str | None = None,
+    side: str = "front",
+    qr_only: bool = False,
 ) -> IdScanResponse:
-    """Master cascade: QR Code (100%) -> MRZ (98%) -> RapidOCR ONNX (Deep Learning)."""
+    """Master cascade: QR Code (100%) -> MRZ (98%) -> RapidOCR ONNX (Deep Learning).
+
+    When qr_only=True, skips Stage 2 & 3 and returns immediately if no QR code is found.
+    This enables ultra-fast (~30ms) probe of card faces without burning heavy CPU on OCR.
+    """
     try:
         img = decode_image_bytes(file_bytes)
         if img is None:
@@ -1069,6 +1115,18 @@ def scan_id_document(
             qr_result = scan_qr_stage(img, side=side)
             if qr_result and qr_result.success:
                 return qr_result
+
+        # When caller specifically asked for a fast QR-only probe (e.g. testing front face of
+        # PVC card), return immediately without burning 2.5 seconds CPU on RapidOCR.
+        if qr_only:
+            return IdScanResponse(
+                success=False,
+                source="none",
+                confidence=0.0,
+                fields=IdScanFields(),
+                can_autofill=False,
+                message="No QR code found on this document face.",
+            )
 
         # STAGE 2 & 3: Deep Learning RapidOCR (with MRZ auto-detection)
         # Normalize to max_dim=1600 to keep CPU RapidOCR inference under 2 seconds.

@@ -48,6 +48,7 @@ class TestSelfieFingerprinting:
 
     def test_attendance_schemas_checkout_selfie_fields(self) -> None:
         from uuid import uuid4
+
         from app.schemas.staff import AttendanceRecordOut, AttendanceRowOut, RecordDetailOut
 
         sha = "b" * 64

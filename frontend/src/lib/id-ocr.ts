@@ -863,7 +863,7 @@ export async function parseIdDocument(
   imageFile: File,
   idType: string,
   side: DocumentSide = "front",
-  options?: { hotelId?: string; signal?: AbortSignal },
+  options?: { hotelId?: string; signal?: AbortSignal; qrOnly?: boolean },
 ): Promise<IdOcrResult> {
   // ─── TIER 1: SERVER-SIDE SMART CASCADE (QR -> MRZ -> RapidOCR) ─────────────
   try {
@@ -872,6 +872,9 @@ export async function parseIdDocument(
     formData.append("file", imageFile);
     if (idType) formData.append("id_type_hint", idType);
     formData.append("side", side);
+    if (options?.qrOnly) {
+      formData.append("qr_only", "true");
+    }
 
     const serverRes = await apiUpload<{
       success: boolean;
@@ -886,6 +889,14 @@ export async function parseIdDocument(
     });
 
     if (serverRes) {
+      if (!serverRes.success && options?.qrOnly) {
+        return {
+          fields: {},
+          confidence: 0,
+          message: serverRes.message || "No QR code found on this document face.",
+          can_autofill: false,
+        };
+      }
       return {
         fields: serverRes.fields || {},
         confidence: serverRes.confidence,
@@ -896,6 +907,14 @@ export async function parseIdDocument(
   } catch (err: unknown) {
     if (err instanceof DOMException && err.name === "AbortError") {
       throw err;
+    }
+    if (options?.qrOnly) {
+      return {
+        fields: {},
+        confidence: 0,
+        message: "No QR code found on this document face.",
+        can_autofill: false,
+      };
     }
     // If backend is unreachable or throws (e.g. offline, network error),
     // gracefully fall through to browser-side Tesseract.js fallback below.
