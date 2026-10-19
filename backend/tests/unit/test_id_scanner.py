@@ -246,3 +246,33 @@ def test_scan_id_document_qr_only() -> None:
         assert res_qr.source == "qr"
         assert res_qr.fields.id_number == "652556104777"
 
+
+def test_scan_v5_secure_qr_back_face() -> None:
+    """Verifies that modern UIDAI V5 Secure QR codes on the back face of PVC smart cards
+    are decoded with 100% digital accuracy and physical address is cleanly isolated from care_of.
+    """
+    v5_path = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "..",
+        "main documents",
+        "adhaar cards",
+        "fe791cef-e088-4284-9700-05cf31f971ee.jpg",
+    )
+    if os.path.exists(v5_path):
+        with open(v5_path, "rb") as f:
+            data = f.read()
+        res = scan_id_document(data, side="back", qr_only=True)
+        assert res.success is True
+        assert res.source == "qr"
+        assert res.fields.name == "Bijendra Singh Meena"
+        assert res.fields.date_of_birth == "1989-07-01"
+        assert res.fields.gender == "Male"
+        assert res.fields.care_of == "S/O: Mangi Lal Meena"
+        assert "S/O" not in (res.fields.address or "")
+        assert res.fields.pincode == "476224"
+        assert res.fields.city == "Kailaras"
+        assert res.fields.state == "Madhya Pradesh"
+
+

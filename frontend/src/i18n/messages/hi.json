@@ -2044,6 +2044,8 @@
     "idRecorded": "पहचान संख्या दर्ज हो गई",
     "uploadFrontFace": "आगे का भाग अपलोड करें",
     "uploadBackFace": "पीछे का भाग अपलोड करें",
+    "frontCapturedUploadBackForQr": "सामने की फोटो कैप्चर हो गई। क्यूआर कोड स्कैन करने के लिए पीछे की फोटो अपलोड करें।",
+    "scanFrontOnlyOcr": "केवल सामने का भाग स्कैन करें (ओसीआर)",
     "formAutofilled": "पहचान दस्तावेज़ से फ़ॉर्म स्वतः भर गया",
     "phoneNumber": "फ़ोन नंबर",
     "phonePlaceholder": "फ़ोन",

@@ -37,6 +37,8 @@ export interface IdOcrResult {
   message: string;
   /** If true, show autofill prompt. If false, show "unclear" warning. */
   can_autofill: boolean;
+  /** Engine source that produced the result: "qr", "mrz", "rapidocr", "tesseract", or "none". */
+  source?: "qr" | "mrz" | "rapidocr" | "tesseract" | "none";
 }
 
 // ─── Regex patterns ──────────────────────────────────────────────────────────
@@ -893,6 +895,7 @@ export async function parseIdDocument(
         return {
           fields: {},
           confidence: 0,
+          source: "none",
           message: serverRes.message || "No QR code found on this document face.",
           can_autofill: false,
         };
@@ -900,6 +903,7 @@ export async function parseIdDocument(
       return {
         fields: serverRes.fields || {},
         confidence: serverRes.confidence,
+        source: (serverRes.source as IdOcrResult["source"]) || (serverRes.confidence >= 0.98 ? "qr" : "rapidocr"),
         message: serverRes.message,
         can_autofill: serverRes.can_autofill,
       };
@@ -912,6 +916,7 @@ export async function parseIdDocument(
       return {
         fields: {},
         confidence: 0,
+        source: "none",
         message: "No QR code found on this document face.",
         can_autofill: false,
       };
@@ -1112,8 +1117,8 @@ export function mergeOcrResults(
   const bFields = back.fields || {};
 
   // Check if either face was decoded via digital QR code
-  const frontIsQr = front.confidence >= 0.98 || front.message?.includes("QR");
-  const backIsQr = back.confidence >= 0.98 || back.message?.includes("QR");
+  const frontIsQr = front.source === "qr" || front.confidence >= 0.98 || front.message?.includes("QR");
+  const backIsQr = back.source === "qr" || back.confidence >= 0.98 || back.message?.includes("QR");
 
   // Name: Prefer digital QR name if available, else front, then back
   let name = "";
@@ -1196,17 +1201,28 @@ export function mergeOcrResults(
     id_type_detected: idTypeDetected,
   };
 
-  const confidence = Math.max(front.confidence, back.confidence);
+  const isQr = frontIsQr || backIsQr;
+  const confidence = isQr ? 1.0 : Math.max(front.confidence, back.confidence);
   const canAutofill =
     front.can_autofill ||
     back.can_autofill ||
     Object.values(mergedFields).some(Boolean);
   const detected = mergedFields.id_type_detected ?? "ID Document";
+  const source: IdOcrResult["source"] = isQr
+    ? "qr"
+    : front.source === "rapidocr" || back.source === "rapidocr"
+      ? "rapidocr"
+      : "tesseract";
+
+  const message = isQr
+    ? "Extracted 100% digitally from Aadhaar Secure QR Code"
+    : `${detected} details detected (${Math.round(confidence * 100)}% confidence)`;
 
   return {
     fields: mergedFields,
     confidence,
-    message: `${detected} details detected (${Math.round(confidence * 100)}% confidence)`,
+    source,
+    message,
     can_autofill: canAutofill,
   };
 }

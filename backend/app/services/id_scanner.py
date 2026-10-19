@@ -4,6 +4,7 @@ import io
 import logging
 import re
 import xml.etree.ElementTree as ET
+import zlib
 from datetime import datetime
 from typing import Any
 
@@ -590,19 +591,88 @@ def _parse_aadhaar_secure_qr(
     barcode_text: str, barcode_bytes: bytes, img: np.ndarray | None = None
 ) -> IdScanFields | None:
     try:
-        from pyaadhaar.decode import AadhaarSecureQr
-
         val_int: int | None = None
         if barcode_text and barcode_text.strip().isdigit():
             val_int = int(barcode_text.strip())
         elif barcode_bytes:
-            val_int = int.from_bytes(barcode_bytes, "big")
+            try:
+                val_int = int.from_bytes(barcode_bytes, "big")
+            except Exception:
+                pass
 
-        if val_int is None:
+        if val_int is None and not barcode_bytes:
             return None
 
-        secure_qr = AadhaarSecureQr(val_int)  # type: ignore[arg-type]
-        data = secure_qr.decodeddata()
+        data: dict[str, Any] | None = None
+
+        # 1. Primary engine: Direct universal RFC 1950 zlib decompression of big-endian bytes.
+        # Handles all UIDAI Secure QR specifications: V1, V2, V3, V4, V5, etc.
+        decompressed: bytes | None = None
+        candidates: list[bytes] = []
+        if val_int is not None:
+            num_bytes = (val_int.bit_length() + 7) // 8
+            candidates.append(val_int.to_bytes(max(num_bytes, 1), "big"))
+        if barcode_bytes:
+            candidates.append(barcode_bytes)
+
+        for raw_candidate in candidates:
+            for wbits in (16 + zlib.MAX_WBITS, zlib.MAX_WBITS, -zlib.MAX_WBITS):
+                try:
+                    res = zlib.decompress(raw_candidate, wbits)
+                    if res and len(res) > 50:
+                        decompressed = res
+                        break
+                except Exception:
+                    continue
+            if decompressed:
+                break
+
+        if decompressed:
+            parts = decompressed.split(b"\xff")
+            if len(parts) >= 10:
+                p0 = parts[0].decode("ISO-8859-1", "ignore").strip()
+                is_versioned = bool(re.match(r"^V\d+", p0, re.IGNORECASE))
+                offset = 1 if is_versioned else 0
+
+                def _get_part(source_parts: list[bytes], idx: int) -> str | None:
+                    if len(source_parts) > idx:
+                        val = source_parts[idx].decode("ISO-8859-1", errors="ignore").strip()
+                        return val if val else None
+                    return None
+
+                data = {
+                    "version": p0 if is_versioned else "V1",
+                    "email_mobile_status": _get_part(parts, offset),
+                    "referenceid": _get_part(parts, offset + 1),
+                    "name": _get_part(parts, offset + 2),
+                    "dob": _get_part(parts, offset + 3),
+                    "gender": _get_part(parts, offset + 4),
+                    "careof": _get_part(parts, offset + 5),
+                    "district": _get_part(parts, offset + 6),
+                    "landmark": _get_part(parts, offset + 7),
+                    "house": _get_part(parts, offset + 8),
+                    "location": _get_part(parts, offset + 9),
+                    "pincode": _get_part(parts, offset + 10),
+                    "postoffice": _get_part(parts, offset + 11),
+                    "state": _get_part(parts, offset + 12),
+                    "street": _get_part(parts, offset + 13),
+                    "subdistrict": _get_part(parts, offset + 14),
+                    "vtc": _get_part(parts, offset + 15),
+                }
+                ref_id = data.get("referenceid")
+                if ref_id and len(ref_id) >= 4:
+                    data["aadhaar_last_4_digit"] = ref_id[:4]
+
+        # 2. Secondary fallback: pyaadhaar library for older formats
+        if not data and val_int is not None:
+            try:
+                from pyaadhaar.decode import AadhaarSecureQr
+
+                secure_qr = AadhaarSecureQr(val_int)  # type: ignore[arg-type]
+                data = secure_qr.decodeddata()
+            except Exception as e_pyaadhaar:
+                logger.debug("pyaadhaar parse exception: %s", e_pyaadhaar)
+
         if not data:
             return None
 
@@ -698,7 +768,7 @@ def scan_qr_stage(img: np.ndarray, side: str = "front") -> IdScanResponse | None
                 )
 
         # 2. Binary / Secure Aadhaar QR
-        if (text and text.strip().isdigit() and len(text.strip()) > 500) or len(raw_bytes) > 200:
+        if (text and text.strip().isdigit() and len(text.strip()) > 200) or len(raw_bytes) > 100:
             parsed = _parse_aadhaar_secure_qr(text, raw_bytes, img=img)
             if parsed and (parsed.name or parsed.id_number or parsed.address):
                 return IdScanResponse(

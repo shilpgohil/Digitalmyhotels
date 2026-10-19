@@ -2048,6 +2048,8 @@
     "idRecorded": "ID recorded",
     "uploadFrontFace": "Upload Front Face",
     "uploadBackFace": "Upload Back Face",
+    "frontCapturedUploadBackForQr": "Front photo captured. Upload back photo to scan QR code.",
+    "scanFrontOnlyOcr": "Scan front only (OCR)",
     "formAutofilled": "Form Auto-filled from ID Document",
     "phoneNumber": "Phone Number",
     "phonePlaceholder": "Phone",

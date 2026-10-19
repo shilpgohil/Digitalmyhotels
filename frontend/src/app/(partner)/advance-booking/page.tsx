@@ -936,6 +936,23 @@ function AdvanceBookingContent() {
                     </div>
                   )}
 
+                  {/* Waiting for Back Card to Scan QR (PVC Card) */}
+                  {!pgAutofillAccepted && !unifiedPgOcrResult && !pgScan.isScanning && pgScan.isWaitingForBack && (
+                    <div className="flex items-center justify-between gap-2 rounded-lg border border-gold-200 bg-gold-50/70 p-3 text-xs text-gold-900">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block h-2 w-2 rounded-full bg-gold-500 animate-pulse" />
+                        <span>{t("frontCapturedUploadBackForQr")}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void pgScan.triggerFrontOcrFallback()}
+                        className="shrink-0 font-medium text-gold-800 underline hover:text-gold-950 transition-colors"
+                      >
+                        {t("scanFrontOnlyOcr")}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Unified OCR autofill banner (merges front identity + back address) */}
                   {!pgAutofillAccepted && unifiedPgOcrResult && (
                     <AutofillBanner
