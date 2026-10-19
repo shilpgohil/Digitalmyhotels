@@ -119,6 +119,8 @@ const NON_NAME_TOKENS = new Set([
   "DATE", "BIRTH", "YEAR", "JANMA", "TARIKH", "ADDRESS", "PATA", "PIN", "PINCODE",
   "SIGNATURE", "HOLDER", "OFFICER", "ISSUED", "EXPIRY", "VALID", "UPTO", "STATE", "DISTRICT",
   "PO", "PS", "VILL", "TEHSIL", "TALUKA",
+  "HOD", "AW", "AA", "WW", "MERI", "ADHAAR", "ADHAA", "COMMON", "MAN", "AAM", "AAMI", "ADMI",
+  "SES", "SET", "SEL", "CO", "SO", "DO", "WO", "RO",
 ]);
 
 function isNonNameLine(line: string): boolean {
@@ -129,7 +131,8 @@ function isNonNameLine(line: string): boolean {
     /ELECTION|COMMISSION|VOTER|ELECTORAL|EPIC|निर्वाचन/i.test(upper) ||
     /TRANSPORT|MOTOR|VEHICLE|DRIVING|LICEN/i.test(upper) ||
     /PASSPORT|REPUBLIC|NATIONALITY/i.test(upper) ||
-    /WWW\.|\.GOV\.IN|\.NIC\.IN|1947|HELP@/i.test(upper)
+    /WWW\.|\.GOV\.IN|\.NIC\.IN|1947|HELP@/i.test(upper) ||
+    /MERA\s+AADHAAR|MERI\s+PEHCHAN|HOD\s+[A-Z]/i.test(upper)
   );
 }
 
@@ -165,10 +168,20 @@ function extractNameFromLine(line: string): string | undefined {
 
   const validWords = words.filter((w) => {
     const core = w.replace(/\./g, "").toUpperCase();
-    return core.length > 0 && !NON_NAME_TOKENS.has(core);
+    if (core.length === 0 || NON_NAME_TOKENS.has(core)) return false;
+    // Names must contain at least one vowel
+    if (!/[AEIOUY]/.test(core)) return false;
+    // Single characters are only valid if followed by a dot (e.g. initial 'B.')
+    if (core.length === 1 && !w.includes(".")) return false;
+    return true;
   });
 
   if (validWords.length < 1) return undefined;
+
+  // Single word names must be at least 4 letters
+  if (validWords.length === 1 && validWords[0].replace(/\./g, "").length < 4) {
+    return undefined;
+  }
 
   const hasSubstantialWord = validWords.some((w) => w.replace(/\./g, "").length >= 3);
   if (!hasSubstantialWord) return undefined;
@@ -338,9 +351,11 @@ function decomposeAddress(raw: string, pincode: string | undefined): {
     address = address.replace(distMatch[0], "");
   }
 
-  // 4. Strip leading "Address:" / "पता:" label remnants if present.
+  // 4. Strip leading "Address:" / "पता:" label remnants and OCR junk if present.
   address = address
     .replace(/^.*?\b(?:Address|Addres|Addr|Residential|पता)\s*[:.,\/-]?\s*/i, "")
+    .replace(/^(?:(?:ses|set|sel|sed|rel|ref|sec)\b[,\s.-]*)+/i, "")
+    .replace(/^[|&:/.,\s-]+/, "")
     .trim();
 
   // 4b. Strip leading father/guardian/spouse relational prefixes (S/O, C/O, D/O, W/O)
@@ -350,6 +365,7 @@ function decomposeAddress(raw: string, pincode: string | undefined): {
       /^(?:(?:[SCDW]\/O|Care\s+of|Son\s+of|Daughter\s+of|Wife\s+of|आत्मज|सुपुत्र|पत्नी|सुपुत्री)\s*[:.-]?\s*[^,]+[,\s]*)+/i,
       "",
     )
+    .replace(/^(?:(?:ses|set|sel|sed|rel|ref|sec)\b[,\s.-]*)+/i, "")
     .trim();
 
   // 5. Tidy leftover separators.
@@ -406,6 +422,8 @@ function cleanAddressText(raw: string): string {
 
   return kept
     .join(" ")
+    .replace(/^(?:(?:ses|set|sel|sed|rel|ref|sec)\b[,\s.-]*)+/i, "")
+    .replace(/^[|&:/.,\s-]+/, "")
     .replace(/\s+,/g, ",")
     .replace(/,\s*,+/g, ", ")
     .replace(/\s{2,}/g, " ")
@@ -878,17 +896,28 @@ export async function parseIdDocument(
       formData.append("qr_only", "true");
     }
 
-    const serverRes = await apiUpload<{
-      success: boolean;
-      source: string;
-      confidence: number;
-      fields: ParsedIdFields;
-      can_autofill: boolean;
-      message: string;
-    }>("/api/v1/guests/ocr-scan", formData, {
-      hotelId: options?.hotelId,
-      signal: options?.signal,
-    });
+    const doUpload = () =>
+      apiUpload<{
+        success: boolean;
+        source: string;
+        confidence: number;
+        fields: ParsedIdFields;
+        can_autofill: boolean;
+        message: string;
+      }>("/api/v1/guests/ocr-scan", formData, {
+        hotelId: options?.hotelId,
+        signal: options?.signal,
+      });
+
+    let serverRes;
+    try {
+      serverRes = await doUpload();
+    } catch (firstErr) {
+      if (firstErr instanceof DOMException && firstErr.name === "AbortError") throw firstErr;
+      // If server is starting up or temporarily unavailable, retry once after a brief pause
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      serverRes = await doUpload();
+    }
 
     if (serverRes) {
       if (!serverRes.success && options?.qrOnly) {
@@ -1040,15 +1069,16 @@ export async function parseIdDocument(
       blendedConfidence >= 0.45;
 
     const finalConfidence = canAutofill
-      ? Math.max(blendedConfidence, 0.70)
+      ? Math.min(0.68, Math.max(blendedConfidence, 0.50))
       : blendedConfidence;
 
     if (canAutofill) {
       const detected = finalFields.id_type_detected ?? idType;
       return {
         fields: finalFields,
+        source: "tesseract",
         confidence: finalConfidence,
-        message: `${detected} details detected (${Math.round(finalConfidence * 100)}% confidence)`,
+        message: `${detected} details detected via offline OCR (${Math.round(finalConfidence * 100)}% confidence)`,
         can_autofill: true,
       };
     }
