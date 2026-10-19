@@ -261,12 +261,12 @@ def decode_image_bytes(file_bytes: bytes) -> np.ndarray | None:
 
 
 def normalize_scan_image(
-    img: np.ndarray, max_dim: int = 1600, min_dim: int = 900
+    img: np.ndarray, max_dim: int = 2400, min_dim: int = 900
 ) -> np.ndarray:
-    """Normalize input image to optimal resolution range (900px <= dim <= 1600px).
+    """Normalize input image to optimal resolution range (900px <= dim <= 2400px).
 
-    Prevents massive multi-megapixel images from wasting CPU cycles on bicubic scaling
-    and ONNX inference, while upscaling tiny thumbnails so QR codes remain sharp.
+    Preserves dense UIDAI QR code module definition from mobile camera captures
+    without blurry downsampling or wasting memory.
     """
     h, w = img.shape[:2]
     cur_max = max(h, w)
@@ -329,7 +329,36 @@ def _read_qr(image_crop: np.ndarray) -> list[Any]:
     if b:
         return list(b)
 
-    # 4. Otsu thresholding on contrast-enhanced grayscale
+    # 4. Adaptive Gaussian thresholding (vital for mobile phone captures
+    # with shadows or uneven lighting)
+    adaptive_gauss = cv2.adaptiveThreshold(
+        enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 5
+    )
+    b = zxingcpp.read_barcodes(
+        adaptive_gauss,
+        formats=_QR_FORMATS,
+        try_rotate=True,
+        try_downscale=True,
+        try_invert=True,
+    )
+    if b:
+        return list(b)
+
+    # 5. Adaptive Mean thresholding
+    adaptive_mean = cv2.adaptiveThreshold(
+        enhanced, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 31, 5
+    )
+    b = zxingcpp.read_barcodes(
+        adaptive_mean,
+        formats=_QR_FORMATS,
+        try_rotate=True,
+        try_downscale=True,
+        try_invert=True,
+    )
+    if b:
+        return list(b)
+
+    # 6. Otsu thresholding on contrast-enhanced grayscale
     _, otsu = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     b = zxingcpp.read_barcodes(
         otsu,
@@ -341,7 +370,7 @@ def _read_qr(image_crop: np.ndarray) -> list[Any]:
     if b:
         return list(b)
 
-    # 5. Targeted scale-up of enhanced image if modules might be too small
+    # 7. Targeted scale-up of enhanced image if modules might be too small
     cw = image_crop.shape[1]
     ch = image_crop.shape[0]
     if max(cw, ch) < 2200:
@@ -654,7 +683,7 @@ def _parse_aadhaar_secure_qr(
         # 2. Secondary fallback: pyaadhaar library for older formats
         if not data and val_int is not None:
             try:
-                from pyaadhaar.decode import AadhaarSecureQr
+                from pyaadhaar.decode import AadhaarSecureQr  # type: ignore[import-untyped]
 
                 secure_qr = AadhaarSecureQr(val_int)  # type: ignore[arg-type]
                 data = secure_qr.decodeddata()
@@ -714,7 +743,7 @@ def _parse_aadhaar_secure_qr(
             except Exception as e:
                 logger.debug("Failed text fusion for Secure QR full UID: %s", e)
 
-        resolved_id = full_uid or (f"••••••••{uid_last4}" if uid_last4 else None)
+        resolved_id = full_uid or uid_last4
 
         return IdScanFields(
             name=clean_name(name),

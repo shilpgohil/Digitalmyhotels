@@ -274,5 +274,6 @@ def test_scan_v5_secure_qr_back_face() -> None:
         assert res.fields.pincode == "476224"
         assert res.fields.city == "Kailaras"
         assert res.fields.state == "Madhya Pradesh"
+        assert res.fields.id_number == "7192"
 
 

@@ -431,9 +431,10 @@ function ImageEditorDialog({
       const cropWInImage = cropBox.w / scale;
       const cropHInImage = cropBox.h / scale;
       const longestSide = Math.max(cropWInImage, cropHInImage);
-      const pixelScale = Math.min(maxDimension / longestSide, 1 / scale);
-      const outW = Math.max(1, Math.round(cropBox.w * pixelScale));
-      const outH = Math.max(1, Math.round(cropBox.h * pixelScale));
+      const exportScale = longestSide > maxDimension ? maxDimension / longestSide : 1;
+      const outW = Math.max(1, Math.round(cropWInImage * exportScale));
+      const outH = Math.max(1, Math.round(cropHInImage * exportScale));
+      const screenToCanvas = outW / cropBox.w;
 
       const canvas = document.createElement("canvas");
       canvas.width = outW;
@@ -445,9 +446,9 @@ function ImageEditorDialog({
       ctx.fillRect(0, 0, outW, outH);
       ctx.save();
       ctx.translate(outW / 2, outH / 2);
-      ctx.translate(offset.x * pixelScale, offset.y * pixelScale);
+      ctx.translate(offset.x * screenToCanvas, offset.y * screenToCanvas);
       ctx.rotate(totalAngleRad);
-      ctx.scale(scale * pixelScale, scale * pixelScale);
+      ctx.scale(scale * screenToCanvas, scale * screenToCanvas);
       ctx.drawImage(bitmap, -bw / 2, -bh / 2);
       ctx.restore();
       bitmap.close();

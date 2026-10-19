@@ -38,6 +38,8 @@ interface MaskedIdInputProps {
 /** Mask an ID number, keeping only the last 4 characters visible. */
 function maskIdValue(v: string): string {
   if (!v) return "";
+  if (isIdMask(v)) return v;
+  if (v.length <= 4) return v;
   const visible = v.slice(-4);
   return "•".repeat(Math.max(v.length - visible.length, 0)) + visible;
 }
@@ -61,9 +63,13 @@ export function MaskedIdInput({
   const rule = idRuleFor(idType);
 
   const handleChange = (raw: string) => {
-    // Saved-ID hints look like "••••••••1234" or "XXXX XXXX 1234" — never sanitize
-    // a value that still carries mask characters, or the hint gets destroyed mid-edit.
+    // Saved-ID hints look like "••••••••1234" or "XXXX XXXX 1234"
     if (isIdMask(raw)) {
+      const digitsOnly = raw.replace(/\D/g, "");
+      if (idType === "Aadhar Card" && digitsOnly.length === 12) {
+        onChange(digitsOnly);
+        return;
+      }
       onChange(raw);
       return;
     }
@@ -93,6 +99,14 @@ export function MaskedIdInput({
     }
   };
 
+  // If value contains mask characters but show is toggled on without a server onReveal,
+  // reveal whatever unmasked characters are known (e.g. "••••••••7192" -> "7192")
+  const displayValue = masked
+    ? maskIdValue(value)
+    : show && isIdMask(value) && !onReveal
+      ? (value.replace(/[•Xx*]/g, "").trim() || value)
+      : value;
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
@@ -109,11 +123,16 @@ export function MaskedIdInput({
       </div>
       <div className="flex gap-2">
         <Input
-          value={masked ? maskIdValue(value) : value}
+          value={displayValue}
           onChange={(e) => {
             if (!masked) handleChange(e.target.value);
           }}
-          onFocus={() => setFocused(true)}
+          onFocus={(e) => {
+            setFocused(true);
+            if (isIdMask(value)) {
+              e.currentTarget.select();
+            }
+          }}
           onBlur={() => setFocused(false)}
           placeholder={placeholder || (idType ? rule.placeholder : undefined)}
           inputMode={idType ? rule.inputMode : undefined}

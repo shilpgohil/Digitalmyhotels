@@ -1174,15 +1174,15 @@ export function mergeOcrResults(
   const bIsFull = /^\d{12}$/.test(bId.replace(/\s/g, ""));
 
   if (fIsFull) {
-    idNumber = fId;
+    idNumber = fId.replace(/\s/g, "");
   } else if (bIsFull) {
-    idNumber = bId;
+    idNumber = bId.replace(/\s/g, "");
   } else if (fId && !isIdMask(fId)) {
-    idNumber = fId;
+    idNumber = fId.replace(/\s/g, "");
   } else if (bId && !isIdMask(bId)) {
-    idNumber = bId;
+    idNumber = bId.replace(/\s/g, "");
   } else {
-    idNumber = fId || bId || "";
+    idNumber = (fId || bId || "").replace(/[•Xx*]/g, "").trim() || fId || bId || "";
   }
 
   // DOB & Gender: Prefer QR, fallback to whichever is present
