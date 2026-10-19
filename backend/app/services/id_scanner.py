@@ -16,21 +16,9 @@ from app.schemas.guest import IdScanFields, IdScanResponse
 
 logger = logging.getLogger(__name__)
 
-# Global singleton for RapidOCR engine so ONNX models are initialized once (~50MB RAM)
-_rapid_ocr_engine: Any = None
-
-
 def get_ocr_engine() -> Any:
-    global _rapid_ocr_engine
-    if _rapid_ocr_engine is None:
-        try:
-            from rapidocr_onnxruntime import RapidOCR
-
-            _rapid_ocr_engine = RapidOCR()
-        except Exception as e:
-            logger.warning("RapidOCR failed to initialize: %s", e)
-            _rapid_ocr_engine = None
-    return _rapid_ocr_engine
+    """Server-side ONNX OCR engine is disabled in favor of browser-side Tesseract.js."""
+    return None
 
 
 # ─── REGEX PATTERNS ──────────────────────────────────────────────────────────
@@ -1153,10 +1141,11 @@ def scan_id_document(
     side: str = "front",
     qr_only: bool = False,
 ) -> IdScanResponse:
-    """Master cascade: QR Code (100%) -> MRZ (98%) -> RapidOCR ONNX (Deep Learning).
+    """Master entrypoint: QR Code (100% digital UIDAI via zxing-cpp) -> MRZ (Passports).
 
-    When qr_only=True, skips Stage 2 & 3 and returns immediately if no QR code is found.
-    This enables ultra-fast (~30ms) probe of card faces without burning heavy CPU on OCR.
+    When no QR code is detected on the document face, returns a clean non-detection
+    response so browser-side Tesseract.js executes fallback text OCR without consuming
+    server CPU or RAM.
     """
     try:
         img = decode_image_bytes(file_bytes)
@@ -1186,23 +1175,16 @@ def scan_id_document(
             if qr_result and qr_result.success:
                 return qr_result
 
-        # When caller specifically asked for a fast QR-only probe (e.g. testing front face of
-        # PVC card), return immediately without burning 2.5 seconds CPU on RapidOCR.
-        if qr_only:
-            return IdScanResponse(
-                success=False,
-                source="none",
-                confidence=0.0,
-                fields=IdScanFields(),
-                can_autofill=False,
-                message="No QR code found on this document face.",
-            )
-
-        # STAGE 2 & 3: Deep Learning RapidOCR (with MRZ auto-detection)
-        # Normalize to max_dim=1600 to keep CPU RapidOCR inference under 2 seconds.
-        ocr_img = normalize_scan_image(img, max_dim=1600, min_dim=900)
-        ocr_result = scan_ocr_stage(ocr_img, id_type_hint=id_type_hint, side=side)
-        return ocr_result
+        # No QR code found on this document face: return clean non-detection.
+        # Fallback text OCR is performed client-side via Tesseract.js in Next.js (0 MB server RAM).
+        return IdScanResponse(
+            success=False,
+            source="none",
+            confidence=0.0,
+            fields=IdScanFields(),
+            can_autofill=False,
+            message="No QR code found on this document face.",
+        )
 
     except Exception as e:
         logger.exception("Error executing server-side ID scan: %s", e)

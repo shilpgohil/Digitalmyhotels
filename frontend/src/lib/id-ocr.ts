@@ -920,7 +920,18 @@ export async function parseIdDocument(
     }
 
     if (serverRes) {
-      if (!serverRes.success && options?.qrOnly) {
+      if (serverRes.success) {
+        return {
+          fields: serverRes.fields || {},
+          confidence: serverRes.confidence,
+          source: (serverRes.source as IdOcrResult["source"]) || (serverRes.confidence >= 0.98 ? "qr" : "tesseract"),
+          message: serverRes.message,
+          can_autofill: serverRes.can_autofill,
+        };
+      }
+      // If server did not find a QR code and caller requested a QR-only probe (e.g. front face of PVC card),
+      // return immediately so the coordinated scan can wait for the back face.
+      if (options?.qrOnly) {
         return {
           fields: {},
           confidence: 0,
@@ -929,13 +940,8 @@ export async function parseIdDocument(
           can_autofill: false,
         };
       }
-      return {
-        fields: serverRes.fields || {},
-        confidence: serverRes.confidence,
-        source: (serverRes.source as IdOcrResult["source"]) || (serverRes.confidence >= 0.98 ? "qr" : "rapidocr"),
-        message: serverRes.message,
-        can_autofill: serverRes.can_autofill,
-      };
+      // If no QR code was detected and full OCR is needed (e.g. PAN card, Driving Licence, Voter ID,
+      // or non-QR card), seamlessly fall through to browser-side Tesseract.js (0 MB server RAM).
     }
   } catch (err: unknown) {
     if (err instanceof DOMException && err.name === "AbortError") {

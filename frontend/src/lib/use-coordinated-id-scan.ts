@@ -214,15 +214,19 @@ export function useCoordinatedIdScan(
         const frontFile = pendingFrontRef.current;
         pendingFrontRef.current = null;
 
-        // If front was uploaded, run OCR on front
+        // If front was uploaded, run OCR on front first
         if (frontFile) {
           setScanningCount((c) => c + 1);
-          parseIdDocument(frontFile, "Aadhar Card", "front", {
-            hotelId: optionsRef.current?.hotelId,
-          })
-            .then((fRes) => setFrontResult(fRes))
-            .catch(() => optionsRef.current?.onScanError?.("Could not process document"))
-            .finally(() => setScanningCount((c) => Math.max(0, c - 1)));
+          try {
+            const fRes = await parseIdDocument(frontFile, "Aadhar Card", "front", {
+              hotelId: optionsRef.current?.hotelId,
+            });
+            setFrontResult(fRes);
+          } catch {
+            optionsRef.current?.onScanError?.("Could not process document");
+          } finally {
+            setScanningCount((c) => Math.max(0, c - 1));
+          }
         }
 
         // Run OCR on back

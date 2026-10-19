@@ -256,7 +256,7 @@ class IdScanFields(BaseModel):
 
 class IdScanResponse(BaseModel):
     success: bool
-    source: str  # "qr" | "mrz" | "rapidocr" | "none"
+    source: str  # "qr" | "mrz" | "tesseract" | "rapidocr" | "none"
     confidence: float
     fields: IdScanFields
     can_autofill: bool

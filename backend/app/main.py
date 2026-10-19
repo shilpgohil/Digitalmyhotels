@@ -76,21 +76,12 @@ async def lifespan(_app: FastAPI):
     # - keep-alive: self-ping via public URL every 10 min (Render free tier
     #   sleeps after 15 min without inbound traffic; GitHub cron alone is
     #   throttled to 1-5 h gaps and cannot prevent sleep). No-op off Render.
-    async def _warmup_ocr_singleton() -> None:
-        try:
-            from app.services.id_scanner import get_ocr_engine
-
-            await asyncio.to_thread(get_ocr_engine)
-        except Exception:
-            pass
-
     tasks = [
         asyncio.create_task(overdue_sweep_loop()),
         asyncio.create_task(reminders_loop()),         # arrival + checkout reminders
         asyncio.create_task(low_availability_loop()),  # low room availability alert
         asyncio.create_task(self_ping_loop()),
         asyncio.create_task(selfie_sweep_loop()),      # nightly selfie byte purge
-        asyncio.create_task(_warmup_ocr_singleton()),  # preload ONNX models to eliminate cold start
     ]
     yield
     for task in tasks:
