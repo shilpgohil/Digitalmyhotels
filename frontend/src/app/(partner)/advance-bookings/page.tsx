@@ -107,6 +107,16 @@ function AdvanceBookingsContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, fromDate, toDate]);
 
+  // Sync if searchParams changes from outside (e.g. global search navigation)
+  useEffect(() => {
+    const q = searchParams.get("q") ?? "";
+    if (q !== search) {
+      setSearch(q);
+      setPage(1);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   // The API accepts a single status per call, so upcoming stays
   // (pending + confirmed) are fetched with two parallel queries and merged.
   const pendingBookings = useQuery({

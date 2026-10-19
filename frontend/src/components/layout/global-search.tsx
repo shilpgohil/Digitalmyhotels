@@ -109,7 +109,7 @@ export function GlobalSearch() {
                     // advance-bookings which only shows pending/confirmed).
                     const dest =
                       b.status === "checked_in"
-                        ? `/current-guests`
+                        ? `/current-guests?q=${encodeURIComponent(b.booking_number)}`
                         : b.status === "checked_out"
                           ? `/completed-bookings?q=${encodeURIComponent(b.booking_number)}`
                           : b.status === "cancelled" || b.status === "no_show"
@@ -138,7 +138,57 @@ export function GlobalSearch() {
                   key={g.id}
                   type="button"
                   className="flex w-full items-center gap-2 overflow-hidden px-3 py-1.5 text-left text-sm hover:bg-muted"
-                  onClick={() => go("/current-guests")}
+                  onClick={async () => {
+                    // Smart status-aware routing (Option B):
+                    // 1. Check if guest is currently checked in (in-house stay)
+                    const inHouseBooking = bookings.data?.items.find(
+                      (b) =>
+                        (b.primary_guest_id === g.id ||
+                          b.primary_guest_name?.toLowerCase() === g.full_name.toLowerCase()) &&
+                        b.status === "checked_in",
+                    );
+                    if (inHouseBooking) {
+                      go(`/current-guests?q=${encodeURIComponent(g.full_name)}`);
+                      return;
+                    }
+
+                    // 2. Check if guest has an upcoming advance booking
+                    const upcomingBooking = bookings.data?.items.find(
+                      (b) =>
+                        (b.primary_guest_id === g.id ||
+                          b.primary_guest_name?.toLowerCase() === g.full_name.toLowerCase()) &&
+                        (b.status === "confirmed" || b.status === "pending"),
+                    );
+                    if (upcomingBooking) {
+                      go(`/advance-bookings?q=${encodeURIComponent(g.full_name)}`);
+                      return;
+                    }
+
+                    // 3. Fast verification: check if guest has an active in-house stay
+                    try {
+                      const inHouseCheck = await api<ListOut<{ booking_id: string }>>(
+                        `/api/v1/current-guests?limit=1&q=${encodeURIComponent(g.full_name)}`,
+                      );
+                      if (inHouseCheck.items && inHouseCheck.items.length > 0) {
+                        go(`/current-guests?q=${encodeURIComponent(g.full_name)}`);
+                        return;
+                      }
+
+                      // Check if guest has an upcoming advance booking
+                      const advanceCheck = await api<ListOut<{ id: string }>>(
+                        `/api/v1/bookings?status=pending,confirmed&limit=1&q=${encodeURIComponent(g.full_name)}`,
+                      );
+                      if (advanceCheck.items && advanceCheck.items.length > 0) {
+                        go(`/advance-bookings?q=${encodeURIComponent(g.full_name)}`);
+                        return;
+                      }
+                    } catch {
+                      // fallback to completed bookings
+                    }
+
+                    // 4. Past / checked-out guest: route directly to Completed Bookings
+                    go(`/completed-bookings?q=${encodeURIComponent(g.full_name)}`);
+                  }}
                 >
                   <UserRound className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="min-w-0 flex-1 truncate font-medium">{g.full_name}</span>

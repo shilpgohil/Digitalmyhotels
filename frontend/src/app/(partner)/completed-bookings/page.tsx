@@ -767,6 +767,28 @@ function CompletedBookingsContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- router identity is stable
   }, [search, fromDate, toDate, status]);
 
+  // Sync if searchParams changes from outside (e.g. global search navigation)
+  useEffect(() => {
+    const q = searchParams.get("q") ?? "";
+    const rawStatus = searchParams.get("status");
+    const nextStatus: CompletedStatus =
+      rawStatus === "cancelled" || rawStatus === "no_show" ? "cancelled" : "checked_out";
+
+    let changed = false;
+    if (q !== search) {
+      setSearch(q);
+      changed = true;
+    }
+    if (nextStatus !== status) {
+      setStatus(nextStatus);
+      changed = true;
+    }
+    if (changed) {
+      setPage(0);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   // Reset pagination whenever filters change.
   useEffect(() => {
     setPage(0);

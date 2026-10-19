@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -46,7 +46,7 @@ import {
 import { PaymentStatusBadge } from "@/components/stay/booking-badges";
 import { StatusBadge, ROOM_STATUS_TONE } from "@/components/feedback/status-badge";
 import { fmtDateTime, fmtDate, fmtApiDate, fmtINR } from "@/lib/formatting";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useApi } from "@/lib/api/use-api";
 import { invalidateMoney, invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -107,15 +107,35 @@ function CurrentGuestsContent() {
   const api = useApi();
   const queryClient = useQueryClient();
   const { activeHotelId, can } = useAuth();
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const searchParams = useSearchParams();
   const router = useRouter();
+  const [search, setSearch] = useState(() => searchParams.get("q") ?? "");
+  const [page, setPage] = useState(1);
   const [transferTarget, setTransferTarget] = useState<CurrentGuestOut | null>(null);
   const [viewTarget, setViewTarget] = useState<CurrentGuestOut | null>(null);
   const [editTarget, setEditTarget] = useState<CurrentGuestOut | null>(null);
   // When set, the stay-detail dialog auto-triggers the registration print as
   // soon as the booking detail loads (row "Print" action).
   const [autoPrint, setAutoPrint] = useState(false);
+
+  // Keep URL in sync with search filter so refresh/share preserves state
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (search) params.set("q", search);
+    const qs = params.toString();
+    const url = qs ? `/current-guests?${qs}` : "/current-guests";
+    router.replace(url, { scroll: false });
+  }, [search, router]);
+
+  // Sync if searchParams changes from outside (e.g. global search navigation)
+  useEffect(() => {
+    const q = searchParams.get("q") ?? "";
+    if (q !== search) {
+      setSearch(q);
+      setPage(1);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const guests = useQuery({
     queryKey: ["current-guests", activeHotelId, search],
@@ -1646,7 +1666,9 @@ function TransferDialog({
 export default function CurrentGuestsPage() {
   return (
     <RequirePermission permission={PERMISSIONS.guestsView}>
-      <CurrentGuestsContent />
+      <Suspense fallback={null}>
+        <CurrentGuestsContent />
+      </Suspense>
     </RequirePermission>
   );
 }
