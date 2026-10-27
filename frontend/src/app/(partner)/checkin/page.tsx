@@ -76,7 +76,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE, ApiError, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { docAspectFor, useImageEditor } from "@/components/media/image-editor";
-import { compressDocument } from "@/lib/compress-image";
+import { compressDocument, prepareUncroppedScanFile } from "@/lib/compress-image";
 import { fmtApiDate, fmtApiDateTime, fmtINR, localToday, localTomorrow } from "@/lib/formatting"; // eslint-disable-line @typescript-eslint/no-unused-vars
 import { cn } from "@/lib/utils";
 import type { ListOut, RoomAvailableItem } from "@/types/hotel";
@@ -760,6 +760,10 @@ function DocUpload({
     abortControllerRef.current = controller;
     onScanStart?.();
 
+    // Prepare uncropped, orientation-preserved high-res scan file for QR/OCR scanning
+    const scanFile = await prepareUncroppedScanFile(file, 2400);
+    onOriginal?.(side, scanFile);
+
     // Selfie: 1000px (face recognition doesn't need more).
     // ID docs: 1800px (Tesseract OCR works best at full card resolution).
     // Crop frame matches the document shape (Aadhaar/DL card vs passport page).
@@ -772,11 +776,10 @@ function DocUpload({
     // Show local preview immediately — before upload
     const previewUrl = URL.createObjectURL(edited);
     setPreview(previewUrl);
-    onOriginal?.(side, edited);
     try {
       const compressed = await compressDocument(edited);
 
-      // Run OCR on the edited photo if no parent coordinator (onOriginal) is attached.
+      // Run OCR on the photo if no parent coordinator (onOriginal) is attached.
       // Upload still uses the compressed copy.
       // Front → full extraction (name, DOB, gender, ID number, address).
       // Back  → address-only (Aadhar address lives on the back face; we only
@@ -784,7 +787,7 @@ function DocUpload({
       if ((side === "front" || side === "back") && onOcrResult && !onOriginal) {
         setOcrRunning(true);
         const { parseIdDocument } = await import("@/lib/id-ocr");
-        parseIdDocument(edited, idType ?? "Aadhar Card", side, { signal: controller.signal })
+        parseIdDocument(scanFile, idType ?? "Aadhar Card", side, { signal: controller.signal })
           .then((result) => {
             if (side === "back" && !result.fields.name && !result.fields.id_number) {
               // Back face: surface address + pincode only if name/id were not
@@ -1078,6 +1081,10 @@ function QueuedDocUpload({
     abortControllerRef.current = controller;
     onScanStart?.();
 
+    // Prepare uncropped, orientation-preserved high-res scan file for QR/OCR scanning
+    const scanFile = await prepareUncroppedScanFile(file, 2400);
+    onOriginal?.(side, scanFile);
+
     const edited = await edit(file, {
       aspect: docAspectFor(idType, side),
       maxDimension: side === "selfie" ? 1000 : 1800,
@@ -1086,7 +1093,6 @@ function QueuedDocUpload({
     const previewUrl = URL.createObjectURL(edited);
     setPreview(previewUrl);
     setShowingExisting(false);
-    onOriginal?.(side, edited);
     try {
       const compressed = await compressDocument(edited);
       onQueued(side, compressed);
@@ -1102,11 +1108,7 @@ function QueuedDocUpload({
       setOcrRunning(true);
       try {
         const { parseIdDocument } = await import("@/lib/id-ocr");
-        const ocrFile = edited; // use the cropped/oriented high-resolution photo
-        // BUG FIX (plan §4.3): the side was passed as the ID TYPE, so back
-        // faces never reached the back-face address parser and the autofill
-        // banner silently never appeared (client: "Autofill button not
-        // showing — both guest flows").
+        const ocrFile = scanFile; // use uncropped, full-field photo for OCR
         const result = await parseIdDocument(
           ocrFile,
           idType ?? "Aadhar Card",

@@ -477,6 +477,14 @@ def _decode_qr_barcodes(
         center_crop = img[:, int(w * 0.15) : int(w * 0.85)]
         return _read_qr(center_crop)
 
+    def _scan_bottom_band() -> list[Any]:
+        bottom_crop = img[int(h * 0.35) : h, :]
+        return _read_qr(bottom_crop)
+
+    def _scan_bottom_center() -> list[Any]:
+        bottom_center = img[int(h * 0.30) : h, int(w * 0.15) : int(w * 0.85)]
+        return _read_qr(bottom_center)
+
     # Prioritize scan order based on side hint
     if side == "back":
         b = _scan_left_half()
@@ -488,8 +496,17 @@ def _decode_qr_barcodes(
         b = _scan_right_half()
         if b:
             return b
+        b = _scan_bottom_band()
+        if b:
+            return b
     else:
         b = _scan_right_half()
+        if b:
+            return b
+        b = _scan_bottom_band()
+        if b:
+            return b
+        b = _scan_bottom_center()
         if b:
             return b
         b = _scan_left_half()
@@ -517,6 +534,11 @@ def _decode_qr_barcodes(
 
     ul_crop = img[: int(h * 0.70), : int(w * 0.62)]
     b = _read_qr(ul_crop)
+    if b:
+        return b
+
+    # Fallback to bottom center for non-standard square e-Aadhaar slips
+    b = _scan_bottom_center()
     if b:
         return b
 

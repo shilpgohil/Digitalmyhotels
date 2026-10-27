@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/ui/date-picker";
-import { compressDocument } from "@/lib/compress-image";
+import { compressDocument, prepareUncroppedScanFile } from "@/lib/compress-image";
 import { localToday } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -205,6 +205,10 @@ export function QueuedDocUpload({
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
+    // Prepare uncropped, orientation-preserved high-res scan file for QR/OCR scanning
+    const scanFile = await prepareUncroppedScanFile(file, 2400);
+    onOriginal?.(side, scanFile);
+
     const edited = await edit(file, {
       aspect: docAspectFor(idType, side),
       maxDimension: side === "selfie" ? 1000 : 1800,
@@ -212,7 +216,6 @@ export function QueuedDocUpload({
     if (!edited) return;
     const previewUrl = URL.createObjectURL(edited);
     setPreview(previewUrl);
-    onOriginal?.(side, edited);
     try {
       const compressed = await compressDocument(edited);
       onQueued(side, compressed);
@@ -409,6 +412,10 @@ export function DocUpload({
     abortControllerRef.current = controller;
     onScanStart?.();
 
+    // Prepare uncropped, orientation-preserved high-res scan file for QR/OCR scanning
+    const scanFile = await prepareUncroppedScanFile(file, 2400);
+    onOriginal?.(side, scanFile);
+
     const edited = await edit(file, {
       aspect: docAspectFor(idType, side),
       maxDimension: side === "selfie" ? 1000 : 1800,
@@ -417,14 +424,13 @@ export function DocUpload({
     setBusy(true);
     const previewUrl = URL.createObjectURL(edited);
     setPreview(previewUrl);
-    onOriginal?.(side, edited);
     try {
       const compressed = await compressDocument(edited);
 
       if ((side === "front" || side === "back") && onOcrResult && !onOriginal) {
         setOcrRunning(true);
         const { parseIdDocument } = await import("@/lib/id-ocr");
-        parseIdDocument(edited, idType ?? "Aadhar Card", side, { signal: controller.signal })
+        parseIdDocument(scanFile, idType ?? "Aadhar Card", side, { signal: controller.signal })
           .then((result) => {
             if (side === "back" && !result.fields.name && !result.fields.id_number) {
               const addressOnly = {

@@ -277,3 +277,37 @@ def test_scan_v5_secure_qr_back_face() -> None:
         assert res.fields.id_number == "7192"
 
 
+def test_scan_square_eaadhaar_slip_format() -> None:
+    """Verifies that non-standard square or unevenly proportioned e-Aadhaar slips
+    with bottom-mounted QR codes are detected and decoded reliably.
+    """
+    import cv2
+    v5_path = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "..",
+        "main documents",
+        "adhaar cards",
+        "fe791cef-e088-4284-9700-05cf31f971ee.jpg",
+    )
+    if os.path.exists(v5_path):
+        card = cv2.imread(v5_path)
+        assert card is not None
+        ch, cw = card.shape[:2]
+        # Create a square 1:1 canvas representing an e-Aadhaar slip or cut letter
+        dim = max(ch, cw) + 300
+        square_canvas = np.full((dim, dim, 3), 255, dtype=np.uint8)
+        # Position card towards the bottom half of the square canvas
+        y_offset = dim - ch - 50
+        x_offset = (dim - cw) // 2
+        square_canvas[y_offset : y_offset + ch, x_offset : x_offset + cw] = card
+
+        _, enc = cv2.imencode(".jpg", square_canvas)
+        res = scan_id_document(enc.tobytes(), side="back", qr_only=True)
+        assert res.success is True
+        assert res.source == "qr"
+        assert res.fields.name == "Bijendra Singh Meena"
+        assert res.fields.pincode == "476224"
+
+

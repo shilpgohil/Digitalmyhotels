@@ -29,7 +29,7 @@ import {
   useState,
 } from "react";
 import { useTranslations } from "next-intl";
-import { RotateCcw, RotateCw, Check, X } from "lucide-react";
+import { RotateCcw, RotateCw, Check, X, Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -215,7 +215,7 @@ function ImageEditorDialog({
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  function computeMinScaleFor(
+  function computeCoverScale(
     box: { w: number; h: number },
     w: number,
     h: number,
@@ -233,6 +233,30 @@ function ImageEditorDialog({
     );
   }
 
+  function computeMinScaleFor(
+    box: { w: number; h: number },
+    w: number,
+    h: number,
+    steps: number,
+    fine: number,
+  ): number {
+    const totalRad = (steps * 90 + fine) * (Math.PI / 180);
+    const sinA = Math.abs(Math.sin(totalRad));
+    const cosA = Math.abs(Math.cos(totalRad));
+    const rw = steps % 2 === 0 ? w : h;
+    const rh = steps % 2 === 0 ? h : w;
+    const coverScale = Math.max(
+      (box.w * cosA + box.h * sinA) / rw,
+      (box.h * cosA + box.w * sinA) / rh,
+    );
+    const containScale = Math.min(
+      (box.w * cosA + box.h * sinA) / rw,
+      (box.h * cosA + box.w * sinA) / rh,
+    );
+    // Allow zooming down so users can fit the entire document without forced edge truncation
+    return Math.min(coverScale, containScale * 0.95);
+  }
+
   function computeMinScale(w: number, h: number, steps: number, fine: number): number {
     return computeMinScaleFor(cropBox, w, h, steps, fine);
   }
@@ -242,12 +266,64 @@ function ImageEditorDialog({
     const w = img.naturalWidth || 1;
     const h = img.naturalHeight || 1;
     setNatural({ w, h });
-    const fit = computeMinScale(w, h, 0, 0);
-    setMinScale(fit);
+    const imgAspect = w / h;
+
+    let targetBox = initialBox;
+    // For ID cards, adapt the initial crop frame if the uploaded photo is
+    // non-standard (e.g. portrait camera capture or square e-Aadhaar cut slip):
+    if (aspect === "id_card" && typeof window !== "undefined") {
+      const maxW = Math.min(window.innerWidth - 48, 760);
+      const maxH = window.innerHeight - 240;
+      if (imgAspect < 1.0) {
+        // Portrait photo (e.g. mobile vertical photo or A4 document)
+        const frameW = Math.min(maxW, 340);
+        const frameH = Math.min(maxH, Math.round(frameW / Math.max(0.65, imgAspect)));
+        targetBox = { w: frameW, h: frameH };
+        setCropBox(targetBox);
+      } else if (imgAspect < 1.3) {
+        // Near-square photo (e.g. e-Aadhaar cut slip)
+        const frameW = Math.min(maxW, 360);
+        const frameH = Math.min(maxH, Math.round(frameW / imgAspect));
+        targetBox = { w: frameW, h: frameH };
+        setCropBox(targetBox);
+      }
+    }
+
+    const fit = computeCoverScale(targetBox, w, h, 0, 0);
+    const minS = computeMinScaleFor(targetBox, w, h, 0, 0);
+    setMinScale(minS);
     setScale(fit);
     setOffset({ x: 0, y: 0 });
     setCoarseSteps(0);
     setFineAngle(0);
+  };
+
+  const fitFullDocument = () => {
+    if (!natural.w || !natural.h) return;
+    const stage = stageRef.current?.getBoundingClientRect();
+    const maxW = stage ? stage.width - 24 : 600;
+    const maxH = stage ? stage.height - 24 : 600;
+    const rw = coarseSteps % 2 === 0 ? natural.w : natural.h;
+    const rh = coarseSteps % 2 === 0 ? natural.h : natural.w;
+    const imgRatio = rw / rh;
+
+    let targetW: number;
+    let targetH: number;
+    if (imgRatio >= maxW / maxH) {
+      targetW = maxW;
+      targetH = Math.round(maxW / imgRatio);
+    } else {
+      targetH = maxH;
+      targetW = Math.round(maxH * imgRatio);
+    }
+
+    const box = { w: Math.max(MIN_FRAME, targetW), h: Math.max(MIN_FRAME, targetH) };
+    setCropBox(box);
+    const fitScale = computeCoverScale(box, natural.w, natural.h, coarseSteps, fineAngle);
+    const minS = computeMinScaleFor(box, natural.w, natural.h, coarseSteps, fineAngle);
+    setMinScale(minS);
+    setScale(fitScale);
+    setOffset({ x: 0, y: 0 });
   };
 
   function clampOffset(x: number, y: number, s: number, steps: number) {
@@ -478,15 +554,26 @@ function ImageEditorDialog({
         >
           <X className="size-5" />
         </button>
-        {hasTransform && (
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={reset}
-            className="text-sm font-semibold text-warning hover:text-warning active:text-warning"
+            onClick={fitFullDocument}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-xs font-medium text-white transition-colors"
+            title={t("fitDoc")}
           >
-            {t("reset")}
+            <Maximize2 className="size-3.5" />
+            <span>{t("fitDoc")}</span>
           </button>
-        )}
+          {hasTransform && (
+            <button
+              type="button"
+              onClick={reset}
+              className="text-sm font-semibold text-warning hover:text-warning active:text-warning px-1.5"
+            >
+              {t("reset")}
+            </button>
+          )}
+        </div>
         <button
           type="button"
           disabled={busy}
