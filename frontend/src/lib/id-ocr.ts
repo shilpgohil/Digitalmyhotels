@@ -56,11 +56,11 @@ const PATTERNS = {
   voter: /\b[A-Z]{3}[-/]?[0-9OIl]{7}\b/i,
 
   // Date in common Indian formats: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, YYYY-MM-DD
-  dob: /(?:D\.?O\.?B\.?|Date of Birth|Birth Date|Year of Birth|YOB|जन्म|जन्मतिथि|जन्म तारीख)[:\s/]*(\d{2}[./\-]\d{2}[./\-]\d{4}|\d{4}[./\-]\d{2}[./\-]\d{2}|\b(?:19|20)\d{2}\b)/i,
+  dob: /(?:D\.?O\.?B\.?|Date of Birth|Birth Date|Year of Birth|YOB|जन्म|जन्मतिथि|जन्म तारीख|તારીખ|જન્મ)[:\s/]*(\d{2}[./\-]\d{2}[./\-]\d{4}|\d{4}[./\-]\d{2}[./\-]\d{2}|\b(?:19|20)\d{2}\b)/i,
   // Loose date anywhere in text
   date: /\b(\d{2}[./\-]\d{2}[./\-]\d{4})\b/,
 
-  gender: /\b(Male|Female|Transgender|MALE|FEMALE|TRANSGENDER|M|F|पुरुष|महिला)\b/,
+  gender: /\b(Male|Female|Transgender|MALE|FEMALE|TRANSGENDER|M|F|पुरुष|महिला|પુરુષ|સ્ત્રી)\b/,
 };
 
 // ─── Normalisation helpers ────────────────────────────────────────────────────
@@ -88,8 +88,8 @@ function normalizeDate(raw: string): string | undefined {
 
 function normalizeGender(raw: string): string {
   const val = raw.toLowerCase().trim();
-  if (val === "m" || val.startsWith("male") || val === "पुरुष") return "Male";
-  if (val === "f" || val.startsWith("female") || val === "महिला") return "Female";
+  if (val === "m" || val.startsWith("male") || val === "पुरुष" || val.startsWith("પુરુષ")) return "Male";
+  if (val === "f" || val.startsWith("female") || val === "महिला" || val.startsWith("સ્ત્રી")) return "Female";
   if (val.startsWith("trans")) return "Other";
   return raw;
 }
@@ -126,13 +126,14 @@ const NON_NAME_TOKENS = new Set([
 function isNonNameLine(line: string): boolean {
   const upper = line.toUpperCase();
   return (
-    /GOVERNMENT|INDIA|AADHAAR|आधार|भारत|UIDAI|ENROLMENT|AUTHORITY|IDENTIFICATION/i.test(upper) ||
+    /GOVERNMENT|INDIA|AADHAAR|आधार|भारत|સરકાર|ઓળખ|UIDAI|ENROLMENT|AUTHORITY|IDENTIFICATION|પ્રાધિકરણ/i.test(upper) ||
     /INCOME|TAX|DEPARTMENT|PERMANENT|ACCOUNT/i.test(upper) ||
-    /ELECTION|COMMISSION|VOTER|ELECTORAL|EPIC|निर्वाचन/i.test(upper) ||
+    /ELECTION|COMMISSION|VOTER|ELECTORAL|EPIC|निर्वाचन|ચૂંટણી/i.test(upper) ||
     /TRANSPORT|MOTOR|VEHICLE|DRIVING|LICEN/i.test(upper) ||
     /PASSPORT|REPUBLIC|NATIONALITY/i.test(upper) ||
     /WWW\.|\.GOV\.IN|\.NIC\.IN|1947|HELP@/i.test(upper) ||
-    /MERA\s+AADHAAR|MERI\s+PEHCHAN|HOD\s+[A-Z]/i.test(upper)
+    /MERA\s+AADHAAR|MERI\s+PEHCHAN|HOD\s+[A-Z]|મારી\s+ઓળખ/i.test(upper) ||
+    /સરનામું|પિતા|માતા/i.test(upper)
   );
 }
 
@@ -155,8 +156,8 @@ function cleanName(raw: string): string {
 /** Extracts candidate person name from a text line. Handles ALL CAPS, Title Case, and initials. */
 function extractNameFromLine(line: string): string | undefined {
   const clean = line
-    .replace(/^.*?(?:Name|नाम)\s*[:.\/-]?\s*/i, "")
-    .replace(/[\u0900-\u097F]+/g, " ")
+    .replace(/^.*?(?:Name|नाम|નામ)\s*[:.\/-]?\s*/i, "")
+    .replace(/[\u0900-\u0DFF]+/g, " ")
     .replace(/[^A-Za-z.\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -362,7 +363,7 @@ function decomposeAddress(raw: string, pincode: string | undefined): {
   // so father's name does not contaminate the physical street address column.
   address = address
     .replace(
-      /^(?:(?:[SCDW]\/O|Care\s+of|Son\s+of|Daughter\s+of|Wife\s+of|आत्मज|सुपुत्र|पत्नी|सुपुत्री)\s*[:.-]?\s*[^,]+[,\s]*)+/i,
+      /^(?:(?:[SCDW]\/O|Care\s+of|Son\s+of|Daughter\s+of|Wife\s+of|પિતાનુ\/માતાનુ\s*નામ|પિતા|માતા|आत्मज|सुपुत्र|पत्नी|सुपुत्री)\s*[:.-]?\s*[^,]+[,\s]*)+/i,
       "",
     )
     .replace(/^(?:(?:ses|set|sel|sed|rel|ref|sec)\b[,\s.-]*)+/i, "")
@@ -397,7 +398,7 @@ function cleanAddressText(raw: string): string {
     .replace(/\b\d{7,}\b/g, " ") // long digit runs — never house numbers
     .replace(/\bwww\.\S+/gi, " ")
     .replace(/\S+@\S+/g, " ")
-    .replace(/[\u0900-\u097F]+/g, " ") // strip inline Hindi characters
+    .replace(/[\u0900-\u0DFF]+/g, " ") // strip inline Indic characters (Hindi, Gujarati, etc.)
     .replace(/[^\w\s,./():#'-]/g, " ");
 
   const tokens = prepared.split(/\s+/).filter(Boolean);

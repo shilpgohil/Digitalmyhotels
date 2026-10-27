@@ -117,8 +117,8 @@ export async function prepareUncroppedScanFile(
     const { width, height } = bitmap;
     const longest = Math.max(width, height);
 
-    // If already reasonably sized and lightweight, return directly
-    if (longest <= maxDimension && file.size < 2.5 * 1024 * 1024) {
+    // If already reasonably sized and lightweight, return directly without re-compression
+    if (longest <= maxDimension && file.size < 4 * 1024 * 1024) {
       bitmap.close();
       return file;
     }

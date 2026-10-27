@@ -312,12 +312,24 @@ def _read_qr(image_crop: np.ndarray) -> list[Any]:
     if b:
         return list(b)
 
-    # 3. Local contrast enhancement (CLAHE) for glossy PVC cards, glare, or dim lighting
+    # 3. Fixed threshold binarizer
+    b = zxingcpp.read_barcodes(
+        image_crop,
+        formats=_QR_FORMATS,
+        try_rotate=True,
+        try_downscale=True,
+        try_invert=True,
+        binarizer=zxingcpp.Binarizer.FixedThreshold,
+    )
+    if b:
+        return list(b)
+
+    # 4. Local contrast enhancement (CLAHE) for glossy PVC cards, glare, or dim lighting
     if len(image_crop.shape) == 3:
         gray = cv2.cvtColor(image_crop, cv2.COLOR_BGR2GRAY)
     else:
         gray = image_crop
-    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
     b = zxingcpp.read_barcodes(
         enhanced,
@@ -329,10 +341,23 @@ def _read_qr(image_crop: np.ndarray) -> list[Any]:
     if b:
         return list(b)
 
-    # 4. Adaptive Gaussian thresholding (vital for mobile phone captures
+    # 5. Unsharp mask sharpening (vital for compressed mobile gallery uploads with blurred modules)
+    blurred = cv2.GaussianBlur(enhanced, (0, 0), 1.5)
+    sharpened = cv2.addWeighted(enhanced, 2.5, blurred, -1.5, 0)
+    b = zxingcpp.read_barcodes(
+        sharpened,
+        formats=_QR_FORMATS,
+        try_rotate=True,
+        try_downscale=True,
+        try_invert=True,
+    )
+    if b:
+        return list(b)
+
+    # 6. Adaptive Gaussian thresholding (vital for mobile phone captures
     # with shadows or uneven lighting)
     adaptive_gauss = cv2.adaptiveThreshold(
-        enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 5
+        enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 25, 4
     )
     b = zxingcpp.read_barcodes(
         adaptive_gauss,
@@ -344,9 +369,9 @@ def _read_qr(image_crop: np.ndarray) -> list[Any]:
     if b:
         return list(b)
 
-    # 5. Adaptive Mean thresholding
+    # 7. Adaptive Mean thresholding
     adaptive_mean = cv2.adaptiveThreshold(
-        enhanced, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 31, 5
+        enhanced, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 25, 4
     )
     b = zxingcpp.read_barcodes(
         adaptive_mean,
@@ -358,7 +383,7 @@ def _read_qr(image_crop: np.ndarray) -> list[Any]:
     if b:
         return list(b)
 
-    # 6. Otsu thresholding on contrast-enhanced grayscale
+    # 8. Otsu thresholding on contrast-enhanced grayscale
     _, otsu = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     b = zxingcpp.read_barcodes(
         otsu,
@@ -370,12 +395,24 @@ def _read_qr(image_crop: np.ndarray) -> list[Any]:
     if b:
         return list(b)
 
-    # 7. Targeted scale-up of enhanced image if modules might be too small
+    # 9. Targeted scale-up of sharpened & enhanced image if modules might be too small
     cw = image_crop.shape[1]
     ch = image_crop.shape[0]
     if max(cw, ch) < 2200:
         scale = min(2.5, 1600.0 / max(1, cw))
         if scale > 1.15:
+            scaled_sharp = cv2.resize(
+                sharpened, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
+            )
+            b = zxingcpp.read_barcodes(
+                scaled_sharp,
+                formats=_QR_FORMATS,
+                try_rotate=True,
+                try_downscale=True,
+                try_invert=True,
+            )
+            if b:
+                return list(b)
             scaled_gray = cv2.resize(
                 enhanced, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
             )

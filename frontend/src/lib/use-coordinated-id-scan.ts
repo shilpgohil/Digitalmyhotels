@@ -241,6 +241,7 @@ export function useCoordinatedIdScan(
           if (autofillAccepted && optionsRef.current?.onAddressAutofill && backProbe.fields) {
             optionsRef.current.onAddressAutofill(backProbe.fields);
           }
+          return;
         }
 
         // Back does NOT have QR!
