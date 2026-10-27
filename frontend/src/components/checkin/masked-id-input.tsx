@@ -33,6 +33,8 @@ interface MaskedIdInputProps {
    * sees the actual number, not just ••••4777. Replaces RevealIdButton.
    */
   onReveal?: () => Promise<string | null>;
+  /** Initial visibility of the ID digits (defaults to true for new entries without onReveal). */
+  defaultShow?: boolean;
 }
 
 /** Mask an ID number, keeping only the last 4 characters visible. */
@@ -53,10 +55,11 @@ export function MaskedIdInput({
   trailing,
   idType,
   onReveal,
+  defaultShow,
 }: MaskedIdInputProps) {
   const t = useTranslations("checkin");
   const tc = useTranslations("common");
-  const [show, setShow] = useState(false);
+  const [show, setShow] = useState(defaultShow ?? !onReveal);
   const [focused, setFocused] = useState(false);
   const [revealing, setRevealing] = useState(false);
   const masked = !show && !focused;

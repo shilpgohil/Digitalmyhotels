@@ -16,9 +16,21 @@ from app.schemas.guest import IdScanFields, IdScanResponse
 
 logger = logging.getLogger(__name__)
 
+# Global singleton for RapidOCR engine so ONNX models are initialized once (~50MB RAM)
+_rapid_ocr_engine: Any = None
+
+
 def get_ocr_engine() -> Any:
-    """Server-side ONNX OCR engine is disabled in favor of browser-side Tesseract.js."""
-    return None
+    global _rapid_ocr_engine
+    if _rapid_ocr_engine is None:
+        try:
+            from rapidocr_onnxruntime import RapidOCR
+
+            _rapid_ocr_engine = RapidOCR()
+        except Exception as e:
+            logger.warning("RapidOCR failed to initialize: %s", e)
+            _rapid_ocr_engine = None
+    return _rapid_ocr_engine
 
 
 # ─── REGEX PATTERNS ──────────────────────────────────────────────────────────
@@ -34,7 +46,7 @@ DL_NUM_RE = re.compile(
 VOTER_NUM_RE = re.compile(r"\b[A-Z]{3}[-/]?[0-9OIl]{7}\b", re.IGNORECASE)
 
 DOB_PREFIX_RE = re.compile(
-    r"(?:D\.?O\.?B\.?|Date of Birth|Birth Date|Year of Birth|YOB|जन्म|जन्मतिथि|जन्म तारीख)[:\s/]*"
+    r"(?:D\.?[O0]\.?B\.?|Date of Birth|Birth Date|Year of Birth|YOB|जन्म|जन्मतिथि|जन्म तारीख)[:\s/]*"
     r"(\d{2}[./\-]\d{2}[./\-]\d{4}|\d{4}[./\-]\d{2}[./\-]\d{2}|\b(?:19|20)\d{2}\b)",
     re.IGNORECASE,
 )
@@ -137,6 +149,11 @@ NON_NAME_TOKENS = {
     "VILL",
     "TEHSIL",
     "TALUKA",
+    "WEFT",
+    "ZA",
+    "MERI",
+    "MARI",
+    "OLAKH",
 }
 
 INDIAN_STATES = [
@@ -300,7 +317,30 @@ def _read_qr(image_crop: np.ndarray) -> list[Any]:
     if b:
         return list(b)
 
-    # 2. Global histogram binarizer (catches high-contrast or inverted mobile photos)
+    # 2. Sub-pixel unsharp masking directly on raw grayscale
+    # (vital for dense 1.6-1.8px modules in compressed photos)
+    if len(image_crop.shape) == 3:
+        gray = cv2.cvtColor(image_crop, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = image_crop
+
+    blurred_sub = cv2.GaussianBlur(gray, (0, 0), 0.8)
+    sharp_sub = cv2.addWeighted(gray, 3.0, blurred_sub, -2.0, 0)
+    for scale in (2.5, 2.0, 1.5):
+        s_img = cv2.resize(
+            sharp_sub, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
+        )
+        b = zxingcpp.read_barcodes(
+            s_img,
+            formats=_QR_FORMATS,
+            try_rotate=True,
+            try_downscale=True,
+            try_invert=True,
+        )
+        if b:
+            return list(b)
+
+    # 3. Global histogram binarizer (catches high-contrast or inverted mobile photos)
     b = zxingcpp.read_barcodes(
         image_crop,
         formats=_QR_FORMATS,
@@ -312,7 +352,7 @@ def _read_qr(image_crop: np.ndarray) -> list[Any]:
     if b:
         return list(b)
 
-    # 3. Fixed threshold binarizer
+    # 4. Fixed threshold binarizer
     b = zxingcpp.read_barcodes(
         image_crop,
         formats=_QR_FORMATS,
@@ -324,28 +364,11 @@ def _read_qr(image_crop: np.ndarray) -> list[Any]:
     if b:
         return list(b)
 
-    # 4. Local contrast enhancement (CLAHE) for glossy PVC cards, glare, or dim lighting
-    if len(image_crop.shape) == 3:
-        gray = cv2.cvtColor(image_crop, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = image_crop
+    # 5. Local contrast enhancement (CLAHE) for glossy PVC cards, glare, or dim lighting
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
     b = zxingcpp.read_barcodes(
         enhanced,
-        formats=_QR_FORMATS,
-        try_rotate=True,
-        try_downscale=True,
-        try_invert=True,
-    )
-    if b:
-        return list(b)
-
-    # 5. Unsharp mask sharpening (vital for compressed mobile gallery uploads with blurred modules)
-    blurred = cv2.GaussianBlur(enhanced, (0, 0), 1.5)
-    sharpened = cv2.addWeighted(enhanced, 2.5, blurred, -1.5, 0)
-    b = zxingcpp.read_barcodes(
-        sharpened,
         formats=_QR_FORMATS,
         try_rotate=True,
         try_downscale=True,
@@ -401,18 +424,6 @@ def _read_qr(image_crop: np.ndarray) -> list[Any]:
     if max(cw, ch) < 2200:
         scale = min(2.5, 1600.0 / max(1, cw))
         if scale > 1.15:
-            scaled_sharp = cv2.resize(
-                sharpened, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
-            )
-            b = zxingcpp.read_barcodes(
-                scaled_sharp,
-                formats=_QR_FORMATS,
-                try_rotate=True,
-                try_downscale=True,
-                try_invert=True,
-            )
-            if b:
-                return list(b)
             scaled_gray = cv2.resize(
                 enhanced, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
             )
@@ -425,6 +436,26 @@ def _read_qr(image_crop: np.ndarray) -> list[Any]:
             )
             if b:
                 return list(b)
+
+    # 10. Resilient check for barcodes with minor Reed-Solomon parity errors
+    # (e.g. compressed XML QR codes with slight noise)
+    b_err = zxingcpp.read_barcodes(
+        image_crop,
+        formats=_QR_FORMATS,
+        return_errors=True,
+        try_rotate=True,
+    )
+    for r in b_err:
+        if r.format == zxingcpp.BarcodeFormat.QRCode and r.text:
+            t = r.text.strip()
+            if (
+                "PrintLetterBarcodeData" in t
+                or "name=" in t
+                or "uid=" in t
+                or (t.isdigit() and len(t) > 300)
+            ):
+                return [r]
+
     return []
 
 
@@ -524,13 +555,13 @@ def _decode_qr_barcodes(
 
     # Prioritize scan order based on side hint
     if side == "back":
+        b = _scan_right_half()
+        if b:
+            return b
         b = _scan_left_half()
         if b:
             return b
         b = _scan_center()
-        if b:
-            return b
-        b = _scan_right_half()
         if b:
             return b
         b = _scan_bottom_band()
@@ -622,16 +653,101 @@ def _decode_qr_barcodes(
     return []
 
 
-def _parse_aadhaar_xml(xml_str: str) -> IdScanFields | None:
+def _parse_aadhaar_xml(xml_str: str, img: np.ndarray | None = None) -> IdScanFields | None:
     try:
-        root = ET.fromstring(xml_str)
-        attr = root.attrib
+        attr: dict[str, str] = {}
+        try:
+            root = ET.fromstring(xml_str)
+            attr = root.attrib
+        except Exception:
+            # Resilient fallback for older XML cards with minor JPEG compression noise in tags
+            for m in re.finditer(
+                r'([a-zA-Z_]+)\s*=\s*["\']?([^"\'<>]*?)(?:["\']|\s+(?=[a-zA-Z_]+\s*=)|$)',
+                xml_str,
+                re.IGNORECASE,
+            ):
+                cleaned_val = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", m.group(2)).strip()
+                if cleaned_val:
+                    attr[m.group(1).lower()] = cleaned_val
+
+        if not attr:
+            return None
 
         uid = attr.get("uid")
+        if not uid:
+            # Find 12-digit number in the text if attribute key was corrupted
+            m_uid = re.search(r"\b(\d{12})\b", xml_str)
+            if m_uid:
+                uid = m_uid.group(1)
+
         name = attr.get("name")
         gender = normalize_gender(attr.get("gender"))
         dob = normalize_date(attr.get("dob") or attr.get("yob"))
         co = attr.get("co")
+
+        # OCR refinement on card image if present
+        # (recovers full 12-digit UID, clean name, DOB, gender)
+        if img is not None:
+            try:
+                engine = get_ocr_engine()
+                if engine is not None:
+                    h, w = img.shape[:2]
+                    # 1. 12-digit UID from bottom crop
+                    if not uid or len(re.sub(r"\D", "", uid)) != 12:
+                        bottom_crop = img[int(h * 0.45) : h, :]
+                        ocr_res_b, _ = engine(bottom_crop)
+                        if ocr_res_b:
+                            for _, txt, _ in ocr_res_b:
+                                match_b = AADHAAR_NUM_RE.search(txt)
+                                if match_b:
+                                    d = re.sub(r"\D", "", match_b.group(0))
+                                    if len(d) == 12:
+                                        uid = d
+                                        break
+
+                    # 2. Name, DOB, and Gender refinement from card OCR
+                    ocr_res_all, _ = engine(img)
+                    if ocr_res_all:
+                        for _, txt, score in ocr_res_all:
+                            if score > 0.70 and len(txt) > 3:
+                                upper = txt.upper()
+                                # Clean name check
+                                is_valid_line = (
+                                    not any(t in upper for t in NON_NAME_TOKENS)
+                                    and not re.search(r"\d", txt)
+                                )
+                                if is_valid_line:
+                                    spaced = re.sub(r"([a-z])([A-Z])", r"\1 \2", txt).strip()
+                                    if spaced and len(spaced.split()) >= 2:
+                                        xml_parts = (name or "").split()
+                                        xml_first = xml_parts[0].lower() if xml_parts else ""
+                                        ocr_first = spaced.split()[0].lower()
+                                        match_prefix = (
+                                            xml_first.startswith(ocr_first[:3])
+                                            or ocr_first.startswith(xml_first[:3])
+                                        )
+                                        if not name or (xml_first and match_prefix):
+                                            name = spaced
+                                # DOB check
+                                if not dob or len(dob) == 4 or dob.endswith("-01-01"):
+                                    m_dob = DOB_PREFIX_RE.search(txt)
+                                    if m_dob:
+                                        cand_dob = normalize_date(m_dob.group(1))
+                                        if cand_dob:
+                                            dob = cand_dob
+                                # Gender check
+                                if not gender:
+                                    if "MALE" in upper or "PURUSH" in upper:
+                                        gender = "Male"
+                                    elif "FEMALE" in upper or "MAHILA" in upper:
+                                        gender = "Female"
+            except Exception as e:
+                logger.debug("Failed OCR card fusion for XML card: %s", e)
+
+        if uid:
+            d_only = re.sub(r"\D", "", uid)
+            if len(d_only) == 12:
+                uid = f"{d_only[:4]} {d_only[4:8]} {d_only[8:]}"
 
         # Address parts (physical location only — care_of / father's name is kept in care_of)
         addr_parts: list[str] = []
@@ -643,8 +759,14 @@ def _parse_aadhaar_xml(xml_str: str) -> IdScanFields | None:
         raw_addr = ", ".join(addr_parts) if addr_parts else None
         full_addr = strip_relation_prefix(raw_addr)
         city = attr.get("vtc") or attr.get("dist")
+        if city and not re.match(r"^[A-Za-z\s.-]+$", city.strip()):
+            city = None
         state = attr.get("state")
+        if state and not re.match(r"^[A-Za-z\s.-]+$", state.strip()):
+            state = None
         pincode = attr.get("pc")
+        if pincode and not re.match(r"^\d{6}$", pincode.strip()):
+            pincode = None
 
         return IdScanFields(
             name=clean_name(name),
@@ -802,7 +924,13 @@ def _parse_aadhaar_secure_qr(
             except Exception as e:
                 logger.debug("Failed text fusion for Secure QR full UID: %s", e)
 
-        resolved_id = full_uid or uid_last4
+        resolved_id: str | None = None
+        if full_uid and len(full_uid) == 12:
+            resolved_id = f"{full_uid[:4]} {full_uid[4:8]} {full_uid[8:]}"
+        elif full_uid:
+            resolved_id = full_uid
+        elif uid_last4:
+            resolved_id = str(uid_last4)
 
         return IdScanFields(
             name=clean_name(name),
@@ -831,8 +959,8 @@ def scan_qr_stage(img: np.ndarray, side: str = "front") -> IdScanResponse | None
         raw_bytes = b.bytes or b""
 
         # 1. XML Aadhaar QR
-        if "<PrintLetterBarcodeData" in text or "<?xml" in text:
-            parsed = _parse_aadhaar_xml(text)
+        if "<PrintLetterBarcodeData" in text or "<?xml" in text or "name=" in text:
+            parsed = _parse_aadhaar_xml(text, img=img)
             if parsed and (parsed.name or parsed.id_number or parsed.address):
                 return IdScanResponse(
                     success=True,
@@ -1247,19 +1375,16 @@ def scan_id_document(
                 message="Unable to decode image file format.",
             )
 
-        # For QR code detection, preserve higher resolution (up to 2400px) so dense
-        # Aadhaar Secure QR modules (65x65 to 97x97) from mobile gallery uploads
-        # don't get blurred or averaged down below the readable module threshold.
-        qr_img = normalize_scan_image(img, max_dim=2400, min_dim=900)
-
         # STAGE 1: QR Code (Fastest & 100% accurate for Aadhaar - front or back)
-        qr_result = scan_qr_stage(qr_img, side=side)
+        # 1. Scan raw authentic image first so original module definition is preserved
+        qr_result = scan_qr_stage(img, side=side)
         if qr_result and qr_result.success:
             return qr_result
 
-        # If QR was not found on qr_img and original image was larger, try raw image
-        if max(img.shape[:2]) > 2400:
-            qr_result = scan_qr_stage(img, side=side)
+        # 2. Try normalized resolution (downscale camera photos > 2400px or upscale tiny crops)
+        if max(img.shape[:2]) > 2400 or min(img.shape[:2]) < 900:
+            qr_img = normalize_scan_image(img, max_dim=2400, min_dim=900)
+            qr_result = scan_qr_stage(qr_img, side=side)
             if qr_result and qr_result.success:
                 return qr_result
 

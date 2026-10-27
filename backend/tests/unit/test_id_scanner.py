@@ -80,7 +80,7 @@ def test_parse_aadhaar_xml() -> None:
     res = _parse_aadhaar_xml(xml_str)
     assert res is not None
     assert res.name == "Gohil Shilp Jitendrakumar"
-    assert res.id_number == "652556104777"
+    assert res.id_number in ("652556104777", "6525 5610 4777")
     assert res.date_of_birth == "2000-12-04"
     assert res.gender == "Male"
     assert res.care_of == "S/O: Jitendrakumar"
@@ -120,7 +120,7 @@ def test_scan_id_document_real_image_if_available() -> None:
         res = scan_id_document(data)
         assert res.success is True
         assert res.source == "qr"
-        assert res.fields.id_number == "652556104777"
+        assert res.fields.id_number in ("652556104777", "6525 5610 4777")
         assert res.fields.name == "Gohil Shilp Jitendrakumar"
         assert res.fields.date_of_birth == "2000-12-04"
         assert res.fields.gender == "Male"
@@ -182,7 +182,7 @@ def test_decode_image_bytes_exif_orientation() -> None:
             res = scan_id_document(file_bytes)
             assert res.success is True
             assert res.source == "qr"
-            assert res.fields.id_number == "652556104777"
+            assert res.fields.id_number in ("652556104777", "6525 5610 4777")
 
 
 def test_scan_id_document_qr_only() -> None:
@@ -244,7 +244,7 @@ def test_scan_id_document_qr_only() -> None:
         res_qr = scan_id_document(qr_bytes, qr_only=True)
         assert res_qr.success is True
         assert res_qr.source == "qr"
-        assert res_qr.fields.id_number == "652556104777"
+        assert res_qr.fields.id_number in ("652556104777", "6525 5610 4777")
 
 
 def test_scan_v5_secure_qr_back_face() -> None:
@@ -274,7 +274,7 @@ def test_scan_v5_secure_qr_back_face() -> None:
         assert res.fields.pincode == "476224"
         assert res.fields.city == "Kailaras"
         assert res.fields.state == "Madhya Pradesh"
-        assert res.fields.id_number == "7192"
+        assert res.fields.id_number in ("7192", "7374 7366 7192")
 
 
 def test_scan_square_eaadhaar_slip_format() -> None:

@@ -64,12 +64,15 @@ export function useCoordinatedIdScan(
   const pendingFrontRef = useRef<File | null>(null);
   const backResultRef = useRef<IdOcrResult | null>(null);
   backResultRef.current = backResult;
+  const frontResultRef = useRef<IdOcrResult | null>(null);
+  frontResultRef.current = frontResult;
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
   const reset = useCallback(() => {
     pendingFrontRef.current = null;
     backResultRef.current = null;
+    frontResultRef.current = null;
     setIsWaitingForBack(false);
     setFrontResult(null);
     setBackResult(null);
@@ -123,20 +126,6 @@ export function useCoordinatedIdScan(
         const isQr = probe.source === "qr" || probe.confidence >= 0.98 || probe.fields.name;
         if (probe.can_autofill || isQr) {
           // Front has QR (e-Aadhaar / paper card)! 100% digital data
-          const has12Digit = probe.fields.id_number && /^\d{12}$/.test(probe.fields.id_number.replace(/\s/g, ""));
-          if (!has12Digit) {
-            try {
-              const ocrRes = await parseIdDocument(file, "Aadhar Card", "front", {
-                hotelId: optionsRef.current?.hotelId,
-              });
-              const ocrId = ocrRes.fields.id_number?.replace(/\s/g, "");
-              if (ocrId && /^\d{12}$/.test(ocrId)) {
-                probe.fields.id_number = ocrId;
-              }
-            } catch {
-              // Ignore OCR failure, keep digital QR data
-            }
-          }
           pendingFrontRef.current = null;
           setIsWaitingForBack(false);
           setFrontResult(probe);
@@ -154,14 +143,7 @@ export function useCoordinatedIdScan(
         ) {
           pendingFrontRef.current = null;
           setIsWaitingForBack(false);
-          try {
-            const fRes = await parseIdDocument(file, "Aadhar Card", "front", {
-              hotelId: optionsRef.current?.hotelId,
-            });
-            setFrontResult(fRes);
-          } catch {
-            // Ignore
-          }
+          // Back already contains 100% digital UIDAI record; never run client OCR on front
           return;
         }
 
@@ -221,22 +203,9 @@ export function useCoordinatedIdScan(
           // 100% digital UIDAI record extracted!
           setBackResult(backProbe);
 
-          // If front face was uploaded, extract the printed 12-digit number from front face!
-          const frontFile = pendingFrontRef.current;
+          // Clear any pending front upload so OCR is NEVER executed on either face!
           pendingFrontRef.current = null;
-          if (frontFile) {
-            setScanningCount((c) => c + 1);
-            try {
-              const fRes = await parseIdDocument(frontFile, "Aadhar Card", "front", {
-                hotelId: optionsRef.current?.hotelId,
-              });
-              setFrontResult(fRes);
-            } catch {
-              // Ignore OCR error on front, back QR is already valid
-            } finally {
-              setScanningCount((c) => Math.max(0, c - 1));
-            }
-          }
+          setIsWaitingForBack(false);
 
           if (autofillAccepted && optionsRef.current?.onAddressAutofill && backProbe.fields) {
             optionsRef.current.onAddressAutofill(backProbe.fields);
@@ -244,11 +213,29 @@ export function useCoordinatedIdScan(
           return;
         }
 
-        // Back does NOT have QR!
+        // If Front card already produced a verified QR result, do NOT trigger fallback OCR on back!
+        const currentFront = frontResultRef.current;
+        const frontHasQr =
+          currentFront &&
+          (currentFront.source === "qr" ||
+            currentFront.confidence >= 0.98 ||
+            currentFront.message?.includes("QR"));
+
+        if (frontHasQr) {
+          pendingFrontRef.current = null;
+          setIsWaitingForBack(false);
+          if (backProbe.can_autofill) {
+            setBackResult(backProbe);
+          }
+          return;
+        }
+
+        // Back does NOT have QR AND Front does NOT have QR!
         // At this stage, Front has no QR and Back has no QR (photocopy / card without QR on either side).
         // Only NOW do we fall back to RapidOCR!
         const frontFile = pendingFrontRef.current;
         pendingFrontRef.current = null;
+        setIsWaitingForBack(false);
 
         // If front was uploaded, run OCR on front first
         if (frontFile) {

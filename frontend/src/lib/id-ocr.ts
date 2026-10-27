@@ -121,6 +121,7 @@ const NON_NAME_TOKENS = new Set([
   "PO", "PS", "VILL", "TEHSIL", "TALUKA",
   "HOD", "AW", "AA", "WW", "MERI", "ADHAAR", "ADHAA", "COMMON", "MAN", "AAM", "AAMI", "ADMI",
   "SES", "SET", "SEL", "CO", "SO", "DO", "WO", "RO",
+  "WEFT", "ZA", "MERA", "PEHCHAN",
 ]);
 
 function isNonNameLine(line: string): boolean {
@@ -132,7 +133,7 @@ function isNonNameLine(line: string): boolean {
     /TRANSPORT|MOTOR|VEHICLE|DRIVING|LICEN/i.test(upper) ||
     /PASSPORT|REPUBLIC|NATIONALITY/i.test(upper) ||
     /WWW\.|\.GOV\.IN|\.NIC\.IN|1947|HELP@/i.test(upper) ||
-    /MERA\s+AADHAAR|MERI\s+PEHCHAN|HOD\s+[A-Z]|મારી\s+ઓળખ/i.test(upper) ||
+    /MERA\s+AADHAAR|MERI\s+PEHCHAN|HOD\s+[A-Z]|મારી\s+ઓળખ|WEFT|WEFT\s+ZA/i.test(upper) ||
     /સરનામું|પિતા|માતા/i.test(upper)
   );
 }
@@ -1184,6 +1185,12 @@ export function mergeOcrResults(
     idNumber = bId.replace(/\s/g, "");
   } else {
     idNumber = (fId || bId || "").replace(/[•Xx*]/g, "").trim() || fId || bId || "";
+  }
+
+  // If 12 digits are present, format with clean 4-4-4 spacing for preview
+  const digitsOnly = idNumber.replace(/\D/g, "");
+  if (digitsOnly.length === 12) {
+    idNumber = `${digitsOnly.slice(0, 4)} ${digitsOnly.slice(4, 8)} ${digitsOnly.slice(8)}`;
   }
 
   // DOB & Gender: Prefer QR, fallback to whichever is present
