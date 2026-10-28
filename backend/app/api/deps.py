@@ -84,19 +84,30 @@ async def get_tenant_context(
         except ValueError as exc:
             raise ForbiddenError("Invalid hotel context", code="invalid_hotel") from exc
 
-    if user.is_super_admin and hotel_uuid:
+    if user.is_super_admin:
+        from app.models.hotel import Hotel as _Hotel
         from app.models.hotel import HotelSettings as _HS
 
-        raw_mode = await db.scalar(
-            select(_HS.access_mode).where(_HS.hotel_id == hotel_uuid)
-        )
-        return TenantContext(
-            user_id=user.id,
-            hotel_id=hotel_uuid,
-            role=RoleCode.SUPER_ADMIN,
-            is_super_admin=True,
-            access_mode=raw_mode or "full",
-        )
+        target_hotel_id = hotel_uuid
+        if not target_hotel_id:
+            target_hotel_id = await db.scalar(
+                select(_Hotel.id)
+                .where(_Hotel.status != "deleted")
+                .order_by(_Hotel.created_at)
+                .limit(1)
+            )
+
+        if target_hotel_id:
+            raw_mode = await db.scalar(
+                select(_HS.access_mode).where(_HS.hotel_id == target_hotel_id)
+            )
+            return TenantContext(
+                user_id=user.id,
+                hotel_id=target_hotel_id,
+                role=RoleCode.SUPER_ADMIN,
+                is_super_admin=True,
+                access_mode=raw_mode or "full",
+            )
 
     query = (
         select(HotelMembership)

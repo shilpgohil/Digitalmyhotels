@@ -142,6 +142,19 @@ export async function refreshAccessToken(): Promise<boolean> {
   return refreshPromise;
 }
 
+export function getClientActiveHotelId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return (
+      sessionStorage.getItem("dmh.activeHotelId") ||
+      localStorage.getItem("dmh.activeHotelId") ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, hotelId, signal, skipAuthRetry } = options;
 
@@ -149,7 +162,8 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     const headers: Record<string, string> = { Accept: "application/json" };
     const token = getAccessToken();
     if (token) headers.Authorization = `Bearer ${token}`;
-    if (hotelId) headers["X-Hotel-Id"] = hotelId;
+    const effectiveHotelId = hotelId || getClientActiveHotelId();
+    if (effectiveHotelId) headers["X-Hotel-Id"] = effectiveHotelId;
     if (body !== undefined) headers["Content-Type"] = "application/json";
     return fetch(`${API_BASE}${path}`, {
       method,
@@ -218,7 +232,8 @@ export async function apiUpload<T>(
     const headers: Record<string, string> = { Accept: "application/json" };
     const token = getAccessToken();
     if (token) headers.Authorization = `Bearer ${token}`;
-    if (options.hotelId) headers["X-Hotel-Id"] = options.hotelId;
+    const effectiveHotelId = options.hotelId || getClientActiveHotelId();
+    if (effectiveHotelId) headers["X-Hotel-Id"] = effectiveHotelId;
     return fetch(`${API_BASE}${path}`, {
       method: options.method ?? "POST",
       headers,

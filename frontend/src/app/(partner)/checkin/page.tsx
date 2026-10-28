@@ -1270,6 +1270,7 @@ function NewGuestForm({
   const tc = useTranslations("common");
   const tg = useTranslations("guestPicker");
   const api = useApi();
+  const { activeHotelId } = useAuth();
   const [docs, setDocs] = useState<{ side: DocSide; file: File }[]>([]);
 
   const [form, setForm] = useState<GuestCreatePayload>({
@@ -1303,6 +1304,7 @@ function NewGuestForm({
     reset: resetCoordinatedScan,
   } = useCoordinatedIdScan({
     idType: form.id_proof_type,
+    hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
       let filledAny = false;
       if (fields.address && (!form.address || form.address.length < fields.address.length)) {
@@ -2605,6 +2607,7 @@ function CheckinForm({
   // ── OCR autofill state (primary guest) ──
   const pgScan = useCoordinatedIdScan({
     idType: pgIdType,
+    hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
       let filledAny = false;
       if (fields.address && (!pgAddress || pgAddress.length < fields.address.length)) {
@@ -3985,6 +3988,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   const [pgCompany, setPgCompany] = useState("");
   const pgScan = useCoordinatedIdScan({
     idType: pgIdType,
+    hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
       let filledAny = false;
       if (fields.address && (!pgAddress || pgAddress.length < fields.address.length)) {

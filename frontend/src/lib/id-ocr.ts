@@ -104,6 +104,7 @@ export function toTitleCase(str: string): string {
 const NAME_NOISE_TOKENS = new Set([
   "hi", "ho", "hl", "ii", "ll", "rn", "vi", "yi", "el", "iv",
   "shri", "shree", "smt", "mr", "mrs", "ms", "sri", "dr",
+  "be", "ps", "no", "id", "to", "at", "as", "on",
 ]);
 
 // Non-name vocabulary found in card headers, watermarks, and labels
@@ -121,7 +122,7 @@ const NON_NAME_TOKENS = new Set([
   "PO", "PS", "VILL", "TEHSIL", "TALUKA",
   "HOD", "AW", "AA", "WW", "MERI", "ADHAAR", "ADHAA", "COMMON", "MAN", "AAM", "AAMI", "ADMI",
   "SES", "SET", "SEL", "CO", "SO", "DO", "WO", "RO",
-  "WEFT", "ZA", "MERA", "PEHCHAN",
+  "WEFT", "ZA", "MERA", "PEHCHAN", "BE", "PS", "DETAILS", "AS", "ON",
 ]);
 
 function isNonNameLine(line: string): boolean {
@@ -134,7 +135,7 @@ function isNonNameLine(line: string): boolean {
     /PASSPORT|REPUBLIC|NATIONALITY/i.test(upper) ||
     /WWW\.|\.GOV\.IN|\.NIC\.IN|1947|HELP@/i.test(upper) ||
     /MERA\s+AADHAAR|MERI\s+PEHCHAN|HOD\s+[A-Z]|મારી\s+ઓળખ|WEFT|WEFT\s+ZA/i.test(upper) ||
-    /સરનામું|પિતા|માતા/i.test(upper)
+    /સરનામું|પિતા|માતા|DETAILS\s+AS\s+ON/i.test(upper)
   );
 }
 
@@ -145,10 +146,20 @@ function cleanName(raw: string): string {
     .replace(/\s+/g, " ")
     .trim();
   const tokens = base.split(" ");
-  while (tokens.length > 2 && NAME_NOISE_TOKENS.has(tokens[0].toLowerCase().replace(/\./g, ""))) {
+  while (
+    tokens.length > 1 &&
+    (NAME_NOISE_TOKENS.has(tokens[0].toLowerCase().replace(/\./g, "")) ||
+      NON_NAME_TOKENS.has(tokens[0].toUpperCase()) ||
+      (tokens[0].length <= 2 && !tokens[0].includes(".")))
+  ) {
     tokens.shift();
   }
-  while (tokens.length > 2 && NAME_NOISE_TOKENS.has(tokens[tokens.length - 1].toLowerCase().replace(/\./g, ""))) {
+  while (
+    tokens.length > 1 &&
+    (NAME_NOISE_TOKENS.has(tokens[tokens.length - 1].toLowerCase().replace(/\./g, "")) ||
+      NON_NAME_TOKENS.has(tokens[tokens.length - 1].toUpperCase()) ||
+      (tokens[tokens.length - 1].length <= 2 && !tokens[tokens.length - 1].includes(".")))
+  ) {
     tokens.pop();
   }
   return tokens.join(" ");
@@ -173,6 +184,8 @@ function extractNameFromLine(line: string): string | undefined {
     if (core.length === 0 || NON_NAME_TOKENS.has(core)) return false;
     // Names must contain at least one vowel
     if (!/[AEIOUY]/.test(core)) return false;
+    // 2-letter tokens without a dot (e.g. 'BE', 'PS') are not name words
+    if (core.length <= 2 && !w.includes(".")) return false;
     // Single characters are only valid if followed by a dot (e.g. initial 'B.')
     if (core.length === 1 && !w.includes(".")) return false;
     return true;
@@ -1121,14 +1134,16 @@ export async function parseIdDocument(
   }
 }
 
-/** Strip father/guardian/spouse relational prefixes (S/O, C/O, D/O, W/O) from address. */
+/** Strip father/guardian/spouse relational prefixes and edge noise from address. */
 export function stripRelationPrefix(addr: string | undefined): string | undefined {
   if (!addr) return undefined;
   const cleaned = addr
+    .replace(/^(?:(?:PS|PO|Details\s+as\s+on)[,.\s\d/:-]+)+/i, "")
     .replace(
       /^(?:(?:[SCDW]\/O|Care\s+of|Son\s+of|Daughter\s+of|Wife\s+of|आत्मज|सुपुत्र|पत्नी|सुपुत्री)\s*[:.-]?\s*[^,]+[,\s]*)+/i,
       "",
     )
+    .replace(/^(?:(?:PS|PO|Details\s+as\s+on)[,.\s\d/:-]+)+/i, "")
     .replace(/^[,\s-]+/, "")
     .replace(/[,\s-]+$/, "")
     .trim();
@@ -1181,18 +1196,21 @@ export function mergeOcrResults(
   const fFields = front.fields || {};
   const bFields = back.fields || {};
 
-  // Check if either face was decoded via digital QR code
-  const frontIsQr = front.source === "qr" || front.confidence >= 0.98 || front.message?.includes("QR");
-  const backIsQr = back.source === "qr" || back.confidence >= 0.98 || back.message?.includes("QR");
+  // Check if either face was decoded via digital QR code (zxing-cpp)
+  const frontIsQr = front.source === "qr" || Boolean(front.message?.includes("QR"));
+  const backIsQr = back.source === "qr" || Boolean(back.message?.includes("QR"));
 
-  // Name: Prefer digital QR name if available, else front, then back
+  // Name: Digital QR code name ALWAYS takes absolute precedence over OCR!
+  // If Back has QR (standard PVC smart card), Back QR name is 100% digital and ALWAYS wins.
+  // If Front has QR (e-Aadhaar / paper card), Front QR name is 100% digital and wins.
+  // Only if neither side has QR do we take OCR name (preferring Front over Back, cleaned of noise).
   let name = "";
-  if (frontIsQr && fFields.name) {
-    name = fFields.name;
-  } else if (backIsQr && bFields.name) {
+  if (backIsQr && bFields.name) {
     name = bFields.name;
+  } else if (frontIsQr && fFields.name) {
+    name = fFields.name;
   } else {
-    name = fFields.name || bFields.name || "";
+    name = cleanName(fFields.name || bFields.name || "");
   }
 
   // ID Number: Full 12 digits ALWAYS takes 100% precedence over any 4-digit mask or partial
@@ -1220,15 +1238,15 @@ export function mergeOcrResults(
 
   // DOB & Gender: Prefer QR, fallback to whichever is present
   const dob =
-    (frontIsQr && fFields.date_of_birth) ||
     (backIsQr && bFields.date_of_birth) ||
+    (frontIsQr && fFields.date_of_birth) ||
     fFields.date_of_birth ||
     bFields.date_of_birth ||
     "";
 
   const gender =
-    (frontIsQr && fFields.gender) ||
     (backIsQr && bFields.gender) ||
+    (frontIsQr && fFields.gender) ||
     fFields.gender ||
     bFields.gender ||
     "";

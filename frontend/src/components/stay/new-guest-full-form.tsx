@@ -919,6 +919,7 @@ export function NewGuestFullForm({
   const t = useTranslations("checkin");
   const tc = useTranslations("common");
   const tg = useTranslations("guestPicker");
+  const { activeHotelId } = useAuth();
   const [docs, setDocs] = useState<QueuedDoc[]>([]);
 
   const [form, setForm] = useState<GuestCreatePayload>({
@@ -952,6 +953,7 @@ export function NewGuestFullForm({
     reset: resetCoordinatedScan,
   } = useCoordinatedIdScan({
     idType: form.id_proof_type,
+    hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
       let filledAny = false;
       if (fields.address && (!form.address || form.address.length < fields.address.length)) {

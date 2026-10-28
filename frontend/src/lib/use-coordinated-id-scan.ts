@@ -129,7 +129,7 @@ export function useCoordinatedIdScan(
           qrOnly: true,
         });
 
-        const isQr = probe.source === "qr" || probe.confidence >= 0.98 || Boolean(probe.fields.name);
+        const isQr = probe.source === "qr" || Boolean(probe.message?.includes("QR"));
         if (probe.can_autofill || isQr) {
           // Front has QR (e-Aadhaar / paper card)! 100% digital data
           setFrontResult(probe);
@@ -154,9 +154,7 @@ export function useCoordinatedIdScan(
         const currentBack = backResultRef.current;
         if (
           currentBack &&
-          (currentBack.source === "qr" ||
-            currentBack.confidence >= 0.98 ||
-            currentBack.message?.includes("QR"))
+          (currentBack.source === "qr" || Boolean(currentBack.message?.includes("QR")))
         ) {
           pendingFrontRef.current = null;
           setIsWaitingForBack(false);
@@ -257,9 +255,8 @@ export function useCoordinatedIdScan(
 
         const backHasQr =
           backProbe.source === "qr" ||
-          backProbe.confidence >= 0.98 ||
-          backProbe.message?.includes("QR") ||
-          Boolean(backProbe.fields.name || backProbe.fields.id_number || backProbe.fields.address);
+          Boolean(backProbe.message?.includes("QR")) ||
+          Boolean(backProbe.fields.name && (backProbe.fields.id_number || backProbe.fields.address));
 
         if (backHasQr && backProbe.can_autofill) {
           // Back HAS Secure QR code (standard PVC card)!
@@ -280,15 +277,37 @@ export function useCoordinatedIdScan(
                     hotelId: optionsRef.current?.hotelId,
                     qrOnly: false,
                   });
-              if (fRes && (fRes.fields?.id_number || fRes.fields?.name)) {
-                setFrontResult(fRes);
-                currentFront = fRes;
+              if (fRes && fRes.fields) {
+                // When Back has digital QR, Back's digital Name/DOB/Gender/Address 100% WINS!
+                // Front OCR is ONLY used to supply the 12-digit UID!
+                const sanitizedFront: IdOcrResult = {
+                  ...fRes,
+                  fields: {
+                    ...fRes.fields,
+                    name: backProbe.fields.name || fRes.fields.name,
+                    date_of_birth: backProbe.fields.date_of_birth || fRes.fields.date_of_birth,
+                    gender: backProbe.fields.gender || fRes.fields.gender,
+                  },
+                };
+                setFrontResult(sanitizedFront);
+                currentFront = sanitizedFront;
                 frontUidDigits = (fRes.fields?.id_number || "").replace(/\D/g, "");
                 frontHas12Digits = frontUidDigits.length === 12;
               }
             } catch {
               // Non-fatal
             }
+          } else if (currentFront && currentFront.fields && backProbe.fields.name) {
+            // Front was already pre-scanned. Sanitize it so Back QR's digital Name/DOB/Gender wins!
+            setFrontResult({
+              ...currentFront,
+              fields: {
+                ...currentFront.fields,
+                name: backProbe.fields.name,
+                date_of_birth: backProbe.fields.date_of_birth || currentFront.fields.date_of_birth,
+                gender: backProbe.fields.gender || currentFront.fields.gender,
+              },
+            });
           }
 
           // Set back result and reveal unified banner with all 12 digits
@@ -317,10 +336,7 @@ export function useCoordinatedIdScan(
         const currentFront = frontResultRef.current;
         const frontHasQr =
           currentFront &&
-          (currentFront.source === "qr" ||
-            currentFront.confidence >= 0.98 ||
-            currentFront.message?.includes("QR") ||
-            Boolean(currentFront.fields.name));
+          (currentFront.source === "qr" || Boolean(currentFront.message?.includes("QR")));
 
         if (frontHasQr) {
           pendingFrontRef.current = null;
