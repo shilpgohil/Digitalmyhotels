@@ -133,6 +133,7 @@ export function useCoordinatedIdScan(
         if (probe.can_autofill || isQr) {
           // Front has QR (e-Aadhaar / paper card)! 100% digital data
           setFrontResult(probe);
+          frontResultRef.current = probe;
 
           // Check if Front QR already provided a complete street address + pincode
           const frontHasAddress = Boolean(probe.fields.address && probe.fields.pincode);
@@ -169,6 +170,7 @@ export function useCoordinatedIdScan(
                 qrOnly: false,
               });
               setFrontResult(fRes);
+              frontResultRef.current = fRes;
               const fDigits = (fRes.fields?.id_number || "").replace(/\D/g, "");
               if (
                 fDigits.length === 12 &&
@@ -199,6 +201,7 @@ export function useCoordinatedIdScan(
           const fRes = await frontScanPromise;
           if (fRes.fields?.id_number || fRes.fields?.name) {
             setFrontResult(fRes);
+            frontResultRef.current = fRes;
             const fDigits = (fRes.fields?.id_number || "").replace(/\D/g, "");
             if (
               fDigits.length === 12 &&
@@ -268,15 +271,10 @@ export function useCoordinatedIdScan(
           let frontUidDigits = (currentFront?.fields?.id_number || "").replace(/\D/g, "");
           let frontHas12Digits = frontUidDigits.length === 12;
 
-          // If Back only has 4 digits, but Front was uploaded, AWAIT Front's 12-digit UID scan BEFORE showing banner!
-          if (!backHas12Digits && !frontHas12Digits && pendingFrontRef.current) {
+          // If Front was uploaded, AWAIT Front's scan so Front is NEVER lost!
+          if (frontScanPromiseRef.current && (!currentFront || !frontHas12Digits)) {
             try {
-              const fRes = frontScanPromiseRef.current
-                ? await frontScanPromiseRef.current
-                : await parseIdDocument(pendingFrontRef.current, "Aadhar Card", "front", {
-                    hotelId: optionsRef.current?.hotelId,
-                    qrOnly: false,
-                  });
+              const fRes = await frontScanPromiseRef.current;
               if (fRes && fRes.fields) {
                 // When Back has digital QR, Back's digital Name/DOB/Gender/Address 100% WINS!
                 // Front OCR is ONLY used to supply the 12-digit UID!
@@ -290,6 +288,7 @@ export function useCoordinatedIdScan(
                   },
                 };
                 setFrontResult(sanitizedFront);
+                frontResultRef.current = sanitizedFront;
                 currentFront = sanitizedFront;
                 frontUidDigits = (fRes.fields?.id_number || "").replace(/\D/g, "");
                 frontHas12Digits = frontUidDigits.length === 12;
@@ -299,7 +298,7 @@ export function useCoordinatedIdScan(
             }
           } else if (currentFront && currentFront.fields && backProbe.fields.name) {
             // Front was already pre-scanned. Sanitize it so Back QR's digital Name/DOB/Gender wins!
-            setFrontResult({
+            const sanitizedFront: IdOcrResult = {
               ...currentFront,
               fields: {
                 ...currentFront.fields,
@@ -307,11 +306,14 @@ export function useCoordinatedIdScan(
                 date_of_birth: backProbe.fields.date_of_birth || currentFront.fields.date_of_birth,
                 gender: backProbe.fields.gender || currentFront.fields.gender,
               },
-            });
+            };
+            setFrontResult(sanitizedFront);
+            frontResultRef.current = sanitizedFront;
           }
 
           // Set back result and reveal unified banner with all 12 digits
           setBackResult(backProbe);
+          backResultRef.current = backProbe;
           setIsWaitingForBack(false);
           pendingFrontRef.current = null;
           frontScanPromiseRef.current = null;
@@ -366,12 +368,20 @@ export function useCoordinatedIdScan(
 
         // Back does NOT have QR AND Front does NOT have QR!
         // At this stage, Front has no QR and Back has no QR (photocopy / card without QR on either side).
-        // Only NOW do we fall back to RapidOCR!
-        const frontFile = pendingFrontRef.current;
-        pendingFrontRef.current = null;
-
-        // If front was uploaded and hasn't been scanned yet, run OCR on front
-        if (frontFile && !frontResultRef.current) {
+        // Ensure Front scan completes before setting backResult
+        if (frontScanPromiseRef.current && !frontResultRef.current) {
+          try {
+            const fRes = await frontScanPromiseRef.current;
+            if (fRes && fRes.fields) {
+              setFrontResult(fRes);
+              frontResultRef.current = fRes;
+            }
+          } catch {
+            // Non-fatal
+          }
+        } else if (pendingFrontRef.current && !frontResultRef.current) {
+          const frontFile = pendingFrontRef.current;
+          pendingFrontRef.current = null;
           setScanningCount((c) => c + 1);
           try {
             const fRes = await parseIdDocument(frontFile, "Aadhar Card", "front", {
@@ -379,6 +389,7 @@ export function useCoordinatedIdScan(
               qrOnly: false,
             });
             setFrontResult(fRes);
+            frontResultRef.current = fRes;
           } catch {
             optionsRef.current?.onScanError?.("Could not process document");
           } finally {
@@ -392,7 +403,10 @@ export function useCoordinatedIdScan(
           qrOnly: false,
         });
         setBackResult(backOcr);
+        backResultRef.current = backOcr;
         setIsWaitingForBack(false);
+        pendingFrontRef.current = null;
+        frontScanPromiseRef.current = null;
 
         if (autofillAcceptedRef.current && optionsRef.current?.onAddressAutofill && backOcr.fields) {
           optionsRef.current.onAddressAutofill(backOcr.fields);
@@ -413,6 +427,27 @@ export function useCoordinatedIdScan(
       // Front was already pre-scanned in the background! Clearing isWaitingForBack reveals unifiedResult.
       return;
     }
+    if (frontScanPromiseRef.current) {
+      setScanningCount((c) => c + 1);
+      try {
+        const fRes = await frontScanPromiseRef.current;
+        if (fRes) {
+          setFrontResult(fRes);
+          frontResultRef.current = fRes;
+          const fDigits = (fRes.fields?.id_number || "").replace(/\D/g, "");
+          if (
+            fDigits.length === 12 &&
+            autofillAcceptedRef.current &&
+            optionsRef.current?.onIdNumberAutofill
+          ) {
+            optionsRef.current.onIdNumberAutofill(fRes.fields.id_number!);
+          }
+        }
+      } finally {
+        setScanningCount((c) => Math.max(0, c - 1));
+      }
+      return;
+    }
     if (!pendingFrontRef.current) return;
     const frontFile = pendingFrontRef.current;
     pendingFrontRef.current = null;
@@ -427,6 +462,7 @@ export function useCoordinatedIdScan(
         },
       );
       setFrontResult(fullRes);
+      frontResultRef.current = fullRes;
       const fDigits = (fullRes.fields?.id_number || "").replace(/\D/g, "");
       if (
         fDigits.length === 12 &&

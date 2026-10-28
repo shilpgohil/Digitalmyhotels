@@ -905,8 +905,10 @@ export async function parseIdDocument(
   // ─── TIER 1: SERVER-SIDE SMART CASCADE (QR -> MRZ -> RapidOCR) ─────────────
   try {
     const { apiUpload } = await import("@/lib/api/client");
+    const { prepareUncroppedScanFile } = await import("@/lib/compress-image");
+    const scanReadyFile = await prepareUncroppedScanFile(imageFile, 1800);
     const formData = new FormData();
-    formData.append("file", imageFile);
+    formData.append("file", scanReadyFile);
     if (idType) formData.append("id_type_hint", idType);
     formData.append("side", side);
     if (options?.qrOnly) {
@@ -937,17 +939,25 @@ export async function parseIdDocument(
     }
 
     if (serverRes) {
-      if (serverRes.success) {
+      if (
+        serverRes.success ||
+        serverRes.can_autofill ||
+        (serverRes.fields &&
+          (serverRes.fields.name ||
+            serverRes.fields.id_number ||
+            serverRes.fields.address ||
+            serverRes.fields.date_of_birth))
+      ) {
         return {
           fields: serverRes.fields || {},
           confidence: serverRes.confidence,
-          source: (serverRes.source as IdOcrResult["source"]) || (serverRes.confidence >= 0.98 ? "qr" : "tesseract"),
+          source:
+            (serverRes.source as IdOcrResult["source"]) ||
+            (serverRes.confidence >= 0.98 ? "qr" : "rapidocr"),
           message: serverRes.message,
           can_autofill: serverRes.can_autofill,
         };
       }
-      // If server did not find a QR code and caller requested a QR-only probe (e.g. front face of PVC card),
-      // return immediately so the coordinated scan can wait for the back face.
       if (options?.qrOnly) {
         return {
           fields: {},
@@ -957,8 +967,6 @@ export async function parseIdDocument(
           can_autofill: false,
         };
       }
-      // If no QR code was detected and full OCR is needed (e.g. PAN card, Driving Licence, Voter ID,
-      // or non-QR card), seamlessly fall through to browser-side Tesseract.js (0 MB server RAM).
     }
   } catch (err: unknown) {
     if (err instanceof DOMException && err.name === "AbortError") {
@@ -1211,8 +1219,10 @@ export function mergeOcrResults(
     name = bFields.name;
   } else if (frontIsQr && fFields.name) {
     name = fFields.name;
-  } else {
-    name = cleanName(fFields.name || bFields.name || "");
+  } else if (fFields.name) {
+    name = cleanName(fFields.name);
+  } else if (bFields.name) {
+    name = cleanName(bFields.name);
   }
 
   // ID Number: Full 12 digits ALWAYS takes 100% precedence over any 4-digit mask or partial
@@ -1238,13 +1248,13 @@ export function mergeOcrResults(
     }
   }
 
-  // DOB & Gender: Prefer QR, fallback to whichever is present
+  // DOB & Gender: Prefer full date (DD/MM/YYYY) over year-only (-01-01), fallback to whichever is present
   const dob =
-    (backIsQr && bFields.date_of_birth) ||
-    (frontIsQr && fFields.date_of_birth) ||
-    fFields.date_of_birth ||
-    bFields.date_of_birth ||
-    "";
+    (backIsQr && bFields.date_of_birth && !bFields.date_of_birth.endsWith("-01-01"))
+      ? bFields.date_of_birth
+      : (frontIsQr && fFields.date_of_birth && !fFields.date_of_birth.endsWith("-01-01"))
+        ? fFields.date_of_birth
+        : fFields.date_of_birth || bFields.date_of_birth || "";
 
   const gender =
     (backIsQr && bFields.gender) ||
@@ -1257,41 +1267,57 @@ export function mergeOcrResults(
   let address = "";
   let pincode = "";
   let city = "";
-  let state = "";
 
   if (backIsQr && bFields.address) {
     address = bFields.address;
     pincode = bFields.pincode || fFields.pincode || "";
     city = bFields.city || fFields.city || "";
-    state = bFields.state || fFields.state || "";
   } else if (frontIsQr && fFields.address && fFields.address.length >= 15 && fFields.pincode) {
     address = fFields.address;
     pincode = fFields.pincode || bFields.pincode || "";
     city = fFields.city || bFields.city || "";
-    state = fFields.state || bFields.state || "";
-  } else if (bFields.address && bFields.address.length > (fFields.address?.length || 0)) {
+  } else if (bFields.address && bFields.address.length >= 10) {
     address = bFields.address;
     pincode = bFields.pincode || fFields.pincode || "";
     city = bFields.city || fFields.city || "";
-    state = bFields.state || fFields.state || "";
   } else if (fFields.address) {
     address = fFields.address;
     pincode = fFields.pincode || bFields.pincode || "";
     city = fFields.city || bFields.city || "";
-    state = fFields.state || bFields.state || "";
   } else {
     address = bFields.address || "";
     pincode = bFields.pincode || fFields.pincode || "";
     city = bFields.city || fFields.city || "";
-    state = bFields.state || fFields.state || "";
   }
 
-  const careOf =
+  // Strict state validation against real Indian States/UTs (rejects corrupted QR strings like "iZa Xade")
+  let state = "";
+  for (const s of [bFields.state, fFields.state]) {
+    if (s) {
+      const sClean = s.replace(/[^A-Za-z\s]/g, "").trim().toLowerCase();
+      const match = INDIAN_STATES.find(
+        (st) =>
+          st.toLowerCase() === sClean ||
+          sClean.includes(st.toLowerCase()) ||
+          st.replace(/\s+/g, "").toLowerCase() === sClean.replace(/\s+/g, ""),
+      );
+      if (match) {
+        state = match;
+        break;
+      }
+    }
+  }
+
+  const rawCareOf =
     (backIsQr && bFields.care_of) ||
     (frontIsQr && fFields.care_of) ||
     bFields.care_of ||
     fFields.care_of ||
     "";
+  const careOf =
+    rawCareOf && !/[\[\]{}<>|\\^~`]/.test(rawCareOf) && !/[^\x20-\x7E]/.test(rawCareOf)
+      ? rawCareOf
+      : undefined;
 
   const idTypeDetected = fFields.id_type_detected || bFields.id_type_detected || "Aadhar Card";
 

@@ -68,6 +68,34 @@ def strip_relation_prefix(addr: str | None) -> str | None:
     cleaned = RELATION_PREFIX_RE.sub("", addr).strip().lstrip(",").rstrip(",").strip()
     return cleaned if cleaned else None
 
+
+def sanitize_care_of(co: str | None) -> str | None:
+    """Validate and clean father/guardian/spouse care_of string.
+
+    Rejects corrupted QR strings with compression noise (e.g. '[/O:+[\\ufffd+es\\ufffd'),
+    while preserving clean relationships (e.g. 'S/O: Mukesh', 'S/O Kashiram Rawat').
+    """
+    if not co:
+        return None
+    # Reject strings with non-ASCII or compression artifacts
+    if any(ord(ch) > 127 for ch in co) or any(ch in "[]{}<>|\\^~`" for ch in co):
+        return None
+    cleaned = re.sub(r"\s+", " ", co).strip()
+    m = re.match(
+        r"^(?:(?:[SCDW]/O|Care\s+of|Son\s+of|Daughter\s+of|Wife\s+of)\s*[:.-]?\s*)([A-Za-z\s.]{3,})$",
+        cleaned,
+        re.IGNORECASE,
+    )
+    if m:
+        name_part = clean_name(m.group(1))
+        if name_part and len(name_part) >= 3:
+            prefix = cleaned[: cleaned.index(m.group(1))].strip()
+            return f"{prefix} {name_part}".strip()
+    cand = clean_name(cleaned)
+    if cand and len(cand) >= 4 and not any(ch.isdigit() for ch in cand):
+        return cand
+    return None
+
 NON_NAME_TOKENS = {
     "GOVERNMENT",
     "GOVT",
@@ -242,7 +270,8 @@ HONORIFIC_TOKENS = {"MR", "MRS", "MS", "SHRI", "SHREE", "SMT", "DR", "MASTER"}
 def clean_name(raw: str | None) -> str | None:
     if not raw:
         return None
-    spaced = re.sub(r"([a-z])([A-Z])", r"\1 \2", raw)
+    ascii_only = re.sub(r"[^\x20-\x7E]", " ", raw)
+    spaced = re.sub(r"([a-z])([A-Z])", r"\1 \2", ascii_only)
     base = re.sub(r"[^A-Za-z.\s]", " ", spaced)
     base = re.sub(r"\s+", " ", base).strip()
     words = [w for w in base.split() if w.upper() not in NON_NAME_TOKENS]
@@ -710,7 +739,7 @@ def _parse_aadhaar_xml(xml_str: str, img: np.ndarray | None = None) -> IdScanFie
         name = attr.get("name")
         gender = normalize_gender(attr.get("gender"))
         dob = normalize_date(attr.get("dob") or attr.get("yob"))
-        co = attr.get("co")
+        co = sanitize_care_of(attr.get("co"))
 
         # Address parts (physical location only — care_of / father's name is kept in care_of)
         addr_parts: list[str] = []
@@ -948,7 +977,7 @@ def _parse_aadhaar_secure_qr(
         name = data.get("name")
         gender = normalize_gender(data.get("gender"))
         dob = normalize_date(data.get("dob"))
-        co = data.get("careof")
+        co = sanitize_care_of(data.get("careof"))
 
         # Address parts (physical location only — care_of / father's name is kept in care_of)
         addr_parts: list[str] = []
@@ -1365,7 +1394,7 @@ def scan_ocr_stage(
         if raw_addr and not fields.care_of:
             rel_m = RELATION_PREFIX_RE.search(raw_addr)
             if rel_m:
-                fields.care_of = rel_m.group(0).strip().rstrip(",").strip()
+                fields.care_of = sanitize_care_of(rel_m.group(0).strip().rstrip(",").strip())
 
         clean_phys_addr = strip_relation_prefix(raw_addr)
         if clean_phys_addr:

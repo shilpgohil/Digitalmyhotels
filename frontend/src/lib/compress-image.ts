@@ -102,7 +102,7 @@ export const compressStaffPhoto = (file: File) =>
  */
 export async function prepareUncroppedScanFile(
   file: File,
-  maxDimension: number = 2400,
+  maxDimension: number = 1800,
 ): Promise<File> {
   if (!file.type.startsWith("image/") || file.type === "image/gif") {
     return file;
@@ -117,13 +117,13 @@ export async function prepareUncroppedScanFile(
     const { width, height } = bitmap;
     const longest = Math.max(width, height);
 
-    // If already reasonably sized and lightweight, return directly without re-compression
-    if (longest <= maxDimension && file.size < 4 * 1024 * 1024) {
+    // If already reasonably sized (<= maxDimension) and lightweight (<= 500KB), return directly
+    if (longest <= maxDimension && file.size <= 500 * 1024) {
       bitmap.close();
       return file;
     }
 
-    const ratio = maxDimension / longest;
+    const ratio = Math.min(1.0, maxDimension / longest);
     const outW = Math.max(1, Math.round(width * ratio));
     const outH = Math.max(1, Math.round(height * ratio));
 
@@ -149,7 +149,7 @@ export async function prepareUncroppedScanFile(
           resolve(new File([blob], name, { type: "image/jpeg" }));
         },
         "image/jpeg",
-        0.94,
+        0.88,
       );
     });
   } catch {
