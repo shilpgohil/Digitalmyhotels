@@ -64,6 +64,7 @@ export function useCoordinatedIdScan(
   const [isWaitingForBack, setIsWaitingForBack] = useState<boolean>(false);
 
   const pendingFrontRef = useRef<File | null>(null);
+  const frontScanPromiseRef = useRef<Promise<IdOcrResult> | null>(null);
   const backResultRef = useRef<IdOcrResult | null>(null);
   backResultRef.current = backResult;
   const frontResultRef = useRef<IdOcrResult | null>(null);
@@ -75,6 +76,7 @@ export function useCoordinatedIdScan(
 
   const reset = useCallback(() => {
     pendingFrontRef.current = null;
+    frontScanPromiseRef.current = null;
     backResultRef.current = null;
     frontResultRef.current = null;
     setIsWaitingForBack(false);
@@ -190,11 +192,13 @@ export function useCoordinatedIdScan(
 
         // Pre-scan Front face right away with fast server OCR to extract the 12-digit UID and Name!
         // When Back is uploaded later, Back's digital QR data merges instantly with Front's 12-digit UID in 0ms!
+        const frontScanPromise = parseIdDocument(file, "Aadhar Card", "front", {
+          hotelId: optionsRef.current?.hotelId,
+          qrOnly: false,
+        });
+        frontScanPromiseRef.current = frontScanPromise;
         try {
-          const fRes = await parseIdDocument(file, "Aadhar Card", "front", {
-            hotelId: optionsRef.current?.hotelId,
-            qrOnly: false,
-          });
+          const fRes = await frontScanPromise;
           if (fRes.fields?.id_number || fRes.fields?.name) {
             setFrontResult(fRes);
             const fDigits = (fRes.fields?.id_number || "").replace(/\D/g, "");
@@ -260,43 +264,50 @@ export function useCoordinatedIdScan(
         if (backHasQr && backProbe.can_autofill) {
           // Back HAS Secure QR code (standard PVC card)!
           // 100% digital UIDAI record extracted!
-          setBackResult(backProbe);
-          setIsWaitingForBack(false);
-
-          // Check if QR code provided all 12 digits or only the last 4 digits
           const backUidDigits = (backProbe.fields.id_number || "").replace(/\D/g, "");
           const backHas12Digits = backUidDigits.length === 12;
 
-          const currentFront = frontResultRef.current;
-          const frontUidDigits = (currentFront?.fields?.id_number || "").replace(/\D/g, "");
-          const frontHas12Digits = frontUidDigits.length === 12;
+          let currentFront = frontResultRef.current;
+          let frontUidDigits = (currentFront?.fields?.id_number || "").replace(/\D/g, "");
+          let frontHas12Digits = frontUidDigits.length === 12;
 
-          // If neither Back nor Front has 12 digits yet, but Front was uploaded earlier, scan Front!
+          // If Back only has 4 digits, but Front was uploaded, AWAIT Front's 12-digit UID scan BEFORE showing banner!
           if (!backHas12Digits && !frontHas12Digits && pendingFrontRef.current) {
-            const frontFile = pendingFrontRef.current;
             try {
-              const fRes = await parseIdDocument(frontFile, "Aadhar Card", "front", {
-                hotelId: optionsRef.current?.hotelId,
-                qrOnly: false,
-              });
-              if (fRes.fields?.id_number || fRes.fields?.name) {
+              const fRes = frontScanPromiseRef.current
+                ? await frontScanPromiseRef.current
+                : await parseIdDocument(pendingFrontRef.current, "Aadhar Card", "front", {
+                    hotelId: optionsRef.current?.hotelId,
+                    qrOnly: false,
+                  });
+              if (fRes && (fRes.fields?.id_number || fRes.fields?.name)) {
                 setFrontResult(fRes);
-                const fDigits = (fRes.fields?.id_number || "").replace(/\D/g, "");
-                if (
-                  fDigits.length === 12 &&
-                  autofillAcceptedRef.current &&
-                  optionsRef.current?.onIdNumberAutofill
-                ) {
-                  optionsRef.current.onIdNumberAutofill(fRes.fields.id_number!);
-                }
+                currentFront = fRes;
+                frontUidDigits = (fRes.fields?.id_number || "").replace(/\D/g, "");
+                frontHas12Digits = frontUidDigits.length === 12;
               }
             } catch {
               // Non-fatal
             }
           }
 
+          // Set back result and reveal unified banner with all 12 digits
+          setBackResult(backProbe);
+          setIsWaitingForBack(false);
+          pendingFrontRef.current = null;
+          frontScanPromiseRef.current = null;
+
           if (autofillAcceptedRef.current && optionsRef.current?.onAddressAutofill && backProbe.fields) {
             optionsRef.current.onAddressAutofill(backProbe.fields);
+          }
+          if (autofillAcceptedRef.current && optionsRef.current?.onIdNumberAutofill) {
+            const resolvedUid = frontHas12Digits
+              ? (currentFront?.fields?.id_number || "")
+              : (backHas12Digits ? (backProbe.fields.id_number || "") : "");
+            const d = resolvedUid.replace(/\D/g, "");
+            if (d.length === 12) {
+              optionsRef.current.onIdNumberAutofill(resolvedUid);
+            }
           }
           return;
         }

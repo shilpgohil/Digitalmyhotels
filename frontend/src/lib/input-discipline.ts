@@ -122,7 +122,7 @@ export function sanitizeAadhaarOcr(raw: string): string {
     const last4Match = raw.match(/\d{4}$/);
     const last4 = last4Match ? last4Match[0] : raw.replace(/\D/g, "").slice(-4);
     if (last4.length === 4) {
-      return last4;
+      return `•••• •••• ${last4}`;
     }
     return raw;
   }

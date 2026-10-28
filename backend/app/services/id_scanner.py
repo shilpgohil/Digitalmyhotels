@@ -948,8 +948,55 @@ def _parse_aadhaar_secure_qr(
                 engine = get_ocr_engine()
                 if engine is not None:
                     h, w = img.shape[:2]
+
+                    def _extract_from_ocr(lines_list: list[str]) -> str | None:
+                        # 1. Check line-by-line
+                        for txt in lines_list:
+                            match = AADHAAR_NUM_RE.search(txt)
+                            if match:
+                                d = re.sub(r"\D", "", match.group(0))
+                                if len(d) == 12 and d.endswith(str(uid_last4)):
+                                    return d
+                            norm = _normalize_ocr_digits(txt)
+                            match_norm = AADHAAR_NUM_RE.search(norm)
+                            if match_norm:
+                                d = re.sub(r"\D", "", match_norm.group(0))
+                                if len(d) == 12 and d.endswith(str(uid_last4)):
+                                    return d
+
+                        # 2. Check full joined text (handles numbers split across spaces or lines)
+                        joined = " \n ".join(lines_list)
+                        match = AADHAAR_NUM_RE.search(joined) or AADHAAR_NUM_RE.search(
+                            _normalize_ocr_digits(joined)
+                        )
+                        if match:
+                            d = re.sub(r"\D", "", match.group(0))
+                            if len(d) == 12 and d.endswith(str(uid_last4)):
+                                return d
+
+                        # 3. Check concatenated digit tokens (handles 4-4-4 separate boxes)
+                        digit_tokens = [
+                            re.sub(r"\D", "", _normalize_ocr_digits(t)) for t in lines_list
+                        ]
+                        digit_tokens = [t for t in digit_tokens if t]
+                        for i in range(len(digit_tokens)):
+                            combined = "".join(digit_tokens[i : i + 3])
+                            if len(combined) == 12 and combined.endswith(str(uid_last4)):
+                                return combined
+                            tok = digit_tokens[i]
+                            if len(tok) == 12 and tok.endswith(str(uid_last4)):
+                                return tok
+
+                        # 4. Search raw digits sequence in full text ending with uid_last4
+                        all_norm_digits = re.sub(r"\D", "", _normalize_ocr_digits(joined))
+                        if len(all_norm_digits) >= 12:
+                            for m in re.finditer(rf"\d{{8}}{str(uid_last4)}", all_norm_digits):
+                                return m.group(0)
+
+                        return None
+
                     # 1. Search bottom half of card at high resolution (< 150ms).
-                    bottom_crop = img[int(h * 0.40) : h, :]
+                    bottom_crop = img[int(h * 0.35) : h, :]
                     bh, bw = bottom_crop.shape[:2]
                     max_dim = max(bh, bw)
                     if max_dim > 1600:
@@ -961,20 +1008,8 @@ def _parse_aadhaar_secure_qr(
                         )
                     ocr_res, _ = engine(bottom_crop)
                     if ocr_res:
-                        for _, txt, _ in ocr_res:
-                            match = AADHAAR_NUM_RE.search(txt)
-                            if match:
-                                digits_only = re.sub(r"\D", "", match.group(0))
-                                if len(digits_only) == 12 and digits_only.endswith(str(uid_last4)):
-                                    full_uid = digits_only
-                                    break
-                            norm_txt = _normalize_ocr_digits(txt)
-                            norm_match = AADHAAR_NUM_RE.search(norm_txt)
-                            if norm_match:
-                                d_norm = re.sub(r"\D", "", norm_match.group(0))
-                                if len(d_norm) == 12 and d_norm.endswith(str(uid_last4)):
-                                    full_uid = d_norm
-                                    break
+                        crop_lines = [txt for _, txt, _ in ocr_res]
+                        full_uid = _extract_from_ocr(crop_lines)
 
                     # 2. If not in bottom crop, scan whole image (e.g. padded or non-standard)
                     if not full_uid:
@@ -987,28 +1022,8 @@ def _parse_aadhaar_secure_qr(
                             )
                         ocr_res_full, _ = engine(full_scan_img)
                         if ocr_res_full:
-                            for _, txt, _ in ocr_res_full:
-                                match = AADHAAR_NUM_RE.search(txt)
-                                if match:
-                                    digits_only = re.sub(r"\D", "", match.group(0))
-                                    is_match = (
-                                        len(digits_only) == 12
-                                        and digits_only.endswith(str(uid_last4))
-                                    )
-                                    if is_match:
-                                        full_uid = digits_only
-                                        break
-                                norm_txt = _normalize_ocr_digits(txt)
-                                norm_match = AADHAAR_NUM_RE.search(norm_txt)
-                                if norm_match:
-                                    d_norm = re.sub(r"\D", "", norm_match.group(0))
-                                    is_norm_match = (
-                                        len(d_norm) == 12
-                                        and d_norm.endswith(str(uid_last4))
-                                    )
-                                    if is_norm_match:
-                                        full_uid = d_norm
-                                        break
+                            full_lines = [txt for _, txt, _ in ocr_res_full]
+                            full_uid = _extract_from_ocr(full_lines)
             except Exception as e:
                 logger.debug("Failed text fusion for Secure QR full UID: %s", e)
 
@@ -1045,10 +1060,18 @@ def scan_qr_stage(img: np.ndarray, side: str = "front") -> IdScanResponse | None
     for b in barcodes:
         text = b.text or ""
         raw_bytes = b.bytes or b""
+        orient = getattr(b, "orientation", 0) or 0
+        upright_img = img
+        if orient == 180:
+            upright_img = cv2.rotate(img, cv2.ROTATE_180)
+        elif orient in (90, -270):
+            upright_img = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        elif orient in (-90, 270):
+            upright_img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
 
         # 1. XML Aadhaar QR
         if "<PrintLetterBarcodeData" in text or "<?xml" in text or "name=" in text:
-            parsed = _parse_aadhaar_xml(text, img=img)
+            parsed = _parse_aadhaar_xml(text, img=upright_img)
             if parsed and (parsed.name or parsed.id_number or parsed.address):
                 return IdScanResponse(
                     success=True,
@@ -1061,7 +1084,7 @@ def scan_qr_stage(img: np.ndarray, side: str = "front") -> IdScanResponse | None
 
         # 2. Binary / Secure Aadhaar QR
         if (text and text.strip().isdigit() and len(text.strip()) > 200) or len(raw_bytes) > 100:
-            parsed = _parse_aadhaar_secure_qr(text, raw_bytes, img=img)
+            parsed = _parse_aadhaar_secure_qr(text, raw_bytes, img=upright_img)
             if parsed and (parsed.name or parsed.id_number or parsed.address):
                 return IdScanResponse(
                     success=True,
