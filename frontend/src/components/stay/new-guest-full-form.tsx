@@ -1056,7 +1056,11 @@ export function NewGuestFullForm({
             if (fields.id_number) {
               const rawId = fields.id_number;
               const idType = fields.id_type_detected ?? form.id_proof_type ?? "Aadhar Card";
-              const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(rawId) : rawId.trim();
+              const digitsOnly = rawId.replace(/\D/g, "");
+              const cleaned =
+                idType === "Aadhar Card"
+                  ? (digitsOnly.length === 12 ? digitsOnly : sanitizeAadhaarOcr(rawId))
+                  : rawId.trim();
               set("id_number", cleaned);
             }
             if (fields.gender) set("gender", fields.gender);
@@ -1067,11 +1071,10 @@ export function NewGuestFullForm({
             if (fields.state) set("state", fields.state);
             if (fields.id_type_detected) set("id_proof_type", fields.id_type_detected);
             setAutofillAccepted(true);
-            resetCoordinatedScan();
             toast.success(t("guestAutofilled"));
           }}
           onDismiss={() => {
-            resetCoordinatedScan();
+            setAutofillAccepted(true);
           }}
         />
       )}

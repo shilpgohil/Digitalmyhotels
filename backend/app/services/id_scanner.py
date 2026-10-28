@@ -24,7 +24,7 @@ def get_ocr_engine() -> Any:
     global _rapid_ocr_engine
     if _rapid_ocr_engine is None:
         try:
-            from rapidocr_onnxruntime import RapidOCR
+            from rapidocr_onnxruntime import RapidOCR  # type: ignore[import-untyped]
 
             _rapid_ocr_engine = RapidOCR()
         except Exception as e:
@@ -900,8 +900,8 @@ def _parse_aadhaar_secure_qr(
                 engine = get_ocr_engine()
                 if engine is not None:
                     h, w = img.shape[:2]
-                    # The 12-digit UID is printed on the bottom half of the card.
-                    # Crop and scale bottom half for fast OCR (< 150ms) instead of full-image scan.
+                    # 1. The 12-digit UID is usually printed on the bottom half of the card.
+                    # Crop and scale bottom half for fast OCR (< 150ms).
                     bottom_crop = img[int(h * 0.45) : h, :]
                     bh, bw = bottom_crop.shape[:2]
                     max_dim = max(bh, bw)
@@ -921,6 +921,29 @@ def _parse_aadhaar_secure_qr(
                                 if len(digits_only) == 12 and digits_only.endswith(str(uid_last4)):
                                     full_uid = digits_only
                                     break
+
+                    # 2. If not in bottom crop, scan whole image (e.g. padded or non-standard)
+                    if not full_uid:
+                        max_dim_full = max(h, w)
+                        full_scan_img = img
+                        if max_dim_full > 1000:
+                            s = 1000.0 / max_dim_full
+                            full_scan_img = cv2.resize(
+                                img, (int(w * s), int(h * s)), interpolation=cv2.INTER_AREA
+                            )
+                        ocr_res_full, _ = engine(full_scan_img)
+                        if ocr_res_full:
+                            for _, txt, _ in ocr_res_full:
+                                match = AADHAAR_NUM_RE.search(txt)
+                                if match:
+                                    digits_only = re.sub(r"\D", "", match.group(0))
+                                    is_match = (
+                                        len(digits_only) == 12
+                                        and digits_only.endswith(str(uid_last4))
+                                    )
+                                    if is_match:
+                                        full_uid = digits_only
+                                        break
             except Exception as e:
                 logger.debug("Failed text fusion for Secure QR full UID: %s", e)
 
@@ -1177,21 +1200,68 @@ def scan_ocr_stage(
             if pin_match:
                 pincode_found = pin_match.group(1).replace(" ", "")
 
-        # State detection
+        # State detection (handles spaced or compact OCR text like "MadhyaPradesh")
         state_found: str | None = None
         for st in INDIAN_STATES:
-            if re.search(rf"\b{re.escape(st)}\b", all_text, re.IGNORECASE):
+            st_compact = st.replace(" ", "")
+            if re.search(rf"\b{re.escape(st)}\b", all_text, re.IGNORECASE) or re.search(
+                rf"\b{re.escape(st_compact)}\b", all_text.replace(" ", ""), re.IGNORECASE
+            ):
                 state_found = st
                 break
 
-        raw_addr = ", ".join(addr_lines) if addr_lines else None
+        # City / District detection from clean address lines
+        city_found: str | None = None
+        for cand_line in addr_lines:
+            cleaned_cand = re.sub(r"[,/.\-:]", "", cand_line).strip()
+            c_lower = cleaned_cand.lower()
+            is_state = any(
+                c_lower == st.lower() or c_lower == st.replace(" ", "").lower()
+                for st in INDIAN_STATES
+            )
+            if (
+                cleaned_cand
+                and 3 <= len(cleaned_cand) <= 25
+                and not any(ch.isdigit() for ch in cleaned_cand)
+                and not is_state
+                and not RELATION_PREFIX_RE.search(cleaned_cand)
+            ):
+                city_found = cleaned_cand
+
+        # Clean noise characters from address lines (remove isolated punctuation/slashes)
+        clean_addr_segments: list[str] = []
+        for line in addr_lines:
+            if re.match(r"^[\s/,.\-:]+$", line):
+                continue
+            cleaned_seg = re.sub(r"^[\s/,.\-:]+|[\s/,.\-:]+$", "", line).strip()
+            if cleaned_seg:
+                clean_addr_segments.append(cleaned_seg)
+
+        raw_addr = ", ".join(clean_addr_segments) if clean_addr_segments else None
         if raw_addr and not fields.care_of:
             rel_m = RELATION_PREFIX_RE.search(raw_addr)
             if rel_m:
                 fields.care_of = rel_m.group(0).strip().rstrip(",").strip()
-        fields.address = strip_relation_prefix(raw_addr)
+
+        clean_phys_addr = strip_relation_prefix(raw_addr)
+        if clean_phys_addr:
+            clean_phys_addr = re.sub(r"\s*/\s*", ", ", clean_phys_addr)
+            clean_phys_addr = re.sub(r"\s*,\s*", ", ", clean_phys_addr)
+            clean_phys_addr = re.sub(r",(\s*,)+", ",", clean_phys_addr).strip(", ")
+
+        fields.address = clean_phys_addr
         fields.pincode = pincode_found
         fields.state = state_found
+        fields.city = city_found
+
+        # Also extract 12-digit Aadhaar UID from back face text if visible
+        if not fields.id_number:
+            match_uid = AADHAAR_NUM_RE.search(all_text)
+            if match_uid:
+                d_uid = re.sub(r"\D", "", match_uid.group(0))
+                if len(d_uid) == 12:
+                    fields.id_number = f"{d_uid[:4]} {d_uid[4:8]} {d_uid[8:]}"
+
         if fields.address or fields.pincode:
             score_acc += 0.8
             return IdScanResponse(
@@ -1388,16 +1458,20 @@ def scan_id_document(
             if qr_result and qr_result.success:
                 return qr_result
 
-        # No QR code found on this document face: return clean non-detection.
-        # Fallback text OCR is performed client-side via Tesseract.js in Next.js (0 MB server RAM).
-        return IdScanResponse(
-            success=False,
-            source="none",
-            confidence=0.0,
-            fields=IdScanFields(),
-            can_autofill=False,
-            message="No QR code found on this document face.",
-        )
+        # If caller requested QR only probe (~30ms), return clean non-detection.
+        if qr_only:
+            return IdScanResponse(
+                success=False,
+                source="none",
+                confidence=0.0,
+                fields=IdScanFields(),
+                can_autofill=False,
+                message="No QR code found on this document face.",
+            )
+
+        # STAGE 2: Server-side RapidOCR + MRZ cascade when qr_only is False.
+        # Handles printed text address on card backs, non-QR cards, PAN, DL, Voter ID, Passport.
+        return scan_ocr_stage(img, id_type_hint=id_type_hint, side=side)
 
     except Exception as e:
         logger.exception("Error executing server-side ID scan: %s", e)

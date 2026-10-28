@@ -961,7 +961,11 @@ function AdvanceBookingContent() {
                         if (fields.name) setPgName(fields.name);
                         if (fields.id_number) {
                           const idType = fields.id_type_detected ?? pgIdType ?? "Aadhar Card";
-                          const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(fields.id_number) : fields.id_number.trim();
+                          const digitsOnly = fields.id_number.replace(/\D/g, "");
+                          const cleaned =
+                            idType === "Aadhar Card"
+                              ? (digitsOnly.length === 12 ? digitsOnly : sanitizeAadhaarOcr(fields.id_number))
+                              : fields.id_number.trim();
                           setPgIdNumber(cleaned);
                         }
                         if (fields.gender) setPgGender(fields.gender);

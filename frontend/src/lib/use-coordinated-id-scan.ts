@@ -123,12 +123,23 @@ export function useCoordinatedIdScan(
           qrOnly: true,
         });
 
-        const isQr = probe.source === "qr" || probe.confidence >= 0.98 || probe.fields.name;
+        const isQr = probe.source === "qr" || probe.confidence >= 0.98 || Boolean(probe.fields.name);
         if (probe.can_autofill || isQr) {
           // Front has QR (e-Aadhaar / paper card)! 100% digital data
-          pendingFrontRef.current = null;
-          setIsWaitingForBack(false);
           setFrontResult(probe);
+
+          // Check if Front QR already provided a complete street address + pincode
+          const frontHasAddress = Boolean(probe.fields.address && probe.fields.pincode);
+          if (frontHasAddress) {
+            pendingFrontRef.current = null;
+            setIsWaitingForBack(false);
+            return;
+          }
+
+          // Front has digital QR (Name, Gender, DOB, UID), but the paper card carries the address on the back face.
+          // Keep pendingFrontRef null (no need to OCR front), and set isWaitingForBack = true to capture the back address.
+          pendingFrontRef.current = null;
+          setIsWaitingForBack(true);
           return;
         }
 
@@ -143,7 +154,21 @@ export function useCoordinatedIdScan(
         ) {
           pendingFrontRef.current = null;
           setIsWaitingForBack(false);
-          // Back already contains 100% digital UIDAI record; never run client OCR on front
+
+          // Check if Back QR already had all 12 digits for Aadhaar Number
+          const backUidDigits = (currentBack.fields.id_number || "").replace(/\D/g, "");
+          if (backUidDigits.length !== 12) {
+            // Front face carries the printed 12-digit UID! Scan Front to recover all 12 digits.
+            try {
+              const fRes = await parseIdDocument(file, "Aadhar Card", "front", {
+                hotelId: optionsRef.current?.hotelId,
+                qrOnly: false,
+              });
+              setFrontResult(fRes);
+            } catch {
+              // Non-fatal
+            }
+          }
           return;
         }
 
@@ -202,10 +227,28 @@ export function useCoordinatedIdScan(
           // Back HAS Secure QR code (standard PVC card)!
           // 100% digital UIDAI record extracted!
           setBackResult(backProbe);
-
-          // Clear any pending front upload so OCR is NEVER executed on either face!
-          pendingFrontRef.current = null;
           setIsWaitingForBack(false);
+
+          // Check if QR code provided all 12 digits or only the last 4 digits
+          const backUidDigits = (backProbe.fields.id_number || "").replace(/\D/g, "");
+          const backHas12Digits = backUidDigits.length === 12;
+
+          // If QR only carried 4 digits, but Front was uploaded earlier, scan Front to extract the full 12 digits!
+          if (!backHas12Digits && pendingFrontRef.current) {
+            const frontFile = pendingFrontRef.current;
+            pendingFrontRef.current = null;
+            try {
+              const fRes = await parseIdDocument(frontFile, "Aadhar Card", "front", {
+                hotelId: optionsRef.current?.hotelId,
+                qrOnly: false,
+              });
+              setFrontResult(fRes);
+            } catch {
+              // Non-fatal
+            }
+          } else {
+            pendingFrontRef.current = null;
+          }
 
           if (autofillAccepted && optionsRef.current?.onAddressAutofill && backProbe.fields) {
             optionsRef.current.onAddressAutofill(backProbe.fields);
@@ -213,19 +256,38 @@ export function useCoordinatedIdScan(
           return;
         }
 
-        // If Front card already produced a verified QR result, do NOT trigger fallback OCR on back!
+        // Back does NOT have QR!
+        // Check if Front card already produced a verified QR result (e.g. e-Aadhaar / paper card):
         const currentFront = frontResultRef.current;
         const frontHasQr =
           currentFront &&
           (currentFront.source === "qr" ||
             currentFront.confidence >= 0.98 ||
-            currentFront.message?.includes("QR"));
+            currentFront.message?.includes("QR") ||
+            Boolean(currentFront.fields.name));
 
         if (frontHasQr) {
           pendingFrontRef.current = null;
           setIsWaitingForBack(false);
-          if (backProbe.can_autofill) {
-            setBackResult(backProbe);
+
+          // If Front had QR but lacks complete street address or pincode,
+          // scan Back face with server OCR to extract the printed address block!
+          const frontHasAddress = Boolean(currentFront.fields.address && currentFront.fields.pincode);
+          if (!frontHasAddress) {
+            try {
+              const backOcr = await parseIdDocument(file, "Aadhar Card", "back", {
+                hotelId: optionsRef.current?.hotelId,
+                qrOnly: false,
+              });
+              if (backOcr.can_autofill || backOcr.fields.address || backOcr.fields.pincode) {
+                setBackResult(backOcr);
+                if (autofillAccepted && optionsRef.current?.onAddressAutofill && backOcr.fields) {
+                  optionsRef.current.onAddressAutofill(backOcr.fields);
+                }
+              }
+            } catch {
+              // Non-fatal fallback
+            }
           }
           return;
         }

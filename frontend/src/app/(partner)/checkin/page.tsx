@@ -1432,10 +1432,13 @@ function NewGuestForm({
           onAccept={(fields) => {
             if (fields.name) set("full_name", fields.name);
             if (fields.id_number) {
-              // Strip spaces (OCR returns "1234 5678 9012" — spaces inflate length past 12)
               const rawId = fields.id_number;
               const idType = fields.id_type_detected ?? form.id_proof_type ?? "Aadhar Card";
-              const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(rawId) : rawId.trim();
+              const digitsOnly = rawId.replace(/\D/g, "");
+              const cleaned =
+                idType === "Aadhar Card"
+                  ? (digitsOnly.length === 12 ? digitsOnly : sanitizeAadhaarOcr(rawId))
+                  : rawId.trim();
               set("id_number", cleaned);
             }
             if (fields.gender) set("gender", fields.gender);
@@ -1446,11 +1449,10 @@ function NewGuestForm({
             if (fields.state) set("state", fields.state);
             if (fields.id_type_detected) set("id_proof_type", fields.id_type_detected);
             setAutofillAccepted(true);
-            resetCoordinatedScan();
             toast.success(t("guestAutofilled"));
           }}
           onDismiss={() => {
-            resetCoordinatedScan();
+            setAutofillAccepted(true);
           }}
         />
       )}
@@ -3272,7 +3274,11 @@ function CheckinForm({
                 if (fields.name) setPgName(fields.name);
                 if (fields.id_number) {
                   const idType = fields.id_type_detected ?? pgIdType ?? "Aadhar Card";
-                  const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(fields.id_number) : fields.id_number.trim();
+                  const digitsOnly = fields.id_number.replace(/\D/g, "");
+                  const cleaned =
+                    idType === "Aadhar Card"
+                      ? (digitsOnly.length === 12 ? digitsOnly : sanitizeAadhaarOcr(fields.id_number))
+                      : fields.id_number.trim();
                   setPgIdNumber(cleaned);
                 }
                 if (fields.gender) setPgGender(fields.gender);
@@ -3283,11 +3289,10 @@ function CheckinForm({
                 if (fields.state) setPgState(fields.state);
                 if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
                 setPgAutofillAccepted(true);
-                pgScan.reset();
                 toast.success(t("formAutofilled"));
               }}
               onDismiss={() => {
-                pgScan.reset();
+                setPgAutofillAccepted(true);
               }}
             />
           )}
@@ -5379,7 +5384,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                     if (fields.name) setPgName(fields.name);
                     if (fields.id_number) {
                       const idType = fields.id_type_detected ?? pgIdType ?? "Aadhar Card";
-                      const cleaned = idType === "Aadhar Card" ? sanitizeAadhaarOcr(fields.id_number) : fields.id_number.trim();
+                      const digitsOnly = fields.id_number.replace(/\D/g, "");
+                      const cleaned =
+                        idType === "Aadhar Card"
+                          ? (digitsOnly.length === 12 ? digitsOnly : sanitizeAadhaarOcr(fields.id_number))
+                          : fields.id_number.trim();
                       setPgIdNumber(cleaned);
                     }
                     if (fields.gender) setPgGender(fields.gender);
@@ -5390,11 +5399,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                     if (fields.state) setPgState(fields.state);
                     if (fields.id_type_detected) setPgIdType(fields.id_type_detected);
                     setPgAutofillAccepted(true);
-                    pgScan.reset();
                     toast.success(t("formAutofilled"));
                   }}
                   onDismiss={() => {
-                    pgScan.reset();
+                    setPgAutofillAccepted(true);
                   }}
                 />
               )}
