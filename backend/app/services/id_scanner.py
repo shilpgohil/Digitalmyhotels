@@ -979,25 +979,31 @@ def _parse_aadhaar_secure_qr(
                 if engine is not None:
                     h, w = img.shape[:2]
 
+                    pat_bound = re.compile(
+                        r"(?<![\d])(?:\d{4}[\s-]+\d{4}[\s-]+\d{4}|\d{12})(?![\s-]*\d)"
+                    )
+
                     def _extract_from_ocr(lines_list: list[str]) -> str | None:
                         # 1. Check line-by-line
                         for txt in lines_list:
-                            match = AADHAAR_NUM_RE.search(txt)
+                            match = (
+                                AADHAAR_NUM_RE.search(txt)
+                                or pat_bound.search(txt)
+                                or AADHAAR_NUM_RE.search(_normalize_ocr_digits(txt))
+                                or pat_bound.search(_normalize_ocr_digits(txt))
+                            )
                             if match:
                                 d = re.sub(r"\D", "", match.group(0))
-                                if len(d) == 12 and d.endswith(str(uid_last4)):
-                                    return d
-                            norm = _normalize_ocr_digits(txt)
-                            match_norm = AADHAAR_NUM_RE.search(norm)
-                            if match_norm:
-                                d = re.sub(r"\D", "", match_norm.group(0))
                                 if len(d) == 12 and d.endswith(str(uid_last4)):
                                     return d
 
                         # 2. Check full joined text (handles numbers split across spaces or lines)
                         joined = " \n ".join(lines_list)
-                        match = AADHAAR_NUM_RE.search(joined) or AADHAAR_NUM_RE.search(
-                            _normalize_ocr_digits(joined)
+                        match = (
+                            AADHAAR_NUM_RE.search(joined)
+                            or pat_bound.search(joined)
+                            or AADHAAR_NUM_RE.search(_normalize_ocr_digits(joined))
+                            or pat_bound.search(_normalize_ocr_digits(joined))
                         )
                         if match:
                             d = re.sub(r"\D", "", match.group(0))
@@ -1472,6 +1478,15 @@ def scan_ocr_stage(
             norm_all = _normalize_ocr_digits(all_text)
             aadhar_match = AADHAAR_NUM_RE.search(norm_all)
 
+        # Resilient boundary check (handles Devanagari/Hindi text adjacent to digits)
+        if not aadhar_match:
+            pat_digit_bound = re.compile(
+                r"(?<![\d])(?:\d{4}[\s-]+\d{4}[\s-]+\d{4}|\d{12})(?![\s-]*\d)"
+            )
+            aadhar_match = pat_digit_bound.search(all_text) or pat_digit_bound.search(
+                _normalize_ocr_digits(all_text)
+            )
+
         aadhar_line_idx = -1
         if aadhar_match:
             raw_num = re.sub(r"\s+", " ", aadhar_match.group(0)).strip()
@@ -1485,6 +1500,16 @@ def scan_ocr_stage(
                 norm_item = _normalize_ocr_digits(line_item)
                 if aadhar_match.group(0) in line_item or aadhar_match.group(0) in norm_item:
                     aadhar_line_idx = idx
+                    break
+        else:
+            # 4-4-4 Token concatenation fallback (handles separate OCR bounding boxes)
+            digit_tokens = [re.sub(r"\D", "", _normalize_ocr_digits(t)) for t in lines]
+            digit_tokens = [t for t in digit_tokens if t]
+            for i in range(len(digit_tokens)):
+                combined = "".join(digit_tokens[i : i + 3])
+                if len(combined) == 12:
+                    fields.id_number = f"{combined[:4]} {combined[4:8]} {combined[8:]}"
+                    score_acc += 0.4
                     break
 
         dob_match = DOB_PREFIX_RE.search(all_text) or DATE_RE.search(all_text)
