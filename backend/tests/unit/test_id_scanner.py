@@ -335,6 +335,8 @@ def test_scan_user_eaadhaar_attached_card() -> None:
         assert res_qr.fields.name == "Manav Mukesh Rawat"
         assert res_qr.fields.date_of_birth == "2012-08-24"
         assert res_qr.fields.gender == "Male"
+        assert res_qr.fields.state is None  # Corrupted state bytes "izA Xade" strictly filtered out
+
 
         # Front full scan recovers the 12-digit UID
         res_full = scan_id_document(front_bytes, side="front", qr_only=False)

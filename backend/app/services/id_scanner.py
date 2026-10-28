@@ -194,6 +194,17 @@ INDIAN_STATES = [
 ]
 
 
+def validate_indian_state(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    raw_clean = re.sub(r"[^A-Za-z\s]", " ", raw).strip()
+    raw_lower = raw_clean.lower()
+    for st in INDIAN_STATES:
+        if st.lower() == raw_lower or st.lower() in raw_lower:
+            return st
+    return None
+
+
 # ─── NORMALIZATION UTILITIES ──────────────────────────────────────────────────
 
 
@@ -231,7 +242,8 @@ HONORIFIC_TOKENS = {"MR", "MRS", "MS", "SHRI", "SHREE", "SMT", "DR", "MASTER"}
 def clean_name(raw: str | None) -> str | None:
     if not raw:
         return None
-    base = re.sub(r"[^A-Za-z.\s]", " ", raw)
+    spaced = re.sub(r"([a-z])([A-Z])", r"\1 \2", raw)
+    base = re.sub(r"[^A-Za-z.\s]", " ", spaced)
     base = re.sub(r"\s+", " ", base).strip()
     words = [w for w in base.split() if w.upper() not in NON_NAME_TOKENS]
     if not words:
@@ -667,15 +679,23 @@ def _parse_aadhaar_xml(xml_str: str, img: np.ndarray | None = None) -> IdScanFie
             root = ET.fromstring(xml_str)
             attr = root.attrib
         except Exception:
-            # Resilient fallback for older XML cards with minor JPEG compression noise in tags
-            for m in re.finditer(
-                r'([a-zA-Z_]+)\s*=\s*["\']?([^"\'<>]*?)(?:["\']|\s+(?=[a-zA-Z_]+\s*=)|$)',
-                xml_str,
+            # Resilient fallback for XML cards with compression noise or missing quotes in tags
+            attr_pat = re.compile(
+                r'([a-zA-Z_]+)\s*=\s*(?:"([^"<]*?)(?:"|\s+(?=[a-zA-Z_]+\s*=)|$|<)|'
+                r'\'([^\'<]*?)(?:\'|\s+(?=[a-zA-Z_]+\s*=)|$|<)|'
+                r'([^\s"\'<>]+))',
                 re.IGNORECASE,
-            ):
-                cleaned_val = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", m.group(2)).strip()
+            )
+            for m in attr_pat.finditer(xml_str):
+                k = m.group(1).lower()
+                val = (
+                    m.group(2)
+                    if m.group(2) is not None
+                    else (m.group(3) if m.group(3) is not None else m.group(4))
+                )
+                cleaned_val = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", val).strip()
                 if cleaned_val:
-                    attr[m.group(1).lower()] = cleaned_val
+                    attr[k] = cleaned_val
 
         if not attr:
             return None
@@ -691,70 +711,6 @@ def _parse_aadhaar_xml(xml_str: str, img: np.ndarray | None = None) -> IdScanFie
         gender = normalize_gender(attr.get("gender"))
         dob = normalize_date(attr.get("dob") or attr.get("yob"))
         co = attr.get("co")
-
-        # OCR refinement on card image if present
-        # (recovers full 12-digit UID, clean name, DOB, gender)
-        if img is not None:
-            try:
-                engine = get_ocr_engine()
-                if engine is not None:
-                    h, w = img.shape[:2]
-                    # 1. 12-digit UID from bottom crop
-                    if not uid or len(re.sub(r"\D", "", uid)) != 12:
-                        bottom_crop = img[int(h * 0.45) : h, :]
-                        ocr_res_b, _ = engine(bottom_crop)
-                        if ocr_res_b:
-                            for _, txt, _ in ocr_res_b:
-                                match_b = AADHAAR_NUM_RE.search(txt)
-                                if match_b:
-                                    d = re.sub(r"\D", "", match_b.group(0))
-                                    if len(d) == 12:
-                                        uid = d
-                                        break
-
-                    # 2. Name, DOB, and Gender refinement from card OCR
-                    ocr_res_all, _ = engine(img)
-                    if ocr_res_all:
-                        for _, txt, score in ocr_res_all:
-                            if score > 0.70 and len(txt) > 3:
-                                upper = txt.upper()
-                                # Clean name check
-                                is_valid_line = (
-                                    not any(t in upper for t in NON_NAME_TOKENS)
-                                    and not re.search(r"\d", txt)
-                                )
-                                if is_valid_line:
-                                    spaced = re.sub(r"([a-z])([A-Z])", r"\1 \2", txt).strip()
-                                    if spaced and len(spaced.split()) >= 2:
-                                        xml_parts = (name or "").split()
-                                        xml_first = xml_parts[0].lower() if xml_parts else ""
-                                        ocr_first = spaced.split()[0].lower()
-                                        match_prefix = (
-                                            xml_first.startswith(ocr_first[:3])
-                                            or ocr_first.startswith(xml_first[:3])
-                                        )
-                                        if not name or (xml_first and match_prefix):
-                                            name = spaced
-                                # DOB check
-                                if not dob or len(dob) == 4 or dob.endswith("-01-01"):
-                                    m_dob = DOB_PREFIX_RE.search(txt)
-                                    if m_dob:
-                                        cand_dob = normalize_date(m_dob.group(1))
-                                        if cand_dob:
-                                            dob = cand_dob
-                                # Gender check
-                                if not gender:
-                                    if "MALE" in upper or "PURUSH" in upper:
-                                        gender = "Male"
-                                    elif "FEMALE" in upper or "MAHILA" in upper:
-                                        gender = "Female"
-            except Exception as e:
-                logger.debug("Failed OCR card fusion for XML card: %s", e)
-
-        if uid:
-            d_only = re.sub(r"\D", "", uid)
-            if len(d_only) == 12:
-                uid = f"{d_only[:4]} {d_only[4:8]} {d_only[8:]}"
 
         # Address parts (physical location only — care_of / father's name is kept in care_of)
         addr_parts: list[str] = []
@@ -778,14 +734,81 @@ def _parse_aadhaar_xml(xml_str: str, img: np.ndarray | None = None) -> IdScanFie
         if city:
             city_clean = re.sub(r"[^A-Za-z\s.-]", "", city).strip()
             city = city_clean if len(city_clean) >= 3 else None
-        state = attr.get("state")
-        if state:
-            state_clean = re.sub(r"[^A-Za-z\s.-]", "", state).strip()
-            state = state_clean if len(state_clean) >= 3 else None
+
+        # Validate state strictly against real Indian States/UTs (reject corrupt bytes)
+        state = validate_indian_state(attr.get("state"))
+
         pincode = attr.get("pc")
         if pincode:
             m_pin = re.search(r"\b(\d{6})\b", pincode)
             pincode = m_pin.group(1) if m_pin else None
+
+        # OCR refinement on card image if present
+        # (recovers full 12-digit UID, clean name, exact DD/MM/YYYY DOB, and real state)
+        if img is not None:
+            try:
+                engine = get_ocr_engine()
+                if engine is not None:
+                    h, w = img.shape[:2]
+                    # 1. 12-digit UID from bottom crop
+                    if not uid or len(re.sub(r"\D", "", uid)) != 12:
+                        bottom_crop = img[int(h * 0.35) : h, :]
+                        ocr_res_b, _ = engine(bottom_crop)
+                        if ocr_res_b:
+                            for _, txt, _ in ocr_res_b:
+                                match_b = AADHAAR_NUM_RE.search(txt) or AADHAAR_NUM_RE.search(
+                                    _normalize_ocr_digits(txt)
+                                )
+                                if match_b:
+                                    d = re.sub(r"\D", "", match_b.group(0))
+                                    if len(d) == 12:
+                                        uid = d
+                                        break
+
+                    # 2. Name, DOB, Gender, and State refinement from card OCR
+                    ocr_res_all, _ = engine(img)
+                    if ocr_res_all:
+                        for _, txt, score in ocr_res_all:
+                            if score > 0.60 and len(txt) > 3:
+                                upper = txt.upper()
+                                # Clean name check (skip noise lines with digits or non-name tags)
+                                is_valid_line = (
+                                    not any(t in upper for t in NON_NAME_TOKENS)
+                                    and not re.search(r"\d", txt)
+                                    and not any(
+                                        k in upper for k in ["DOB", "D0B", "MALE", "FEMALE"]
+                                    )
+                                )
+                                if is_valid_line:
+                                    cand_name = clean_name(txt)
+                                    if cand_name and len(cand_name.split()) >= 2:
+                                        if not name or name.lower() not in cand_name.lower():
+                                            name = cand_name
+                                # DOB check (recover full DD/MM/YYYY instead of year-only)
+                                if not dob or len(dob) == 4 or dob.endswith("-01-01"):
+                                    m_dob = DOB_PREFIX_RE.search(txt) or DATE_RE.search(txt)
+                                    if m_dob:
+                                        cand_dob = normalize_date(m_dob.group(1))
+                                        if cand_dob and not cand_dob.endswith("-01-01"):
+                                            dob = cand_dob
+                                # Gender check
+                                if not gender:
+                                    if "MALE" in upper or "PURUSH" in upper:
+                                        gender = "Male"
+                                    elif "FEMALE" in upper or "MAHILA" in upper:
+                                        gender = "Female"
+                                # State check from card text if missing or invalid
+                                if not state:
+                                    st_cand = validate_indian_state(txt)
+                                    if st_cand:
+                                        state = st_cand
+            except Exception as e:
+                logger.debug("Failed OCR card fusion for XML card: %s", e)
+
+        if uid:
+            d_only = re.sub(r"\D", "", uid)
+            if len(d_only) == 12:
+                uid = f"{d_only[:4]} {d_only[4:8]} {d_only[8:]}"
 
         return IdScanFields(
             name=clean_name(name),
@@ -1079,7 +1102,7 @@ def scan_qr_stage(img: np.ndarray, side: str = "front") -> IdScanResponse | None
         # 1. XML Aadhaar QR
         if "<PrintLetterBarcodeData" in text or "<?xml" in text or "name=" in text:
             parsed = _parse_aadhaar_xml(text, img=upright_img)
-            if parsed and (parsed.name or parsed.id_number or parsed.address):
+            if parsed and (parsed.name or parsed.id_number or (side == "back" and parsed.address)):
                 return IdScanResponse(
                     success=True,
                     source="qr",
@@ -1092,7 +1115,7 @@ def scan_qr_stage(img: np.ndarray, side: str = "front") -> IdScanResponse | None
         # 2. Binary / Secure Aadhaar QR
         if (text and text.strip().isdigit() and len(text.strip()) > 200) or len(raw_bytes) > 100:
             parsed = _parse_aadhaar_secure_qr(text, raw_bytes, img=upright_img)
-            if parsed and (parsed.name or parsed.id_number or parsed.address):
+            if parsed and (parsed.name or parsed.id_number or (side == "back" and parsed.address)):
                 return IdScanResponse(
                     success=True,
                     source="qr",
