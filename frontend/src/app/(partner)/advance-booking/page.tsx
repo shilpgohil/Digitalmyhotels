@@ -215,6 +215,13 @@ function AdvanceBookingContent() {
         toast.info(t("addressAutofilled"));
       }
     },
+    onIdNumberAutofill: (idNum) => {
+      const d = idNum.replace(/\D/g, "");
+      if (d.length === 12) {
+        setPgIdNumber(d);
+        toast.info(t("guestAutofilled") ?? "Aadhaar number updated");
+      }
+    },
     onScanError: (msg) => toast.warning(msg),
   });
   const unifiedPgOcrResult = pgScan.unifiedResult;

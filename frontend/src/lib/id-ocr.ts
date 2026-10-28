@@ -1147,9 +1147,36 @@ export function mergeOcrResults(
   front: IdOcrResult | null | undefined,
   back: IdOcrResult | null | undefined,
 ): IdOcrResult | null {
+  const formatSingle = (res: IdOcrResult): IdOcrResult => {
+    if (!res.fields?.id_number) return res;
+    const digits = res.fields.id_number.replace(/\D/g, "");
+    if (digits.length === 12) {
+      return {
+        ...res,
+        fields: {
+          ...res.fields,
+          id_number: `${digits.slice(0, 4)} ${digits.slice(4, 8)} ${digits.slice(8)}`,
+        },
+      };
+    }
+    if (
+      digits.length === 4 &&
+      (!res.fields.id_type_detected || res.fields.id_type_detected === "Aadhar Card")
+    ) {
+      return {
+        ...res,
+        fields: {
+          ...res.fields,
+          id_number: `•••• •••• ${digits}`,
+        },
+      };
+    }
+    return res;
+  };
+
   if (!front && !back) return null;
-  if (!front) return back ?? null;
-  if (!back) return front ?? null;
+  if (!front) return back ? formatSingle(back) : null;
+  if (!back) return front ? formatSingle(front) : null;
 
   const fFields = front.fields || {};
   const bFields = back.fields || {};
@@ -1168,29 +1195,27 @@ export function mergeOcrResults(
     name = fFields.name || bFields.name || "";
   }
 
-  // ID Number: Full 12 digits always beats a masked ID
+  // ID Number: Full 12 digits ALWAYS takes 100% precedence over any 4-digit mask or partial
   let idNumber = "";
   const fId = fFields.id_number || "";
   const bId = bFields.id_number || "";
-  const fIsFull = /^\d{12}$/.test(fId.replace(/\s/g, ""));
-  const bIsFull = /^\d{12}$/.test(bId.replace(/\s/g, ""));
+  const fDigits = fId.replace(/\D/g, "");
+  const bDigits = bId.replace(/\D/g, "");
+  const fIsFull = fDigits.length === 12;
+  const bIsFull = bDigits.length === 12;
 
   if (fIsFull) {
-    idNumber = fId.replace(/\s/g, "");
+    idNumber = `${fDigits.slice(0, 4)} ${fDigits.slice(4, 8)} ${fDigits.slice(8)}`;
   } else if (bIsFull) {
-    idNumber = bId.replace(/\s/g, "");
-  } else if (fId && !isIdMask(fId)) {
-    idNumber = fId.replace(/\s/g, "");
-  } else if (bId && !isIdMask(bId)) {
-    idNumber = bId.replace(/\s/g, "");
+    idNumber = `${bDigits.slice(0, 4)} ${bDigits.slice(4, 8)} ${bDigits.slice(8)}`;
   } else {
-    idNumber = (fId || bId || "").replace(/[•Xx*]/g, "").trim() || fId || bId || "";
-  }
-
-  // If 12 digits are present, format with clean 4-4-4 spacing for preview
-  const digitsOnly = idNumber.replace(/\D/g, "");
-  if (digitsOnly.length === 12) {
-    idNumber = `${digitsOnly.slice(0, 4)} ${digitsOnly.slice(4, 8)} ${digitsOnly.slice(8)}`;
+    // Neither face provided 12 digits. Format as masked with known last 4 digits
+    const last4 = fDigits.slice(-4) || bDigits.slice(-4) || "";
+    if (last4.length === 4) {
+      idNumber = `•••• •••• ${last4}`;
+    } else {
+      idNumber = fId || bId || "";
+    }
   }
 
   // DOB & Gender: Prefer QR, fallback to whichever is present
@@ -1219,16 +1244,21 @@ export function mergeOcrResults(
     pincode = bFields.pincode || fFields.pincode || "";
     city = bFields.city || fFields.city || "";
     state = bFields.state || fFields.state || "";
-  } else if (frontIsQr && fFields.address) {
+  } else if (frontIsQr && fFields.address && fFields.address.length >= 15) {
     address = fFields.address;
     pincode = fFields.pincode || bFields.pincode || "";
     city = fFields.city || bFields.city || "";
     state = fFields.state || bFields.state || "";
-  } else {
-    address = bFields.address || fFields.address || "";
+  } else if (bFields.address) {
+    address = bFields.address;
     pincode = bFields.pincode || fFields.pincode || "";
     city = bFields.city || fFields.city || "";
     state = bFields.state || fFields.state || "";
+  } else {
+    address = fFields.address || "";
+    pincode = fFields.pincode || bFields.pincode || "";
+    city = fFields.city || bFields.city || "";
+    state = fFields.state || bFields.state || "";
   }
 
   const idTypeDetected = fFields.id_type_detected || bFields.id_type_detected || "Aadhar Card";

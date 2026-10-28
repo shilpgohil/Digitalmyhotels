@@ -7,6 +7,8 @@ export interface UseCoordinatedIdScanOptions {
   hotelId?: string;
   /** Called when back face provides address fields after autofill was already accepted. */
   onAddressAutofill?: (fields: ParsedIdFields) => void;
+  /** Called when full 12-digit Aadhaar UID is extracted after autofill was already accepted. */
+  onIdNumberAutofill?: (idNumber: string) => void;
   /** Callback for scan warnings/failures. */
   onScanError?: (msg: string) => void;
 }
@@ -66,6 +68,8 @@ export function useCoordinatedIdScan(
   backResultRef.current = backResult;
   const frontResultRef = useRef<IdOcrResult | null>(null);
   frontResultRef.current = frontResult;
+  const autofillAcceptedRef = useRef(autofillAccepted);
+  autofillAcceptedRef.current = autofillAccepted;
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
@@ -165,6 +169,14 @@ export function useCoordinatedIdScan(
                 qrOnly: false,
               });
               setFrontResult(fRes);
+              const fDigits = (fRes.fields?.id_number || "").replace(/\D/g, "");
+              if (
+                fDigits.length === 12 &&
+                autofillAcceptedRef.current &&
+                optionsRef.current?.onIdNumberAutofill
+              ) {
+                optionsRef.current.onIdNumberAutofill(fRes.fields.id_number!);
+              }
             } catch {
               // Non-fatal
             }
@@ -175,6 +187,28 @@ export function useCoordinatedIdScan(
         // Store pending front file and wait for Back face upload.
         pendingFrontRef.current = file;
         setIsWaitingForBack(true);
+
+        // Pre-scan Front face right away with fast server OCR to extract the 12-digit UID and Name!
+        // When Back is uploaded later, Back's digital QR data merges instantly with Front's 12-digit UID in 0ms!
+        try {
+          const fRes = await parseIdDocument(file, "Aadhar Card", "front", {
+            hotelId: optionsRef.current?.hotelId,
+            qrOnly: false,
+          });
+          if (fRes.fields?.id_number || fRes.fields?.name) {
+            setFrontResult(fRes);
+            const fDigits = (fRes.fields?.id_number || "").replace(/\D/g, "");
+            if (
+              fDigits.length === 12 &&
+              autofillAcceptedRef.current &&
+              optionsRef.current?.onIdNumberAutofill
+            ) {
+              optionsRef.current.onIdNumberAutofill(fRes.fields.id_number!);
+            }
+          }
+        } catch {
+          // Non-fatal
+        }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         pendingFrontRef.current = file;
@@ -233,24 +267,35 @@ export function useCoordinatedIdScan(
           const backUidDigits = (backProbe.fields.id_number || "").replace(/\D/g, "");
           const backHas12Digits = backUidDigits.length === 12;
 
-          // If QR only carried 4 digits, but Front was uploaded earlier, scan Front to extract the full 12 digits!
-          if (!backHas12Digits && pendingFrontRef.current) {
+          const currentFront = frontResultRef.current;
+          const frontUidDigits = (currentFront?.fields?.id_number || "").replace(/\D/g, "");
+          const frontHas12Digits = frontUidDigits.length === 12;
+
+          // If neither Back nor Front has 12 digits yet, but Front was uploaded earlier, scan Front!
+          if (!backHas12Digits && !frontHas12Digits && pendingFrontRef.current) {
             const frontFile = pendingFrontRef.current;
-            pendingFrontRef.current = null;
             try {
               const fRes = await parseIdDocument(frontFile, "Aadhar Card", "front", {
                 hotelId: optionsRef.current?.hotelId,
                 qrOnly: false,
               });
-              setFrontResult(fRes);
+              if (fRes.fields?.id_number || fRes.fields?.name) {
+                setFrontResult(fRes);
+                const fDigits = (fRes.fields?.id_number || "").replace(/\D/g, "");
+                if (
+                  fDigits.length === 12 &&
+                  autofillAcceptedRef.current &&
+                  optionsRef.current?.onIdNumberAutofill
+                ) {
+                  optionsRef.current.onIdNumberAutofill(fRes.fields.id_number!);
+                }
+              }
             } catch {
               // Non-fatal
             }
-          } else {
-            pendingFrontRef.current = null;
           }
 
-          if (autofillAccepted && optionsRef.current?.onAddressAutofill && backProbe.fields) {
+          if (autofillAcceptedRef.current && optionsRef.current?.onAddressAutofill && backProbe.fields) {
             optionsRef.current.onAddressAutofill(backProbe.fields);
           }
           return;
@@ -281,7 +326,7 @@ export function useCoordinatedIdScan(
               });
               if (backOcr.can_autofill || backOcr.fields.address || backOcr.fields.pincode) {
                 setBackResult(backOcr);
-                if (autofillAccepted && optionsRef.current?.onAddressAutofill && backOcr.fields) {
+                if (autofillAcceptedRef.current && optionsRef.current?.onAddressAutofill && backOcr.fields) {
                   optionsRef.current.onAddressAutofill(backOcr.fields);
                 }
               }
@@ -299,12 +344,13 @@ export function useCoordinatedIdScan(
         pendingFrontRef.current = null;
         setIsWaitingForBack(false);
 
-        // If front was uploaded, run OCR on front first
-        if (frontFile) {
+        // If front was uploaded and hasn't been scanned yet, run OCR on front
+        if (frontFile && !frontResultRef.current) {
           setScanningCount((c) => c + 1);
           try {
             const fRes = await parseIdDocument(frontFile, "Aadhar Card", "front", {
               hotelId: optionsRef.current?.hotelId,
+              qrOnly: false,
             });
             setFrontResult(fRes);
           } catch {
@@ -317,10 +363,11 @@ export function useCoordinatedIdScan(
         // Run OCR on back
         const backOcr = await parseIdDocument(file, "Aadhar Card", "back", {
           hotelId: optionsRef.current?.hotelId,
+          qrOnly: false,
         });
         setBackResult(backOcr);
 
-        if (autofillAccepted && optionsRef.current?.onAddressAutofill && backOcr.fields) {
+        if (autofillAcceptedRef.current && optionsRef.current?.onAddressAutofill && backOcr.fields) {
           optionsRef.current.onAddressAutofill(backOcr.fields);
         }
       } catch (err) {
@@ -330,14 +377,18 @@ export function useCoordinatedIdScan(
         setScanningCount((c) => Math.max(0, c - 1));
       }
     },
-    [autofillAccepted],
+    [],
   );
 
   const triggerFrontOcrFallback = useCallback(async () => {
+    setIsWaitingForBack(false);
+    if (!pendingFrontRef.current && frontResultRef.current) {
+      // Front was already pre-scanned in the background! Clearing isWaitingForBack reveals unifiedResult.
+      return;
+    }
     if (!pendingFrontRef.current) return;
     const frontFile = pendingFrontRef.current;
     pendingFrontRef.current = null;
-    setIsWaitingForBack(false);
     setScanningCount((c) => c + 1);
     try {
       const fullRes = await parseIdDocument(
@@ -349,6 +400,14 @@ export function useCoordinatedIdScan(
         },
       );
       setFrontResult(fullRes);
+      const fDigits = (fullRes.fields?.id_number || "").replace(/\D/g, "");
+      if (
+        fDigits.length === 12 &&
+        autofillAcceptedRef.current &&
+        optionsRef.current?.onIdNumberAutofill
+      ) {
+        optionsRef.current.onIdNumberAutofill(fullRes.fields.id_number!);
+      }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       optionsRef.current?.onScanError?.("Could not process document");
@@ -357,7 +416,13 @@ export function useCoordinatedIdScan(
     }
   }, []);
 
-  const unifiedResult = mergeOcrResults(frontResult, backResult);
+  const rawUnifiedResult = mergeOcrResults(frontResult, backResult);
+  // While waiting for Back face to scan QR code on PVC cards, do NOT expose a premature partial OCR result
+  // from Front alone, which would display an OCR banner before the staff uploads the Back QR card.
+  const unifiedResult =
+    isWaitingForBack && !(frontResult?.source === "qr" || frontResult?.confidence === 1.0)
+      ? null
+      : rawUnifiedResult;
 
   return {
     frontResult,

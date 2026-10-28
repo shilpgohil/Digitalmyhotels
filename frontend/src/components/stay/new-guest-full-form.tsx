@@ -974,6 +974,13 @@ export function NewGuestFullForm({
         toast.info(t("addressAutofilled"));
       }
     },
+    onIdNumberAutofill: (idNum) => {
+      const d = idNum.replace(/\D/g, "");
+      if (d.length === 12) {
+        set("id_number", d);
+        toast.info(t("guestAutofilled"));
+      }
+    },
     onScanError: (msg) => toast.warning(msg || t("ocrFailed")),
   });
 

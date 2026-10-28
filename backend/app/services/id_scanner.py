@@ -756,17 +756,29 @@ def _parse_aadhaar_xml(xml_str: str, img: np.ndarray | None = None) -> IdScanFie
             if v and v.strip():
                 addr_parts.append(v.strip())
 
+        # If specific street tokens are sparse, augment with locality tokens
+        if len(addr_parts) < 2:
+            for k in ("subdist", "vtc", "dist"):
+                v = attr.get(k)
+                if v and v.strip() and v.strip() not in addr_parts:
+                    clean_v = re.sub(r"[^\x20-\x7E]", "", v).strip()
+                    if clean_v:
+                        addr_parts.append(clean_v)
+
         raw_addr = ", ".join(addr_parts) if addr_parts else None
         full_addr = strip_relation_prefix(raw_addr)
         city = attr.get("vtc") or attr.get("dist")
-        if city and not re.match(r"^[A-Za-z\s.-]+$", city.strip()):
-            city = None
+        if city:
+            city_clean = re.sub(r"[^A-Za-z\s.-]", "", city).strip()
+            city = city_clean if len(city_clean) >= 3 else None
         state = attr.get("state")
-        if state and not re.match(r"^[A-Za-z\s.-]+$", state.strip()):
-            state = None
+        if state:
+            state_clean = re.sub(r"[^A-Za-z\s.-]", "", state).strip()
+            state = state_clean if len(state_clean) >= 3 else None
         pincode = attr.get("pc")
-        if pincode and not re.match(r"^\d{6}$", pincode.strip()):
-            pincode = None
+        if pincode:
+            m_pin = re.search(r"\b(\d{6})\b", pincode)
+            pincode = m_pin.group(1) if m_pin else None
 
         return IdScanFields(
             name=clean_name(name),
@@ -783,6 +795,20 @@ def _parse_aadhaar_xml(xml_str: str, img: np.ndarray | None = None) -> IdScanFie
     except Exception as e:
         logger.debug("XML parse attempt failed: %s", e)
         return None
+
+
+def _normalize_ocr_digits(txt: str) -> str:
+    """Normalize common OCR character confusions in numeric ID strings."""
+    tr = str.maketrans("OoIlSsBZ", "00115582")
+    words = txt.split()
+    norm_words: list[str] = []
+    for w in words:
+        cleaned_w = w.strip("-").strip()
+        if len(cleaned_w) in (4, 12) and any(ch.isdigit() for ch in cleaned_w):
+            norm_words.append(cleaned_w.translate(tr))
+        else:
+            norm_words.append(w)
+    return " ".join(norm_words)
 
 
 def _parse_aadhaar_secure_qr(
@@ -803,7 +829,7 @@ def _parse_aadhaar_secure_qr(
 
         data: dict[str, Any] | None = None
 
-        # 1. Primary engine: Direct universal RFC 1950 zlib decompression of big-endian bytes.
+        # 1. Primary engine: Direct universal RFC 1950 zlib / gzip decompression.
         # Handles all UIDAI Secure QR specifications: V1, V2, V3, V4, V5, etc.
         decompressed: bytes | None = None
         candidates: list[bytes] = []
@@ -814,7 +840,15 @@ def _parse_aadhaar_secure_qr(
             candidates.append(barcode_bytes)
 
         for raw_candidate in candidates:
-            for wbits in (16 + zlib.MAX_WBITS, zlib.MAX_WBITS, -zlib.MAX_WBITS):
+            # 32+MAX_WBITS auto-detects both gzip (0x1f 0x8b) and zlib (0x78) headers.
+            # Fallback to standard zlib, gzip, and raw deflate.
+            for wbits in (
+                32 + zlib.MAX_WBITS,
+                zlib.MAX_WBITS,
+                16 + zlib.MAX_WBITS,
+                -zlib.MAX_WBITS,
+                0,
+            ):
                 try:
                     res = zlib.decompress(raw_candidate, wbits)
                     if res and len(res) > 50:
@@ -822,6 +856,13 @@ def _parse_aadhaar_secure_qr(
                         break
                 except Exception:
                     continue
+            if not decompressed:
+                try:
+                    res_def = zlib.decompress(raw_candidate)
+                    if res_def and len(res_def) > 50:
+                        decompressed = res_def
+                except Exception:
+                    pass
             if decompressed:
                 break
 
@@ -886,6 +927,13 @@ def _parse_aadhaar_secure_qr(
             if v and v.strip():
                 addr_parts.append(v.strip())
 
+        # If specific street tokens are sparse, augment with locality tokens
+        if len(addr_parts) < 2:
+            for k in ("subdistrict", "vtc", "district"):
+                v = data.get(k)
+                if v and v.strip() and v.strip() not in addr_parts:
+                    addr_parts.append(v.strip())
+
         raw_addr = ", ".join(addr_parts) if addr_parts else None
         full_addr = strip_relation_prefix(raw_addr)
         city = data.get("vtc") or data.get("district")
@@ -900,13 +948,12 @@ def _parse_aadhaar_secure_qr(
                 engine = get_ocr_engine()
                 if engine is not None:
                     h, w = img.shape[:2]
-                    # 1. The 12-digit UID is usually printed on the bottom half of the card.
-                    # Crop and scale bottom half for fast OCR (< 150ms).
-                    bottom_crop = img[int(h * 0.45) : h, :]
+                    # 1. Search bottom half of card at high resolution (< 150ms).
+                    bottom_crop = img[int(h * 0.40) : h, :]
                     bh, bw = bottom_crop.shape[:2]
                     max_dim = max(bh, bw)
-                    if max_dim > 800:
-                        scale = 800.0 / max_dim
+                    if max_dim > 1600:
+                        scale = 1600.0 / max_dim
                         bottom_crop = cv2.resize(
                             bottom_crop,
                             (int(bw * scale), int(bh * scale)),
@@ -921,13 +968,20 @@ def _parse_aadhaar_secure_qr(
                                 if len(digits_only) == 12 and digits_only.endswith(str(uid_last4)):
                                     full_uid = digits_only
                                     break
+                            norm_txt = _normalize_ocr_digits(txt)
+                            norm_match = AADHAAR_NUM_RE.search(norm_txt)
+                            if norm_match:
+                                d_norm = re.sub(r"\D", "", norm_match.group(0))
+                                if len(d_norm) == 12 and d_norm.endswith(str(uid_last4)):
+                                    full_uid = d_norm
+                                    break
 
                     # 2. If not in bottom crop, scan whole image (e.g. padded or non-standard)
                     if not full_uid:
                         max_dim_full = max(h, w)
                         full_scan_img = img
-                        if max_dim_full > 1000:
-                            s = 1000.0 / max_dim_full
+                        if max_dim_full > 1600:
+                            s = 1600.0 / max_dim_full
                             full_scan_img = cv2.resize(
                                 img, (int(w * s), int(h * s)), interpolation=cv2.INTER_AREA
                             )
@@ -944,6 +998,17 @@ def _parse_aadhaar_secure_qr(
                                     if is_match:
                                         full_uid = digits_only
                                         break
+                                norm_txt = _normalize_ocr_digits(txt)
+                                norm_match = AADHAAR_NUM_RE.search(norm_txt)
+                                if norm_match:
+                                    d_norm = re.sub(r"\D", "", norm_match.group(0))
+                                    is_norm_match = (
+                                        len(d_norm) == 12
+                                        and d_norm.endswith(str(uid_last4))
+                                    )
+                                    if is_norm_match:
+                                        full_uid = d_norm
+                                        break
             except Exception as e:
                 logger.debug("Failed text fusion for Secure QR full UID: %s", e)
 
@@ -953,7 +1018,7 @@ def _parse_aadhaar_secure_qr(
         elif full_uid:
             resolved_id = full_uid
         elif uid_last4:
-            resolved_id = str(uid_last4)
+            resolved_id = f"•••• •••• {uid_last4}"
 
         return IdScanFields(
             name=clean_name(name),
@@ -1257,6 +1322,8 @@ def scan_ocr_stage(
         # Also extract 12-digit Aadhaar UID from back face text if visible
         if not fields.id_number:
             match_uid = AADHAAR_NUM_RE.search(all_text)
+            if not match_uid:
+                match_uid = AADHAAR_NUM_RE.search(_normalize_ocr_digits(all_text))
             if match_uid:
                 d_uid = re.sub(r"\D", "", match_uid.group(0))
                 if len(d_uid) == 12:
@@ -1348,13 +1415,22 @@ def scan_ocr_stage(
     else:
         # Default: Aadhaar Card
         aadhar_match = AADHAAR_NUM_RE.search(all_text)
+        if not aadhar_match:
+            norm_all = _normalize_ocr_digits(all_text)
+            aadhar_match = AADHAAR_NUM_RE.search(norm_all)
+
         aadhar_line_idx = -1
         if aadhar_match:
             raw_num = re.sub(r"\s+", " ", aadhar_match.group(0)).strip()
-            fields.id_number = raw_num
+            d_only = re.sub(r"\D", "", raw_num)
+            if len(d_only) == 12:
+                fields.id_number = f"{d_only[:4]} {d_only[4:8]} {d_only[8:]}"
+            else:
+                fields.id_number = raw_num
             score_acc += 0.4
             for idx, line_item in enumerate(lines):
-                if aadhar_match.group(0) in line_item:
+                norm_item = _normalize_ocr_digits(line_item)
+                if aadhar_match.group(0) in line_item or aadhar_match.group(0) in norm_item:
                     aadhar_line_idx = idx
                     break
 

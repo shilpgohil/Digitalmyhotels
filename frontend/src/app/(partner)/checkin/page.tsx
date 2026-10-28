@@ -1325,6 +1325,13 @@ function NewGuestForm({
         toast.info(t("addressAutofilled"));
       }
     },
+    onIdNumberAutofill: (idNum) => {
+      const d = idNum.replace(/\D/g, "");
+      if (d.length === 12) {
+        set("id_number", d);
+        toast.info(t("guestAutofilled"));
+      }
+    },
     onScanError: (msg) => toast.warning(msg || t("ocrFailed")),
   });
 
@@ -1590,6 +1597,12 @@ function AdditionalGuestEntry({
   const coGuestScan = useCoordinatedIdScan({
     idType: "Aadhar Card",
     hotelId: activeHotelId ?? undefined,
+    onIdNumberAutofill: (idNum) => {
+      const d = idNum.replace(/\D/g, "");
+      if (d.length === 12) {
+        setCoGuestOcrId(d);
+      }
+    },
     onScanError: (msg) => toast.warning(msg),
   });
   /** OCR result from a co-guest doc upload — triggers auto-edit (client bug fix). */
@@ -2083,7 +2096,7 @@ function AdditionalGuestEntry({
             result={activeCoGuestOcrResult}
             onAccept={(fields) => {
               setCoGuestOcrResult(null);
-              coGuestScan.reset();
+              coGuestScan.setAutofillAccepted(true);
               setEditing(true); // open edit form
               // Pre-populate autofill so buildEditInitial uses the OCR fields
               setAutofill((prev) => ({
@@ -2128,9 +2141,10 @@ function AdditionalGuestEntry({
               // the edit form with the real number (autofill only carries last-4).
               if (fields.id_number) {
                 const idType = fields.id_type_detected ?? "Aadhar Card";
+                const d = fields.id_number.replace(/\D/g, "");
                 setCoGuestOcrId(
                   idType === "Aadhar Card"
-                    ? sanitizeAadhaarOcr(fields.id_number)
+                    ? (d.length === 12 ? d : sanitizeAadhaarOcr(fields.id_number))
                     : fields.id_number.trim(),
                 );
               }
@@ -2611,6 +2625,13 @@ function CheckinForm({
       }
       if (filledAny) {
         toast.info(t("addressAutofilled"));
+      }
+    },
+    onIdNumberAutofill: (idNum) => {
+      const d = idNum.replace(/\D/g, "");
+      if (d.length === 12) {
+        setPgIdNumber(d);
+        toast.info(t("guestAutofilled"));
       }
     },
     onScanError: (msg) => toast.warning(msg || t("ocrFailed")),
@@ -3984,6 +4005,13 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       }
       if (filledAny) {
         toast.info(t("addressAutofilled"));
+      }
+    },
+    onIdNumberAutofill: (idNum) => {
+      const d = idNum.replace(/\D/g, "");
+      if (d.length === 12) {
+        setPgIdNumber(d);
+        toast.info(t("guestAutofilled"));
       }
     },
     onScanError: (msg) => toast.warning(msg || t("ocrFailed")),
