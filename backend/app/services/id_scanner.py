@@ -553,6 +553,10 @@ def _decode_qr_barcodes(
         bottom_center = img[int(h * 0.30) : h, int(w * 0.15) : int(w * 0.85)]
         return _read_qr(bottom_center)
 
+    def _scan_bottom_right() -> list[Any]:
+        bottom_right = img[int(h * 0.35) : h, int(w * 0.45) : w]
+        return _read_qr(bottom_right)
+
     # Prioritize scan order based on side hint
     if side == "back":
         b = _scan_right_half()
@@ -569,6 +573,9 @@ def _decode_qr_barcodes(
             return b
     else:
         b = _scan_right_half()
+        if b:
+            return b
+        b = _scan_bottom_right()
         if b:
             return b
         b = _scan_bottom_band()

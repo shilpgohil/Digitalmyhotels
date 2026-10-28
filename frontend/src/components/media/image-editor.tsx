@@ -215,6 +215,24 @@ function ImageEditorDialog({
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
+  function computeContainScale(
+    box: { w: number; h: number },
+    w: number,
+    h: number,
+    steps: number,
+    fine: number,
+  ): number {
+    const totalRad = (steps * 90 + fine) * (Math.PI / 180);
+    const sinA = Math.abs(Math.sin(totalRad));
+    const cosA = Math.abs(Math.cos(totalRad));
+    const rw = steps % 2 === 0 ? w : h;
+    const rh = steps % 2 === 0 ? h : w;
+    return Math.min(
+      (box.w * cosA + box.h * sinA) / rw,
+      (box.h * cosA + box.w * sinA) / rh,
+    );
+  }
+
   function computeCoverScale(
     box: { w: number; h: number },
     w: number,
@@ -270,7 +288,7 @@ function ImageEditorDialog({
 
     let targetBox = initialBox;
     // For ID cards, adapt the initial crop frame if the uploaded photo is
-    // non-standard (e.g. portrait camera capture or square e-Aadhaar cut slip):
+    // non-standard (e.g. portrait camera capture or square/e-Aadhaar cut slip):
     if (aspect === "id_card" && typeof window !== "undefined") {
       const maxW = Math.min(window.innerWidth - 48, 760);
       const maxH = window.innerHeight - 240;
@@ -280,18 +298,19 @@ function ImageEditorDialog({
         const frameH = Math.min(maxH, Math.round(frameW / Math.max(0.65, imgAspect)));
         targetBox = { w: frameW, h: frameH };
         setCropBox(targetBox);
-      } else if (imgAspect < 1.3) {
-        // Near-square photo (e.g. e-Aadhaar cut slip)
-        const frameW = Math.min(maxW, 360);
+      } else if (imgAspect < 1.52) {
+        // Near-square / e-Aadhaar cut slip (aspect ratio ~1.0 - 1.50)
+        // Adapt frame to match the document ratio so bottom QR code and UID are never clipped!
+        const frameW = Math.min(maxW, 380);
         const frameH = Math.min(maxH, Math.round(frameW / imgAspect));
         targetBox = { w: frameW, h: frameH };
         setCropBox(targetBox);
       }
     }
 
-    const fit = computeCoverScale(targetBox, w, h, 0, 0);
+    const fit = computeContainScale(targetBox, w, h, 0, 0);
     const minS = computeMinScaleFor(targetBox, w, h, 0, 0);
-    setMinScale(minS);
+    setMinScale(Math.min(minS, fit));
     setScale(fit);
     setOffset({ x: 0, y: 0 });
     setCoarseSteps(0);

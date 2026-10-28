@@ -1305,19 +1305,19 @@ function NewGuestForm({
     idType: form.id_proof_type,
     onAddressAutofill: (fields) => {
       let filledAny = false;
-      if (fields.address && !form.address) {
+      if (fields.address && (!form.address || form.address.length < fields.address.length)) {
         set("address", fields.address);
         filledAny = true;
       }
-      if (fields.pincode && !form.postal_code) {
+      if (fields.pincode && (!form.postal_code || form.postal_code.length !== 6)) {
         set("postal_code", fields.pincode);
         filledAny = true;
       }
-      if (fields.city && !form.city) {
+      if (fields.city && (!form.city || form.city.length < fields.city.length)) {
         set("city", fields.city);
         filledAny = true;
       }
-      if (fields.state && !form.state) {
+      if (fields.state && (!form.state || form.state.length < fields.state.length)) {
         set("state", fields.state);
         filledAny = true;
       }
@@ -2607,19 +2607,19 @@ function CheckinForm({
     idType: pgIdType,
     onAddressAutofill: (fields) => {
       let filledAny = false;
-      if (fields.address && !pgAddress) {
+      if (fields.address && (!pgAddress || pgAddress.length < fields.address.length)) {
         setPgAddress(fields.address);
         filledAny = true;
       }
-      if (fields.pincode && !pgPostalCode) {
+      if (fields.pincode && (!pgPostalCode || pgPostalCode.length !== 6)) {
         setPgPostalCode(fields.pincode);
         filledAny = true;
       }
-      if (fields.city && !pgCity) {
+      if (fields.city && (!pgCity || pgCity.length < fields.city.length)) {
         setPgCity(fields.city);
         filledAny = true;
       }
-      if (fields.state && !pgState) {
+      if (fields.state && (!pgState || pgState.length < fields.state.length)) {
         setPgState(fields.state);
         filledAny = true;
       }
@@ -3987,19 +3987,19 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     idType: pgIdType,
     onAddressAutofill: (fields) => {
       let filledAny = false;
-      if (fields.address && !pgAddress) {
+      if (fields.address && (!pgAddress || pgAddress.length < fields.address.length)) {
         setPgAddress(fields.address);
         filledAny = true;
       }
-      if (fields.pincode && !pgPostalCode) {
+      if (fields.pincode && (!pgPostalCode || pgPostalCode.length !== 6)) {
         setPgPostalCode(fields.pincode);
         filledAny = true;
       }
-      if (fields.city && !pgCity) {
+      if (fields.city && (!pgCity || pgCity.length < fields.city.length)) {
         setPgCity(fields.city);
         filledAny = true;
       }
-      if (fields.state && !pgState) {
+      if (fields.state && (!pgState || pgState.length < fields.state.length)) {
         setPgState(fields.state);
         filledAny = true;
       }

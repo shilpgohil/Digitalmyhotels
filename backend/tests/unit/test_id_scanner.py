@@ -311,3 +311,51 @@ def test_scan_square_eaadhaar_slip_format() -> None:
         assert res.fields.pincode == "476224"
 
 
+def test_scan_user_eaadhaar_attached_card() -> None:
+    """Verifies that the user's uploaded non-standard ratio (1.31) e-Aadhaar paper cut slip
+    with bottom-right mounted QR code is decoded with full digital fidelity and 12-digit UID.
+    """
+    front_path = (
+        r"C:\Users\BAPS\.gemini\antigravity\brain"
+        r"\82b32637-67ef-4a11-b6d8-4bfff4052599\.user_uploaded\media_1793183439906_75e3c1f4.jpg"
+    )
+    back_path = (
+        r"C:\Users\BAPS\.gemini\antigravity\brain"
+        r"\82b32637-67ef-4a11-b6d8-4bfff4052599\.user_uploaded\media_1793183436007_f466d8d8.jpg"
+    )
+
+    if os.path.exists(front_path):
+        with open(front_path, "rb") as f:
+            front_bytes = f.read()
+
+        # Front fast QR probe
+        res_qr = scan_id_document(front_bytes, side="front", qr_only=True)
+        assert res_qr.success is True
+        assert res_qr.source == "qr"
+        assert res_qr.fields.name == "Manav Mukesh Rawat"
+        assert res_qr.fields.date_of_birth == "2012-08-24"
+        assert res_qr.fields.gender == "Male"
+
+        # Front full scan recovers the 12-digit UID
+        res_full = scan_id_document(front_bytes, side="front", qr_only=False)
+        assert res_full.success is True
+        assert res_full.fields.id_number == "5424 9071 2078"
+
+    if os.path.exists(back_path):
+        with open(back_path, "rb") as f:
+            back_bytes = f.read()
+
+        # Back face has no QR code
+        res_back_qr = scan_id_document(back_bytes, side="back", qr_only=True)
+        assert res_back_qr.success is False
+
+        # Back face OCR captures the bilingual address block
+        res_back_ocr = scan_id_document(back_bytes, side="back", qr_only=False)
+        assert res_back_ocr.success is True
+        assert res_back_ocr.fields.pincode == "475330"
+        assert res_back_ocr.fields.city == "Gwalior"
+        assert res_back_ocr.fields.state == "Madhya Pradesh"
+        assert "Panihar" in (res_back_ocr.fields.address or "")
+
+
+

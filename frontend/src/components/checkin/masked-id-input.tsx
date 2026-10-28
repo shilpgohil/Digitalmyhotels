@@ -41,6 +41,10 @@ interface MaskedIdInputProps {
 function maskIdValue(v: string): string {
   if (!v) return "";
   if (isIdMask(v)) return v;
+  const digitsOnly = v.replace(/\D/g, "");
+  if (digitsOnly.length === 12) {
+    return `•••• •••• ${digitsOnly.slice(-4)}`;
+  }
   if (v.length <= 4) return v;
   const visible = v.slice(-4);
   return "•".repeat(Math.max(v.length - visible.length, 0)) + visible;
@@ -102,13 +106,7 @@ export function MaskedIdInput({
     }
   };
 
-  // If value contains mask characters but show is toggled on without a server onReveal,
-  // reveal whatever unmasked characters are known (e.g. "••••••••7192" -> "7192")
-  const displayValue = masked
-    ? maskIdValue(value)
-    : show && isIdMask(value) && !onReveal
-      ? (value.replace(/[•Xx*]/g, "").trim() || value)
-      : value;
+  const displayValue = masked ? maskIdValue(value) : value;
 
   return (
     <div className="space-y-1.5">
