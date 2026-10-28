@@ -114,10 +114,10 @@ export function MaskedIdInput({
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <Label className={labelClassName}>{label}</Label>
-        <label className="flex cursor-pointer select-none items-center gap-1 text-label text-muted-foreground">
+        <label className="flex cursor-pointer select-none items-center gap-1.5 py-0.5 text-label text-muted-foreground touch-manipulation">
           <input
             type="checkbox"
-            className="size-3 rounded border-input"
+            className="size-3.5 sm:size-3 rounded border-input cursor-pointer"
             checked={show}
             disabled={revealing}
             onChange={(e) => void handleShowToggle(e.target.checked)}

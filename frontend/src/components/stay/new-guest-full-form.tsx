@@ -1039,15 +1039,15 @@ export function NewGuestFullForm({
 
       {/* Waiting for Back Card to Scan QR (PVC Card) */}
       {!autofillAccepted && !unifiedOcrResult && !isOcrScanning && isWaitingForBack && (
-        <div className="flex items-center justify-between gap-2 rounded-lg border border-gold-200 bg-gold-50/70 p-3 text-xs text-gold-900">
-          <div className="flex items-center gap-2">
-            <span className="inline-block h-2 w-2 rounded-full bg-gold-500 animate-pulse" />
-            <span>{t("frontCapturedUploadBackForQr")}</span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-lg border border-gold-200 bg-gold-50/70 p-3 text-xs text-gold-900 shadow-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="shrink-0 inline-block h-2 w-2 rounded-full bg-gold-500 animate-pulse" />
+            <span className="leading-snug">{t("frontCapturedUploadBackForQr")}</span>
           </div>
           <button
             type="button"
             onClick={() => void triggerFrontOcrFallback()}
-            className="shrink-0 font-medium text-gold-800 underline hover:text-gold-950 transition-colors"
+            className="self-start sm:self-auto shrink-0 font-medium text-gold-800 underline hover:text-gold-950 transition-colors py-0.5 touch-manipulation"
           >
             {t("scanFrontOnlyOcr")}
           </button>

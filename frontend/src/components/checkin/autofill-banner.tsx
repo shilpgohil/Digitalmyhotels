@@ -53,47 +53,47 @@ export function AutofillBanner({ result, onAccept, onDismiss }: AutofillBannerPr
   const pct = Math.round(result.confidence * 100);
 
   return (
-    <div className="rounded-xl border border-success/20 bg-success-bg overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-success/20">
-        <div className="flex items-center gap-2">
-          <BadgeCheck className="size-4 text-success" aria-hidden />
-          <span className="text-sm font-semibold text-success">{t("idDetected")}</span>
-          <span className="rounded-full bg-success-bg px-2 py-0.5 text-micro font-bold text-success">
+    <div className="rounded-xl border border-success/20 bg-success-bg overflow-hidden shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 sm:px-4 py-2.5 sm:py-3 border-b border-success/20">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <BadgeCheck className="size-4 shrink-0 text-success" aria-hidden />
+          <span className="text-xs sm:text-sm font-semibold text-success truncate">{t("idDetected")}</span>
+          <span className="shrink-0 rounded-full bg-success-bg px-2 py-0.5 text-micro font-bold text-success border border-success/20">
             {t("confidencePct", { pct })}
           </span>
         </div>
         <button
           type="button"
           onClick={onDismiss}
-          className="text-success/60 hover:text-success text-sm leading-none"
+          className="text-success/60 hover:text-success text-base leading-none p-1.5 -mr-1 rounded-md touch-manipulation"
           aria-label={t("dismiss")}
         >
           ×
         </button>
       </div>
 
-      <div className="px-4 py-3 space-y-1.5">
+      <div className="px-3.5 sm:px-4 py-2.5 sm:py-3 space-y-1.5 min-w-0">
         {detectedItems.map((item) => (
-          <div key={item.label} className="flex gap-2 text-xs">
-            <span className="w-24 shrink-0 font-semibold text-success">{item.label}</span>
-            <span className="text-success truncate">{item.value}</span>
+          <div key={item.label} className="flex items-baseline gap-2 text-xs min-w-0">
+            <span className="w-20 sm:w-24 shrink-0 font-semibold text-success/90">{item.label}</span>
+            <span className="text-success font-medium truncate min-w-0">{item.value}</span>
           </div>
         ))}
       </div>
 
-      <div className="flex items-center gap-2 px-4 py-3 border-t border-success/20 bg-success-bg/50">
+      <div className="flex flex-wrap items-center gap-2 px-3.5 sm:px-4 py-2.5 sm:py-3 border-t border-success/20 bg-success-bg/50">
         <button
           type="button"
           onClick={() => onAccept(fields)}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-success px-3 text-xs font-semibold text-white hover:bg-success/90 transition-colors"
+          className="inline-flex min-h-[38px] sm:min-h-[32px] items-center justify-center gap-1.5 rounded-lg bg-success px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-success/90 transition-all shadow-xs active:scale-[0.98] touch-manipulation"
         >
-          <BadgeCheck className="size-3.5" aria-hidden />
-          {t("autofillForm")}
+          <BadgeCheck className="size-3.5 shrink-0" aria-hidden />
+          <span>{t("autofillForm")}</span>
         </button>
         <button
           type="button"
           onClick={onDismiss}
-          className="inline-flex h-8 items-center px-3 text-xs font-medium text-success hover:underline"
+          className="inline-flex min-h-[38px] sm:min-h-[32px] items-center justify-center px-3 py-1.5 text-xs font-medium text-success hover:underline touch-manipulation"
         >
           {t("skipManual")}
         </button>
@@ -119,11 +119,11 @@ export function AutofillSkeletonBanner() {
       <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-success/70 to-transparent animate-pulse" />
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-success/20">
-        <div className="flex items-center gap-2">
-          <Loader2 className="size-4 animate-spin text-success" aria-hidden />
-          <span className="text-sm font-semibold text-success">{t("readingId")}</span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-micro font-bold text-success animate-pulse">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 sm:px-4 py-2.5 sm:py-3 border-b border-success/20">
+        <div className="flex items-center gap-2 min-w-0">
+          <Loader2 className="size-4 shrink-0 animate-spin text-success" aria-hidden />
+          <span className="text-xs sm:text-sm font-semibold text-success truncate">{t("readingId")}</span>
+          <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-micro font-bold text-success animate-pulse">
             <span className="size-1.5 rounded-full bg-success animate-ping" />
             {t("extractingDetails")}
           </span>
