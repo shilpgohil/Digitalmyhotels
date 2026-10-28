@@ -154,8 +154,15 @@ def create_app() -> FastAPI:
         }
 
     @app.get("/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok", "service": settings.app_name}
+    async def health() -> dict[str, str | bool]:
+        from app.services.id_scanner import get_ocr_engine
+        ocr_ready = get_ocr_engine() is not None
+        return {
+            "status": "ok",
+            "service": settings.app_name,
+            "ocr_engine": "rapidocr" if ocr_ready else "unavailable",
+            "version": "2026.10.28-v2",
+        }
 
     @app.get("/health/db")
     async def health_db() -> dict[str, float | str]:
