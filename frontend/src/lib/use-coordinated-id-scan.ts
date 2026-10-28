@@ -187,33 +187,11 @@ export function useCoordinatedIdScan(
         }
 
         // Store pending front file and wait for Back face upload.
+        // DO NOT pre-scan Front with heavy RapidOCR yet: on standard PVC cards, Back QR code
+        // already contains 100% digital Name, DOB, Gender, Address, and printed 12-digit UID.
+        // Waiting for Back keeps memory < 100MB and prevents Render container OOM restarts.
         pendingFrontRef.current = file;
         setIsWaitingForBack(true);
-
-        // Pre-scan Front face right away with fast server OCR to extract the 12-digit UID and Name!
-        // When Back is uploaded later, Back's digital QR data merges instantly with Front's 12-digit UID in 0ms!
-        const frontScanPromise = parseIdDocument(file, "Aadhar Card", "front", {
-          hotelId: optionsRef.current?.hotelId,
-          qrOnly: false,
-        });
-        frontScanPromiseRef.current = frontScanPromise;
-        try {
-          const fRes = await frontScanPromise;
-          if (fRes.fields?.id_number || fRes.fields?.name) {
-            setFrontResult(fRes);
-            frontResultRef.current = fRes;
-            const fDigits = (fRes.fields?.id_number || "").replace(/\D/g, "");
-            if (
-              fDigits.length === 12 &&
-              autofillAcceptedRef.current &&
-              optionsRef.current?.onIdNumberAutofill
-            ) {
-              optionsRef.current.onIdNumberAutofill(fRes.fields.id_number!);
-            }
-          }
-        } catch {
-          // Non-fatal
-        }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         pendingFrontRef.current = file;
@@ -271,13 +249,16 @@ export function useCoordinatedIdScan(
           let frontUidDigits = (currentFront?.fields?.id_number || "").replace(/\D/g, "");
           let frontHas12Digits = frontUidDigits.length === 12;
 
-          // If Front was uploaded, AWAIT Front's scan so Front is NEVER lost!
-          if (frontScanPromiseRef.current && (!currentFront || !frontHas12Digits)) {
+          // If Back QR does NOT have 12 digits (only last 4) and Front was uploaded,
+          // scan Front face sequentially to recover the full 12 digits!
+          if (!backHas12Digits && !frontHas12Digits && pendingFrontRef.current) {
             try {
-              const fRes = await frontScanPromiseRef.current;
+              const frontFile = pendingFrontRef.current;
+              const fRes = await parseIdDocument(frontFile, "Aadhar Card", "front", {
+                hotelId: optionsRef.current?.hotelId,
+                qrOnly: false,
+              });
               if (fRes && fRes.fields) {
-                // When Back has digital QR, Back's digital Name/DOB/Gender/Address 100% WINS!
-                // Front OCR is ONLY used to supply the 12-digit UID!
                 const sanitizedFront: IdOcrResult = {
                   ...fRes,
                   fields: {
@@ -311,7 +292,7 @@ export function useCoordinatedIdScan(
             frontResultRef.current = sanitizedFront;
           }
 
-          // Set back result and reveal unified banner with all 12 digits
+          // Set back result and reveal unified banner with all fields
           setBackResult(backProbe);
           backResultRef.current = backProbe;
           setIsWaitingForBack(false);

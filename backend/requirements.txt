@@ -21,7 +21,7 @@ python-dateutil==2.9.0.post0
 tenacity==9.0.0
 zxing-cpp==3.1.1
 pyaadhaar==2.0.2
-opencv-python-headless==5.0.0.93
+opencv-python==5.0.0.93
 rapidocr-onnxruntime==1.4.4
 
 # Dev / test
