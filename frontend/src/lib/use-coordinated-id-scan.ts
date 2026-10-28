@@ -340,7 +340,6 @@ export function useCoordinatedIdScan(
 
         if (frontHasQr) {
           pendingFrontRef.current = null;
-          setIsWaitingForBack(false);
 
           // If Front had QR but lacks complete street address or pincode,
           // scan Back face with server OCR to extract the printed address block!
@@ -361,6 +360,7 @@ export function useCoordinatedIdScan(
               // Non-fatal fallback
             }
           }
+          setIsWaitingForBack(false);
           return;
         }
 
@@ -369,7 +369,6 @@ export function useCoordinatedIdScan(
         // Only NOW do we fall back to RapidOCR!
         const frontFile = pendingFrontRef.current;
         pendingFrontRef.current = null;
-        setIsWaitingForBack(false);
 
         // If front was uploaded and hasn't been scanned yet, run OCR on front
         if (frontFile && !frontResultRef.current) {
@@ -393,6 +392,7 @@ export function useCoordinatedIdScan(
           qrOnly: false,
         });
         setBackResult(backOcr);
+        setIsWaitingForBack(false);
 
         if (autofillAcceptedRef.current && optionsRef.current?.onAddressAutofill && backOcr.fields) {
           optionsRef.current.onAddressAutofill(backOcr.fields);
@@ -446,10 +446,7 @@ export function useCoordinatedIdScan(
   const rawUnifiedResult = mergeOcrResults(frontResult, backResult);
   // While waiting for Back face to scan QR code on PVC cards, do NOT expose a premature partial OCR result
   // from Front alone, which would display an OCR banner before the staff uploads the Back QR card.
-  const unifiedResult =
-    isWaitingForBack && !(frontResult?.source === "qr" || frontResult?.confidence === 1.0)
-      ? null
-      : rawUnifiedResult;
+  const unifiedResult = isWaitingForBack ? null : rawUnifiedResult;
 
   return {
     frontResult,

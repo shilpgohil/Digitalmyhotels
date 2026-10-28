@@ -9,7 +9,7 @@
  * is provided, checking "Show" calls onReveal() to decrypt the full ID.
  * This replaces the separate "Show saved ID" button (image 6 fix).
  */
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -68,6 +68,14 @@ export function MaskedIdInput({
   const [revealing, setRevealing] = useState(false);
   const masked = !show && !focused;
   const rule = idRuleFor(idType);
+
+  // When a real unmasked ID number is autofilled or entered into the field,
+  // automatically reveal the digits so staff can verify what was scanned.
+  useEffect(() => {
+    if (value && !isIdMask(value) && value.replace(/\D/g, "").length >= 4) {
+      setShow(true);
+    }
+  }, [value]);
 
   const handleChange = (raw: string) => {
     // Saved-ID hints look like "••••••••1234" or "XXXX XXXX 1234"

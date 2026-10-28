@@ -1599,6 +1599,27 @@ function AdditionalGuestEntry({
   const coGuestScan = useCoordinatedIdScan({
     idType: "Aadhar Card",
     hotelId: activeHotelId ?? undefined,
+    onAddressAutofill: (fields) => {
+      setAutofill((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          ...(fields.address && { address: fields.address }),
+          ...(fields.pincode && { postal_code: fields.pincode }),
+          ...(fields.city && { city: fields.city }),
+          ...(fields.state && { state: fields.state }),
+        };
+      });
+      if (resolved?.guest_id?.startsWith("__new__")) {
+        const resAny = resolved as ResolvedCoGuest & { _newForm?: GuestCreatePayload };
+        if (resAny._newForm) {
+          if (fields.address) resAny._newForm.address = fields.address;
+          if (fields.pincode) resAny._newForm.postal_code = fields.pincode;
+          if (fields.city) resAny._newForm.city = fields.city;
+          if (fields.state) resAny._newForm.state = fields.state;
+        }
+      }
+    },
     onIdNumberAutofill: (idNum) => {
       const d = idNum.replace(/\D/g, "");
       if (d.length === 12) {
@@ -2126,7 +2147,7 @@ function AdditionalGuestEntry({
                 ...(fields.state && { state: fields.state }),
                 ...(fields.id_number && { id_last4: fields.id_number.slice(-4) }),
               }));
-              if (resolved.guest_id.startsWith("__new__")) {
+              if (resolved?.guest_id?.startsWith("__new__")) {
                 const resAny = resolved as ResolvedCoGuest & { _newForm?: GuestCreatePayload };
                 if (resAny._newForm) {
                   if (fields.name) resAny._newForm.full_name = fields.name;

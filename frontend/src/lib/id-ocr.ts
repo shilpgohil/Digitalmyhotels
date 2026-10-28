@@ -26,6 +26,8 @@ export interface ParsedIdFields {
   city?: string;
   /** Indian state/UT name recognized at the end of the address block. */
   state?: string;
+  /** Guardian/Parent/Spouse care-of extracted from ID (e.g. S/O, D/O, W/O). */
+  care_of?: string;
   id_type_detected?: string;
 }
 
@@ -1262,22 +1264,34 @@ export function mergeOcrResults(
     pincode = bFields.pincode || fFields.pincode || "";
     city = bFields.city || fFields.city || "";
     state = bFields.state || fFields.state || "";
-  } else if (frontIsQr && fFields.address && fFields.address.length >= 15) {
+  } else if (frontIsQr && fFields.address && fFields.address.length >= 15 && fFields.pincode) {
     address = fFields.address;
     pincode = fFields.pincode || bFields.pincode || "";
     city = fFields.city || bFields.city || "";
     state = fFields.state || bFields.state || "";
-  } else if (bFields.address) {
+  } else if (bFields.address && bFields.address.length > (fFields.address?.length || 0)) {
     address = bFields.address;
     pincode = bFields.pincode || fFields.pincode || "";
     city = bFields.city || fFields.city || "";
     state = bFields.state || fFields.state || "";
-  } else {
-    address = fFields.address || "";
+  } else if (fFields.address) {
+    address = fFields.address;
     pincode = fFields.pincode || bFields.pincode || "";
     city = fFields.city || bFields.city || "";
     state = fFields.state || bFields.state || "";
+  } else {
+    address = bFields.address || "";
+    pincode = bFields.pincode || fFields.pincode || "";
+    city = bFields.city || fFields.city || "";
+    state = bFields.state || fFields.state || "";
   }
+
+  const careOf =
+    (backIsQr && bFields.care_of) ||
+    (frontIsQr && fFields.care_of) ||
+    bFields.care_of ||
+    fFields.care_of ||
+    "";
 
   const idTypeDetected = fFields.id_type_detected || bFields.id_type_detected || "Aadhar Card";
 
@@ -1290,6 +1304,7 @@ export function mergeOcrResults(
     pincode: pincode || undefined,
     city: city || undefined,
     state: state || undefined,
+    care_of: careOf || undefined,
     id_type_detected: idTypeDetected,
   };
 
