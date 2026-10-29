@@ -206,6 +206,7 @@ export interface LeaveOut {
   decided_at: string | null;
   decision_note: string | null;
   created_at: string;
+  user_id?: string | null;
   staff_code: string | null;
   full_name: string | null;
   department: string | null;

@@ -428,6 +428,7 @@ export function StaffForm({
                 min={0}
                 step="1"
                 className="tabular-nums"
+                placeholder="0"
                 value={baseSalary}
                 onChange={(e) => setBaseSalary(e.target.value)}
               />

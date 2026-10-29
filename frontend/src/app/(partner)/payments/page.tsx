@@ -908,7 +908,7 @@ function CollectDialog({ bookingId, onDone }: { bookingId: string; onDone: () =>
         <div className="grid gap-3">
           <div>
             <Label>{t("amount")}</Label>
-            <Input className="mt-1" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <Input className="mt-1" placeholder="0" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
           </div>
           <div>
             <Label>{t("method")}</Label>
@@ -1032,7 +1032,7 @@ function ChargeDialog({ bookingId, onDone }: { bookingId: string; onDone: () => 
             </div>
             <div>
               <Label>{t("rate")}</Label>
-              <Input className="mt-1" value={rate} onChange={(e) => setRate(e.target.value)} />
+              <Input className="mt-1" placeholder="0" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} />
             </div>
           </div>
         </div>

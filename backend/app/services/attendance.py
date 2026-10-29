@@ -18,7 +18,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.tenant import TenantContext
 from app.domain.geo import haversine_m
 from app.models.hotel import Hotel
@@ -1289,6 +1289,7 @@ async def list_leaves(
     items = []
     for leave, profile, user in rows:
         out = LeaveOut.model_validate(leave)
+        out.user_id = profile.user_id
         out.staff_code = profile.staff_code
         out.full_name = user.full_name
         out.department = profile.department
@@ -1317,6 +1318,18 @@ async def decide_leave(
         raise NotFoundError("Leave request not found")
     if leave.status != "pending":
         raise ConflictError("Leave request already decided", code="leave_decided")
+
+    # Anti-conflict rule: an employee/manager can never approve or reject their own leave request.
+    leave_profile = (
+        await db.execute(
+            select(StaffProfile).where(StaffProfile.id == leave.staff_profile_id)
+        )
+    ).scalar_one_or_none()
+    if leave_profile and leave_profile.user_id == tenant.user_id:
+        raise ForbiddenError(
+            "You cannot approve or reject your own leave request. It must be approved by the Hotel Owner or Admin.",
+            code="self_leave_decision_forbidden",
+        )
 
     leave.status = "approved" if body.action == "approve" else "rejected"
     leave.decided_by_id = tenant.user_id

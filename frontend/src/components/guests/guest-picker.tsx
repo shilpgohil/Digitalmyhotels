@@ -49,6 +49,9 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
   // Whether the most recent search was by ID last-4 (drives duplicate warning).
   const [wasIdSearch, setWasIdSearch] = useState(false);
 
+  // Tracks which guest row is currently being selected / fetched.
+  const [selectingId, setSelectingId] = useState<string | null>(null);
+
   const search = useMutation({
     mutationFn: async () => {
       const params = phone
@@ -83,12 +86,15 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
     mutationFn: (guestId: string) =>
       api<GuestAutofill>(`/api/v1/guests/${guestId}/autofill`, { method: "POST" }),
     onSuccess: (guest) => {
+      setSelectingId(null);
       // Pass wasIdSearch so the parent can show the "phone may be outdated" hint.
       onSelected({ id: guest.id, full_name: guest.full_name, phone: guest.phone, wasIdSearch });
       toast.success(t("guestSelected"));
     },
-    onError: (error) =>
-      toast.error(error instanceof ApiError ? error.message : tc("error")),
+    onError: (error) => {
+      setSelectingId(null);
+      toast.error(error instanceof ApiError ? error.message : tc("error"));
+    },
   });
 
   // Cross-hotel import (plan §1.7): copies the guest (base data + ID photos)
@@ -104,6 +110,7 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
           : { source_guest_id: sourceGuestId, id_last4: searchedLast4 },
       }),
     onSuccess: (guest) => {
+      setSelectingId(null);
       toast.success(t("guestImported"));
       onSelected({
         id: guest.id,
@@ -112,8 +119,10 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
         wasIdSearch,
       });
     },
-    onError: (error) =>
-      toast.error(error instanceof ApiError ? error.message : tc("error")),
+    onError: (error) => {
+      setSelectingId(null);
+      toast.error(error instanceof ApiError ? error.message : tc("error"));
+    },
   });
 
   const create = useMutation({
@@ -180,6 +189,12 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
           }}
           inputMode="tel"
           aria-label={t("searchByPhone")}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !search.isPending && (phone.length >= 3 || last4.length === 4)) {
+              e.preventDefault();
+              search.mutate();
+            }
+          }}
         />
         <Input
           placeholder={t("searchByLast4")}
@@ -191,6 +206,12 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
             setPhone("");
           }}
           aria-label={t("searchByLast4")}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !search.isPending && (phone.length >= 3 || last4.length === 4)) {
+              e.preventDefault();
+              search.mutate();
+            }
+          }}
         />
         <Button
           type="button"
@@ -198,9 +219,10 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
           className="h-[42px] bg-navy-900 text-white hover:bg-navy-800 px-4"
           onClick={() => search.mutate()}
           disabled={search.isPending || (phone.length < 3 && last4.length !== 4)}
+          aria-label={search.isPending ? "…" : t("searchAction")}
         >
           <Search className="size-4" aria-hidden />
-          {t("searchAction")}
+          {search.isPending ? "…" : t("searchAction")}
         </Button>
       </div>
 
@@ -223,6 +245,7 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
             <ul className="divide-y rounded-md border">
               {results.map((hit) => {
                 const isDupInResults = wasIdSearch && hit.id_last4 && (idLast4Counts[hit.id_last4] ?? 0) > 1;
+                const isSelecting = (autofill.isPending || importGuest.isPending) && selectingId === hit.id;
                 return (
                   /* Clicking the entire row selects the guest — the separate "Auto Fill"
                      button was removed at client request ("Again remove Auto-Fill"). The
@@ -232,9 +255,14 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
                       type="button"
                       className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted transition-colors disabled:opacity-60"
                       disabled={autofill.isPending || importGuest.isPending}
-                      onClick={() =>
-                        hit.cross_hotel ? importGuest.mutate(hit.id) : autofill.mutate(hit.id)
-                      }
+                      onClick={() => {
+                        setSelectingId(hit.id);
+                        if (hit.cross_hotel) {
+                          importGuest.mutate(hit.id);
+                        } else {
+                          autofill.mutate(hit.id);
+                        }
+                      }}
                     >
                       {/* Guest info */}
                       <span className="font-medium flex-1 min-w-0 truncate">{hit.full_name}</span>
@@ -255,8 +283,8 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
                         </span>
                       )}
                       {/* Clear "Select" button so staff knows tapping this row selects the guest */}
-                      <span className="ml-auto shrink-0 inline-flex h-7 items-center rounded-md bg-navy-900 px-2.5 text-xs font-semibold text-white">
-                        {hit.cross_hotel ? t("importAction") : t("selectGuest")}
+                      <span className="ml-auto shrink-0 inline-flex h-7 items-center justify-center rounded-md bg-navy-900 px-2.5 text-xs font-semibold text-white min-w-[54px]">
+                        {isSelecting ? "…" : (hit.cross_hotel ? t("importAction") : t("selectGuest"))}
                       </span>
                     </button>
                   </li>

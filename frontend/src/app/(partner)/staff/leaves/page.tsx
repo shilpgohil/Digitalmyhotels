@@ -34,7 +34,7 @@ function LeavesContent() {
   const tn = useTranslations("nav");
   const tc = useTranslations("common");
   const api = useApi();
-  const { activeHotelId, can } = useAuth();
+  const { activeHotelId, can, user } = useAuth();
   const queryClient = useQueryClient();
 
   const [status, setStatus] = useState<string>("pending");
@@ -138,32 +138,38 @@ function LeavesContent() {
               </TableCell>
               <TableCell className="space-x-2 whitespace-nowrap">
                 {leave.status === "pending" && canDecide && (
-                  <>
-                    <Button
-                      size="sm"
-                      className="bg-success text-white hover:bg-success/90"
-                      disabled={decideMutation.isPending}
-                      onClick={() =>
-                        decideMutation.mutate({ id: leave.id, action: "approve" })
-                      }
-                    >
-                      <Check className="mr-1 size-3.5" aria-hidden />
-                      {t("approve")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-danger hover:text-danger"
-                      disabled={decideMutation.isPending}
-                      onClick={() => {
-                        setRejectTarget(leave);
-                        rejectConfirm.show();
-                      }}
-                    >
-                      <X className="mr-1 size-3.5" aria-hidden />
-                      {t("reject")}
-                    </Button>
-                  </>
+                  leave.user_id && leave.user_id === user?.id ? (
+                    <span className="text-xs text-muted-foreground italic">
+                      {t("pendingAdminApproval")}
+                    </span>
+                  ) : (
+                    <>
+                      <Button
+                        size="sm"
+                        className="bg-success text-white hover:bg-success/90"
+                        disabled={decideMutation.isPending}
+                        onClick={() =>
+                          decideMutation.mutate({ id: leave.id, action: "approve" })
+                        }
+                      >
+                        <Check className="mr-1 size-3.5" aria-hidden />
+                        {t("approve")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-danger hover:text-danger"
+                        disabled={decideMutation.isPending}
+                        onClick={() => {
+                          setRejectTarget(leave);
+                          rejectConfirm.show();
+                        }}
+                      >
+                        <X className="mr-1 size-3.5" aria-hidden />
+                        {t("reject")}
+                      </Button>
+                    </>
+                  )
                 )}
                 {leave.status !== "pending" && "—"}
               </TableCell>

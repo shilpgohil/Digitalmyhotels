@@ -33,8 +33,8 @@ function ShiftHandoverContent() {
   const api = useApi();
   const { activeHotelId } = useAuth();
   const queryClient = useQueryClient();
-  const [opening, setOpening] = useState("0");
-  const [closing, setClosing] = useState("0");
+  const [opening, setOpening] = useState("");
+  const [closing, setClosing] = useState("");
   const [toName, setToName] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -49,14 +49,16 @@ function ShiftHandoverContent() {
       api("/api/v1/ops/shift-handover", {
         method: "POST",
         body: {
-          opening_cash: opening,
-          closing_cash: closing,
+          opening_cash: opening.trim() || "0",
+          closing_cash: closing.trim() || "0",
           to_name: toName.trim() || null,
           notes: notes || null,
         },
       }),
     onSuccess: () => {
       toast.success(t("handoverCreated"));
+      setOpening("");
+      setClosing("");
       queryClient.invalidateQueries({ queryKey: ["handovers", activeHotelId] });
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
@@ -84,6 +86,7 @@ function ShiftHandoverContent() {
                 id="sh-opening"
                 className="mt-1"
                 inputMode="decimal"
+                placeholder="0"
                 value={opening}
                 onChange={(e) => setOpening(e.target.value)}
               />
@@ -94,6 +97,7 @@ function ShiftHandoverContent() {
                 id="sh-closing"
                 className="mt-1"
                 inputMode="decimal"
+                placeholder="0"
                 value={closing}
                 onChange={(e) => setClosing(e.target.value)}
               />

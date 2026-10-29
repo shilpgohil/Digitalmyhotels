@@ -54,6 +54,8 @@ interface FilterBarProps {
   searchValue?: string;
   onSearchChange?: (v: string) => void;
   searchPlaceholder?: string;
+  /** Optional custom class name for the search input container */
+  searchClassName?: string;
 
   /** Called when the user clicks "Clear all" */
   onClear?: () => void;
@@ -86,6 +88,7 @@ export function FilterBar({
   searchValue,
   onSearchChange,
   searchPlaceholder = "Search…",
+  searchClassName,
   onClear,
   hasActiveFilters,
   className,
@@ -170,7 +173,7 @@ export function FilterBar({
 
       {/* Search */}
       {onSearchChange !== undefined && (
-        <div className="min-w-[180px] flex-1">
+        <div className={cn("min-w-[240px] sm:min-w-[280px] flex-1", searchClassName)}>
           {/* Client spec 09/2026: 42px controls across the filter row */}
           <div className="relative mt-5">
             <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />

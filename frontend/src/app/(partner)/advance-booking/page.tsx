@@ -190,6 +190,7 @@ function AdvanceBookingContent() {
   const [pgWasIdSearch, setPgWasIdSearch] = useState(false);
   const [pgContactOverride, setPgContactOverride] = useState("");
   const [pgEditing, setPgEditing] = useState(false);
+  const [pgAutofilling, setPgAutofilling] = useState(false);
   const pgScan = useCoordinatedIdScan({
     idType: pgIdType,
     hotelId: activeHotelId ?? undefined,
@@ -360,7 +361,7 @@ function AdvanceBookingContent() {
   const [specialInstructions, setSpecialInstructions] = useState("");
 
   // ── 5. Payment ──
-  const [advanceAmount, setAdvanceAmount] = useState("0");
+  const [advanceAmount, setAdvanceAmount] = useState("");
   const [paymentMode, setPaymentMode] = useState("cash");
   const [paymentCollected, setPaymentCollected] = useState(false);
 
@@ -712,7 +713,9 @@ function AdvanceBookingContent() {
                       {/* Auto-fill: re-fetches latest profile + docs then opens edit */}
                       <button
                         type="button"
+                        disabled={pgAutofilling}
                         onClick={() => {
+                          setPgAutofilling(true);
                           void Promise.all([
                             api<GuestAutofill>(`/api/v1/guests/${guest.id}/autofill`, { method: "POST" }),
                             api<{ id: string; side: string | null }[]>(`/api/v1/guests/${guest.id}/documents`)
@@ -740,11 +743,11 @@ function AdvanceBookingContent() {
                             if (full.id_proof_type) setPgIdType(full.id_proof_type);
                             setPgIdNumber(full.id_last4 ? `••••••••${full.id_last4}` : pgIdNumber);
                             setPgEditing(true);
-                          }).catch(() => setPgEditing(true));
+                          }).catch(() => setPgEditing(true)).finally(() => setPgAutofilling(false));
                         }}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gold-400 bg-gold-50 px-2.5 text-xs font-semibold text-gold-700 transition-colors hover:bg-gold-100"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gold-400 bg-gold-50 px-2.5 text-xs font-semibold text-gold-700 transition-colors hover:bg-gold-100 disabled:opacity-60"
                       >
-                        {t("autofillLabel")}
+                        {pgAutofilling ? "…" : t("autofillLabel")}
                       </button>
                       {/* Edit Guest Details */}
                       <button

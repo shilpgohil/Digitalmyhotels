@@ -292,6 +292,7 @@ class LeaveOut(ORMModel):
     decision_note: str | None
     created_at: datetime
     # Enriched (not ORM columns):
+    user_id: UUID | None = None
     staff_code: str | None = None
     full_name: str | None = None
     department: str | None = None

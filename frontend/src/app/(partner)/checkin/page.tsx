@@ -1636,6 +1636,11 @@ function AdditionalGuestEntry({
    *  instead of a masked placeholder (fix: co-guest OCR drops full ID). */
   const [coGuestOcrId, setCoGuestOcrId] = useState<string | null>(null);
 
+  /** Loading state when selecting a search hit to autofill co-guest details. */
+  const [selectingGuestId, setSelectingGuestId] = useState<string | null>(null);
+  /** Loading state when re-running autofill from the summary card. */
+  const [coGuestAutofilling, setCoGuestAutofilling] = useState(false);
+
   // Foreign guest (Form C) — same fields as the primary guest's section.
   const [fgEnabled, setFgEnabled] = useState(false);
   const [fgForm, setFgForm] = useState<ForeignGuestFormState>(EMPTY_FOREIGN_GUEST);
@@ -1717,6 +1722,7 @@ function AdditionalGuestEntry({
   };
 
   const handleSelectExisting = async (g: GuestSearchResult) => {
+    setSelectingGuestId(g.id);
     try {
       // Cross-hotel hit (plan §1.7): IMPORT the guest into this hotel first
       // (explicit, phone-proofed, audited — copies base data + ID photos),
@@ -1760,6 +1766,8 @@ function AdditionalGuestEntry({
       setSearchResults([]);
     } catch {
       toast.error(t("guestLoadFailed"));
+    } finally {
+      setSelectingGuestId(null);
     }
   };
 
@@ -1980,7 +1988,9 @@ function AdditionalGuestEntry({
             {!resolved.guest_id.startsWith("__new__") && (
               <button
                 type="button"
+                disabled={coGuestAutofilling}
                 onClick={() => {
+                  setCoGuestAutofilling(true);
                   // Fetch latest autofill + documents THEN open the edit form
                   // so the form is pre-filled AND photo tiles show "Saved on file"
                   // (image 4: "Auto-fill doesn't do anything", image 5: blank tiles).
@@ -1998,11 +2008,11 @@ function AdditionalGuestEntry({
                     setExistingDocs(bySide);
                     setAutofill(full);
                     setEditing(true);
-                  }).catch(() => setEditing(true));
+                  }).catch(() => setEditing(true)).finally(() => setCoGuestAutofilling(false));
                 }}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gold-400 bg-gold-50 px-2.5 text-xs font-semibold text-gold-700 transition-colors hover:bg-gold-100"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gold-400 bg-gold-50 px-2.5 text-xs font-semibold text-gold-700 transition-colors hover:bg-gold-100 disabled:opacity-60"
               >
-                {t("autofillLabel")}
+                {coGuestAutofilling ? "…" : t("autofillLabel")}
               </button>
             )}
             {/* Labeled Edit — opens the form pre-filled with latest data.
@@ -2334,12 +2344,14 @@ function AdditionalGuestEntry({
                 <ul className="rounded-lg border divide-y">
                   {searchResults.map((g) => {
                     const isDupInResults = wasIdSearch && g.id_last4 && (idLast4Counts[g.id_last4] ?? 0) > 1;
+                    const isSelecting = selectingGuestId === g.id;
                     return (
                       <li key={g.id}>
                         <button
                           type="button"
                           onClick={() => handleSelectExisting(g)}
-                          className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                          disabled={selectingGuestId !== null}
+                          className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted transition-colors disabled:opacity-60"
                         >
                           {/* Guest info — mirrors GuestPicker row layout */}
                           <span className="font-medium flex-1 min-w-0 truncate">{g.full_name}</span>
@@ -2358,8 +2370,8 @@ function AdditionalGuestEntry({
                             </span>
                           )}
                           {/* "Select" chip — mirrors GuestPicker primary-guest rows exactly */}
-                          <span className="ml-auto shrink-0 inline-flex h-7 items-center rounded-md bg-navy-900 px-2.5 text-xs font-semibold text-white">
-                            {g.cross_hotel ? tg("importAction") : tg("selectGuest")}
+                          <span className="ml-auto shrink-0 inline-flex h-7 items-center justify-center rounded-md bg-navy-900 px-2.5 text-xs font-semibold text-white min-w-[54px]">
+                            {isSelecting ? "…" : (g.cross_hotel ? tg("importAction") : tg("selectGuest"))}
                           </span>
                         </button>
                       </li>
@@ -2736,8 +2748,8 @@ function CheckinForm({
     );
 
   // ── Payment details ──
-  const [advanceAmount, setAdvanceAmount] = useState("0");
-  const [extraCharges, setExtraCharges] = useState("0");
+  const [advanceAmount, setAdvanceAmount] = useState("");
+  const [extraCharges, setExtraCharges] = useState("");
   const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "credit_card" | "debit_card" | "bank_transfer" | "other">("cash");
   const [paymentReceived, setPaymentReceived] = useState(false);
 
@@ -3995,6 +4007,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
    *  summary card (like CoGuestCard's resolved state). Starts false so a newly
    *  selected returning guest shows the summary first. */
   const [pgEditing, setPgEditing] = useState(false);
+  const [pgAutofilling, setPgAutofilling] = useState(false);
   const [pgName, setPgName] = useState("");
   const [pgPhone, setPgPhone] = useState("");
   const [pgIdType, setPgIdType] = useState("Aadhar Card");
@@ -4232,8 +4245,8 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     );
 
   // ── 6. Payment (advance collection only — new booking, nothing paid yet) ──
-  const [advanceAmount, setAdvanceAmount] = useState("0");
-  const [extraCharges, setExtraCharges] = useState("0");
+  const [advanceAmount, setAdvanceAmount] = useState("");
+  const [extraCharges, setExtraCharges] = useState("");
   const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | "credit_card" | "debit_card" | "bank_transfer" | "other">("cash");
   const [paymentReceived, setPaymentReceived] = useState(false);
   const [earlyFee, setEarlyFee] = useState(0);
@@ -4597,10 +4610,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     setChildCount(d.childCount ?? 0);
     setSpecialInstructions(d.specialInstructions ?? "");
     setSelectedServices(d.selectedServices ?? []);
-    setAdvanceAmount(d.advanceAmount ?? "0");
+    setAdvanceAmount(d.advanceAmount ?? "");
     setPaymentMode(d.paymentMode ?? "cash");
     setPaymentReceived(d.paymentReceived ?? false);
-    setExtraCharges(d.extraCharges ?? "0");
+    setExtraCharges(d.extraCharges ?? "");
     setServiceAmounts(d.serviceAmounts ?? {});
     setRateEdits(d.rateEdits ?? {});
     // Restore the price snapshot so room amounts show immediately, even
@@ -5218,7 +5231,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   {/* Auto-fill: re-fetches latest profile + docs then opens edit */}
                   <button
                     type="button"
+                    disabled={pgAutofilling}
                     onClick={() => {
+                      setPgAutofilling(true);
                       void Promise.all([
                         api<GuestAutofill>(`/api/v1/guests/${guest.id}/autofill`, { method: "POST" }),
                         api<{ id: string; side: string | null }[]>(`/api/v1/guests/${guest.id}/documents`)
@@ -5244,11 +5259,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                         if (full.id_proof_type) setPgIdType(full.id_proof_type);
                         setPgIdNumber(full.id_last4 ? `••••••••${full.id_last4}` : pgIdNumber);
                         setPgEditing(true);
-                      }).catch(() => setPgEditing(true));
+                      }).catch(() => setPgEditing(true)).finally(() => setPgAutofilling(false));
                     }}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gold-400 bg-gold-50 px-2.5 text-xs font-semibold text-gold-700 transition-colors hover:bg-gold-100"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gold-400 bg-gold-50 px-2.5 text-xs font-semibold text-gold-700 transition-colors hover:bg-gold-100 disabled:opacity-60"
                   >
-                    {t("autofillLabel")}
+                    {pgAutofilling ? "…" : t("autofillLabel")}
                   </button>
                   {/* Edit Guest Details */}
                   <button

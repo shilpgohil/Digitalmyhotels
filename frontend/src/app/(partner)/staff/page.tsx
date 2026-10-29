@@ -104,6 +104,8 @@ function StaffListContent() {
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <FilterBar
+            className="flex-1 min-w-0"
+            searchClassName="min-w-[280px] sm:min-w-[340px] max-w-md"
             searchValue={q}
             onSearchChange={(v) => {
               setQ(v);
