@@ -17,9 +17,28 @@ from app.schemas.guest import IdScanFields, IdScanResponse
 
 logger = logging.getLogger(__name__)
 
+# Global singleton for RapidOCR engine initialized on demand with low memory constraints
+_rapid_ocr_engine: Any = None
+
+
 def get_ocr_engine() -> Any:
-    """Zero-ML architecture: Server-side ONNX engine disabled in favor of zxing-cpp QR."""
-    return None
+    global _rapid_ocr_engine
+    if _rapid_ocr_engine is None:
+        try:
+            from rapidocr_onnxruntime import RapidOCR  # type: ignore[import-untyped]
+
+            # Low-memory footprint for Render 512MB RAM container:
+            # 1. use_cls=False: skips direction classifier ONNX model (~40MB RAM saved)
+            # 2. intra/inter_op_num_threads=1: stops ONNX spawning host threads (~300MB saved)
+            _rapid_ocr_engine = RapidOCR(
+                use_cls=False,
+                intra_op_num_threads=1,
+                inter_op_num_threads=1,
+            )
+        except Exception as e:
+            logger.warning("RapidOCR failed to initialize: %s", e)
+            _rapid_ocr_engine = None
+    return _rapid_ocr_engine
 
 
 # ─── REGEX PATTERNS ──────────────────────────────────────────────────────────
@@ -1656,16 +1675,20 @@ def scan_id_document(
             if qr_result and qr_result.success:
                 return qr_result
 
-        # No QR code found on this document face: return clean non-detection.
-        # Fallback text OCR is performed client-side via Tesseract.js in Next.js (0 MB server RAM).
-        return IdScanResponse(
-            success=False,
-            source="none",
-            confidence=0.0,
-            fields=IdScanFields(),
-            can_autofill=False,
-            message="No QR code found on this document face.",
-        )
+        # If caller requested QR only probe (~30ms), return clean non-detection.
+        if qr_only:
+            return IdScanResponse(
+                success=False,
+                source="none",
+                confidence=0.0,
+                fields=IdScanFields(),
+                can_autofill=False,
+                message="No QR code found on this document face.",
+            )
+
+        # STAGE 2: Server-side RapidOCR + MRZ cascade when qr_only is False.
+        # Handles printed text address on card backs, non-QR cards, PAN, DL, Voter ID, Passport.
+        return scan_ocr_stage(img, id_type_hint=id_type_hint, side=side)
 
     except Exception as e:
         logger.exception("Error executing server-side ID scan: %s", e)

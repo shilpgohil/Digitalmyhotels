@@ -346,14 +346,15 @@ def test_scan_user_eaadhaar_attached_card() -> None:
         with open(back_path, "rb") as f:
             back_bytes = f.read()
 
-        # Back face has no QR code: zero-ML backend cleanly defers to client-side Tesseract.js
+        # Back face has no QR code: qr_only=True returns fast non-detection
         res_back_qr = scan_id_document(back_bytes, side="back", qr_only=True)
         assert res_back_qr.success is False
         assert "No QR code found" in res_back_qr.message
 
+        # When qr_only=False, server-side text fusion extracts the printed address and UID
         res_back_full = scan_id_document(back_bytes, side="back", qr_only=False)
-        assert res_back_full.success is False
-        assert "No QR code found" in res_back_full.message
+        assert res_back_full.success is True
+        assert res_back_full.fields.id_number in ("5424 9071 2078", "542490712078")
 
 
 
