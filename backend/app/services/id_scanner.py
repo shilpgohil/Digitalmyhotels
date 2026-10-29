@@ -17,28 +17,11 @@ from app.schemas.guest import IdScanFields, IdScanResponse
 
 logger = logging.getLogger(__name__)
 
-# Global singleton for RapidOCR engine initialized on demand with low memory constraints
-_rapid_ocr_engine: Any = None
-
-
+# Zero-ML architecture for Render 512MB RAM container:
+# All QR decoding is handled by zxing-cpp (< 60MB RAM footprint).
+# Deep-learning OCR is disabled on server to eliminate Render OOM crashes.
 def get_ocr_engine() -> Any:
-    global _rapid_ocr_engine
-    if _rapid_ocr_engine is None:
-        try:
-            from rapidocr_onnxruntime import RapidOCR  # type: ignore[import-untyped]
-
-            # Low-memory footprint for Render 512MB RAM container:
-            # 1. use_cls=False: skips direction classifier ONNX model (~40MB RAM saved)
-            # 2. intra/inter_op_num_threads=1: stops ONNX spawning host threads (~300MB saved)
-            _rapid_ocr_engine = RapidOCR(
-                use_cls=False,
-                intra_op_num_threads=1,
-                inter_op_num_threads=1,
-            )
-        except Exception as e:
-            logger.warning("RapidOCR failed to initialize: %s", e)
-            _rapid_ocr_engine = None
-    return _rapid_ocr_engine
+    return None
 
 
 # ─── REGEX PATTERNS ──────────────────────────────────────────────────────────

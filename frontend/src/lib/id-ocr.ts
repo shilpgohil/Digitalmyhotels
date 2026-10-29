@@ -419,6 +419,10 @@ function cleanAddressText(raw: string): string {
     .replace(/\b\d+\s*Fog\s*Rect\b/gi, " ")
     .replace(/\bFas\s*at\s*AAS\b/gi, " ")
     .replace(/\bFog\s*Rect\b/gi, " ")
+    .replace(/\b1E\s+A\s+ST\b/gi, " ")
+    .replace(/\b(?:BOATENG|Reh\s+BOATENG)\b/gi, " ")
+    .replace(/\b(?:Unique\s+Identification|Authority\s+of\s+India|Unique\s+Ident\w*)\b/gi, " ")
+    .replace(/\b(?:Help\s*:\s*1947|1947|uidai|help@\S+)\b/gi, " ")
     .replace(/\bCity[,\s]*State\b/gi, " ")
     .replace(/[^\w\s,./():#'-]/g, " ");
 
@@ -489,6 +493,9 @@ function parseAadharBack(text: string): Partial<ParsedIdFields> & { score: numbe
       onLabel = onLabel.replace(/^.*?\b(?:Address|Addres|Addr|Residential|पता)\s*[:.,\/-]?\s*/i, "");
     }
     onLabel = onLabel.replace(/[\u0900-\u097F]+/g, " ").replace(/\s+/g, " ").trim();
+    if (/\b([CSWDH]\/O:?)\b/i.test(onLabel)) {
+      onLabel = onLabel.replace(/^.*?\b([CSWDH]\/O:?)/i, "$1");
+    }
     if (onLabel.length >= 3) collected.push(onLabel);
 
     for (let i = startIdx + 1; i < Math.min(lines.length, startIdx + 9); i++) {
@@ -497,7 +504,18 @@ function parseAadharBack(text: string): Partial<ParsedIdFields> & { score: numbe
       if (/^(www\.|help@|1947|uidai|unique identification)/i.test(line)) break;
 
       // DO NOT SKIP LINES CONTAINING HINDI! Strip Hindi, keep English!
-      const eng = line.replace(/[\u0900-\u097F]+/g, " ").replace(/\s+/g, " ").trim();
+      let eng = line.replace(/[\u0900-\u097F]+/g, " ").replace(/\s+/g, " ").trim();
+      if (eng.length < 3) continue;
+
+      // Strip noise tokens like 1E A ST or BOATENG
+      eng = eng
+        .replace(/\b1E\s+A\s+ST\b/gi, "")
+        .replace(/\b(?:BOATENG|Reh\s+BOATENG)\b/gi, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (/\b([CSWDH]\/O:?)\b/i.test(eng)) {
+        eng = eng.replace(/^.*?\b([CSWDH]\/O:?)/i, "$1");
+      }
       if (eng.length < 3) continue;
 
       collected.push(eng);
@@ -1146,6 +1164,94 @@ export async function parseIdDocument(
       message: "Could not process image. Please fill in details manually.",
       can_autofill: false,
     };
+  }
+}
+
+/**
+ * Fast, targeted browser-side micro-scan that extracts ONLY the printed 12-digit Aadhaar UID
+ * from the bottom strip of the card.
+ * Does NOT extract or touch names, dates, or addresses.
+ */
+export async function extractAadhaarDigitsOnly(
+  file: File,
+  expectedLast4?: string,
+): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const croppedBlob: Blob | null = await new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const w = img.naturalWidth || img.width;
+        const h = img.naturalHeight || img.height;
+        if (!w || !h) return resolve(null);
+        const targetW = Math.min(w, 1200);
+        const scale = targetW / w;
+        // Bottom 35% where the 12-digit UID is printed on front and back
+        const sy = Math.floor(h * 0.65);
+        const sh = h - sy;
+        const targetH = Math.floor(sh * scale);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return resolve(null);
+        ctx.drawImage(img, 0, sy, w, sh, 0, 0, targetW, targetH);
+        canvas.toBlob((b) => resolve(b), "image/jpeg", 0.92);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
+      img.src = url;
+    });
+
+    const input = croppedBlob || file;
+    const { createWorker } = await import("tesseract.js");
+    const worker = await createWorker("eng", 1, { logger: () => undefined });
+    try {
+      await worker.setParameters({
+        tessedit_char_whitelist: "0123456789 ",
+        preserve_interword_spaces: "1",
+      });
+    } catch {
+      // Non-fatal if parameters unsupported
+    }
+
+    const { data } = await worker.recognize(input);
+    await worker.terminate();
+
+    const text = data.text || "";
+    // 1. Match spaced 12-digit pattern: \b\d{4}\s+\d{4}\s+\d{4}\b
+    const match = text.match(/\b(?:\d{4}[\s-]+\d{4}[\s-]+\d{4}|\d{12})\b/);
+    if (match) {
+      const d = match[0].replace(/\D/g, "");
+      if (d.length === 12) {
+        if (!expectedLast4 || d.endsWith(expectedLast4)) {
+          return `${d.slice(0, 4)} ${d.slice(4, 8)} ${d.slice(8)}`;
+        }
+      }
+    }
+
+    // 2. Stream matching across all digits if spacing was irregular
+    const digitsOnly = text.replace(/\D/g, "");
+    if (expectedLast4 && digitsOnly.length >= 12) {
+      const pat = new RegExp(`(\\d{8}${expectedLast4})`);
+      const m = digitsOnly.match(pat);
+      if (m) {
+        const d = m[1];
+        return `${d.slice(0, 4)} ${d.slice(4, 8)} ${d.slice(8)}`;
+      }
+    }
+    if (digitsOnly.length === 12) {
+      return `${digitsOnly.slice(0, 4)} ${digitsOnly.slice(4, 8)} ${digitsOnly.slice(8)}`;
+    }
+    return null;
+  } catch (err) {
+    console.warn("[id-ocr] extractAadhaarDigitsOnly error:", err);
+    return null;
   }
 }
 

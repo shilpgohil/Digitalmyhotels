@@ -1307,19 +1307,19 @@ function NewGuestForm({
     hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
       let filledAny = false;
-      if (fields.address && (!form.address || form.address.length < fields.address.length)) {
+      if (fields.address && !form.address) {
         set("address", fields.address);
         filledAny = true;
       }
-      if (fields.pincode && (!form.postal_code || form.postal_code.length !== 6)) {
+      if (fields.pincode && !form.postal_code) {
         set("postal_code", fields.pincode);
         filledAny = true;
       }
-      if (fields.city && (!form.city || form.city.length < fields.city.length)) {
+      if (fields.city && !form.city) {
         set("city", fields.city);
         filledAny = true;
       }
-      if (fields.state && (!form.state || form.state.length < fields.state.length)) {
+      if (fields.state && !form.state) {
         set("state", fields.state);
         filledAny = true;
       }
@@ -2631,19 +2631,19 @@ function CheckinForm({
     hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
       let filledAny = false;
-      if (fields.address && (!pgAddress || pgAddress.length < fields.address.length)) {
+      if (fields.address && !pgAddress) {
         setPgAddress(fields.address);
         filledAny = true;
       }
-      if (fields.pincode && (!pgPostalCode || pgPostalCode.length !== 6)) {
+      if (fields.pincode && !pgPostalCode) {
         setPgPostalCode(fields.pincode);
         filledAny = true;
       }
-      if (fields.city && (!pgCity || pgCity.length < fields.city.length)) {
+      if (fields.city && !pgCity) {
         setPgCity(fields.city);
         filledAny = true;
       }
-      if (fields.state && (!pgState || pgState.length < fields.state.length)) {
+      if (fields.state && !pgState) {
         setPgState(fields.state);
         filledAny = true;
       }
@@ -4012,19 +4012,19 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
       let filledAny = false;
-      if (fields.address && (!pgAddress || pgAddress.length < fields.address.length)) {
+      if (fields.address && !pgAddress) {
         setPgAddress(fields.address);
         filledAny = true;
       }
-      if (fields.pincode && (!pgPostalCode || pgPostalCode.length !== 6)) {
+      if (fields.pincode && !pgPostalCode) {
         setPgPostalCode(fields.pincode);
         filledAny = true;
       }
-      if (fields.city && (!pgCity || pgCity.length < fields.city.length)) {
+      if (fields.city && !pgCity) {
         setPgCity(fields.city);
         filledAny = true;
       }
-      if (fields.state && (!pgState || pgState.length < fields.state.length)) {
+      if (fields.state && !pgState) {
         setPgState(fields.state);
         filledAny = true;
       }

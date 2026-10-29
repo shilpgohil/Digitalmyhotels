@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { IdOcrResult, ParsedIdFields } from "@/lib/id-ocr";
-import { parseIdDocument, mergeOcrResults } from "@/lib/id-ocr";
+import { parseIdDocument, mergeOcrResults, extractAadhaarDigitsOnly } from "@/lib/id-ocr";
 
 export interface UseCoordinatedIdScanOptions {
   idType?: string | null;
@@ -244,68 +244,54 @@ export function useCoordinatedIdScan(
           // 100% digital UIDAI record extracted!
           const backUidDigits = (backProbe.fields.id_number || "").replace(/\D/g, "");
           const backHas12Digits = backUidDigits.length === 12;
+          const uidLast4 = backUidDigits.slice(-4) || undefined;
 
-          let currentFront = frontResultRef.current;
-          let frontUidDigits = (currentFront?.fields?.id_number || "").replace(/\D/g, "");
-          let frontHas12Digits = frontUidDigits.length === 12;
+          const currentFront = frontResultRef.current;
+          const frontUidDigits = (currentFront?.fields?.id_number || "").replace(/\D/g, "");
+          const frontHas12Digits = frontUidDigits.length === 12;
 
-          // If Back QR does NOT have 12 digits (only last 4) and Front was uploaded,
-          // scan Front face sequentially to recover the full 12 digits!
-          if (!backHas12Digits && !frontHas12Digits && pendingFrontRef.current) {
-            try {
-              const frontFile = pendingFrontRef.current;
-              const fRes = await parseIdDocument(frontFile, "Aadhar Card", "front", {
-                hotelId: optionsRef.current?.hotelId,
-                qrOnly: false,
-              });
-              if (fRes && fRes.fields) {
-                const sanitizedFront: IdOcrResult = {
-                  ...fRes,
-                  fields: {
-                    ...fRes.fields,
-                    name: backProbe.fields.name || fRes.fields.name,
-                    date_of_birth: backProbe.fields.date_of_birth || fRes.fields.date_of_birth,
-                    gender: backProbe.fields.gender || fRes.fields.gender,
-                  },
-                };
-                setFrontResult(sanitizedFront);
-                frontResultRef.current = sanitizedFront;
-                currentFront = sanitizedFront;
-                frontUidDigits = (fRes.fields?.id_number || "").replace(/\D/g, "");
-                frontHas12Digits = frontUidDigits.length === 12;
-              }
-            } catch {
-              // Non-fatal
-            }
-          } else if (currentFront && currentFront.fields && backProbe.fields.name) {
-            // Front was already pre-scanned. Sanitize it so Back QR's digital Name/DOB/Gender wins!
-            const sanitizedFront: IdOcrResult = {
-              ...currentFront,
-              fields: {
-                ...currentFront.fields,
-                name: backProbe.fields.name,
-                date_of_birth: backProbe.fields.date_of_birth || currentFront.fields.date_of_birth,
-                gender: backProbe.fields.gender || currentFront.fields.gender,
-              },
-            };
-            setFrontResult(sanitizedFront);
-            frontResultRef.current = sanitizedFront;
-          }
-
-          // Set back result and reveal unified banner with all fields
+          // Set back result immediately with 100% authentic digital QR data
           setBackResult(backProbe);
           backResultRef.current = backProbe;
           setIsWaitingForBack(false);
+          const frontFile = pendingFrontRef.current;
           pendingFrontRef.current = null;
           frontScanPromiseRef.current = null;
 
           if (autofillAcceptedRef.current && optionsRef.current?.onAddressAutofill && backProbe.fields) {
             optionsRef.current.onAddressAutofill(backProbe.fields);
           }
-          if (autofillAcceptedRef.current && optionsRef.current?.onIdNumberAutofill) {
+
+          // If Back QR only has 4 digits (e.g. •••• •••• 7192),
+          // run targeted micro-OCR for the 12 digits on bottom crop (Back first, then Front)
+          if (!backHas12Digits && !frontHas12Digits && uidLast4) {
+            void (async () => {
+              let full12 = await extractAadhaarDigitsOnly(file, uidLast4);
+              if (!full12 && frontFile) {
+                full12 = await extractAadhaarDigitsOnly(frontFile, uidLast4);
+              }
+              if (full12) {
+                const updatedFields = {
+                  ...backResultRef.current?.fields,
+                  ...backProbe.fields,
+                  id_number: full12,
+                };
+                const updatedRes: IdOcrResult = {
+                  ...backProbe,
+                  fields: updatedFields,
+                };
+                setBackResult(updatedRes);
+                backResultRef.current = updatedRes;
+
+                if (optionsRef.current?.onIdNumberAutofill) {
+                  optionsRef.current.onIdNumberAutofill(full12);
+                }
+              }
+            })();
+          } else if (autofillAcceptedRef.current && optionsRef.current?.onIdNumberAutofill && (frontHas12Digits || backHas12Digits)) {
             const resolvedUid = frontHas12Digits
               ? (currentFront?.fields?.id_number || "")
-              : (backHas12Digits ? (backProbe.fields.id_number || "") : "");
+              : (backProbe.fields.id_number || "");
             const d = resolvedUid.replace(/\D/g, "");
             if (d.length === 12) {
               optionsRef.current.onIdNumberAutofill(resolvedUid);

@@ -158,7 +158,7 @@ def create_app() -> FastAPI:
         return {
             "status": "ok",
             "service": settings.app_name,
-            "version": "2026.10.29-v1",
+            "version": "2026.10.29-v2",
         }
 
     @app.get("/health/db")

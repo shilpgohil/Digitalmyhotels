@@ -956,19 +956,19 @@ export function NewGuestFullForm({
     hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
       let filledAny = false;
-      if (fields.address && (!form.address || form.address.length < fields.address.length)) {
+      if (fields.address && !form.address) {
         set("address", fields.address);
         filledAny = true;
       }
-      if (fields.pincode && (!form.postal_code || form.postal_code.length !== 6)) {
+      if (fields.pincode && !form.postal_code) {
         set("postal_code", fields.pincode);
         filledAny = true;
       }
-      if (fields.city && (!form.city || form.city.length < fields.city.length)) {
+      if (fields.city && !form.city) {
         set("city", fields.city);
         filledAny = true;
       }
-      if (fields.state && (!form.state || form.state.length < fields.state.length)) {
+      if (fields.state && !form.state) {
         set("state", fields.state);
         filledAny = true;
       }

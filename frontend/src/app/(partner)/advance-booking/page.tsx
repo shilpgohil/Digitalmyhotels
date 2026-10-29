@@ -195,19 +195,19 @@ function AdvanceBookingContent() {
     hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
       let filledAny = false;
-      if (fields.address && (!pgAddress || pgAddress.length < fields.address.length)) {
+      if (fields.address && !pgAddress) {
         setPgAddress(fields.address);
         filledAny = true;
       }
-      if (fields.pincode && (!pgPostalCode || pgPostalCode.length !== 6)) {
+      if (fields.pincode && !pgPostalCode) {
         setPgPostalCode(fields.pincode);
         filledAny = true;
       }
-      if (fields.city && (!pgCity || pgCity.length < fields.city.length)) {
+      if (fields.city && !pgCity) {
         setPgCity(fields.city);
         filledAny = true;
       }
-      if (fields.state && (!pgState || pgState.length < fields.state.length)) {
+      if (fields.state && !pgState) {
         setPgState(fields.state);
         filledAny = true;
       }
