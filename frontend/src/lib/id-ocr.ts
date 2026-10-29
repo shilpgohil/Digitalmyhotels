@@ -125,6 +125,7 @@ const NON_NAME_TOKENS = new Set([
   "HOD", "AW", "AA", "WW", "MERI", "ADHAAR", "ADHAA", "COMMON", "MAN", "AAM", "AAMI", "ADMI",
   "SES", "SET", "SEL", "CO", "SO", "DO", "WO", "RO",
   "WEFT", "ZA", "MERA", "PEHCHAN", "BE", "PS", "DETAILS", "AS", "ON",
+  "UPLOAD", "PHOTO", "CAMERA", "READY", "NEW", "GUEST", "DETECTED", "CONFIDENCE",
 ]);
 
 function isNonNameLine(line: string): boolean {
@@ -415,6 +416,10 @@ function cleanAddressText(raw: string): string {
     .replace(/\bwww\.\S+/gi, " ")
     .replace(/\S+@\S+/g, " ")
     .replace(/[\u0900-\u0DFF]+/g, " ") // strip inline Indic characters (Hindi, Gujarati, etc.)
+    .replace(/\b\d+\s*Fog\s*Rect\b/gi, " ")
+    .replace(/\bFas\s*at\s*AAS\b/gi, " ")
+    .replace(/\bFog\s*Rect\b/gi, " ")
+    .replace(/\bCity[,\s]*State\b/gi, " ")
     .replace(/[^\w\s,./():#'-]/g, " ");
 
   const tokens = prepared.split(/\s+/).filter(Boolean);

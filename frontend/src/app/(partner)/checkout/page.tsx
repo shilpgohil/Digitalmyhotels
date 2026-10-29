@@ -951,28 +951,39 @@ function CheckoutContent() {
                   ) : (
                     <>
                       {/* ── Previously recorded charges (read-only, ss7 fix) ── */}
-                      {priorCharges.length > 0 && (
+                      {priorCharges.filter((c) => !c.voided_at).length > 0 && (
                         <div className="mb-4 rounded-lg border border-border bg-muted/30 p-3">
                           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                             {tp("priorChargesLabel")}
                           </p>
                           <ul className="space-y-1 text-sm">
-                            {priorCharges.map((c) => (
-                              <li key={c.id} className="flex justify-between gap-4">
-                                <span className="text-muted-foreground truncate">
-                                  {c.description || c.category}
-                                  {c.quantity > 1 && ` ×${c.quantity}`}
-                                </span>
-                                <span className="tabular-nums font-medium shrink-0">
-                                  {fmtMoney(Number(c.total_amount))}
-                                </span>
-                              </li>
-                            ))}
+                            {priorCharges
+                              .filter((c) => !c.voided_at)
+                              .map((c) => (
+                                <li key={c.id} className="flex justify-between gap-4">
+                                  <span className="text-muted-foreground truncate">
+                                    {c.description || c.category}
+                                    {c.quantity > 1 && ` ×${c.quantity}`}
+                                  </span>
+                                  <span className="tabular-nums font-medium shrink-0">
+                                    {fmtMoney(money(showGstRow ? c.taxable_amount : c.total_amount))}
+                                  </span>
+                                </li>
+                              ))}
                           </ul>
                           <div className="mt-1.5 flex justify-between border-t pt-1.5 text-sm font-semibold">
                             <span>{tp("priorChargesTotal")}</span>
                             <span className="tabular-nums">
-                              {fmtMoney(priorCharges.reduce((s, c) => s + Number(c.total_amount), 0))}
+                              {fmtMoney(
+                                priorCharges
+                                  .filter((c) => !c.voided_at)
+                                  .reduce(
+                                    (s, c) =>
+                                      s +
+                                      money(showGstRow ? c.taxable_amount : c.total_amount),
+                                    0,
+                                  ),
+                              )}
                             </span>
                           </div>
                         </div>

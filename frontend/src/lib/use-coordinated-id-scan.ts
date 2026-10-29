@@ -460,7 +460,9 @@ export function useCoordinatedIdScan(
     }
   }, []);
 
-  const rawUnifiedResult = mergeOcrResults(frontResult, backResult);
+  const effectiveFront = frontResult ?? frontResultRef.current;
+  const effectiveBack = backResult ?? backResultRef.current;
+  const rawUnifiedResult = mergeOcrResults(effectiveFront, effectiveBack);
   // While waiting for Back face to scan QR code on PVC cards, do NOT expose a premature partial OCR result
   // from Front alone, which would display an OCR banner before the staff uploads the Back QR card.
   const unifiedResult = isWaitingForBack ? null : rawUnifiedResult;

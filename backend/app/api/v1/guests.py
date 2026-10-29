@@ -24,7 +24,6 @@ from app.schemas.guest import (
     IdScanResponse,
 )
 from app.services import guests as guests_service
-from app.services.id_scanner import scan_id_document
 
 router = APIRouter(prefix="/guests", tags=["guests"])
 
@@ -77,6 +76,8 @@ async def scan_guest_id_document(
         raise AppError(
             code="bad_request", message="Empty file uploaded for OCR scan", status_code=400
         )
+    from app.services.id_scanner import scan_id_document
+
     return await asyncio.to_thread(
         scan_id_document, data, id_type_hint=id_type_hint, side=side, qr_only=qr_only
     )
