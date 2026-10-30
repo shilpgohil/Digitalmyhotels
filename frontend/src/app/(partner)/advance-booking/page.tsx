@@ -95,14 +95,17 @@ function timeToMinutes(t: string): number {
   return h * 60 + m;
 }
 
-const PAYMENT_MODES = [
+const PAYMENT_MODES: Array<{
+  value: string;
+  labelKey: "abModeCash" | "abModeUpi" | "abModeCreditCard" | "abModeDebitCard" | "abModeNetBanking" | "abModeOther";
+}> = [
   { value: "cash", labelKey: "abModeCash" },
   { value: "upi", labelKey: "abModeUpi" },
   { value: "credit_card", labelKey: "abModeCreditCard" },
   { value: "debit_card", labelKey: "abModeDebitCard" },
   { value: "bank_transfer", labelKey: "abModeNetBanking" },
   { value: "other", labelKey: "abModeOther" },
-] as const;
+];
 
 /** Static card section matching the check-in page look. */
 const Card = SectionPanel;
@@ -1180,7 +1183,7 @@ function AdvanceBookingContent() {
                   >
                     {PAYMENT_MODES.map((m) => (
                       <option key={m.value} value={m.value}>
-                        {t(m.labelKey as any)}
+                        {t(m.labelKey)}
                       </option>
                     ))}
                   </select>
