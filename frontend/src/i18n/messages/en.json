@@ -33,7 +33,8 @@
     "clear": "Clear",
     "download": "Download",
     "exportCsv": "Export CSV",
-    "exportSuccess": "CSV exported successfully"
+    "exportSuccess": "CSV exported successfully",
+    "back": "Back"
   },
   "imageEditor": {
     "title": "Edit Photo",
@@ -1524,7 +1525,8 @@
     "placeholder": "Search bookings or guests…",
     "noResults": "No matches found.",
     "bookings": "Bookings",
-    "guests": "Guests"
+    "guests": "Guests",
+    "searchHint": "Type at least 2 characters to search bookings or guests"
   },
   "tour": {
     "helpButton": "Take a tour",
