@@ -425,6 +425,7 @@ export function PartnerBrand() {
   // While the hotel name is LOADING show a skeleton, not "DigitalMyHotels" —
   // the platform default flashing before the real name confused the client
   // ("Loading time coming digitalmyhotels display", 16/09).
+  const t = useTranslations("nav");
   const loading = hotel.isLoading && !hotel.data;
   const hotelName = hotel.data?.name?.trim() || "DigitalMyHotels";
 
@@ -453,7 +454,7 @@ export function PartnerBrand() {
           <p className="truncate text-sm font-semibold text-white">{hotelName}</p>
         )}
         <p className="truncate text-micro tracking-widest uppercase text-sidebar-foreground/70">
-          Front Desk Suite
+          {t("frontDeskSuite")}
         </p>
       </div>
     </div>

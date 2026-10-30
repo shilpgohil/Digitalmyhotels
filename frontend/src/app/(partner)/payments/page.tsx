@@ -608,7 +608,7 @@ function PaymentsContent() {
             </p>
           )}
           {payments.data && payments.data.items.length === 0 && (
-            <EmptyState icon={Wallet} title={t("noPayments")} subtitle="Individual Payments Collected from Guests Appear Here." />
+            <EmptyState icon={Wallet} title={t("noPayments")} subtitle={t("individualPaymentsSubtitle")} />
           )}
           {payments.data && payments.data.items.length > 0 && (
             <Table>
@@ -618,7 +618,7 @@ function PaymentsContent() {
                   <TableHead>{t("method")}</TableHead>
                   <TableHead>{t("purpose")}</TableHead>
                   <TableHead>{t("reference")}</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>{t("status")}</TableHead>
                   {showActions && <TableHead className="text-right">{tc("actions")}</TableHead>}
                 </TableRow>
               </TableHeader>

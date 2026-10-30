@@ -152,7 +152,8 @@
     "leaveRequests": "Leave Requests",
     "attendanceHistory": "Attendance History",
     "attendanceCalendar": "Attendance Calendar",
-    "lateEarly": "Late & Early Reports"
+    "lateEarly": "Late & Early Reports",
+    "frontDeskSuite": "Front Desk Suite"
   },
   "editHotel": {
     "title": "Edit Hotel",
@@ -491,7 +492,20 @@
     "reverseReason": "Reason (required)",
     "reverseReasonPlaceholder": "e.g. Guest returned, wrong room checked out…",
     "confirmReversal": "Confirm reversal",
-    "checkoutReversed": "Checkout reversed — room is now occupied again"
+    "checkoutReversed": "Checkout reversed — room is now occupied again",
+    "actions": "Actions",
+    "abAdvanceAmount": "Advance Amount (₹)",
+    "abEnterZeroHint": "Enter 0 if collecting later",
+    "abPaymentMode": "Payment Mode",
+    "abModeCash": "Cash",
+    "abModeUpi": "UPI",
+    "abModeCreditCard": "Credit Card",
+    "abModeDebitCard": "Debit Card",
+    "abModeNetBanking": "Net Banking",
+    "abModeOther": "Other",
+    "abRecordCardNote": "Collect payment via card machine, then this records it in your accounts.",
+    "abRecordBankNote": "Collect payment via net banking, then this records it in your accounts.",
+    "abRecordOtherNote": "Collect payment from the guest, then this records it in your accounts."
   },
   "staff": {
     "myAttendanceTitle": "My Attendance",
@@ -792,7 +806,12 @@
     "guestImported": "Guest imported from another hotel — details and ID photos copied",
     "sameIdDiffPhone": "Same ID — different phone",
     "duplicateIdWarning": "{count, plural, one {# record} other {# records}} found with this ID — possibly the same person with different phone numbers.",
-    "duplicateIdHint": "Select the most recent record. To fix duplicates, use Edit → update the phone number."
+    "duplicateIdHint": "Select the most recent record. To fix duplicates, use Edit → update the phone number.",
+    "idAadhar": "Aadhaar Card",
+    "idPan": "PAN Card",
+    "idPassport": "Passport",
+    "idDrivingLicense": "Driving License",
+    "idVoter": "Voter ID"
   },
   "stay": {
     "checkinTitle": "Guest Check-in",
@@ -896,7 +915,8 @@
     "totalPaid": "Total Paid",
     "noPaymentsYet": "No payments recorded yet",
     "noInvoiceYet": "No invoice generated yet",
-    "noCheckoutReadyHint": "Guests with upcoming checkout dates will appear here."
+    "noCheckoutReadyHint": "Guests with upcoming checkout dates will appear here.",
+    "actualCheckoutTime": "Actual Checkout Time"
   },
   "money": {
     "paymentsTitle": "Payment Details",
@@ -990,7 +1010,9 @@
     "filteredByBooking": "Filtered by Booking",
     "showingSpecificGuest": "Showing records for selected guest",
     "showAllBookings": "Show All Bookings",
-    "viewTransactions": "View Transactions"
+    "viewTransactions": "View Transactions",
+    "status": "Status",
+    "individualPaymentsSubtitle": "Individual Payments Collected from Guests Appear Here."
   },
   "invoices": {
     "title": "Invoices",
@@ -1020,7 +1042,8 @@
     "noInvoicesHint": "Invoices are generated automatically at checkout.",
     "filteredByBooking": "Filtered by Booking",
     "showingSpecificGuest": "Showing invoice for selected guest",
-    "showAllInvoices": "Show All Invoices"
+    "showAllInvoices": "Show All Invoices",
+    "bookingLabel": "Booking"
   },
   "restaurantBilling": {
     "title": "Restaurant Billing",
@@ -1177,7 +1200,12 @@
     "vendorDetailTitle": "Vendor Detail",
     "paidByCash": "Paid by Cash",
     "paidByUpi": "Paid by UPI",
-    "paidByCardSub": "Paid by Card"
+    "paidByCardSub": "Paid by Card",
+    "subApprovedPaid": "Approved + Paid",
+    "subAwaitingApproval": "Awaiting Approval",
+    "subThisMonth": "This Month",
+    "subOtherModes": "Other Modes",
+    "subAllEntries": "All Entries"
   },
   "settings": {
     "title": "Settings",
@@ -2173,6 +2201,32 @@
     "draftRestoring": "Restoring…",
     "draftsCollapsedLabel": "{count, plural, one {# saved draft — tap to view} other {# saved drafts — tap to view}}",
     "draftsExpandedLabel": "{count, plural, one {# saved draft} other {# saved drafts}}",
-    "restored": "Restored ✓"
+    "restored": "Restored ✓",
+    "manualRecordCard": "Collect via Card Machine, Then Record Here.",
+    "manualRecordBank": "Verify in Bank App First, Then Record Here.",
+    "manualRecordOther": "Collect via Other Means, Then Record Here.",
+    "remaining": "Remaining",
+    "paymentCash": "Cash",
+    "paymentUpi": "UPI",
+    "paymentCreditCard": "Credit Card",
+    "paymentDebitCard": "Debit Card",
+    "paymentNetBanking": "Net Banking",
+    "paymentOther": "Other",
+    "advancePaid": "Advance Paid",
+    "abAdvanceAmount": "Advance Amount (₹)",
+    "abEnterZeroHint": "Enter 0 if collecting later",
+    "abPaymentMode": "Payment Mode",
+    "abModeCash": "Cash",
+    "abModeUpi": "UPI",
+    "abModeCreditCard": "Credit Card",
+    "abModeDebitCard": "Debit Card",
+    "abModeNetBanking": "Net Banking",
+    "abModeOther": "Other",
+    "abRecordCardNote": "Collect payment via card machine, then this records it in your accounts.",
+    "abRecordBankNote": "Collect payment via net banking, then this records it in your accounts.",
+    "abRecordOtherNote": "Collect payment from the guest, then this records it in your accounts."
+  },
+  "checkout": {
+    "actualCheckoutTime": "Actual Checkout Time"
   }
 }

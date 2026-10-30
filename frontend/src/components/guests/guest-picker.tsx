@@ -351,11 +351,11 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
                 {/* Canonical display-label values — same set the check-in
                     forms store, so guest records stay consistent. */}
                 <option value="">—</option>
-                <option value="Aadhar Card">Aadhar Card</option>
-                <option value="PAN Card">PAN Card</option>
-                <option value="Passport">Passport</option>
-                <option value="Driving License">Driving License</option>
-                <option value="Voter ID">Voter ID</option>
+                <option value="Aadhar Card">{t("idAadhar")}</option>
+                <option value="PAN Card">{t("idPan")}</option>
+                <option value="Passport">{t("idPassport")}</option>
+                <option value="Driving License">{t("idDrivingLicense")}</option>
+                <option value="Voter ID">{t("idVoter")}</option>
               </select>
             </div>
             <div className="space-y-1">

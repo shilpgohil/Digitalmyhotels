@@ -168,7 +168,7 @@ export function PartnerHeader({
   /** Optional right-side slot rendered between the title block and the toolbar icons */
   action?: ReactNode;
 }) {
-  const t = useTranslations("auth");
+  const ta = useTranslations("auth");
   const tt = useTranslations("tour");
   const { user, memberships, activeHotelId, logout } = useAuth();
   const router = useRouter();
@@ -236,7 +236,7 @@ export function PartnerHeader({
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} variant="destructive">
               <LogOut className="size-4" aria-hidden />
-              {t("signOut")}
+              {ta("signOut")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

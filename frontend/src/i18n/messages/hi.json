@@ -152,7 +152,8 @@
     "leaveRequests": "अवकाश अनुरोध",
     "attendanceHistory": "उपस्थिति इतिहास",
     "attendanceCalendar": "उपस्थिति कैलेंडर",
-    "lateEarly": "देरी और जल्दी रिपोर्ट"
+    "lateEarly": "देरी और जल्दी रिपोर्ट",
+    "frontDeskSuite": "फ्रंट डेस्क सुइट"
   },
   "editHotel": {
     "title": "होटल संपादित करें",
@@ -491,7 +492,20 @@
     "reverseReason": "कारण (आवश्यक)",
     "reverseReasonPlaceholder": "जैसे: अतिथि वापस आया, गलत कमरे का चेकआउट…",
     "confirmReversal": "उलटने की पुष्टि करें",
-    "checkoutReversed": "चेकआउट उलट दिया गया — कमरा अब फिर से अधिग्रहित है"
+    "checkoutReversed": "चेकआउट उलट दिया गया — कमरा अब फिर से अधिग्रहित है",
+    "actions": "कार्रवाई",
+    "abAdvanceAmount": "अग्रिम राशि (₹)",
+    "abEnterZeroHint": "बाद में भुगतान लेने के लिए 0 दर्ज करें",
+    "abPaymentMode": "भुगतान माध्यम",
+    "abModeCash": "नकद",
+    "abModeUpi": "यूपीआई",
+    "abModeCreditCard": "क्रेडिट कार्ड",
+    "abModeDebitCard": "डेबिट कार्ड",
+    "abModeNetBanking": "नेट बैंकिंग",
+    "abModeOther": "अन्य",
+    "abRecordCardNote": "कार्ड मशीन से भुगतान लें, फिर यह आपके खातों में दर्ज होगा।",
+    "abRecordBankNote": "नेट बैंकिंग से भुगतान लें, फिर यह आपके खातों में दर्ज होगा।",
+    "abRecordOtherNote": "अतिथि से भुगतान प्राप्त करें, फिर यह आपके खातों में दर्ज होगा।"
   },
   "staff": {
     "myAttendanceTitle": "मेरी उपस्थिति",
@@ -792,7 +806,12 @@
     "guestImported": "अतिथि दूसरे होटल से आयात हुआ — विवरण और आईडी फ़ोटो कॉपी हो गए",
     "sameIdDiffPhone": "Same ID — अलग फ़ोन",
     "duplicateIdWarning": "{count, plural, one {# रिकॉर्ड} other {# रिकॉर्ड}} इस ID के साथ मिले — संभवतः एक ही व्यक्ति के अलग-अलग फ़ोन नंबर।",
-    "duplicateIdHint": "सबसे हाल का रिकॉर्ड चुनें। डुप्लीकेट ठीक करने के लिए Edit → फ़ोन नंबर अपडेट करें।"
+    "duplicateIdHint": "सबसे हाल का रिकॉर्ड चुनें। डुप्लीकेट ठीक करने के लिए Edit → फ़ोन नंबर अपडेट करें।",
+    "idAadhar": "आधार कार्ड",
+    "idPan": "पैन कार्ड",
+    "idPassport": "पासपोर्ट",
+    "idDrivingLicense": "ड्राइविंग लाइसेंस",
+    "idVoter": "वोटर आईडी"
   },
   "stay": {
     "checkinTitle": "अतिथि चेक-इन",
@@ -896,7 +915,8 @@
     "totalPaid": "कुल भुगतान",
     "noPaymentsYet": "अभी तक कोई भुगतान दर्ज नहीं",
     "noInvoiceYet": "अभी तक कोई चालान नहीं बनाया गया",
-    "noCheckoutReadyHint": "आगामी चेक-आउट तिथियों वाले अतिथि यहाँ दिखेंगे।"
+    "noCheckoutReadyHint": "आगामी चेक-आउट तिथियों वाले अतिथि यहाँ दिखेंगे।",
+    "actualCheckoutTime": "वास्तविक चेक-आउट समय"
   },
   "settings": {
     "title": "सेटिंग्स",
@@ -1056,7 +1076,9 @@
     "filteredByBooking": "बुकिंग द्वारा फ़िल्टर किया गया",
     "showingSpecificGuest": "चयनित अतिथि के रिकॉर्ड दिखाए जा रहे हैं",
     "showAllBookings": "सभी बुकिंग देखें",
-    "viewTransactions": "लेन-देन देखें"
+    "viewTransactions": "लेन-देन देखें",
+    "status": "स्थिति",
+    "individualPaymentsSubtitle": "अतिथियों से प्राप्त व्यक्तिगत भुगतान यहाँ प्रदर्शित होते हैं।"
   },
   "invoices": {
     "title": "चालान",
@@ -1086,7 +1108,8 @@
     "noInvoicesHint": "चेक-आउट पर इनवॉइस अपने आप बनते हैं।",
     "filteredByBooking": "बुकिंग द्वारा फ़िल्टर किया गया",
     "showingSpecificGuest": "चयनित अतिथि का चालान दिखाया जा रहा है",
-    "showAllInvoices": "सभी चालान देखें"
+    "showAllInvoices": "सभी चालान देखें",
+    "bookingLabel": "बुकिंग"
   },
   "restaurantBilling": {
     "title": "रेस्तरां बिलिंग",
@@ -1243,7 +1266,12 @@
     "vendorDetailTitle": "विक्रेता विवरण",
     "paidByCash": "नकद से भुगतान",
     "paidByUpi": "UPI से भुगतान",
-    "paidByCardSub": "कार्ड से भुगतान"
+    "paidByCardSub": "कार्ड से भुगतान",
+    "subApprovedPaid": "स्वीकृत + भुगतान पूर्ण",
+    "subAwaitingApproval": "स्वीकृति की प्रतीक्षा",
+    "subThisMonth": "इस महीने",
+    "subOtherModes": "अन्य माध्यम",
+    "subAllEntries": "सभी प्रविष्टियाँ"
   },
   "ops": {
     "housekeepingTitle": "हाउसकीपिंग",
@@ -2173,6 +2201,32 @@
     "draftRestoring": "बहाल हो रहा है…",
     "draftsCollapsedLabel": "{count} सहेजे ड्राफ्ट — देखने के लिए टैप करें",
     "draftsExpandedLabel": "{count} सहेजे ड्राफ्ट",
-    "restored": "बहाल हुआ ✓"
+    "restored": "बहाल हुआ ✓",
+    "manualRecordCard": "कार्ड मशीन द्वारा भुगतान लें, फिर यहाँ दर्ज करें।",
+    "manualRecordBank": "पहले बैंक ऐप में पुष्टि करें, फिर यहाँ दर्ज करें।",
+    "manualRecordOther": "अन्य माध्यम से भुगतान लें, फिर यहाँ दर्ज करें।",
+    "remaining": "शेष",
+    "paymentCash": "नकद",
+    "paymentUpi": "यूपीआई",
+    "paymentCreditCard": "क्रेडिट कार्ड",
+    "paymentDebitCard": "डेबिट कार्ड",
+    "paymentNetBanking": "नेट बैंकिंग",
+    "paymentOther": "अन्य",
+    "advancePaid": "अग्रिम भुगतान",
+    "abAdvanceAmount": "अग्रिम राशि (₹)",
+    "abEnterZeroHint": "बाद में भुगतान लेने के लिए 0 दर्ज करें",
+    "abPaymentMode": "भुगतान माध्यम",
+    "abModeCash": "नकद",
+    "abModeUpi": "यूपीआई",
+    "abModeCreditCard": "क्रेडिट कार्ड",
+    "abModeDebitCard": "डेबिट कार्ड",
+    "abModeNetBanking": "नेट बैंकिंग",
+    "abModeOther": "अन्य",
+    "abRecordCardNote": "कार्ड मशीन से भुगतान लें, फिर यह आपके खातों में दर्ज होगा।",
+    "abRecordBankNote": "नेट बैंकिंग से भुगतान लें, फिर यह आपके खातों में दर्ज होगा।",
+    "abRecordOtherNote": "अतिथि से भुगतान प्राप्त करें, फिर यह आपके खातों में दर्ज होगा।"
+  },
+  "checkout": {
+    "actualCheckoutTime": "वास्तविक चेक-आउट समय"
   }
 }

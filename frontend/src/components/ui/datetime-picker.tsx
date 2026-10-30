@@ -23,6 +23,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useLocale } from "next-intl";
 import { CalendarClock, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,11 +39,16 @@ export interface DateTimePickerProps {
   readonly min?: string;                    // YYYY-MM-DD optional min date
 }
 
-const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
+const WEEKDAYS_EN = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
+const WEEKDAYS_HI = ["रवि", "सोम", "मंगल", "बुध", "गुरु", "शुक्र", "शनि"] as const;
 
-const MONTH_NAMES = [
+const MONTH_NAMES_EN = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
+] as const;
+const MONTH_NAMES_HI = [
+  "जनवरी", "फ़रवरी", "मार्च", "अप्रैल", "मई", "जून",
+  "जुलाई", "अगस्त", "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर",
 ] as const;
 
 // Year options for the header dropdown: 1900 → current year + 5, rendered
@@ -110,6 +116,19 @@ export function DateTimePicker({
   className,
   min,
 }: DateTimePickerProps) {
+  let locale = "en";
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    locale = useLocale();
+  } catch {
+    if (typeof document !== "undefined") {
+      locale = document.documentElement.lang || "en";
+    }
+  }
+  const isHi = locale === "hi";
+  const weekdays = isHi ? WEEKDAYS_HI : WEEKDAYS_EN;
+  const monthNames = isHi ? MONTH_NAMES_HI : MONTH_NAMES_EN;
+
   const [open, setOpen] = useState(false);
   // Viewport coordinates for the fixed-position panel; null until measured.
   const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(
@@ -386,7 +405,7 @@ export function DateTimePicker({
                 <button
                   type="button"
                   onClick={goPrevMonth}
-                  aria-label="Previous month"
+                  aria-label={isHi ? "पिछला महीना" : "Previous month"}
                   className="flex size-7 items-center justify-center rounded-md hover:bg-gold-500/10"
                 >
                   <ChevronLeft className="size-4" aria-hidden />
@@ -395,11 +414,11 @@ export function DateTimePicker({
                   <select
                     value={viewMonth}
                     onChange={(e) => setViewMonth(Number(e.target.value))}
-                    aria-label="Month"
+                    aria-label={isHi ? "महीना" : "Month"}
                     className="cursor-pointer rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold hover:border-input focus:outline-none focus:ring-2 focus:ring-gold-500/20"
                   >
-                    {MONTH_NAMES.map((m, i) => (
-                      <option key={m} value={i}>
+                    {monthNames.map((m, i) => (
+                      <option key={i} value={i}>
                         {m}
                       </option>
                     ))}
@@ -407,7 +426,7 @@ export function DateTimePicker({
                   <select
                     value={viewYear}
                     onChange={(e) => setViewYear(Number(e.target.value))}
-                    aria-label="Year"
+                    aria-label={isHi ? "वर्ष" : "Year"}
                     className="cursor-pointer rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold tabular-nums hover:border-input focus:outline-none focus:ring-2 focus:ring-gold-500/20"
                   >
                     {YEAR_OPTIONS.map((y) => (
@@ -420,7 +439,7 @@ export function DateTimePicker({
                 <button
                   type="button"
                   onClick={goNextMonth}
-                  aria-label="Next month"
+                  aria-label={isHi ? "अगला महीना" : "Next month"}
                   className="flex size-7 items-center justify-center rounded-md hover:bg-gold-500/10"
                 >
                   <ChevronRight className="size-4" aria-hidden />
@@ -429,7 +448,7 @@ export function DateTimePicker({
 
               {/* Weekday row */}
               <div className="grid grid-cols-7 text-center">
-                {WEEKDAYS.map((wd) => (
+                {weekdays.map((wd) => (
                   <span
                     key={wd}
                     className="py-1 text-label font-medium text-muted-foreground"
@@ -478,14 +497,14 @@ export function DateTimePicker({
             {/* 24-hour time section */}
             <div className="flex flex-col sm:w-[140px]">
               <span className="mb-2 text-center text-sm font-semibold">
-                Time (24h)
+                {isHi ? "समय (24 घंटे)" : "Time (24h)"}
               </span>
               <div className="flex flex-1 justify-center gap-2">
                 {/* Hours */}
                 <div
                   ref={hourColRef}
                   className="h-56 w-14 overflow-y-auto rounded-md border border-input"
-                  aria-label="Hours"
+                  aria-label={isHi ? "घंटे" : "Hours"}
                 >
                   {HOURS.map((h) => {
                     const isSelected = h === selHour;

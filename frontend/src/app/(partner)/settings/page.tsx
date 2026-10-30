@@ -508,16 +508,16 @@ function PoliciesForm() {
 }
 
 function NotificationSoundCard() {
-  const tn = useTranslations("notifications");
+  const tNotif = useTranslations("notifications");
   const [soundEnabled, setSoundEnabled] = useNotificationSoundPreference();
 
   const handleToggle = (enabled: boolean) => {
     setSoundEnabled(enabled);
     if (enabled) {
       playNotificationSound(true);
-      toast.success(tn("soundEnabled"));
+      toast.success(tNotif("soundEnabled"));
     } else {
-      toast.info(tn("soundMuted"));
+      toast.info(tNotif("soundMuted"));
     }
   };
 
@@ -532,7 +532,7 @@ function NotificationSoundCard() {
               <VolumeX className="size-5 text-muted-foreground" aria-hidden />
             )}
             <h3 className="text-base font-semibold tracking-tight text-foreground">
-              {tn("notificationSoundTitle")}
+              {tNotif("notificationSoundTitle")}
             </h3>
             <span
               className={cn(
@@ -542,11 +542,11 @@ function NotificationSoundCard() {
                   : "bg-muted text-muted-foreground border-border",
               )}
             >
-              {soundEnabled ? tn("ringerOn") : tn("ringerOff")}
+              {soundEnabled ? tNotif("ringerOn") : tNotif("ringerOff")}
             </span>
           </div>
           <p className="text-sm text-muted-foreground">
-            {tn("notificationSoundDesc")}
+            {tNotif("notificationSoundDesc")}
           </p>
         </div>
 
@@ -557,10 +557,10 @@ function NotificationSoundCard() {
             size="sm"
             onClick={() => playNotificationSound(true)}
             className="gap-1.5"
-            title={tn("testSound")}
+            title={tNotif("testSound")}
           >
             <Play className="size-3.5 fill-current" aria-hidden />
-            <span>{tn("testSound")}</span>
+            <span>{tNotif("testSound")}</span>
           </Button>
 
           <Button
@@ -573,12 +573,12 @@ function NotificationSoundCard() {
             {soundEnabled ? (
               <>
                 <VolumeX className="size-3.5" aria-hidden />
-                <span>{tn("muteSound")}</span>
+                <span>{tNotif("muteSound")}</span>
               </>
             ) : (
               <>
                 <Volume2 className="size-3.5" aria-hidden />
-                <span>{tn("unmuteSound")}</span>
+                <span>{tNotif("unmuteSound")}</span>
               </>
             )}
           </Button>
@@ -589,7 +589,7 @@ function NotificationSoundCard() {
 }
 
 function BrowserNotificationSettingsCard() {
-  const tn = useTranslations("notifications");
+  const tNotif = useTranslations("notifications");
   const {
     isSupported,
     permission,
@@ -602,9 +602,9 @@ function BrowserNotificationSettingsCard() {
   const handleToggle = (enabled: boolean) => {
     setEnabled(enabled);
     if (enabled) {
-      toast.success(tn("browserNotificationsEnabledToast"));
+      toast.success(tNotif("browserNotificationsEnabledToast"));
     } else {
-      toast.info(tn("browserNotificationsMutedToast"));
+      toast.info(tNotif("browserNotificationsMutedToast"));
     }
   };
 
@@ -612,31 +612,31 @@ function BrowserNotificationSettingsCard() {
     if (!isSupported) {
       return (
         <span className="inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium border bg-muted text-muted-foreground border-border">
-          {tn("browserNotificationsUnsupported")}
+          {tNotif("browserNotificationsUnsupported")}
         </span>
       );
     }
     if (permission === "granted") {
       return isEnabled ? (
         <span className="inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium border bg-gold-50 text-gold-800 border-gold-300 dark:bg-gold-950/40 dark:text-gold-300 dark:border-gold-800">
-          {tn("browserNotificationsActive")}
+          {tNotif("browserNotificationsActive")}
         </span>
       ) : (
         <span className="inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium border bg-muted text-muted-foreground border-border">
-          {tn("ringerOff")}
+          {tNotif("ringerOff")}
         </span>
       );
     }
     if (permission === "denied") {
       return (
         <span className="inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium border bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800">
-          {tn("browserNotificationsBlocked")}
+          {tNotif("browserNotificationsBlocked")}
         </span>
       );
     }
     return (
       <span className="inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium border bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
-        {tn("browserNotificationsDefault")}
+        {tNotif("browserNotificationsDefault")}
       </span>
     );
   };
@@ -648,12 +648,12 @@ function BrowserNotificationSettingsCard() {
           <div className="flex items-center gap-2">
             <Bell className="size-5 text-gold-600 dark:text-gold-400" aria-hidden />
             <h3 className="text-base font-semibold tracking-tight text-foreground">
-              {tn("browserNotificationsTitle")}
+              {tNotif("browserNotificationsTitle")}
             </h3>
             {getStatusBadge()}
           </div>
           <p className="text-sm text-muted-foreground">
-            {tn("browserNotificationsDesc")}
+            {tNotif("browserNotificationsDesc")}
           </p>
         </div>
 
@@ -666,15 +666,15 @@ function BrowserNotificationSettingsCard() {
               onClick={async () => {
                 const res = await requestPermission();
                 if (res === "granted") {
-                  toast.success(tn("browserNotificationsEnabledToast"));
+                  toast.success(tNotif("browserNotificationsEnabledToast"));
                 } else if (res === "denied") {
-                  toast.error(tn("browserNotificationsDeniedToast"));
+                  toast.error(tNotif("browserNotificationsDeniedToast"));
                 }
               }}
               className="gap-1.5"
             >
               <Bell className="size-3.5" aria-hidden />
-              <span>{tn("enableBrowserNotifications")}</span>
+              <span>{tNotif("enableBrowserNotifications")}</span>
             </Button>
           )}
 
@@ -687,14 +687,14 @@ function BrowserNotificationSettingsCard() {
                 onClick={async () => {
                   const sent = await sendTestNotification();
                   if (sent) {
-                    toast.success(tn("testNotificationSent"));
+                    toast.success(tNotif("testNotificationSent"));
                   }
                 }}
                 className="gap-1.5"
-                title={tn("testBrowserNotification")}
+                title={tNotif("testBrowserNotification")}
               >
                 <Bell className="size-3.5" aria-hidden />
-                <span>{tn("testBrowserNotification")}</span>
+                <span>{tNotif("testBrowserNotification")}</span>
               </Button>
 
               <Button
@@ -704,7 +704,7 @@ function BrowserNotificationSettingsCard() {
                 onClick={() => handleToggle(!isEnabled)}
                 className="gap-1.5"
               >
-                {isEnabled ? tn("muteSound") : tn("unmuteSound")}
+                {isEnabled ? tNotif("muteSound") : tNotif("unmuteSound")}
               </Button>
             </>
           )}
@@ -713,7 +713,7 @@ function BrowserNotificationSettingsCard() {
 
       {isSupported && permission === "denied" && (
         <div className="rounded-md border border-rose-200 bg-rose-50/50 p-3 text-xs text-rose-900 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-200">
-          {tn("browserNotificationsBlockedHint")}
+          {tNotif("browserNotificationsBlockedHint")}
         </div>
       )}
     </div>

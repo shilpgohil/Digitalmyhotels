@@ -203,29 +203,46 @@
   }
 
   /*
-   * iOS ZOOM PREVENTION
+   * iOS ZOOM PREVENTION & FORM INPUT TYPOGRAPHY HARMONIZATION
    * Safari on iPhone zooms into the page whenever a focused <input>, <select>,
-   * or <textarea> has font-size < 16px. Setting a 16px floor in @layer base
-   * overrides shadcn's text-sm (14px) default while keeping visual styling
-   * intact — the font scales back down via the component's own text-sm class
-   * which only applies after iOS applies the zoom guard.
-   *
-   * Affects: every text input, email, search, number, tel, url, password,
-   *          every <select>, every <textarea>.
+   * or <textarea> has font-size < 16px. We apply the 16px floor strictly on
+   * mobile viewports (< 768px) to prevent unwanted iOS auto-zooming.
+   * On desktop viewports (>= 768px), inputs, selects, and textareas scale
+   * cleanly to standard 0.875rem (14px / text-sm), perfectly harmonizing
+   * with section titles, labels, badges, and table cells.
    */
-  input[type="text"],
-  input[type="email"],
-  input[type="search"],
-  input[type="number"],
-  input[type="tel"],
-  input[type="url"],
-  input[type="password"],
-  input[type="date"],
-  input[type="time"],
-  input[type="datetime-local"],
-  select,
-  textarea {
-    font-size: max(16px, 1rem);
+  @media (max-width: 767px) {
+    input[type="text"],
+    input[type="email"],
+    input[type="search"],
+    input[type="number"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="password"],
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"],
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+
+  @media (min-width: 768px) {
+    input[type="text"],
+    input[type="email"],
+    input[type="search"],
+    input[type="number"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="password"],
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"],
+    select,
+    textarea {
+      font-size: 0.875rem; /* 14px text-sm standard desktop control size */
+    }
   }
 
   /*
@@ -261,6 +278,7 @@
     min-height: 0;
     background-color: transparent !important;
     border-radius: 6px !important;
+    font-size: 0.8125rem !important;
   }
   /*
    * TOUCH TARGET EXPANSION
@@ -778,11 +796,40 @@ html[lang="hi"] [data-slot="button"] {
   font-weight: 500;
 }
 
-/* Inputs, selects, and textareas */
+/* Inputs, selects, and textareas in Hindi */
+@media (min-width: 768px) {
+  html:lang(hi) input[type="text"],
+  html[lang="hi"] input[type="text"],
+  html:lang(hi) input[type="email"],
+  html[lang="hi"] input[type="email"],
+  html:lang(hi) input[type="search"],
+  html[lang="hi"] input[type="search"],
+  html:lang(hi) input[type="number"],
+  html[lang="hi"] input[type="number"],
+  html:lang(hi) input[type="tel"],
+  html[lang="hi"] input[type="tel"],
+  html:lang(hi) input[type="url"],
+  html[lang="hi"] input[type="url"],
+  html:lang(hi) input[type="password"],
+  html[lang="hi"] input[type="password"],
+  html:lang(hi) input[type="date"],
+  html[lang="hi"] input[type="date"],
+  html:lang(hi) input[type="time"],
+  html[lang="hi"] input[type="time"],
+  html:lang(hi) input[type="datetime-local"],
+  html[lang="hi"] input[type="datetime-local"],
+  html:lang(hi) select,
+  html[lang="hi"] select,
+  html:lang(hi) textarea,
+  html[lang="hi"] textarea {
+    font-size: 0.875rem; /* Optical match with section headers and field labels */
+  }
+}
+
 html:lang(hi) input::placeholder,
 html[lang="hi"] input::placeholder,
 html:lang(hi) textarea::placeholder,
 html[lang="hi"] textarea::placeholder {
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
 }
 

@@ -920,7 +920,7 @@ function CheckoutContent() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="co-actual-checkout-time">Actual Checkout Time</Label>
+                        <Label htmlFor="co-actual-checkout-time">{t("actualCheckoutTime")}</Label>
                         <TimeInput
                           id="co-actual-checkout-time"
                           value={actualCheckoutTime}

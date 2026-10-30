@@ -21,6 +21,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useLocale } from "next-intl";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -37,10 +38,16 @@ export interface DatePickerProps {
   readonly placeholder?: string;
 }
 
-const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
-const MONTH_NAMES = [
+const WEEKDAYS_EN = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
+const WEEKDAYS_HI = ["रवि", "सोम", "मंगल", "बुध", "गुरु", "शुक्र", "शनि"] as const;
+
+const MONTH_NAMES_EN = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
+] as const;
+const MONTH_NAMES_HI = [
+  "जनवरी", "फ़रवरी", "मार्च", "अप्रैल", "मई", "जून",
+  "जुलाई", "अगस्त", "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर",
 ] as const;
 
 // Default year window for the header dropdown when no min/max is given:
@@ -87,6 +94,19 @@ export function DatePicker({
   max,
   placeholder = "DD/MM/YYYY",
 }: DatePickerProps) {
+  let locale = "en";
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    locale = useLocale();
+  } catch {
+    if (typeof document !== "undefined") {
+      locale = document.documentElement.lang || "en";
+    }
+  }
+  const isHi = locale === "hi";
+  const weekdays = isHi ? WEEKDAYS_HI : WEEKDAYS_EN;
+  const monthNames = isHi ? MONTH_NAMES_HI : MONTH_NAMES_EN;
+
   const [open, setOpen] = useState(false);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; right?: number } | null>(null);
 
@@ -258,7 +278,7 @@ export function DatePicker({
         <div
           ref={panelRef}
           role="dialog"
-          aria-label="Choose date"
+          aria-label={isHi ? "तारीख चुनें" : "Choose date"}
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
@@ -271,7 +291,7 @@ export function DatePicker({
               type="button"
               onClick={prevMonth}
               className="rounded-lg p-1 hover:bg-muted"
-              aria-label="Previous month"
+              aria-label={isHi ? "पिछला महीना" : "Previous month"}
             >
               <ChevronLeft className="size-4" />
             </button>
@@ -279,11 +299,11 @@ export function DatePicker({
               <select
                 value={viewMonth}
                 onChange={(e) => setViewMonth(Number(e.target.value))}
-                aria-label="Month"
+                aria-label={isHi ? "महीना" : "Month"}
                 className="cursor-pointer rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold hover:border-input focus:outline-none focus:ring-2 focus:ring-gold-500/20"
               >
-                {MONTH_NAMES.map((m, i) => (
-                  <option key={m} value={i}>
+                {monthNames.map((m, i) => (
+                  <option key={i} value={i}>
                     {m}
                   </option>
                 ))}
@@ -291,7 +311,7 @@ export function DatePicker({
               <select
                 value={viewYear}
                 onChange={(e) => setViewYear(Number(e.target.value))}
-                aria-label="Year"
+                aria-label={isHi ? "वर्ष" : "Year"}
                 className="cursor-pointer rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold tabular-nums hover:border-input focus:outline-none focus:ring-2 focus:ring-gold-500/20"
               >
                 {yearOptions.map((y) => (
@@ -305,7 +325,7 @@ export function DatePicker({
               type="button"
               onClick={nextMonth}
               className="rounded-lg p-1 hover:bg-muted"
-              aria-label="Next month"
+              aria-label={isHi ? "अगला महीना" : "Next month"}
             >
               <ChevronRight className="size-4" />
             </button>
@@ -315,7 +335,7 @@ export function DatePicker({
           <div className="p-3">
             {/* Weekday header */}
             <div className="mb-1 grid grid-cols-7 text-center text-label font-medium text-muted-foreground">
-              {WEEKDAYS.map((d) => <span key={d}>{d}</span>)}
+              {weekdays.map((d) => <span key={d}>{d}</span>)}
             </div>
 
             {/* Day cells */}

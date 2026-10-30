@@ -3617,7 +3617,7 @@ function CheckinForm({
                 />
               </div>
               <div className="space-y-1 text-center">
-                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Advance Paid</p>
+                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">{t("advancePaid")}</p>
                 <p className="text-sm font-bold tabular-nums">{fmtINR(advPaid)}</p>
               </div>
               {/* GST tile only when tax is added on top (client 09/2026 modes) */}
@@ -3628,7 +3628,7 @@ function CheckinForm({
                 </div>
               )}
               <div className="space-y-1 text-center">
-                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
+                <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">{t("remaining")}</p>
                 <p className={cn("text-sm font-bold tabular-nums", balance > 0 ? "text-gold-600" : "text-success")}>{fmtINR(balance)}</p>
                 {overpaid > 0 && (
                   <p className="text-micro font-medium text-warning">
@@ -3663,12 +3663,12 @@ function CheckinForm({
                   className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                   disabled={newAdvance === 0}
                 >
-                  <option value="cash">Cash</option>
-                  <option value="upi">UPI</option>
-                  <option value="credit_card">Credit Card</option>
-                  <option value="debit_card">Debit Card</option>
-                  <option value="bank_transfer">Net Banking</option>
-                  <option value="other">Other</option>
+                  <option value="cash">{t("paymentCash")}</option>
+                  <option value="upi">{t("paymentUpi")}</option>
+                  <option value="credit_card">{t("paymentCreditCard")}</option>
+                  <option value="debit_card">{t("paymentDebitCard")}</option>
+                  <option value="bank_transfer">{t("paymentNetBanking")}</option>
+                  <option value="other">{t("paymentOther")}</option>
                 </select>
                 {/* Card/bank: friendly record note */}
                 {paymentMode !== "cash" && paymentMode !== "upi" && newAdvance > 0 && (
@@ -5733,7 +5733,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               )}
             </div>
             <div className="space-y-1 text-center">
-              <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Advance Paid</p>
+              <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">{t("advancePaid")}</p>
               <p className="text-sm font-bold tabular-nums">{fmtINR(collectedAdvanceWI)}</p>
             </div>
             {/* GST tile only when tax is added on top (client 09/2026 modes) */}
@@ -5744,7 +5744,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               </div>
             )}
             <div className="space-y-1 text-center">
-              <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">Remaining</p>
+              <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">{t("remaining")}</p>
               <p className={cn("text-sm font-bold tabular-nums", remainingWI > 0 ? "text-gold-600" : "text-success")}>{fmtINR(remainingWI)}</p>
               {overpaidWI > 0 && (
                 <p className="text-micro font-medium text-warning">
@@ -5779,12 +5779,12 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                 className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                 disabled={newAdvance === 0}
               >
-                <option value="cash">Cash</option>
-                <option value="upi">UPI</option>
-                <option value="credit_card">Credit Card</option>
-                <option value="debit_card">Debit Card</option>
-                <option value="bank_transfer">Net Banking</option>
-                <option value="other">Other</option>
+                <option value="cash">{t("paymentCash")}</option>
+                <option value="upi">{t("paymentUpi")}</option>
+                <option value="credit_card">{t("paymentCreditCard")}</option>
+                <option value="debit_card">{t("paymentDebitCard")}</option>
+                <option value="bank_transfer">{t("paymentNetBanking")}</option>
+                <option value="other">{t("paymentOther")}</option>
               </select>
               {showQr && (
                 <div className="mt-2">

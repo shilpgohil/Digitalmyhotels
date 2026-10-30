@@ -264,7 +264,7 @@ function ExpensesContent() {
           <StatCard
             label={t("statTotal")}
             value={fmtINR(summary.data?.total_amount ?? 0)}
-            subtitle="Approved + Paid"
+            subtitle={t("subApprovedPaid")}
             icon={Wallet}
             tone="navy"
             isLoading={summary.isLoading}
@@ -272,7 +272,7 @@ function ExpensesContent() {
           <StatCard
             label={t("statPending")}
             value={fmtINR(summary.data?.pending_amount ?? 0)}
-            subtitle="Awaiting Approval"
+            subtitle={t("subAwaitingApproval")}
             icon={CalendarDays}
             tone="amber"
             isLoading={summary.isLoading}
@@ -280,7 +280,7 @@ function ExpensesContent() {
           <StatCard
             label={t("statMonth")}
             value={fmtINR(summary.data?.month_amount ?? 0)}
-            subtitle="This Month"
+            subtitle={t("subThisMonth")}
             icon={CalendarRange}
             tone="gold"
             isLoading={summary.isLoading}
@@ -314,7 +314,7 @@ function ExpensesContent() {
           <StatCard
             label={t("mode_other")}
             value={fmtINR(summary.data?.other_amount ?? 0)}
-            subtitle="Other Modes"
+            subtitle={t("subOtherModes")}
             icon={Wallet}
             tone="navy"
             isLoading={summary.isLoading}
@@ -322,7 +322,7 @@ function ExpensesContent() {
           <StatCard
             label={t("statEntries")}
             value={String(summary.data?.entries ?? 0)}
-            subtitle="All Entries"
+            subtitle={t("subAllEntries")}
             icon={ListChecks}
             tone="navy2"
             isLoading={summary.isLoading}

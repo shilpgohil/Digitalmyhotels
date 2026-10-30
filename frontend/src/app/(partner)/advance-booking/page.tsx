@@ -96,13 +96,13 @@ function timeToMinutes(t: string): number {
 }
 
 const PAYMENT_MODES = [
-  { value: "cash", label: "Cash" },
-  { value: "upi", label: "UPI" },
-  { value: "credit_card", label: "Credit Card" },
-  { value: "debit_card", label: "Debit Card" },
-  { value: "bank_transfer", label: "Net Banking" },
-  { value: "other", label: "Other" },
-];
+  { value: "cash", labelKey: "abModeCash" },
+  { value: "upi", labelKey: "abModeUpi" },
+  { value: "credit_card", labelKey: "abModeCreditCard" },
+  { value: "debit_card", labelKey: "abModeDebitCard" },
+  { value: "bank_transfer", labelKey: "abModeNetBanking" },
+  { value: "other", labelKey: "abModeOther" },
+] as const;
 
 /** Static card section matching the check-in page look. */
 const Card = SectionPanel;
@@ -1153,7 +1153,7 @@ function AdvanceBookingContent() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="ab-advance" className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
-                    Advance Amount (₹)
+                    {t("abAdvanceAmount")}
                   </Label>
                   <Input
                     id="ab-advance"
@@ -1165,11 +1165,11 @@ function AdvanceBookingContent() {
                     className="tabular-nums"
                     placeholder="0"
                   />
-                  <p className="text-micro text-muted-foreground">Enter 0 if collecting later</p>
+                  <p className="text-micro text-muted-foreground">{t("abEnterZeroHint")}</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="ab-mode" className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
-                    Payment Mode
+                    {t("abPaymentMode")}
                   </Label>
                   <select
                     id="ab-mode"
@@ -1180,7 +1180,7 @@ function AdvanceBookingContent() {
                   >
                     {PAYMENT_MODES.map((m) => (
                       <option key={m.value} value={m.value}>
-                        {m.label}
+                        {t(m.labelKey as any)}
                       </option>
                     ))}
                   </select>
@@ -1193,10 +1193,10 @@ function AdvanceBookingContent() {
                 <p className="flex items-center gap-1.5 rounded-lg border border-info/20 bg-info-bg px-3 py-2 text-label text-info">
                   <span>ℹ</span>
                   {paymentMode === "credit_card" || paymentMode === "debit_card"
-                    ? "Collect payment via card machine, then this records it in your accounts."
+                    ? t("abRecordCardNote")
                     : paymentMode === "bank_transfer"
-                    ? "Collect payment via net banking, then this records it in your accounts."
-                    : "Collect payment from the guest, then this records it in your accounts."}
+                    ? t("abRecordBankNote")
+                    : t("abRecordOtherNote")}
                 </p>
               )}
 
