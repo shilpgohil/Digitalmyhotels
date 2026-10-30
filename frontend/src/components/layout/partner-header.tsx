@@ -185,7 +185,7 @@ export function PartnerHeader({
   };
 
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between gap-2 sm:gap-4 bg-background/90 glass-nav px-3 sm:px-4 py-3 shadow-[0_1px_3px_rgba(16,24,40,0.04)] lg:px-6">
+    <header className="sticky top-0 z-20 relative flex items-center justify-between gap-2 sm:gap-4 bg-background/90 glass-nav px-3 sm:px-4 py-3 shadow-[0_1px_3px_rgba(16,24,40,0.04)] lg:px-6">
       <MobileNavDrawer />
       <div className="min-w-0 flex-1 pr-1">
         {subtitle && (

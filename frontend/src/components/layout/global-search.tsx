@@ -6,11 +6,8 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import {
-  BedDouble,
   CalendarRange,
-  CheckCircle2,
   ChevronRight,
-  KeyRound,
   Loader2,
   Search,
   UserRound,
@@ -74,19 +71,13 @@ export function GlobalSearch() {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  // Lock body scroll and autofocus when mobile search opens
+  // Autofocus input when mobile search expands
   useEffect(() => {
     if (mobileOpen) {
-      document.body.style.overflow = "hidden";
       const timer = setTimeout(() => {
         mobileInputRef.current?.focus();
       }, 50);
-      return () => {
-        clearTimeout(timer);
-        document.body.style.overflow = "";
-      };
-    } else {
-      document.body.style.overflow = "";
+      return () => clearTimeout(timer);
     }
   }, [mobileOpen]);
 
@@ -183,7 +174,7 @@ export function GlobalSearch() {
 
   if (!can(PERMISSIONS.bookingsView) && !can(PERMISSIONS.guestsView)) return null;
 
-  // Reusable iOS-styled search results list
+  // Reusable search results list
   const renderResultsList = () => (
     <>
       {isLoading && (
@@ -313,7 +304,7 @@ export function GlobalSearch() {
         )}
       </div>
 
-      {/* ── 2. Mobile Search Trigger Button (Minimalist Apple iOS pill icon) ── */}
+      {/* ── 2. Mobile Search Trigger Button (Collapsed State in Header) ── */}
       <button
         type="button"
         onClick={() => {
@@ -326,143 +317,64 @@ export function GlobalSearch() {
         <Search className="size-4" aria-hidden />
       </button>
 
-      {/* ── 3. Mobile Apple Spotlight / iOS-style Search View ── */}
+      {/* ── 3. Option 1: Mobile In-Header Expand (Seamlessly covers header bar only) ── */}
+      {mobileOpen && (
+        <div className="absolute inset-0 z-30 flex items-center gap-2 bg-background/95 glass-nav px-3 animate-in fade-in slide-in-from-right-3 duration-200 ease-out md:hidden">
+          <div className="flex-1 h-9 rounded-full bg-muted/60 dark:bg-muted/40 border border-input/80 px-3 flex items-center gap-2 focus-within:border-gold-500/60 focus-within:ring-2 focus-within:ring-gold-500/20 focus-within:bg-background transition-all shadow-2xs">
+            <Search className="size-4 text-muted-foreground shrink-0" aria-hidden />
+            <input
+              ref={mobileInputRef}
+              type="search"
+              aria-label={t("placeholder")}
+              placeholder={t("placeholder")}
+              value={term}
+              onChange={(e) => setTerm(e.target.value)}
+              className="w-full bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground/60"
+            />
+            {term && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTerm("");
+                  mobileInputRef.current?.focus();
+                }}
+                className="size-4.5 rounded-full bg-muted-foreground/20 hover:bg-muted-foreground/30 text-muted-foreground flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                aria-label={tc("close")}
+              >
+                <X className="size-3" aria-hidden />
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={closeMobile}
+            className="text-sm font-semibold text-gold-600 dark:text-gold-400 hover:text-gold-700 active:scale-95 transition-all px-1.5 py-1 cursor-pointer shrink-0"
+          >
+            {tc("cancel")}
+          </button>
+        </div>
+      )}
+
+      {/* ── 4. Mobile Tap-to-Dismiss Backdrop (NO blur, NO page takeover) ── */}
       {mobileOpen &&
         typeof document !== "undefined" &&
         createPortal(
-          <div className="fixed inset-0 z-50 flex flex-col bg-slate-50/98 dark:bg-slate-950/98 text-foreground animate-in fade-in duration-150">
-            {/* Top Search App-Bar with iOS pill search input & Cancel button */}
-            <div className="flex h-14 items-center gap-2.5 px-3.5 border-b border-border/40 bg-background/90 backdrop-blur-md sticky top-0 z-10 shrink-0">
-              <div className="flex-1 h-9.5 rounded-xl bg-muted/70 dark:bg-muted/40 px-3 flex items-center gap-2 border border-border/30 focus-within:border-gold-500/50 focus-within:bg-background transition-all">
-                <Search className="size-4 text-muted-foreground shrink-0" aria-hidden />
-                <input
-                  ref={mobileInputRef}
-                  type="search"
-                  aria-label={t("placeholder")}
-                  placeholder={t("placeholder")}
-                  value={term}
-                  onChange={(e) => {
-                    setTerm(e.target.value);
-                  }}
-                  className="w-full bg-transparent text-[14px] outline-none text-foreground placeholder:text-muted-foreground/60"
-                />
-                {term && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTerm("");
-                      mobileInputRef.current?.focus();
-                    }}
-                    className="size-4.5 rounded-full bg-muted-foreground/20 hover:bg-muted-foreground/30 text-muted-foreground flex items-center justify-center transition-colors cursor-pointer shrink-0"
-                    aria-label={tc("close")}
-                  >
-                    <X className="size-3" aria-hidden />
-                  </button>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={closeMobile}
-                className="text-[14px] font-medium text-gold-600 dark:text-gold-400 hover:text-gold-700 active:scale-95 transition-all px-1.5 py-1 cursor-pointer shrink-0"
-              >
-                {tc("cancel")}
-              </button>
-            </div>
-
-            {/* Scrollable Body: Inset Grouped layout (Apple Spotlight style) */}
-            <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-4">
-              {term.trim().length < 2 ? (
-                /* Quick Shortcuts when nothing is typed yet */
-                <div className="space-y-1.5">
-                  <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {t("quickShortcuts")}
-                  </p>
-                  <div className="rounded-2xl border border-border/50 bg-card overflow-hidden shadow-2xs divide-y divide-border/30">
-                    <button
-                      type="button"
-                      onClick={() => go("/current-guests")}
-                      className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-muted/50 active:bg-muted transition-colors cursor-pointer group"
-                    >
-                      <div className="size-8.5 rounded-xl bg-gold-500/10 text-gold-600 dark:text-gold-400 flex items-center justify-center shrink-0">
-                        <BedDouble className="size-4.5" aria-hidden />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13.5px] font-medium text-foreground group-hover:text-gold-600 transition-colors">
-                          {t("inHouse")}
-                        </p>
-                        <p className="text-[11.5px] text-muted-foreground truncate">
-                          {t("inHouseDesc")}
-                        </p>
-                      </div>
-                      <ChevronRight className="size-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => go("/advance-bookings")}
-                      className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-muted/50 active:bg-muted transition-colors cursor-pointer group"
-                    >
-                      <div className="size-8.5 rounded-xl bg-navy-500/10 text-navy-600 dark:text-navy-300 flex items-center justify-center shrink-0">
-                        <CalendarRange className="size-4.5" aria-hidden />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13.5px] font-medium text-foreground group-hover:text-gold-600 transition-colors">
-                          {t("advance")}
-                        </p>
-                        <p className="text-[11.5px] text-muted-foreground truncate">
-                          {t("advanceDesc")}
-                        </p>
-                      </div>
-                      <ChevronRight className="size-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => go("/checkin")}
-                      className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-muted/50 active:bg-muted transition-colors cursor-pointer group"
-                    >
-                      <div className="size-8.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                        <KeyRound className="size-4.5" aria-hidden />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13.5px] font-medium text-foreground group-hover:text-gold-600 transition-colors">
-                          {t("newCheckin")}
-                        </p>
-                        <p className="text-[11.5px] text-muted-foreground truncate">
-                          {t("newCheckinDesc")}
-                        </p>
-                      </div>
-                      <ChevronRight className="size-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => go("/completed-bookings")}
-                      className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-muted/50 active:bg-muted transition-colors cursor-pointer group"
-                    >
-                      <div className="size-8.5 rounded-xl bg-slate-500/10 text-slate-600 dark:text-slate-400 flex items-center justify-center shrink-0">
-                        <CheckCircle2 className="size-4.5" aria-hidden />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13.5px] font-medium text-foreground group-hover:text-gold-600 transition-colors">
-                          {t("completed")}
-                        </p>
-                        <p className="text-[11.5px] text-muted-foreground truncate">
-                          {t("completedDesc")}
-                        </p>
-                      </div>
-                      <ChevronRight className="size-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" aria-hidden />
-                    </button>
-                  </div>
-                  <p className="text-center text-[12px] text-muted-foreground/60 pt-3">
-                    {t("searchHint")}
-                  </p>
-                </div>
-              ) : (
-                /* Search Results */
-                renderResultsList()
-              )}
-            </div>
-          </div>,
+          <div
+            className="fixed inset-0 top-[60px] z-20 bg-black/15 transition-opacity duration-200 md:hidden"
+            onClick={closeMobile}
+          />,
           document.body,
         )}
+
+      {/* ── 5. Mobile Floating Results Dropdown (Under Search Bar) ── */}
+      {mobileOpen && enabled && (
+        <div
+          className="absolute top-[calc(100%+6px)] left-3 right-3 z-30 max-h-[calc(100vh-140px)] overflow-y-auto rounded-2xl border border-border/80 bg-popover shadow-2xl p-2.5 space-y-2 backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-150 md:hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {renderResultsList()}
+        </div>
+      )}
     </>
   );
 }
