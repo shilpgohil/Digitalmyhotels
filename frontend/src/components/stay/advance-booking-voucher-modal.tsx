@@ -140,7 +140,136 @@ export function AdvanceBookingVoucherModal({
   };
 
   const handlePrint = () => {
-    window.print();
+    const printContent = printRef.current;
+    if (!printContent) return;
+
+    const hotelName = hotel?.name || "Hotel Reservation";
+    const guestName = booking.primary_guest_name || "Guest";
+    // Title format: Guest Name (VoucherRef) - Hotel Name
+    // 1. Saved PDF filename defaults to `Guest Name (VoucherRef) - Hotel Name.pdf` ("File Customer ID or Customer name")
+    // 2. Printed top-right header displays Hotel Name ("Here showing Hotel Name")
+    const docTitle = `${guestName} (${voucherRef}) - ${hotelName}`;
+    const prevTitle = document.title;
+    document.title = docTitle;
+
+    // Reset scroll offset on modal content so fallback isn't scrolled
+    if (printContent.parentElement) {
+      printContent.parentElement.scrollTop = 0;
+    }
+
+    // Create an isolated off-screen iframe for clean, unclipped A4 printing
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.left = "-9999px";
+    iframe.style.top = "0";
+    iframe.style.width = "800px";
+    iframe.style.height = "1100px";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      document.title = prevTitle;
+      return;
+    }
+
+    // Copy all stylesheets from parent document
+    const headStyles = Array.from(
+      document.querySelectorAll("link[rel='stylesheet'], style")
+    )
+      .map((el) => el.outerHTML)
+      .join("\n");
+
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="utf-8" />
+          <title>${docTitle}</title>
+          ${headStyles}
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 10mm 12mm;
+            }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #0f172a !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            #print-wrapper {
+              width: 100% !important;
+              max-width: 100% !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+            }
+          </style>
+        </head>
+        <body>
+          <div id="print-wrapper" class="bg-white text-navy-900">
+            ${printContent.innerHTML}
+          </div>
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    const doPrint = () => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch {
+        window.print();
+      } finally {
+        setTimeout(() => {
+          try {
+            if (document.body.contains(iframe)) {
+              document.body.removeChild(iframe);
+            }
+          } catch {
+            // ignore
+          }
+          document.title = prevTitle;
+        }, 1500);
+      }
+    };
+
+    // Wait for stylesheets inside the iframe to finish loading before invoking print
+    const links = Array.from(
+      iframe.contentDocument?.querySelectorAll('link[rel="stylesheet"]') || []
+    );
+    let loadedCount = 0;
+    const totalLinks = links.length;
+
+    if (totalLinks === 0) {
+      setTimeout(doPrint, 150);
+    } else {
+      let printed = false;
+      const onLinkDone = () => {
+        loadedCount++;
+        if (loadedCount >= totalLinks && !printed) {
+          printed = true;
+          setTimeout(doPrint, 100);
+        }
+      };
+      links.forEach((l) => {
+        l.addEventListener("load", onLinkDone);
+        l.addEventListener("error", onLinkDone);
+      });
+      // Safety timeout in case load events are suppressed
+      setTimeout(() => {
+        if (!printed) {
+          printed = true;
+          doPrint();
+        }
+      }, 500);
+    }
   };
 
   return (
@@ -150,20 +279,43 @@ export function AdvanceBookingVoucherModal({
         <style>{`
           @media print {
             @page {
-              margin: 10mm;
+              margin: 10mm 12mm;
               size: A4 portrait;
+            }
+            body, html {
+              overflow: visible !important;
+              height: auto !important;
+              background: #ffffff !important;
+            }
+            [data-radix-portal],
+            [data-radix-portal] > div,
+            div[role="dialog"],
+            div[role="dialog"] > div {
+              position: static !important;
+              transform: none !important;
+              max-height: none !important;
+              max-width: 100% !important;
+              width: 100% !important;
+              height: auto !important;
+              overflow: visible !important;
+              border: none !important;
+              box-shadow: none !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              background: #ffffff !important;
             }
             body * { visibility: hidden !important; }
             #advance-voucher-print-area, #advance-voucher-print-area * { visibility: visible !important; }
             #advance-voucher-print-area {
-              position: absolute !important;
-              inset: 0 auto auto 0 !important;
+              position: static !important;
               width: 100% !important;
+              max-width: 100% !important;
               margin: 0 !important;
+              padding: 0 !important;
               box-shadow: none !important;
               border: none !important;
-              break-inside: avoid !important;
               page-break-inside: avoid !important;
+              background: #ffffff !important;
             }
           }
         `}</style>
@@ -185,11 +337,15 @@ export function AdvanceBookingVoucherModal({
         </DialogHeader>
 
         {/* Printable Voucher Paper */}
-        <div className="p-6 sm:p-8 space-y-6 bg-white" id="advance-voucher-print-area" ref={printRef}>
+        <div
+          className="p-6 sm:p-8 print:p-0 space-y-5 print:space-y-4 bg-white"
+          id="advance-voucher-print-area"
+          ref={printRef}
+        >
           {/* Header with Hotel Branding */}
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-4 border-b pb-5">
+          <div className="flex justify-between items-start gap-4 border-b pb-4">
             <div className="space-y-1">
-              <h2 className="text-2xl font-bold tracking-tight text-navy-900">
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-navy-900">
                 {hotel?.name || "Hotel Reservation"}
               </h2>
               <div className="text-xs text-muted-foreground space-y-0.5">
@@ -214,7 +370,7 @@ export function AdvanceBookingVoucherModal({
               </div>
             </div>
 
-            <div className="text-left sm:text-right space-y-1.5 self-start sm:self-auto">
+            <div className="text-right space-y-1.5 shrink-0">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/90 text-emerald-800 px-3.5 py-1 text-xs font-semibold">
                 <CheckCircle2 className="size-3.5" />
                 Confirmed Reservation
@@ -229,7 +385,7 @@ export function AdvanceBookingVoucherModal({
           </div>
 
           {/* Guest and Stay Details Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5 text-xs">
+          <div className="grid grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-xs">
             <div className="space-y-2">
               <span className="font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 text-micro">
                 <User className="size-3.5 text-navy-800" /> Guest Information
@@ -279,29 +435,29 @@ export function AdvanceBookingVoucherModal({
             <table className="w-full text-xs">
               <thead className="bg-slate-100/70 border-b border-slate-200">
                 <tr>
-                  <th className="py-3 px-4 text-left font-semibold text-muted-foreground">
+                  <th className="py-2.5 px-4 text-left font-semibold text-muted-foreground">
                     Description
                   </th>
-                  <th className="py-3 px-4 text-right font-semibold text-muted-foreground">
+                  <th className="py-2.5 px-4 text-right font-semibold text-muted-foreground">
                     Amount (INR)
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 <tr>
-                  <td className="py-3 px-4">
+                  <td className="py-2.5 px-4">
                     <p className="font-medium text-foreground">Estimated Accommodation Charges</p>
                     <p className="text-muted-foreground text-micro">
                       {booking.rooms?.length ?? 1} Room(s) • Final taxes calculated upon check-out
                     </p>
                   </td>
-                  <td className="py-3 px-4 text-right font-semibold tabular-nums text-foreground">
+                  <td className="py-2.5 px-4 text-right font-semibold tabular-nums text-foreground">
                     {fmtINR(booking.total_amount)}
                   </td>
                 </tr>
 
                 <tr className="bg-emerald-50/60">
-                  <td className="py-3 px-4">
+                  <td className="py-2.5 px-4">
                     <p className="font-medium text-emerald-950">
                       Advance Payment Received
                     </p>
@@ -309,16 +465,16 @@ export function AdvanceBookingVoucherModal({
                       Mode: {payMethod.toUpperCase()} • Receipt Voucher under Sec 31(3)(d) CGST Act
                     </p>
                   </td>
-                  <td className="py-3 px-4 text-right font-bold tabular-nums text-emerald-700">
+                  <td className="py-2.5 px-4 text-right font-bold tabular-nums text-emerald-700">
                     −{fmtINR(advancePaid)}
                   </td>
                 </tr>
 
                 <tr className="bg-slate-100/70 font-semibold border-t border-slate-200">
-                  <td className="py-3 px-4 text-navy-900 font-bold">
+                  <td className="py-2.5 px-4 text-navy-900 font-bold">
                     Balance Payable at Check-in
                   </td>
-                  <td className="py-3 px-4 text-right tabular-nums text-sm font-bold text-navy-900">
+                  <td className="py-2.5 px-4 text-right tabular-nums text-sm font-bold text-navy-900">
                     {fmtINR(booking.due_amount)}
                   </td>
                 </tr>
@@ -328,7 +484,7 @@ export function AdvanceBookingVoucherModal({
 
           {/* Statutory Disclosure & Signature */}
           <div className="space-y-4 pt-1">
-            <div className="rounded-lg border border-amber-300/80 bg-amber-50/50 p-3.5 text-micro text-amber-950 flex items-start gap-2.5">
+            <div className="rounded-lg border border-amber-300/80 bg-amber-50/50 p-3 text-micro text-amber-950 flex items-start gap-2.5">
               <ShieldCheck className="size-4 shrink-0 text-amber-700 mt-0.5" />
               <div>
                 <p className="font-bold">GST Statutory Compliance Note:</p>
@@ -341,7 +497,7 @@ export function AdvanceBookingVoucherModal({
               </div>
             </div>
 
-            <div className="flex justify-between items-end pt-5 border-t border-slate-200 text-micro text-muted-foreground">
+            <div className="flex justify-between items-end pt-4 border-t border-slate-200 text-micro text-muted-foreground">
               <div>
                 <p className="font-medium text-foreground">Generated by DigitalMyHotels Operations Desk</p>
                 <p>{new Date().toLocaleString("en-IN")}</p>

@@ -409,7 +409,17 @@ function InvoicesContent() {
         {invoice && (
           <div className="mt-6 scroll-mt-4" ref={previewRef}>
             <div className="mx-auto mb-3 flex max-w-3xl items-center justify-end gap-2">
-              <Button variant="outline" onClick={() => window.print()}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const prevTitle = document.title;
+                  document.title = `${invoice.guest_name || "Guest"} (${invoice.invoice_number}) - ${hotel.data?.name || "Hotel"}`;
+                  window.print();
+                  setTimeout(() => {
+                    document.title = prevTitle;
+                  }, 1000);
+                }}
+              >
                 <Printer className="size-4" aria-hidden />
                 {tp("print")}
               </Button>
