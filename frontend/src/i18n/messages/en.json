@@ -1523,10 +1523,21 @@
   },
   "search": {
     "placeholder": "Search bookings or guests…",
-    "noResults": "No matches found.",
+    "noResults": "No matches found",
+    "noResultsHint": "Check your spelling or try searching by phone number",
     "bookings": "Bookings",
     "guests": "Guests",
-    "searchHint": "Type at least 2 characters to search bookings or guests"
+    "searchHint": "Search by booking #, guest name, or phone number",
+    "quickShortcuts": "Quick Jump",
+    "inHouse": "In-House Guests",
+    "inHouseDesc": "Currently staying guests",
+    "advance": "Advance Bookings",
+    "advanceDesc": "Upcoming reservations & arrivals",
+    "newCheckin": "Guest Check-in",
+    "newCheckinDesc": "Register a new walk-in guest",
+    "completed": "Completed Stays",
+    "completedDesc": "Past bookings & stay history",
+    "searching": "Searching…"
   },
   "tour": {
     "helpButton": "Take a tour",

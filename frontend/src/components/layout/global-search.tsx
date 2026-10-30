@@ -6,8 +6,11 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeft,
+  BedDouble,
   CalendarRange,
+  CheckCircle2,
+  ChevronRight,
+  KeyRound,
   Loader2,
   Search,
   UserRound,
@@ -15,12 +18,13 @@ import {
 } from "lucide-react";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
+import { formatStatus } from "@/lib/format-status";
 import { fmtApiDateTime } from "@/lib/formatting";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { ListOut } from "@/types/hotel";
 import type { BookingOut, GuestOut } from "@/types/stay";
 
-function useDebounced(value: string, delay = 300): string {
+function useDebounced(value: string, delay = 250): string {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(value), delay);
@@ -74,7 +78,6 @@ export function GlobalSearch() {
   useEffect(() => {
     if (mobileOpen) {
       document.body.style.overflow = "hidden";
-      // Small timeout ensures the DOM node is attached before focusing
       const timer = setTimeout(() => {
         mobileInputRef.current?.focus();
       }, 50);
@@ -104,6 +107,12 @@ export function GlobalSearch() {
     setMobileOpen(false);
     setTerm("");
     router.push(path);
+  };
+
+  const closeMobile = () => {
+    setMobileOpen(false);
+    setOpen(false);
+    setTerm("");
   };
 
   const handleBookingClick = (b: BookingOut) => {
@@ -170,61 +179,98 @@ export function GlobalSearch() {
 
   const hasResults =
     (bookings.data?.items.length ?? 0) > 0 || (guests.data?.items.length ?? 0) > 0;
+  const isLoading = bookings.isLoading || guests.isLoading;
 
   if (!can(PERMISSIONS.bookingsView) && !can(PERMISSIONS.guestsView)) return null;
 
-  // Reusable search results list
-  const renderResults = () => (
+  // Reusable iOS-styled search results list
+  const renderResultsList = () => (
     <>
-      {!hasResults && !bookings.isLoading && !guests.isLoading && (
-        <p className="px-4 py-8 text-center text-sm text-muted-foreground">{t("noResults")}</p>
-      )}
-      {(bookings.isLoading || guests.isLoading) && (
-        <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin text-gold-500" />
-          <span>Searching…</span>
+      {isLoading && (
+        <div className="flex items-center justify-center gap-2.5 py-8 text-sm text-muted-foreground">
+          <Loader2 className="size-4.5 animate-spin text-gold-500" />
+          <span className="text-[13px] font-medium">{t("searching")}</span>
         </div>
       )}
+
+      {!hasResults && !isLoading && (
+        <div className="rounded-2xl border border-border/50 bg-card p-6 text-center shadow-2xs space-y-1">
+          <Search className="size-5 text-muted-foreground/40 mx-auto mb-1" aria-hidden />
+          <p className="text-sm font-semibold text-foreground">{t("noResults")}</p>
+          <p className="text-xs text-muted-foreground">{t("noResultsHint")}</p>
+        </div>
+      )}
+
       {(bookings.data?.items.length ?? 0) > 0 && (
-        <div className="py-1">
-          <p className="px-3 py-1 text-micro font-semibold tracking-widest text-muted-foreground uppercase">
-            {t("bookings")}
-          </p>
-          {bookings.data?.items.map((b) => (
-            <button
-              key={b.id}
-              type="button"
-              className="flex w-full items-center gap-2 overflow-hidden px-3 py-2 text-left text-sm hover:bg-muted transition-colors cursor-pointer"
-              onClick={() => handleBookingClick(b)}
-            >
-              <CalendarRange className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-              <span className="shrink-0 font-medium text-foreground">{b.booking_number}</span>
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                {b.primary_guest_name ?? ""} · {fmtApiDateTime(b.check_in_date, b.check_in_time)}
-              </span>
-            </button>
-          ))}
+        <div className="space-y-1.5">
+          <div className="px-1 flex items-center justify-between text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+            <span>{t("bookings")}</span>
+            <span className="text-micro font-normal text-muted-foreground">
+              {bookings.data?.items.length}
+            </span>
+          </div>
+          <div className="rounded-2xl border border-border/50 bg-card overflow-hidden shadow-2xs divide-y divide-border/30">
+            {bookings.data?.items.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => handleBookingClick(b)}
+                className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-muted/50 active:bg-muted transition-colors cursor-pointer group"
+              >
+                <div className="size-8.5 rounded-xl bg-gold-500/10 text-gold-600 dark:text-gold-400 flex items-center justify-center shrink-0">
+                  <CalendarRange className="size-4" aria-hidden />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-[13.5px] text-foreground tracking-tight group-hover:text-gold-600 transition-colors">
+                      {b.booking_number}
+                    </span>
+                    <span className="text-[10.5px] px-1.5 py-0.5 rounded-md font-medium bg-muted text-muted-foreground">
+                      {formatStatus(b.status)}
+                    </span>
+                  </div>
+                  <p className="text-[12px] text-muted-foreground truncate">
+                    {b.primary_guest_name ?? "—"} · {fmtApiDateTime(b.check_in_date, b.check_in_time)}
+                  </p>
+                </div>
+                <ChevronRight className="size-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" aria-hidden />
+              </button>
+            ))}
+          </div>
         </div>
       )}
+
       {(guests.data?.items.length ?? 0) > 0 && (
-        <div className="border-t py-1">
-          <p className="px-3 py-1 text-micro font-semibold tracking-widest text-muted-foreground uppercase">
-            {t("guests")}
-          </p>
-          {guests.data?.items.map((g) => (
-            <button
-              key={g.id}
-              type="button"
-              className="flex w-full items-center gap-2 overflow-hidden px-3 py-2 text-left text-sm hover:bg-muted transition-colors cursor-pointer"
-              onClick={() => handleGuestClick(g)}
-            >
-              <UserRound className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-              <span className="min-w-0 flex-1 truncate font-medium text-foreground">{g.full_name}</span>
-              <span className="shrink-0 text-muted-foreground tabular-nums">
-                ····{g.normalized_phone.slice(-4)}
-              </span>
-            </button>
-          ))}
+        <div className="space-y-1.5">
+          <div className="px-1 flex items-center justify-between text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+            <span>{t("guests")}</span>
+            <span className="text-micro font-normal text-muted-foreground">
+              {guests.data?.items.length}
+            </span>
+          </div>
+          <div className="rounded-2xl border border-border/50 bg-card overflow-hidden shadow-2xs divide-y divide-border/30">
+            {guests.data?.items.map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => handleGuestClick(g)}
+                className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-muted/50 active:bg-muted transition-colors cursor-pointer group"
+              >
+                <div className="size-8.5 rounded-xl bg-navy-500/10 text-navy-600 dark:text-navy-300 flex items-center justify-center shrink-0">
+                  <UserRound className="size-4" aria-hidden />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-[13.5px] text-foreground tracking-tight truncate group-hover:text-gold-600 transition-colors">
+                    {g.full_name}
+                  </p>
+                  <p className="text-[12px] text-muted-foreground tabular-nums">
+                    {g.normalized_phone ? `+91 ····${g.normalized_phone.slice(-4)}` : "—"}
+                  </p>
+                </div>
+                <ChevronRight className="size-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" aria-hidden />
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </>
@@ -235,14 +281,14 @@ export function GlobalSearch() {
       {/* ── 1. Desktop Search Input Bar (Visible only on md: screens and wider) ── */}
       <div className="relative hidden w-full max-w-sm md:block" ref={boxRef}>
         <Search
-          className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
           aria-hidden
         />
         <input
           type="search"
           aria-label={t("placeholder")}
           placeholder={t("placeholder")}
-          className="h-9 w-full rounded-full border bg-muted/50 pr-3 pl-8 text-sm outline-none focus:border-ring focus:bg-background"
+          className="h-9 w-full rounded-full border border-border/60 bg-muted/50 pr-8 pl-9 text-xs outline-none focus:border-gold-500/50 focus:bg-background transition-all shadow-2xs"
           value={term}
           onChange={(e) => {
             setTerm(e.target.value);
@@ -250,52 +296,45 @@ export function GlobalSearch() {
           }}
           onFocus={() => setOpen(true)}
         />
+        {term && (
+          <button
+            type="button"
+            onClick={() => setTerm("")}
+            className="absolute top-1/2 right-2.5 -translate-y-1/2 size-4 rounded-full bg-muted-foreground/20 hover:bg-muted-foreground/30 text-muted-foreground flex items-center justify-center transition-colors cursor-pointer"
+            aria-label={tc("close")}
+          >
+            <X className="size-2.5" aria-hidden />
+          </button>
+        )}
         {open && enabled && (
-          <div className="absolute top-11 right-0 left-0 z-50 min-w-[360px] rounded-lg border bg-card shadow-lg">
-            {renderResults()}
+          <div className="absolute top-11 right-0 left-0 z-50 min-w-[380px] rounded-2xl border border-border/60 bg-popover/98 p-2.5 shadow-2xl backdrop-blur-xl space-y-2.5">
+            {renderResultsList()}
           </div>
         )}
       </div>
 
-      {/* ── 2. Mobile Search Trigger Button (Visible only on mobile screens < md) ── */}
+      {/* ── 2. Mobile Search Trigger Button (Minimalist Apple iOS pill icon) ── */}
       <button
         type="button"
         onClick={() => {
           setMobileOpen(true);
-          setOpen(true);
         }}
-        className="flex size-9 shrink-0 items-center justify-center rounded-full border text-muted-foreground hover:text-foreground transition-colors md:hidden"
+        className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-muted/40 text-muted-foreground hover:text-foreground active:scale-95 transition-all md:hidden cursor-pointer"
         aria-label={t("placeholder")}
         title={t("placeholder")}
       >
         <Search className="size-4" aria-hidden />
       </button>
 
-      {/* ── 3. Mobile Full-Width Search Overlay (Option 1 Two-State App-Bar) ── */}
+      {/* ── 3. Mobile Apple Spotlight / iOS-style Search View ── */}
       {mobileOpen &&
         typeof document !== "undefined" &&
         createPortal(
-          <div className="fixed inset-0 z-50 flex flex-col md:hidden">
-            {/* Top search app-bar: sits directly over the sticky header with full 100% width */}
-            <div className="flex h-[61px] items-center gap-2 border-b bg-background/98 glass-nav px-3 shadow-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileOpen(false);
-                  setOpen(false);
-                  setTerm("");
-                }}
-                className="flex size-9 shrink-0 items-center justify-center rounded-full border text-muted-foreground hover:text-foreground transition-colors"
-                aria-label={tc("back")}
-                title={tc("back")}
-              >
-                <ArrowLeft className="size-4" aria-hidden />
-              </button>
-              <div className="relative flex-1">
-                <Search
-                  className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden
-                />
+          <div className="fixed inset-0 z-50 flex flex-col bg-slate-50/98 dark:bg-slate-950/98 text-foreground animate-in fade-in duration-150">
+            {/* Top Search App-Bar with iOS pill search input & Cancel button */}
+            <div className="flex h-14 items-center gap-2.5 px-3.5 border-b border-border/40 bg-background/90 backdrop-blur-md sticky top-0 z-10 shrink-0">
+              <div className="flex-1 h-9.5 rounded-xl bg-muted/70 dark:bg-muted/40 px-3 flex items-center gap-2 border border-border/30 focus-within:border-gold-500/50 focus-within:bg-background transition-all">
+                <Search className="size-4 text-muted-foreground shrink-0" aria-hidden />
                 <input
                   ref={mobileInputRef}
                   type="search"
@@ -304,9 +343,8 @@ export function GlobalSearch() {
                   value={term}
                   onChange={(e) => {
                     setTerm(e.target.value);
-                    setOpen(true);
                   }}
-                  className="h-9 w-full rounded-full border bg-muted/50 pr-8 pl-9 text-sm outline-none focus:border-ring focus:bg-background"
+                  className="w-full bg-transparent text-[14px] outline-none text-foreground placeholder:text-muted-foreground/60"
                 />
                 {term && (
                   <button
@@ -315,37 +353,112 @@ export function GlobalSearch() {
                       setTerm("");
                       mobileInputRef.current?.focus();
                     }}
-                    className="absolute top-1/2 right-2.5 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+                    className="size-4.5 rounded-full bg-muted-foreground/20 hover:bg-muted-foreground/30 text-muted-foreground flex items-center justify-center transition-colors cursor-pointer shrink-0"
                     aria-label={tc("close")}
-                    title={tc("close")}
                   >
-                    <X className="size-3.5" aria-hidden />
+                    <X className="size-3" aria-hidden />
                   </button>
                 )}
               </div>
+              <button
+                type="button"
+                onClick={closeMobile}
+                className="text-[14px] font-medium text-gold-600 dark:text-gold-400 hover:text-gold-700 active:scale-95 transition-all px-1.5 py-1 cursor-pointer shrink-0"
+              >
+                {tc("cancel")}
+              </button>
             </div>
 
-            {/* Backdrop overlay + Scrollable Results dropdown directly beneath */}
-            <div
-              className="flex-1 overflow-y-auto bg-navy-950/40 backdrop-blur-xs"
-              onClick={() => {
-                setMobileOpen(false);
-                setOpen(false);
-              }}
-            >
-              <div
-                className="max-h-[calc(100vh-80px)] overflow-y-auto border-b bg-card shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {term.trim().length < 2 ? (
-                  <div className="flex flex-col items-center justify-center px-4 py-8 text-center text-muted-foreground">
-                    <Search className="mb-2 size-8 text-muted-foreground/30" aria-hidden />
-                    <p className="text-sm font-medium">{t("searchHint")}</p>
+            {/* Scrollable Body: Inset Grouped layout (Apple Spotlight style) */}
+            <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-4">
+              {term.trim().length < 2 ? (
+                /* Quick Shortcuts when nothing is typed yet */
+                <div className="space-y-1.5">
+                  <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {t("quickShortcuts")}
+                  </p>
+                  <div className="rounded-2xl border border-border/50 bg-card overflow-hidden shadow-2xs divide-y divide-border/30">
+                    <button
+                      type="button"
+                      onClick={() => go("/current-guests")}
+                      className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-muted/50 active:bg-muted transition-colors cursor-pointer group"
+                    >
+                      <div className="size-8.5 rounded-xl bg-gold-500/10 text-gold-600 dark:text-gold-400 flex items-center justify-center shrink-0">
+                        <BedDouble className="size-4.5" aria-hidden />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13.5px] font-medium text-foreground group-hover:text-gold-600 transition-colors">
+                          {t("inHouse")}
+                        </p>
+                        <p className="text-[11.5px] text-muted-foreground truncate">
+                          {t("inHouseDesc")}
+                        </p>
+                      </div>
+                      <ChevronRight className="size-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => go("/advance-bookings")}
+                      className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-muted/50 active:bg-muted transition-colors cursor-pointer group"
+                    >
+                      <div className="size-8.5 rounded-xl bg-navy-500/10 text-navy-600 dark:text-navy-300 flex items-center justify-center shrink-0">
+                        <CalendarRange className="size-4.5" aria-hidden />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13.5px] font-medium text-foreground group-hover:text-gold-600 transition-colors">
+                          {t("advance")}
+                        </p>
+                        <p className="text-[11.5px] text-muted-foreground truncate">
+                          {t("advanceDesc")}
+                        </p>
+                      </div>
+                      <ChevronRight className="size-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => go("/checkin")}
+                      className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-muted/50 active:bg-muted transition-colors cursor-pointer group"
+                    >
+                      <div className="size-8.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                        <KeyRound className="size-4.5" aria-hidden />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13.5px] font-medium text-foreground group-hover:text-gold-600 transition-colors">
+                          {t("newCheckin")}
+                        </p>
+                        <p className="text-[11.5px] text-muted-foreground truncate">
+                          {t("newCheckinDesc")}
+                        </p>
+                      </div>
+                      <ChevronRight className="size-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => go("/completed-bookings")}
+                      className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-muted/50 active:bg-muted transition-colors cursor-pointer group"
+                    >
+                      <div className="size-8.5 rounded-xl bg-slate-500/10 text-slate-600 dark:text-slate-400 flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="size-4.5" aria-hidden />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13.5px] font-medium text-foreground group-hover:text-gold-600 transition-colors">
+                          {t("completed")}
+                        </p>
+                        <p className="text-[11.5px] text-muted-foreground truncate">
+                          {t("completedDesc")}
+                        </p>
+                      </div>
+                      <ChevronRight className="size-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" aria-hidden />
+                    </button>
                   </div>
-                ) : (
-                  renderResults()
-                )}
-              </div>
+                  <p className="text-center text-[12px] text-muted-foreground/60 pt-3">
+                    {t("searchHint")}
+                  </p>
+                </div>
+              ) : (
+                /* Search Results */
+                renderResultsList()
+              )}
             </div>
           </div>,
           document.body,
