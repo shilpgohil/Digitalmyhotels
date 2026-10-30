@@ -203,7 +203,7 @@ export interface TeamMemberOut {
   membership_id: string;
   user_id: string;
   full_name: string;
-  email: string;
+  email: string | null;
   phone: string | null;
   role_code: string;
   role_name: string;

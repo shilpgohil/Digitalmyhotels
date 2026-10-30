@@ -307,8 +307,23 @@ async def update_staff(
         before["full_name"] = user.full_name
         user.full_name = changes.pop("full_name").strip()
     if "email" in changes:
-        before["email"] = user.email
-        user.email = changes.pop("email").lower().strip()
+        raw_email = changes.pop("email")
+        if raw_email and str(raw_email).strip():
+            clean_email = str(raw_email).lower().strip()
+            dup = await db.execute(
+                select(User).where(User.email == clean_email, User.id != user.id)
+            )
+            if dup.scalar_one_or_none():
+                raise ValidationAppError(
+                    "Email address already registered", code="email_taken"
+                )
+            before["email"] = user.email
+            user.email = clean_email
+        else:
+            if not user.email.endswith("@noemail.example"):
+                before["email"] = user.email
+                phone_norm = user.phone or "user"
+                user.email = f"phone+{phone_norm}@noemail.example"
     if "phone" in changes:
         phone_norm = normalize_phone(changes.pop("phone"))
         if not phone_norm:

@@ -14,7 +14,7 @@ class TeamMemberOut(BaseModel):
     full_name: str
     # str (not EmailStr) — output schemas should not re-validate stored data;
     # EmailStr rejects reserved TLDs (.local, .test) used in dev seeds.
-    email: str
+    email: str | None = None
     phone: str | None
     role_code: str
     role_name: str

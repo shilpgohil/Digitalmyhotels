@@ -1327,7 +1327,8 @@ async def decide_leave(
     ).scalar_one_or_none()
     if leave_profile and leave_profile.user_id == tenant.user_id:
         raise ForbiddenError(
-            "You cannot approve or reject your own leave request. It must be approved by the Hotel Owner or Admin.",
+            "You cannot approve or reject your own leave request. "
+            "It must be approved by the Hotel Owner or Admin.",
             code="self_leave_decision_forbidden",
         )
 

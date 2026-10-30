@@ -386,6 +386,29 @@ async def update_me(
                 )
             changes["phone"] = user.phone or ""
             user.phone = normalized
+    if body.email is not None:
+        clean_email = body.email.lower().strip() if str(body.email).strip() else None
+        if clean_email:
+            if clean_email != user.email:
+                existing_email = (
+                    await db.execute(
+                        select(User).where(User.email == clean_email, User.id != user.id)
+                    )
+                ).scalar_one_or_none()
+                if existing_email is not None:
+                    from app.core.errors import ValidationAppError
+
+                    raise ValidationAppError(
+                        "Email address already registered", code="email_taken"
+                    )
+                changes["email"] = user.email
+                user.email = clean_email
+        else:
+            # Revert to synthetic email if user had a real email and clears it
+            if not user.email.endswith("@noemail.example"):
+                changes["email"] = user.email
+                phone_norm = user.phone or "user"
+                user.email = f"phone+{phone_norm}@noemail.example"
     if changes:
         await write_audit(
             db,

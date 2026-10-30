@@ -230,7 +230,7 @@ export function PartnerHeader({
                 </span>
               )}
               <span className="block truncate text-xs font-normal text-muted-foreground">
-                {user?.email}
+                {user?.email && !user.email.endsWith("@noemail.example") ? user.email : "—"}
               </span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

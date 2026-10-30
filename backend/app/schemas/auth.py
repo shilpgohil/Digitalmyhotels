@@ -1,7 +1,8 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class ORMModel(BaseModel):
@@ -33,13 +34,20 @@ class TokenResponse(BaseModel):
 
 class UserOut(ORMModel):
     id: UUID
-    email: EmailStr
+    email: str | None = None
     full_name: str
     phone: str | None = None
     is_active: bool
     is_super_admin: bool
     must_reset_password: bool
     last_login_at: datetime | None = None
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def mask_synthetic_email(cls, v: Any) -> str | None:
+        if isinstance(v, str) and v.endswith("@noemail.example"):
+            return None
+        return v
 
 
 class MembershipOut(ORMModel):
@@ -88,14 +96,11 @@ class ChangePasswordRequest(BaseModel):
 
 
 class UpdateMeRequest(BaseModel):
-    """Self-profile edit (client 09/2026 — Edit option on admin Settings).
-
-    Email is intentionally NOT editable here: it is the login identity and
-    changing it without a verification flow risks lockouts.
-    """
+    """Self-profile edit (name, phone, and optional email)."""
 
     full_name: str | None = Field(default=None, min_length=2, max_length=200)
     phone: str | None = Field(default=None, max_length=32)
+    email: EmailStr | None = None
 
 
 class MessageOut(BaseModel):

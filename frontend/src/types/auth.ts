@@ -1,6 +1,6 @@
 export interface UserOut {
   id: string;
-  email: string;
+  email: string | null;
   full_name: string;
   phone: string | null;
   is_active: boolean;

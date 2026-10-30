@@ -227,7 +227,7 @@ function TeamContent() {
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{member.phone || "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{member.email}</TableCell>
+                    <TableCell className="text-muted-foreground">{member.email || "—"}</TableCell>
                     <TableCell>{member.role_name}</TableCell>
                     <TableCell>
                       <StatusBadge tone={member.is_active ? "success" : "danger"}>

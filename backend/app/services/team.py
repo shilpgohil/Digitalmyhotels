@@ -37,7 +37,7 @@ def _to_out(
         membership_id=membership.id,
         user_id=membership.user.id,
         full_name=membership.user.full_name,
-        email=membership.user.email,
+        email=None if membership.user.email.endswith('@noemail.example') else membership.user.email,
         phone=membership.user.phone,
         role_code=membership.role.code,
         role_name=membership.role.name,
