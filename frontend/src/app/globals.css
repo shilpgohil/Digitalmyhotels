@@ -280,6 +280,28 @@
     border-radius: 6px !important;
     font-size: 0.8125rem !important;
   }
+  /* Exception: Global search inputs keep their compact rounded pill aesthetic,
+     preventing the form 42px white-box rule from distorting search bars. */
+  input.global-search-input,
+  input[type="search"].global-search-input {
+    min-height: 38px !important;
+    height: 38px !important;
+    background-color: var(--muted) !important;
+    border-radius: 9999px !important;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input.global-search-input:focus,
+  input[type="search"].global-search-input:focus {
+    background-color: var(--background) !important;
+  }
+  input.global-search-input::-webkit-search-decoration,
+  input.global-search-input::-webkit-search-cancel-button,
+  input.global-search-input::-webkit-search-results-button,
+  input.global-search-input::-webkit-search-results-decoration {
+    -webkit-appearance: none;
+    display: none;
+  }
   /*
    * TOUCH TARGET EXPANSION
    * WCAG 2.5.5 recommends 44×44px minimum for interactive targets.

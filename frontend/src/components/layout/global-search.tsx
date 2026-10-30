@@ -279,7 +279,7 @@ export function GlobalSearch() {
           type="search"
           aria-label={t("placeholder")}
           placeholder={t("placeholder")}
-          className="h-9 w-full rounded-full border border-border/60 bg-muted/50 pr-8 pl-9 text-xs outline-none focus:border-gold-500/50 focus:bg-background transition-all shadow-2xs"
+          className="global-search-input h-9 w-full rounded-full border border-border/60 bg-muted/50 pr-8 pl-9 text-xs outline-none focus:border-gold-500/50 focus:bg-background transition-all shadow-2xs"
           value={term}
           onChange={(e) => {
             setTerm(e.target.value);
@@ -319,9 +319,9 @@ export function GlobalSearch() {
 
       {/* ── 3. Option 1: Mobile In-Header Expand (Seamlessly covers header bar only) ── */}
       {mobileOpen && (
-        <div className="absolute inset-0 z-30 flex items-center gap-2 bg-background/95 glass-nav px-3 animate-in fade-in slide-in-from-right-3 duration-200 ease-out md:hidden">
-          <div className="flex-1 h-9 rounded-full bg-muted/60 dark:bg-muted/40 border border-input/80 px-3 flex items-center gap-2 focus-within:border-gold-500/60 focus-within:ring-2 focus-within:ring-gold-500/20 focus-within:bg-background transition-all shadow-2xs">
-            <Search className="size-4 text-muted-foreground shrink-0" aria-hidden />
+        <div className="absolute inset-0 z-30 flex items-center gap-2 bg-background/95 glass-nav px-3 border-b border-border/40 animate-in fade-in slide-in-from-right-3 duration-200 ease-out md:hidden">
+          <div className="relative flex-1 flex items-center">
+            <Search className="pointer-events-none absolute left-3 size-4 text-muted-foreground z-10 shrink-0" aria-hidden />
             <input
               ref={mobileInputRef}
               type="search"
@@ -329,7 +329,7 @@ export function GlobalSearch() {
               placeholder={t("placeholder")}
               value={term}
               onChange={(e) => setTerm(e.target.value)}
-              className="w-full bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground/60"
+              className="global-search-input w-full rounded-full border border-input/80 bg-muted pl-9 pr-8 text-sm outline-none text-foreground placeholder:text-muted-foreground/60 focus:border-gold-500/60 focus:ring-2 focus:ring-gold-500/20 focus:bg-background transition-all shadow-2xs"
             />
             {term && (
               <button
@@ -338,7 +338,7 @@ export function GlobalSearch() {
                   setTerm("");
                   mobileInputRef.current?.focus();
                 }}
-                className="size-4.5 rounded-full bg-muted-foreground/20 hover:bg-muted-foreground/30 text-muted-foreground flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                className="absolute right-2.5 size-4.5 rounded-full bg-muted-foreground/20 hover:bg-muted-foreground/30 text-muted-foreground flex items-center justify-center transition-colors cursor-pointer shrink-0 z-10"
                 aria-label={tc("close")}
               >
                 <X className="size-3" aria-hidden />
