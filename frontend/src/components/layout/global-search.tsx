@@ -30,6 +30,20 @@ function useDebounced(value: string, delay = 250): string {
   return debounced;
 }
 
+function getBookingDestination(b: BookingOut): string {
+  const encoded = encodeURIComponent(b.booking_number);
+  if (b.status === "checked_in") {
+    return `/current-guests?q=${encoded}`;
+  }
+  if (b.status === "checked_out") {
+    return `/completed-bookings?q=${encoded}`;
+  }
+  if (b.status === "cancelled" || b.status === "no_show") {
+    return `/completed-bookings?q=${encoded}&status=cancelled`;
+  }
+  return `/advance-bookings?q=${encoded}`;
+}
+
 export function GlobalSearch() {
   const t = useTranslations("search");
   const tc = useTranslations("common");
@@ -113,15 +127,7 @@ export function GlobalSearch() {
   };
 
   const handleBookingClick = (b: BookingOut) => {
-    const dest =
-      b.status === "checked_in"
-        ? `/current-guests?q=${encodeURIComponent(b.booking_number)}`
-        : b.status === "checked_out"
-          ? `/completed-bookings?q=${encodeURIComponent(b.booking_number)}`
-          : b.status === "cancelled" || b.status === "no_show"
-            ? `/completed-bookings?q=${encodeURIComponent(b.booking_number)}&status=cancelled`
-          : `/advance-bookings?q=${encodeURIComponent(b.booking_number)}`;
-    go(dest);
+    go(getBookingDestination(b));
   };
 
   const handleGuestClick = async (g: GuestOut) => {
@@ -256,9 +262,11 @@ export function GlobalSearch() {
                 type="button"
                 onPointerDown={(e) => {
                   e.preventDefault();
-                  handleGuestClick(g);
+                  void handleGuestClick(g);
                 }}
-                onClick={() => handleGuestClick(g)}
+                onClick={() => {
+                  void handleGuestClick(g);
+                }}
                 className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-muted/50 active:bg-muted transition-colors cursor-pointer group"
               >
                 <div className="size-8.5 rounded-xl bg-navy-500/10 text-navy-600 dark:text-navy-300 flex items-center justify-center shrink-0">
@@ -374,18 +382,21 @@ export function GlobalSearch() {
         typeof document !== "undefined" &&
         createPortal(
           <div className="fixed inset-0 z-40 md:hidden pointer-events-none">
-            {/* Backdrop: covers screen below the 56px sticky header */}
-            <div
-              className="absolute inset-0 top-14 bg-black/25 backdrop-blur-[1px] pointer-events-auto transition-opacity duration-200"
+            {/* Native button backdrop for full a11y & Sonar compliance */}
+            <button
+              type="button"
+              aria-label={tc("close")}
+              tabIndex={-1}
+              className="absolute inset-0 top-14 w-full h-full bg-black/25 backdrop-blur-[1px] pointer-events-auto transition-opacity duration-200 border-none p-0 cursor-default outline-none"
               onClick={closeMobile}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") closeMobile();
+              }}
             />
 
             {/* Floating Results Card: sits securely above the backdrop */}
             {enabled && (
-              <div
-                className="relative z-10 mx-3 mt-[62px] max-h-[calc(100vh-140px)] overflow-y-auto rounded-2xl border border-border/80 bg-popover shadow-2xl p-2.5 space-y-2 pointer-events-auto"
-                onClick={(e) => e.stopPropagation()}
-              >
+              <div className="relative z-10 mx-3 mt-[62px] max-h-[calc(100vh-140px)] overflow-y-auto rounded-2xl border border-border/80 bg-popover shadow-2xl p-2.5 space-y-2 pointer-events-auto">
                 {renderResultsList()}
               </div>
             )}
