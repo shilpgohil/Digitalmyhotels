@@ -57,6 +57,7 @@ class TeamMemberUpdate(BaseModel):
     @classmethod
     def cap_name(cls, value: str | None) -> str | None:
         return title_case_name(value.strip()) if value else value
+    email: EmailStr | None = None
     phone: str | None = Field(default=None, max_length=32)
     role_code: str | None = Field(
         default=None,

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, MoreVertical, KeyRound, Ban, CheckCircle2, Eye, EyeOff, Pencil, Users, User } from "lucide-react";
+import { Plus, MoreVertical, KeyRound, Ban, CheckCircle2, Eye, EyeOff, Pencil, Users, User, Lock } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,6 +89,7 @@ function TeamContent() {
   });
 
   const [resetTarget, setResetTarget] = useState<TeamMemberOut | null>(null);
+  const [editTarget, setEditTarget] = useState<TeamMemberOut | null>(null);
   const [page, setPage] = useState(1);
 
   // Pending staff password-reset requests (hierarchical flow, item 34).
@@ -240,70 +241,64 @@ function TeamContent() {
                         : "—"}
                     </TableCell>
                     <TableCell className="text-right">
-                      {(member.role_code !== "owner" || member.staff_profile_id) && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"
-                            aria-label={tc("actions")}
-                          >
-                            <MoreVertical className="size-4" aria-hidden />
-                          </DropdownMenuTrigger>
-                          {/* Wider so "Edit Profile" / "Reset Password" never
-                              wrap (client 15/09: "Need increase width") */}
-                          <DropdownMenuContent align="end" className="min-w-[210px]">
-                            {member.staff_profile_id && (
-                              <DropdownMenuItem
-                                onClick={() => router.push(`/staff/${member.staff_profile_id}?from=team`)}
-                              >
-                                <User className="size-4" aria-hidden />
-                                {t("viewProfileAttendance")}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"
+                          aria-label={tc("actions")}
+                        >
+                          <MoreVertical className="size-4" aria-hidden />
+                        </DropdownMenuTrigger>
+                        {/* Wider so "Edit Profile" / "Reset Password" never
+                            wrap (client 15/09: "Need increase width") */}
+                        <DropdownMenuContent align="end" className="min-w-[210px]">
+                          <DropdownMenuItem onClick={() => setEditTarget(member)}>
+                            <Pencil className="size-4" aria-hidden />
+                            {t("editProfile")}
+                          </DropdownMenuItem>
+                          {member.staff_profile_id && (
+                            <DropdownMenuItem
+                              onClick={() => router.push(`/staff/${member.staff_profile_id}?from=team`)}
+                            >
+                              <User className="size-4" aria-hidden />
+                              {t("viewProfileAttendance")}
+                            </DropdownMenuItem>
+                          )}
+                          {member.role_code !== "owner" && (
+                            <>
+                              <DropdownMenuItem onClick={() => setResetTarget(member)}>
+                                <KeyRound className="size-4" aria-hidden />
+                                {t("resetPassword")}
                               </DropdownMenuItem>
-                            )}
-                            {member.staff_profile_id ? (
-                              <DropdownMenuItem
-                                onClick={() => router.push(`/staff/${member.staff_profile_id}?edit=1&from=team`)}
-                              >
-                                <Pencil className="size-4" aria-hidden />
-                                {t("editProfile")}
-                              </DropdownMenuItem>
-                            ) : null}
-                            {member.role_code !== "owner" && (
-                              <>
-                                <DropdownMenuItem onClick={() => setResetTarget(member)}>
-                                  <KeyRound className="size-4" aria-hidden />
-                                  {t("resetPassword")}
+                              {member.is_active ? (
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  onClick={() =>
+                                    statusMutation.mutate({
+                                      membershipId: member.membership_id,
+                                      enabled: false,
+                                    })
+                                  }
+                                >
+                                  <Ban className="size-4" aria-hidden />
+                                  {t("disable")}
                                 </DropdownMenuItem>
-                                {member.is_active ? (
-                                  <DropdownMenuItem
-                                    variant="destructive"
-                                    onClick={() =>
-                                      statusMutation.mutate({
-                                        membershipId: member.membership_id,
-                                        enabled: false,
-                                      })
-                                    }
-                                  >
-                                    <Ban className="size-4" aria-hidden />
-                                    {t("disable")}
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      statusMutation.mutate({
-                                        membershipId: member.membership_id,
-                                        enabled: true,
-                                      })
-                                    }
-                                  >
-                                    <CheckCircle2 className="size-4" aria-hidden />
-                                    {t("enable")}
-                                  </DropdownMenuItem>
-                                )}
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
+                              ) : (
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    statusMutation.mutate({
+                                      membershipId: member.membership_id,
+                                      enabled: true,
+                                    })
+                                  }
+                                >
+                                  <CheckCircle2 className="size-4" aria-hidden />
+                                  {t("enable")}
+                                </DropdownMenuItem>
+                              )}
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -329,6 +324,11 @@ function TeamContent() {
               queryKey: ["team-password-requests", activeHotelId],
             });
           }}
+        />
+        <EditMemberDialog
+          member={editTarget}
+          onClose={() => setEditTarget(null)}
+          onDone={invalidate}
         />
       </main>
     </>
@@ -509,6 +509,157 @@ function ResetPasswordDialog({
             <Label htmlFor="rp-password">{t("newPassword")}</Label>
             <PasswordInput id="rp-password" name="password" required minLength={8} />
             <p className="text-xs text-muted-foreground">{t("temporaryPasswordHint")}</p>
+          </div>
+          {error && (
+            <p className="text-sm text-danger" role="alert">
+              {error}
+            </p>
+          )}
+          <DialogFooter>
+            <DialogClose className="inline-flex h-[42px] items-center rounded-lg bg-[#d1d1d1] px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors">
+              {tc("cancel")}
+            </DialogClose>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? tc("saving") : tc("save")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditMemberDialog({
+  member,
+  onClose,
+  onDone,
+}: {
+  member: TeamMemberOut | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const t = useTranslations("team");
+  const tc = useTranslations("common");
+  const api = useApi();
+  const [error, setError] = useState<string | null>(null);
+
+  const isOwner = member?.role_code === "owner";
+
+  const [fullName, setFullName] = useState(member?.full_name ?? "");
+  const [phone, setPhone] = useState(member?.phone ?? "");
+  const [email, setEmail] = useState(member?.email ?? "");
+  const [roleCode, setRoleCode] = useState(member?.role_code ?? "manager");
+
+  useEffect(() => {
+    if (member) {
+      setFullName(member.full_name || "");
+      setPhone(member.phone || "");
+      setEmail(member.email || "");
+      setRoleCode(member.role_code || "manager");
+      setError(null);
+    }
+  }, [member]);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api<TeamMemberOut>(`/api/v1/team/${member?.membership_id}`, {
+        method: "PATCH",
+        body: {
+          full_name: fullName.trim(),
+          phone: phone.trim(),
+          email: email.trim() || null,
+          ...(isOwner ? {} : { role_code: roleCode }),
+        },
+      }),
+    onSuccess: () => {
+      toast.success(t("memberUpdated"));
+      setError(null);
+      onClose();
+      onDone();
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : tc("error")),
+  });
+
+  return (
+    <Dialog open={member !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {t("editMember")} — {member?.full_name}
+          </DialogTitle>
+        </DialogHeader>
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!member) return;
+            mutation.mutate();
+          }}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="em-name">{t("name")}</Label>
+              <Input
+                id="em-name"
+                name="full_name"
+                value={fullName}
+                required
+                minLength={2}
+                maxLength={200}
+                onChange={(e) => setFullName(liveNameCase(e.target.value))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="em-phone">{t("phone")}</Label>
+              <Input
+                id="em-phone"
+                name="phone"
+                type="tel"
+                value={phone}
+                required
+                maxLength={10}
+                inputMode="tel"
+                onChange={(e) => setPhone(sanitizePhone(e.target.value))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="em-email">{t("email")}</Label>
+              <Input
+                id="em-email"
+                name="email"
+                type="email"
+                value={email}
+                placeholder={t("emailOptional")}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="em-role">{t("role")}</Label>
+              {isOwner ? (
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">
+                  <Lock className="size-4 text-amber-600" aria-hidden />
+                  <span className="font-semibold text-amber-900">{t("role_owner")}</span>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {t("ownerRoleLockedHint")}
+                  </span>
+                </div>
+              ) : (
+                <select
+                  id="em-role"
+                  name="role_code"
+                  value={roleCode}
+                  onChange={(e) => setRoleCode(e.target.value)}
+                  required
+                  className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                >
+                  {CREATABLE_ROLES.map((role) => (
+                    <option key={role} value={role}>
+                      {t(`role_${role}`)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
           {error && (
             <p className="text-sm text-danger" role="alert">

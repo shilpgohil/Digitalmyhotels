@@ -22,7 +22,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -278,9 +278,115 @@ function RevTooltip({ active, payload, label }: {
   );
 }
 
+function localizeInsight(
+  ins: SmartInsight,
+  t: (key: string, values?: Record<string, string | number>) => string,
+  locale: string,
+): { title: string; body: string } {
+  if (locale !== "hi") return { title: ins.title, body: ins.body };
+  switch (ins.id) {
+    case "rev_above_avg": {
+      const match = ins.body.match(/is (\d+)% above/);
+      const pct = match ? match[1] : "";
+      return {
+        title: t("insight_rev_above_avg_title"),
+        body: t("insight_rev_above_avg_body", { pct }),
+      };
+    }
+    case "rev_below_avg": {
+      const match = ins.body.match(/is (\d+)% below/);
+      const pct = match ? match[1] : "";
+      return {
+        title: t("insight_rev_below_avg_title"),
+        body: t("insight_rev_below_avg_body", { pct }),
+      };
+    }
+    case "rev_3day_growth":
+      return {
+        title: t("insight_rev_3day_growth_title"),
+        body: t("insight_rev_3day_growth_body"),
+      };
+    case "overdue_checkouts": {
+      const match = ins.body.match(/^(\d+)/);
+      const count = match ? Number(match[1]) : 1;
+      return {
+        title: t("insight_overdue_checkouts_title", { count }),
+        body: t("insight_overdue_checkouts_body", { count }),
+      };
+    }
+    case "low_avail_vs_arrivals": {
+      const mAvail = ins.body.match(/Only (\d+)/);
+      const mArr = ins.body.match(/but (\d+)/);
+      return {
+        title: t("insight_low_avail_vs_arrivals_title"),
+        body: t("insight_low_avail_vs_arrivals_body", {
+          available: mAvail ? mAvail[1] : "1",
+          arrivals: mArr ? mArr[1] : "1",
+        }),
+      };
+    }
+    case "low_avail": {
+      const mAvail = ins.body.match(/Only (\d+)/);
+      const mTot = ins.body.match(/of (\d+)/);
+      const mPct = ins.body.match(/\((\d+)%\)/);
+      return {
+        title: t("insight_low_avail_title"),
+        body: t("insight_low_avail_body", {
+          available: mAvail ? mAvail[1] : "1",
+          total: mTot ? mTot[1] : "1",
+          pct: mPct ? mPct[1] : "0",
+        }),
+      };
+    }
+    case "arrivals_reminder": {
+      const match = ins.body.match(/^(\d+)/);
+      const count = match ? Number(match[1]) : 1;
+      return {
+        title: t("insight_arrivals_reminder_title", { count }),
+        body: t("insight_arrivals_reminder_body", { count }),
+      };
+    }
+    case "high_occupancy": {
+      const match = ins.body.match(/at (\d+)%/);
+      const pct = match ? match[1] : "90";
+      return {
+        title: t("insight_high_occupancy_title"),
+        body: t("insight_high_occupancy_body", { pct }),
+      };
+    }
+    case "high_noshow": {
+      const match = ins.body.match(/^(\d+)%/);
+      const pct = match ? match[1] : "10";
+      return {
+        title: t("insight_high_noshow_title"),
+        body: t("insight_high_noshow_body", { pct }),
+      };
+    }
+    case "revpar":
+      return {
+        title: t("insight_revpar_title"),
+        body: t("insight_revpar_body", { revpar: ins.metric ?? "" }),
+      };
+    case "alos_long":
+      return {
+        title: t("insight_alos_long_title"),
+        body: t("insight_alos_long_body", { alos: ins.metric?.replace(" nights", "") ?? "" }),
+      };
+    case "alos_short":
+      return {
+        title: t("insight_alos_short_title"),
+        body: t("insight_alos_short_body", { alos: ins.metric?.replace(" nights", "") ?? "" }),
+      };
+    default:
+      return { title: ins.title, body: ins.body };
+  }
+}
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const t = useTranslations("dashboard");
+  const locale = useLocale();
+  const tcGuest = useTranslations("checkin");
   const tn = useTranslations("nav");
   const tc = useTranslations("common");
   const ts = useTranslations("stay");
@@ -405,13 +511,17 @@ export default function DashboardPage() {
                   </PieChart>
                 </ResponsiveContainer>
                 <ul className="flex-1 space-y-1.5 text-xs min-w-0">
-                  {donutData.map((item, i) => (
-                    <li key={item.guest_type} className="flex items-center gap-1.5 truncate">
-                      <span className="size-2.5 shrink-0 rounded-full" style={{ background: GUEST_COLORS[i % GUEST_COLORS.length] }} />
-                      <span className="text-muted-foreground capitalize truncate">{item.guest_type || "Unknown"}</span>
-                      <span className="ml-auto font-semibold tabular-nums">{item.count}</span>
-                    </li>
-                  ))}
+                  {donutData.map((item, i) => {
+                    const guestTypeKey = `guestType_${(item.guest_type || "other").toLowerCase()}`;
+                    const label = tcGuest.has(guestTypeKey) ? tcGuest(guestTypeKey) : (item.guest_type || "Unknown");
+                    return (
+                      <li key={item.guest_type} className="flex items-center gap-1.5 truncate">
+                        <span className="size-2.5 shrink-0 rounded-full" style={{ background: GUEST_COLORS[i % GUEST_COLORS.length] }} />
+                        <span className="text-muted-foreground capitalize truncate">{label}</span>
+                        <span className="ml-auto font-semibold tabular-nums">{item.count}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
@@ -649,6 +759,7 @@ export default function DashboardPage() {
               {d.insights.map((ins) => {
                 const style = LEVEL_STYLES[ins.level] ?? LEVEL_STYLES.info;
                 const Icon = ICON_MAP[ins.icon] ?? TrendingUp;
+                const localized = localizeInsight(ins, t, locale);
                 return (
                   <div
                     key={ins.id}
@@ -662,9 +773,9 @@ export default function DashboardPage() {
                   >
                     <Icon className={cn("size-5 shrink-0 mt-0.5", style.icon)} />
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-foreground">{ins.title}</p>
+                      <p className="text-xs font-bold text-foreground">{localized.title}</p>
                       <p className="mt-0.5 text-label leading-relaxed text-foreground/80">
-                        {ins.body}
+                        {localized.body}
                       </p>
                       {ins.metric && (
                         <p className={cn("mt-1 text-xs font-bold", style.icon)}>{ins.metric}</p>

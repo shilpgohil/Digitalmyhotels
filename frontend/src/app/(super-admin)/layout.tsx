@@ -17,13 +17,13 @@ export default function SuperAdminLayout({ children }: { readonly children: Reac
       >
         Skip to main content
       </a>
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex h-screen h-[100dvh] overflow-hidden">
         {/* Fixed 256px navy sidebar — always expanded (matches partner) */}
-        <div className="hidden lg:block w-64 shrink-0">
+        <div className="hidden lg:block w-64 shrink-0 h-full">
           <AdminSidebar />
         </div>
         {/* Main content */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col h-full overflow-hidden">
           <AdminHeader />
           {/* min-h-0: flex-1 alone doesn't prevent an item growing past its
               allocated height (min-height defaults to auto). Without min-h-0

@@ -182,18 +182,20 @@ function AdditionalMemberRow({
   readonly onRemove: (idx: number) => void;
 }) {
   return (
-    <div className="rounded-lg border border-border p-4 space-y-3 relative">
-      <button
-        type="button"
-        onClick={() => onRemove(idx)}
-        className="absolute right-3 top-3 text-muted-foreground hover:text-danger"
-        aria-label="Remove member"
-      >
-        <Trash2 className="size-4" aria-hidden />
-      </button>
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pr-8">
-        Account #{idx + 2} {/* idx 0 = second account after the owner */}
-      </p>
+    <div className="rounded-lg border border-border p-4 space-y-3">
+      <div className="flex items-center justify-between pb-2 border-b border-border/60">
+        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          Account #{idx + 2} {/* idx 0 = second account after the owner */}
+        </span>
+        <button
+          type="button"
+          onClick={() => onRemove(idx)}
+          className="size-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
+          aria-label="Remove member"
+        >
+          <Trash2 className="size-4" aria-hidden />
+        </button>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label className="text-xs">Full Name *</Label>
@@ -727,10 +729,8 @@ export default function AddHotelPage() {
   };
 
   return (
-    // pb-24 (96px): enough clearance for the 66px fixed action bar + safe area.
-    // Was !pb-44 (176px) which created a large visible blank white space between
-    // the last section and the footer (client screenshot 63563463 "Remove spacing").
-    <main className="p-4 space-y-4 max-w-3xl mx-auto !pb-24 sm:p-6">
+    <div className="flex flex-col min-h-full">
+      <main className="flex-1 p-4 space-y-4 max-w-3xl w-full mx-auto sm:p-6 pb-6">
       {/* Page title */}
       <div>
         <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t("addNewHotel")}</h1>
@@ -1119,7 +1119,7 @@ export default function AddHotelPage() {
           <button
             type="button"
             onClick={addMember}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gold-400/60 bg-gold-50/20 py-3 text-sm font-semibold text-gold-700 hover:border-gold-500 hover:bg-gold-50/60 transition-all"
           >
             <Plus className="size-4" aria-hidden />
             Create New Account
@@ -1249,20 +1249,25 @@ export default function AddHotelPage() {
           {/* Room Types */}
           <div className="space-y-3 border-b border-border pb-5">
             <p className="text-sm font-semibold text-foreground">{te("roomTypes")}</p>
-            {typeEntries.map((entry) => (
+            {typeEntries.map((entry, tIdx) => (
               <div
                 key={entry.key}
-                className="relative rounded-lg border border-border p-4"
+                className="rounded-lg border border-border p-4 space-y-3"
               >
-                <button
-                  type="button"
-                  onClick={() => removeTypeEntry(entry.key)}
-                  className="absolute right-3 top-3 text-muted-foreground hover:text-danger"
-                  aria-label={te("deleteRoomType")}
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </button>
-                <div className="grid gap-3 pr-6 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="flex items-center justify-between pb-2 border-b border-border/60">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    {te("roomType")} #{tIdx + 1}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeTypeEntry(entry.key)}
+                    className="size-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
+                    aria-label={te("deleteRoomType")}
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                  </button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="flex flex-col justify-between gap-1.5">
                     <Label className="text-xs leading-tight min-h-[32px] flex items-center">{te("roomTypeName")}</Label>
                     <Input
@@ -1323,7 +1328,7 @@ export default function AddHotelPage() {
             <button
               type="button"
               onClick={addTypeEntry}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gold-400 py-3 text-sm font-medium text-gold-600 transition-colors hover:bg-gold-50"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gold-400/60 bg-gold-50/20 py-3 text-sm font-semibold text-gold-700 hover:border-gold-500 hover:bg-gold-50/60 transition-all"
             >
               <Plus className="size-4" aria-hidden />
               {te("addRoomType")}
@@ -1335,19 +1340,21 @@ export default function AddHotelPage() {
             {rooms.map((entry, idx) => (
               <div
                 key={entry.key}
-                className="relative space-y-3 rounded-lg border border-border p-4"
+                className="space-y-3 rounded-lg border border-border p-4"
               >
-                <button
-                  type="button"
-                  onClick={() => removeRoomEntry(entry.key)}
-                  className="absolute right-3 top-3 text-muted-foreground hover:text-danger"
-                  aria-label={te("removeRoom")}
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </button>
-                <p className="text-sm font-semibold text-foreground">
-                  {t("roomEntry")} #{idx + 1}
-                </p>
+                <div className="flex items-center justify-between pb-2 border-b border-border/60">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    {t("roomEntry")} #{idx + 1}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeRoomEntry(entry.key)}
+                    className="size-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
+                    aria-label={te("removeRoom")}
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                  </button>
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="flex flex-col justify-between gap-1.5">
                     <Label className="text-xs leading-tight min-h-[20px] flex items-center">{t("roomNumber")}</Label>
@@ -1437,7 +1444,7 @@ export default function AddHotelPage() {
             <button
               type="button"
               onClick={addRoomEntry}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gold-400/60 bg-gold-50/20 py-3 text-sm font-semibold text-gold-700 hover:border-gold-500 hover:bg-gold-50/60 transition-all"
             >
               <Plus className="size-4" aria-hidden />
               {t("addAnotherRoom")}
@@ -1453,50 +1460,54 @@ export default function AddHotelPage() {
             Optional — configurable service items (e.g. Airport Pickup, Extra Mattress).
           </p>
           {services.map((svc, idx) => (
-            <div key={idx} className="relative grid grid-cols-2 gap-3 rounded-lg border border-border p-4">
-              <button
-                type="button"
-                onClick={() => removeService(idx)}
-                className="absolute right-3 top-3 text-muted-foreground hover:text-danger"
-                aria-label="Remove"
-              >
-                <Trash2 className="size-3.5" aria-hidden />
-              </button>
-              <p className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                {t("specialReqEntry")} #{idx + 1}
-              </p>
-              <div className="space-y-1.5">
-                <Label className="text-xs">{t("reqName")}</Label>
-                <select
-                  value={svc.name}
-                  onChange={(e) => updateService(idx, "name", e.target.value)}
-                  className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+            <div key={idx} className="space-y-3 rounded-lg border border-border p-4">
+              <div className="flex items-center justify-between pb-2 border-b border-border/60">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  {t("specialReqEntry")} #{idx + 1}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeService(idx)}
+                  className="size-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
+                  aria-label="Remove"
                 >
-                  <option value="">—</option>
-                  <option value="Airport Pickup">Airport Pickup</option>
-                  <option value="Extra Mattress">Extra Mattress</option>
-                  <option value="Early Check-in">Early Check-in</option>
-                  <option value="Late Check-out">Late Check-out</option>
-                  <option value="Breakfast">Breakfast</option>
-                </select>
+                  <Trash2 className="size-4" aria-hidden />
+                </button>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">{t("reqPrice")} (₹)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step="1"
-                  value={svc.price}
-                  onChange={(e) => updateService(idx, "price", e.target.value)}
-                  placeholder="500"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{t("reqName")}</Label>
+                  <select
+                    value={svc.name}
+                    onChange={(e) => updateService(idx, "name", e.target.value)}
+                    className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                  >
+                    <option value="">—</option>
+                    <option value="Airport Pickup">Airport Pickup</option>
+                    <option value="Extra Mattress">Extra Mattress</option>
+                    <option value="Early Check-in">Early Check-in</option>
+                    <option value="Late Check-out">Late Check-out</option>
+                    <option value="Breakfast">Breakfast</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{t("reqPrice")} (₹)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="1"
+                    value={svc.price}
+                    onChange={(e) => updateService(idx, "price", e.target.value)}
+                    placeholder="500"
+                  />
+                </div>
               </div>
             </div>
           ))}
           <button
             type="button"
             onClick={addService}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground hover:border-gold-400 hover:text-gold-600 transition-colors"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gold-400/60 bg-gold-50/20 py-3 text-sm font-semibold text-gold-700 hover:border-gold-500 hover:bg-gold-50/60 transition-all"
           >
             <Plus className="size-4" aria-hidden />
             {t("addSpecialReq")}
@@ -1563,49 +1574,50 @@ export default function AddHotelPage() {
         </div>
       )}
 
-      {/* Sticky bottom action bar
-          ─ Before creation: Save Draft + Add Hotel
-          ─ After creation : green success banner + View Hotels button
-          lg:left-64 keeps the bar inside the content area on desktop. */}
+      </main>
+
+      {/* Sticky bottom action bar bounded to the content scroll container */}
       <div
-        className="fixed bottom-0 left-0 right-0 lg:left-64 z-10 border-t border-border bg-white px-4 py-3 shadow-md sm:px-8"
+        className="sticky bottom-0 z-20 border-t border-border bg-white/95 backdrop-blur-xs px-4 py-3 shadow-md sm:px-8 mt-auto"
         style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
       >
-        {createdHotelId ? (
-          /* ── Post-creation state ── */
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 text-sm font-medium text-success">
-              <CheckCircle className="size-4.5 shrink-0" aria-hidden />
-              Hotel created successfully!
-              {upiId.trim() && (
-                <span className="text-xs text-muted-foreground ml-1">
-                  {qrPolling ? "— Generating QR…" : qrBlobUrl ? "— QR ready in Payment Setup section above" : ""}
-                </span>
-              )}
+        <div className="max-w-3xl mx-auto">
+          {createdHotelId ? (
+            /* ── Post-creation state ── */
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium text-success">
+                <CheckCircle className="size-4.5 shrink-0" aria-hidden />
+                Hotel created successfully!
+                {upiId.trim() && (
+                  <span className="text-xs text-muted-foreground ml-1">
+                    {qrPolling ? "— Generating QR…" : qrBlobUrl ? "— QR ready in Payment Setup section above" : ""}
+                  </span>
+                )}
+              </div>
+              <Button
+                type="button"
+                onClick={() => router.push("/admin/hotels")}
+                className="h-[42px] px-6 bg-navy-900 hover:bg-navy-800 text-white"
+              >
+                View Hotels
+              </Button>
             </div>
-            <Button
-              type="button"
-              onClick={() => router.push("/admin/hotels")}
-              className="h-[42px] px-6 bg-navy-900 hover:bg-navy-800 text-white"
-            >
-              View Hotels
-            </Button>
-          </div>
-        ) : (
-          /* Pre-creation state */
-          <div className="flex items-center justify-end gap-3">
-            <Button
-              type="button"
-              disabled={mutation.isPending || !canSubmit}
-              onClick={() => mutation.mutate()}
-              className="h-[42px] px-6 bg-navy-900 hover:bg-navy-800 text-white"
-            >
-              {mutation.isPending ? tc("saving") : t("addHotelBtn")}
-            </Button>
-          </div>
-        )}
+          ) : (
+            /* Pre-creation state */
+            <div className="flex items-center justify-end gap-3">
+              <Button
+                type="button"
+                disabled={mutation.isPending || !canSubmit}
+                onClick={() => mutation.mutate()}
+                className="h-[42px] px-6 bg-navy-900 hover:bg-navy-800 text-white"
+              >
+                {mutation.isPending ? tc("saving") : t("addHotelBtn")}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
 

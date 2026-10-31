@@ -286,22 +286,22 @@ export function QueuedDocUpload({
         />
       </div>
       {!cameraOpen && (
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-col sm:flex-row gap-1 sm:gap-1.5 w-full">
           <button
             type="button"
             onClick={handleCameraClick}
-            className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white py-1.5 text-label font-medium text-slate-700 hover:border-gold-400 hover:text-gold-700 transition-colors shadow-xs"
+            className="flex w-full sm:flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white py-1 sm:py-1.5 px-1 text-micro sm:text-label font-medium text-slate-700 hover:border-gold-400 hover:text-gold-700 transition-colors shadow-xs leading-tight"
           >
-            <Camera className="size-3 text-gold-600" aria-hidden />
-            {t("useCamera")}
+            <Camera className="size-3 text-gold-600 shrink-0" aria-hidden />
+            <span className="truncate">{t("useCamera")}</span>
           </button>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white py-1.5 text-label font-medium text-slate-700 hover:border-gold-400 hover:text-gold-700 transition-colors shadow-xs"
+            className="flex w-full sm:flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white py-1 sm:py-1.5 px-1 text-micro sm:text-label font-medium text-slate-700 hover:border-gold-400 hover:text-gold-700 transition-colors shadow-xs leading-tight"
           >
-            <Upload className="size-3 text-slate-500" aria-hidden />
-            {t("uploadPhoto")}
+            <Upload className="size-3 text-slate-500 shrink-0" aria-hidden />
+            <span className="truncate">{t("uploadPhoto")}</span>
           </button>
         </div>
       )}
@@ -569,24 +569,24 @@ export function DocUpload({
         />
       </div>
       {!cameraOpen && (
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-col sm:flex-row gap-1 sm:gap-1.5 w-full">
           <button
             type="button"
             onClick={handleCameraClick}
             disabled={!guestId || busy}
-            className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white py-1.5 text-label font-medium text-slate-700 hover:border-gold-400 hover:text-gold-700 transition-colors shadow-xs disabled:opacity-40"
+            className="flex w-full sm:flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white py-1 sm:py-1.5 px-1 text-micro sm:text-label font-medium text-slate-700 hover:border-gold-400 hover:text-gold-700 transition-colors shadow-xs disabled:opacity-40 leading-tight"
           >
-            <Camera className="size-3 text-gold-600" aria-hidden />
-            {t("useCamera")}
+            <Camera className="size-3 text-gold-600 shrink-0" aria-hidden />
+            <span className="truncate">{t("useCamera")}</span>
           </button>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={!guestId || busy}
-            className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white py-1.5 text-label font-medium text-slate-700 hover:border-gold-400 hover:text-gold-700 transition-colors shadow-xs disabled:opacity-40"
+            className="flex w-full sm:flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white py-1 sm:py-1.5 px-1 text-micro sm:text-label font-medium text-slate-700 hover:border-gold-400 hover:text-gold-700 transition-colors shadow-xs disabled:opacity-40 leading-tight"
           >
-            <Upload className="size-3 text-slate-500" aria-hidden />
-            {t("uploadPhoto")}
+            <Upload className="size-3 text-slate-500 shrink-0" aria-hidden />
+            <span className="truncate">{t("uploadPhoto")}</span>
           </button>
         </div>
       )}

@@ -216,12 +216,10 @@ function AvailableChip({
         disabled={isDisabled}
         title={isDisabled && hint ? hint.label + " — Not available right now" : undefined}
         className={cn(
-          // Fixed size — ALWAYS the same regardless of content.
-          // h-[96px] = room number row + type name + bed type (or spacer) + price
-          //            with 8px extra headroom so rows never visually collide.
+          // Flexible card size with minimum height to support Devanagari Hindi vertical metrics.
           // pr-7 is ALWAYS applied (reserves space for the ⓘ slot).
-          "relative flex flex-col rounded-xl border-2 px-3 py-2.5 pr-7 text-left",
-          "transition-all w-full h-[96px]",
+          "relative flex flex-col justify-between rounded-xl border-2 px-3 py-2 pr-7 text-left",
+          "transition-all w-full min-h-[104px] sm:min-h-[106px] h-auto",
           isDisabled
             ? "opacity-50 cursor-not-allowed border-border bg-muted/20 pointer-events-auto"
             : selected
@@ -229,42 +227,44 @@ function AvailableChip({
               : "border-border hover:border-gold-300 hover:bg-muted/40",
         )}
       >
-        {/* Row 1: room number + selected tick */}
-        <div className="flex items-center gap-1.5">
-          <span className="font-semibold text-sm truncate">{room.room_number}</span>
-          {selected && (
-            <span className="size-4 rounded-full bg-gold-500 flex items-center justify-center shrink-0">
-              <Check className="size-2.5 text-navy-900" aria-hidden />
-            </span>
-          )}
+        {/* Top details block */}
+        <div className="space-y-0.5 min-w-0">
+          {/* Row 1: room number + selected tick */}
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-sm truncate leading-tight">{room.room_number}</span>
+            {selected && (
+              <span className="size-4 rounded-full bg-gold-500 flex items-center justify-center shrink-0">
+                <Check className="size-2.5 text-navy-900" aria-hidden />
+              </span>
+            )}
+          </div>
+
+          {/* Row 2: room type name — single line, truncated */}
+          <span className="text-xs text-muted-foreground leading-tight truncate block">
+            {room.room_type_name ?? "—"}
+          </span>
+
+          {/* Row 3: bed type OR invisible spacer — flexible min-height for Devanagari */}
+          <div className="flex items-center gap-0.5 text-micro text-muted-foreground min-h-[16px] leading-tight">
+            {room.bed_type ? (
+              <>
+                <BedDouble className="size-2.5 shrink-0" aria-hidden />
+                <span className="truncate capitalize">{room.bed_type}</span>
+              </>
+            ) : null}
+          </div>
         </div>
 
-        {/* Row 2: room type name — single line, truncated */}
-        <span className="text-xs text-muted-foreground leading-tight mt-0.5 truncate block">
-          {room.room_type_name ?? "—"}
-        </span>
-
-        {/* Row 3: bed type OR invisible spacer — keeps row 4 at fixed position.
-            mt-1 (4px) instead of mt-0.5 (2px) gives breathing room between the
-            room-type name and the bed-type row so they never visually collide.
-            capitalize ensures "queen" → "Queen", "double" → "Double", etc. */}
-        <span className="flex items-center gap-0.5 text-micro text-muted-foreground mt-1 h-[14px]">
-          {room.bed_type ? (
-            <>
-              <BedDouble className="size-2.5 shrink-0" aria-hidden />
-              <span className="truncate capitalize">{room.bed_type}</span>
-            </>
-          ) : null /* spacer height maintained by fixed h-[14px] */}
-        </span>
-
         {/* Row 4: price — always at the bottom */}
-        <span className="mt-auto text-xs font-semibold text-navy-900">
-          {hourlyRate != null ? (
-            <>{fmtINR(hourlyRate)}<span className="font-normal text-muted-foreground">/hr</span></>
-          ) : (
-            <>{fmtINR(room.room_type_base_price)}<span className="font-normal text-muted-foreground">/night</span></>
-          )}
-        </span>
+        <div className="pt-1 mt-1 border-t border-border/40">
+          <span className="text-xs font-semibold text-navy-900 block leading-tight">
+            {hourlyRate != null ? (
+              <>{fmtINR(hourlyRate)}<span className="font-normal text-muted-foreground">/hr</span></>
+            ) : (
+              <>{fmtINR(room.room_type_base_price)}<span className="font-normal text-muted-foreground">/night</span></>
+            )}
+          </span>
+        </div>
       </button>
 
       {/* ── ⓘ button — only rendered when there is actual info to show.

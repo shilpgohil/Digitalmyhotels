@@ -45,7 +45,7 @@ export function CollapsibleSection({
             </div>
           )}
           <div className="text-left">
-            <p className="font-semibold text-sm text-foreground">{title}</p>
+            <p className="font-semibold text-base sm:text-sm text-foreground">{title}</p>
             {subtitle && (
               <p className="text-xs text-muted-foreground">{subtitle}</p>
             )}
