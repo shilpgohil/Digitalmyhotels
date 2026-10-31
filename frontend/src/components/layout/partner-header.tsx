@@ -185,21 +185,33 @@ export function PartnerHeader({
   };
 
   return (
-    <header className="sticky top-0 z-20 relative flex items-center justify-between gap-2 sm:gap-4 bg-background/90 glass-nav px-3 sm:px-4 py-3 shadow-[0_1px_3px_rgba(16,24,40,0.04)] lg:px-6">
-      <MobileNavDrawer />
-      <div className="min-w-0 flex-1 pr-1">
-        {subtitle && (
-          <p className="text-micro font-semibold tracking-widest text-gold-600 uppercase truncate leading-tight">
-            {subtitle}
-          </p>
-        )}
-        <h1 className="truncate font-display text-base sm:text-xl font-semibold text-foreground leading-tight">
-          {title}
-        </h1>
+    <header className="sticky top-0 z-20 relative flex items-center justify-between gap-2 sm:gap-4 bg-background/90 glass-nav px-3 sm:px-4 py-2.5 shadow-[0_1px_3px_rgba(16,24,40,0.04)] lg:px-6">
+      {/* ── 1. Left Section: Drawer + Title & Subtitle ── */}
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 md:flex-initial md:max-w-xs lg:max-w-sm">
+        <MobileNavDrawer />
+        <div className="min-w-0 flex-1 pr-1">
+          {subtitle && (
+            <p className="text-micro font-semibold tracking-widest text-gold-600 uppercase truncate leading-tight">
+              {subtitle}
+            </p>
+          )}
+          <h1 className="truncate font-display text-base sm:text-lg lg:text-xl font-semibold text-foreground leading-tight">
+            {title}
+          </h1>
+        </div>
       </div>
-      {action && <div className="hidden sm:block ml-auto mr-1 shrink-0">{action}</div>}
-      <GlobalSearch />
-      <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+
+      {/* ── 2. Center Section: Desktop / Web Search Bar (Centered) ── */}
+      <div className="hidden md:flex flex-1 items-center justify-center max-w-md mx-2 lg:mx-6">
+        <GlobalSearch variant="desktop" />
+      </div>
+
+      {/* ── 3. Right Section: Action Slot + Mobile Search Trigger + Utilities + User Menu ── */}
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-3 ml-auto">
+        {action && <div className="hidden sm:block shrink-0">{action}</div>}
+        <div className="md:hidden">
+          <GlobalSearch variant="mobile" />
+        </div>
         <HotelSwitcher className="hidden lg:flex" />
         <button
           type="button"

@@ -13,6 +13,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { formatStatus } from "@/lib/format-status";
@@ -44,7 +45,16 @@ function getBookingDestination(b: BookingOut): string {
   return `/advance-bookings?q=${encoded}`;
 }
 
-export function GlobalSearch() {
+export interface GlobalSearchProps {
+  /**
+   * "desktop" renders only the centered desktop search bar.
+   * "mobile" renders the mobile trigger button and mobile full-screen search portal.
+   * "both" (default) renders both desktop and mobile triggers.
+   */
+  readonly variant?: "desktop" | "mobile" | "both";
+}
+
+export function GlobalSearch({ variant = "both" }: GlobalSearchProps) {
   const t = useTranslations("search");
   const tc = useTranslations("common");
   const api = useApi();
@@ -58,6 +68,11 @@ export function GlobalSearch() {
   const boxRef = useRef<HTMLDivElement>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
   const isNavigatingRef = useRef(false);
+
+  // Gesture tracking to distinguish mobile scrolling from deliberate taps
+  const touchStartYRef = useRef<number | null>(null);
+  const touchStartXRef = useRef<number | null>(null);
+  const isScrollingRef = useRef(false);
 
   const enabled = !!activeHotelId && debounced.trim().length >= 2;
 
@@ -86,16 +101,6 @@ export function GlobalSearch() {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  // Autofocus input when mobile search expands
-  useEffect(() => {
-    if (mobileOpen) {
-      const timer = setTimeout(() => {
-        mobileInputRef.current?.focus();
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [mobileOpen]);
-
   // Handle Escape key to close search
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -120,7 +125,15 @@ export function GlobalSearch() {
     }, 600);
   };
 
+  const handleOpenMobile = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    setMobileOpen(true);
+    // CRITICAL: Synchronous focus during user touch/click triggers virtual keyboard instantly on iOS/Android
+    mobileInputRef.current?.focus();
+  };
+
   const closeMobile = () => {
+    mobileInputRef.current?.blur();
     setMobileOpen(false);
     setOpen(false);
     setTerm("");
@@ -180,6 +193,32 @@ export function GlobalSearch() {
     go(`/completed-bookings?q=${encodeURIComponent(g.full_name)}`);
   };
 
+  // Touch gesture handlers: prevents dragging/scrolling from triggering accidental taps
+  const handleTouchStart = (e: React.TouchEvent) => {
+    isScrollingRef.current = false;
+    touchStartYRef.current = e.touches[0].clientY;
+    touchStartXRef.current = e.touches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartYRef.current === null || touchStartXRef.current === null) return;
+    const dy = Math.abs(e.touches[0].clientY - touchStartYRef.current);
+    const dx = Math.abs(e.touches[0].clientX - touchStartXRef.current);
+    if (dy > 8 || dx > 8) {
+      isScrollingRef.current = true;
+    }
+  };
+
+  const handleTouchEndBooking = (b: BookingOut) => {
+    if (isScrollingRef.current) return;
+    handleBookingClick(b);
+  };
+
+  const handleTouchEndGuest = (g: GuestOut) => {
+    if (isScrollingRef.current) return;
+    void handleGuestClick(g);
+  };
+
   const hasResults =
     (bookings.data?.items.length ?? 0) > 0 || (guests.data?.items.length ?? 0) > 0;
   const isLoading = bookings.isLoading || guests.isLoading;
@@ -217,10 +256,9 @@ export function GlobalSearch() {
               <button
                 key={b.id}
                 type="button"
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  handleBookingClick(b);
-                }}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={() => handleTouchEndBooking(b)}
                 onClick={() => handleBookingClick(b)}
                 className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-muted/50 active:bg-muted transition-colors cursor-pointer group"
               >
@@ -260,10 +298,9 @@ export function GlobalSearch() {
               <button
                 key={g.id}
                 type="button"
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  void handleGuestClick(g);
-                }}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={() => handleTouchEndGuest(g)}
                 onClick={() => {
                   void handleGuestClick(g);
                 }}
@@ -289,114 +326,124 @@ export function GlobalSearch() {
     </>
   );
 
+  const showDesktop = variant === "desktop" || variant === "both";
+  const showMobile = variant === "mobile" || variant === "both";
+
   return (
     <>
-      {/* ── 1. Desktop Search Input Bar (Visible only on md: screens and wider) ── */}
-      <div className="relative hidden w-full max-w-sm md:block" ref={boxRef}>
-        <Search
-          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden
-        />
-        <input
-          type="search"
-          aria-label={t("placeholder")}
-          placeholder={t("placeholder")}
-          className="global-search-input h-9 w-full rounded-full border border-border/60 bg-muted/60 pr-8 pl-9 text-xs outline-none focus:border-gold-500/50 focus:ring-2 focus:ring-gold-500/20 transition-all shadow-2xs"
-          value={term}
-          onChange={(e) => {
-            setTerm(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-        />
-        {term && (
-          <button
-            type="button"
-            onClick={() => setTerm("")}
-            className="absolute top-1/2 right-2.5 -translate-y-1/2 size-4 rounded-full bg-muted-foreground/20 hover:bg-muted-foreground/30 text-muted-foreground flex items-center justify-center transition-colors cursor-pointer"
-            aria-label={tc("close")}
-          >
-            <X className="size-2.5" aria-hidden />
-          </button>
-        )}
-        {open && enabled && (
-          <div className="absolute top-11 right-0 left-0 z-50 min-w-[380px] rounded-2xl border border-border/60 bg-popover/98 p-2.5 shadow-2xl backdrop-blur-xl space-y-2.5">
-            {renderResultsList()}
-          </div>
-        )}
-      </div>
-
-      {/* ── 2. Mobile Search Trigger Button (Collapsed State in Header) ── */}
-      <button
-        type="button"
-        onClick={() => {
-          setMobileOpen(true);
-        }}
-        className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-muted/40 text-muted-foreground hover:text-foreground active:scale-95 transition-all md:hidden cursor-pointer"
-        aria-label={t("placeholder")}
-        title={t("placeholder")}
-      >
-        <Search className="size-4" aria-hidden />
-      </button>
-
-      {/* ── 3. Option 1: Mobile In-Header Expand (Seamlessly covers header bar only) ── */}
-      {mobileOpen && (
-        <div className="absolute inset-0 z-30 flex items-center gap-2 bg-background/95 glass-nav px-3 border-b border-border/40 animate-in fade-in slide-in-from-right-3 duration-200 ease-out md:hidden">
-          <div className="relative flex-1 flex items-center">
-            <Search className="pointer-events-none absolute left-3 size-4 text-muted-foreground z-10 shrink-0" aria-hidden />
-            <input
-              ref={mobileInputRef}
-              type="search"
-              aria-label={t("placeholder")}
-              placeholder={t("placeholder")}
-              value={term}
-              onChange={(e) => setTerm(e.target.value)}
-              className="global-search-input w-full h-9 rounded-full border border-input/80 bg-muted pl-9 pr-8 text-sm outline-none text-foreground placeholder:text-muted-foreground/60 focus:border-gold-500/60 focus:ring-2 focus:ring-gold-500/20 transition-all shadow-2xs"
-            />
-            {term && (
-              <button
-                type="button"
-                onClick={() => {
-                  setTerm("");
-                  mobileInputRef.current?.focus();
-                }}
-                className="absolute right-2.5 size-4.5 rounded-full bg-muted-foreground/20 hover:bg-muted-foreground/30 text-muted-foreground flex items-center justify-center transition-colors cursor-pointer shrink-0 z-10"
-                aria-label={tc("close")}
-              >
-                <X className="size-3" aria-hidden />
-              </button>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={closeMobile}
-            className="text-sm font-semibold text-gold-600 dark:text-gold-400 hover:text-gold-700 active:scale-95 transition-all px-1.5 py-1 cursor-pointer shrink-0"
-          >
-            {tc("cancel")}
-          </button>
+      {/* ── 1. Desktop Search Input Bar (Top Center on Desktop/Web) ── */}
+      {showDesktop && (
+        <div className="relative hidden w-full max-w-md md:block" ref={boxRef}>
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <input
+            type="search"
+            aria-label={t("placeholder")}
+            placeholder={t("placeholder")}
+            className="global-search-input h-9 w-full rounded-full border border-border/60 bg-muted/60 pr-8 pl-9 text-xs outline-none focus:border-gold-500/50 focus:ring-2 focus:ring-gold-500/20 transition-all shadow-2xs"
+            value={term}
+            onChange={(e) => {
+              setTerm(e.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+          />
+          {term && (
+            <button
+              type="button"
+              onClick={() => setTerm("")}
+              className="absolute top-1/2 right-2.5 -translate-y-1/2 size-4 rounded-full bg-muted-foreground/20 hover:bg-muted-foreground/30 text-muted-foreground flex items-center justify-center transition-colors cursor-pointer"
+              aria-label={tc("close")}
+            >
+              <X className="size-2.5" aria-hidden />
+            </button>
+          )}
+          {open && enabled && (
+            <div className="absolute top-11 right-0 left-0 z-50 min-w-[380px] rounded-2xl border border-border/60 bg-popover/98 p-2.5 shadow-2xl backdrop-blur-xl space-y-2.5">
+              {renderResultsList()}
+            </div>
+          )}
         </div>
       )}
 
-      {/* ── 4. Mobile Backdrop + Floating Results Dropdown (Unified Portal at z-40) ── */}
-      {mobileOpen &&
+      {/* ── 2. Mobile Search Trigger Button (Collapsed State in Header) ── */}
+      {showMobile && (
+        <button
+          type="button"
+          onClick={handleOpenMobile}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-muted/40 text-muted-foreground hover:text-foreground active:scale-95 transition-all md:hidden cursor-pointer"
+          aria-label={t("placeholder")}
+          title={t("placeholder")}
+        >
+          <Search className="size-4" aria-hidden />
+        </button>
+      )}
+
+      {/* ── 3. Mobile Full-Screen Overlay Portal (No Overlapping White Rectangles) ── */}
+      {showMobile &&
         typeof document !== "undefined" &&
         createPortal(
-          <div className="fixed inset-0 z-40 md:hidden pointer-events-none">
-            {/* Native button backdrop for full a11y & Sonar compliance */}
+          <div
+            className={cn(
+              "fixed inset-0 z-50 md:hidden flex flex-col transition-all duration-200",
+              mobileOpen
+                ? "opacity-100 pointer-events-auto visible"
+                : "opacity-0 pointer-events-none invisible",
+            )}
+          >
+            {/* Top Bar: Solid, opaque background pinned to top, completely covering header */}
+            <div className="h-14 w-full bg-background border-b border-border/60 px-3 flex items-center gap-2 shrink-0 shadow-xs">
+              <div className="relative flex-1 flex items-center">
+                <Search className="pointer-events-none absolute left-3 size-4 text-muted-foreground z-10 shrink-0" aria-hidden />
+                <input
+                  ref={mobileInputRef}
+                  type="search"
+                  aria-label={t("placeholder")}
+                  placeholder={t("placeholder")}
+                  value={term}
+                  onChange={(e) => setTerm(e.target.value)}
+                  className="global-search-input w-full h-9 rounded-full border border-input/80 bg-muted pl-9 pr-8 text-sm outline-none text-foreground placeholder:text-muted-foreground/60 focus:border-gold-500/60 focus:ring-2 focus:ring-gold-500/20 transition-all shadow-2xs"
+                />
+                {term && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTerm("");
+                      mobileInputRef.current?.focus();
+                    }}
+                    className="absolute right-2.5 size-4.5 rounded-full bg-muted-foreground/20 hover:bg-muted-foreground/30 text-muted-foreground flex items-center justify-center transition-colors cursor-pointer shrink-0 z-10"
+                    aria-label={tc("close")}
+                  >
+                    <X className="size-3" aria-hidden />
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={closeMobile}
+                className="text-sm font-semibold text-gold-600 dark:text-gold-400 hover:text-gold-700 active:scale-95 transition-all px-1.5 py-1 cursor-pointer shrink-0"
+              >
+                {tc("cancel")}
+              </button>
+            </div>
+
+            {/* Backdrop: covers remaining screen below top bar */}
             <button
               type="button"
               aria-label={tc("close")}
               tabIndex={-1}
-              className="absolute inset-0 top-14 w-full h-full bg-black/25 backdrop-blur-[1px] pointer-events-auto transition-opacity duration-200 border-none p-0 cursor-default outline-none"
+              className="absolute inset-0 top-14 w-full h-[calc(100%-56px)] bg-black/30 backdrop-blur-[2px] border-none p-0 cursor-default outline-none"
               onClick={closeMobile}
               onKeyDown={(e) => {
                 if (e.key === "Escape") closeMobile();
               }}
             />
 
-            {/* Floating Results Card: sits securely above the backdrop */}
+            {/* Floating Results Card: sits underneath top bar with zero overlap */}
             {enabled && (
-              <div className="relative z-10 mx-3 mt-[62px] max-h-[calc(100vh-140px)] overflow-y-auto rounded-2xl border border-border/80 bg-popover shadow-2xl p-2.5 space-y-2 pointer-events-auto">
+              <div className="relative z-10 mx-3 mt-2 max-h-[calc(100vh-80px)] overflow-y-auto rounded-2xl border border-border/80 bg-popover shadow-2xl p-2.5 space-y-2 pointer-events-auto">
                 {renderResultsList()}
               </div>
             )}
