@@ -255,7 +255,6 @@
    */
   input[type="text"],
   input[type="email"],
-  input[type="search"],
   input[type="number"],
   input[type="tel"],
   input[type="url"],
@@ -284,8 +283,8 @@
      preventing the form 42px white-box rule from distorting search bars. */
   input.global-search-input,
   input[type="search"].global-search-input {
-    min-height: 38px !important;
-    height: 38px !important;
+    min-height: 36px !important;
+    height: 36px !important;
     background-color: var(--muted) !important;
     border-radius: 9999px !important;
     -webkit-appearance: none;
@@ -293,7 +292,8 @@
   }
   input.global-search-input:focus,
   input[type="search"].global-search-input:focus {
-    background-color: var(--background) !important;
+    background-color: var(--muted) !important;
+    outline: none;
   }
   input.global-search-input::-webkit-search-decoration,
   input.global-search-input::-webkit-search-cancel-button,

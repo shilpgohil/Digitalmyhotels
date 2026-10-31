@@ -43,6 +43,7 @@ export function GlobalSearch() {
   const debounced = useDebounced(term);
   const boxRef = useRef<HTMLDivElement>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
+  const isNavigatingRef = useRef(false);
 
   const enabled = !!activeHotelId && debounced.trim().length >= 2;
 
@@ -94,10 +95,15 @@ export function GlobalSearch() {
   }, []);
 
   const go = (path: string) => {
+    if (isNavigatingRef.current) return;
+    isNavigatingRef.current = true;
     setOpen(false);
     setMobileOpen(false);
     setTerm("");
     router.push(path);
+    setTimeout(() => {
+      isNavigatingRef.current = false;
+    }, 600);
   };
 
   const closeMobile = () => {
@@ -205,6 +211,10 @@ export function GlobalSearch() {
               <button
                 key={b.id}
                 type="button"
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  handleBookingClick(b);
+                }}
                 onClick={() => handleBookingClick(b)}
                 className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-muted/50 active:bg-muted transition-colors cursor-pointer group"
               >
@@ -244,6 +254,10 @@ export function GlobalSearch() {
               <button
                 key={g.id}
                 type="button"
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  handleGuestClick(g);
+                }}
                 onClick={() => handleGuestClick(g)}
                 className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-muted/50 active:bg-muted transition-colors cursor-pointer group"
               >
@@ -279,7 +293,7 @@ export function GlobalSearch() {
           type="search"
           aria-label={t("placeholder")}
           placeholder={t("placeholder")}
-          className="global-search-input h-9 w-full rounded-full border border-border/60 bg-muted/50 pr-8 pl-9 text-xs outline-none focus:border-gold-500/50 focus:bg-background transition-all shadow-2xs"
+          className="global-search-input h-9 w-full rounded-full border border-border/60 bg-muted/60 pr-8 pl-9 text-xs outline-none focus:border-gold-500/50 focus:ring-2 focus:ring-gold-500/20 transition-all shadow-2xs"
           value={term}
           onChange={(e) => {
             setTerm(e.target.value);
@@ -329,7 +343,7 @@ export function GlobalSearch() {
               placeholder={t("placeholder")}
               value={term}
               onChange={(e) => setTerm(e.target.value)}
-              className="global-search-input w-full rounded-full border border-input/80 bg-muted pl-9 pr-8 text-sm outline-none text-foreground placeholder:text-muted-foreground/60 focus:border-gold-500/60 focus:ring-2 focus:ring-gold-500/20 focus:bg-background transition-all shadow-2xs"
+              className="global-search-input w-full h-9 rounded-full border border-input/80 bg-muted pl-9 pr-8 text-sm outline-none text-foreground placeholder:text-muted-foreground/60 focus:border-gold-500/60 focus:ring-2 focus:ring-gold-500/20 transition-all shadow-2xs"
             />
             {term && (
               <button
@@ -355,26 +369,29 @@ export function GlobalSearch() {
         </div>
       )}
 
-      {/* ── 4. Mobile Tap-to-Dismiss Backdrop (NO blur, NO page takeover) ── */}
+      {/* ── 4. Mobile Backdrop + Floating Results Dropdown (Unified Portal at z-40) ── */}
       {mobileOpen &&
         typeof document !== "undefined" &&
         createPortal(
-          <div
-            className="fixed inset-0 top-[60px] z-20 bg-black/15 transition-opacity duration-200 md:hidden"
-            onClick={closeMobile}
-          />,
+          <div className="fixed inset-0 z-40 md:hidden pointer-events-none">
+            {/* Backdrop: covers screen below the 56px sticky header */}
+            <div
+              className="absolute inset-0 top-14 bg-black/25 backdrop-blur-[1px] pointer-events-auto transition-opacity duration-200"
+              onClick={closeMobile}
+            />
+
+            {/* Floating Results Card: sits securely above the backdrop */}
+            {enabled && (
+              <div
+                className="relative z-10 mx-3 mt-[62px] max-h-[calc(100vh-140px)] overflow-y-auto rounded-2xl border border-border/80 bg-popover shadow-2xl p-2.5 space-y-2 pointer-events-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {renderResultsList()}
+              </div>
+            )}
+          </div>,
           document.body,
         )}
-
-      {/* ── 5. Mobile Floating Results Dropdown (Under Search Bar) ── */}
-      {mobileOpen && enabled && (
-        <div
-          className="absolute top-[calc(100%+6px)] left-3 right-3 z-30 max-h-[calc(100vh-140px)] overflow-y-auto rounded-2xl border border-border/80 bg-popover shadow-2xl p-2.5 space-y-2 backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-150 md:hidden"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {renderResultsList()}
-        </div>
-      )}
     </>
   );
 }
