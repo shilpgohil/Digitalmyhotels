@@ -204,8 +204,11 @@ function PaymentModal({
               <div className="grid grid-cols-3 gap-2">
                 {(["upi", "cash", "bank_transfer", "card", "other"] as const).map((m) => {
                   const labels: Record<string, string> = {
-                    upi: "UPI", cash: "Cash", bank_transfer: "Bank Transfer",
-                    card: "Card", other: "Others",
+                    upi: t("payMode_upi"),
+                    cash: t("payMode_cash"),
+                    bank_transfer: t("payMode_bank_transfer"),
+                    card: t("payMode_card"),
+                    other: t("payMode_other"),
                   };
                   return (
                     <button
