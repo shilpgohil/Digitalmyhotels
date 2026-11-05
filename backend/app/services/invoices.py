@@ -320,21 +320,29 @@ async def list_invoices(
     )
     invoices = list(result.scalars().all())
 
-    # Batch-fetch booking numbers for all invoices in one query.
+    # Batch-fetch booking numbers and guest phones for all invoices in one query.
     booking_ids = [inv.booking_id for inv in invoices if inv.booking_id]
     booking_num_map: dict = {}
+    guest_phone_map: dict = {}
     if booking_ids:
+        from app.models.guest import Guest as _Guest
+
         rows = (
             await db.execute(
-                select(_Booking.id, _Booking.booking_number).where(
-                    _Booking.id.in_(booking_ids)
-                )
+                select(_Booking.id, _Booking.booking_number, _Guest.normalized_phone)
+                .outerjoin(_Guest, _Guest.id == _Booking.primary_guest_id)
+                .where(_Booking.id.in_(booking_ids))
             )
         ).all()
         booking_num_map = {row[0]: row[1] for row in rows}
+        guest_phone_map = {row[0]: row[2] for row in rows}
 
     return [
-        {"invoice": inv, "booking_number": booking_num_map.get(inv.booking_id)}
+        {
+            "invoice": inv,
+            "booking_number": booking_num_map.get(inv.booking_id),
+            "guest_phone": guest_phone_map.get(inv.booking_id),
+        }
         for inv in invoices
     ], total
 

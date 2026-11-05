@@ -18,6 +18,8 @@ from app.schemas.booking import (
     BookingOut,
     BookingRoomReplaceRequest,
     BookingUpdate,
+    PublicStaySlipOut,
+    PublicVoucherOut,
 )
 from app.services import bookings as bookings_service
 
@@ -309,6 +311,174 @@ async def booking_registration_pdf(
         content=pdf,
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="stay-slip-{booking_id}.pdf"'},
+    )
+
+
+@router.get("/public/{booking_id}/voucher")
+async def public_booking_voucher_detail(
+    booking_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> PublicVoucherOut:
+    """Public read-only advance booking voucher details for customer preview."""
+    from sqlalchemy import select
+
+    from app.core.errors import NotFoundError
+    from app.models.booking import Booking, BookingRoom
+    from app.models.guest import Guest
+    from app.models.hotel import Hotel
+    from app.models.room import Room
+
+    booking = await db.get(Booking, booking_id)
+    if not booking:
+        raise NotFoundError("Booking not found", code="booking_not_found")
+
+    hotel = await db.get(Hotel, booking.hotel_id)
+    hotel_name = hotel.name if hotel else "Hotel"
+    hotel_addr = (
+        ", ".join(
+            filter(
+                None,
+                [
+                    hotel.address_line1 if hotel else "",
+                    hotel.city if hotel else "",
+                    hotel.state if hotel else "",
+                ],
+            )
+        )
+        if hotel
+        else None
+    )
+    hotel_phone = hotel.phone if hotel else None
+    hotel_gstin: str | None = None
+
+    guest_name = "Guest"
+    guest_phone = None
+    if booking.primary_guest_id:
+        guest = await db.get(Guest, booking.primary_guest_id)
+        if guest:
+            guest_name = guest.full_name
+            guest_phone = guest.normalized_phone
+
+    room_rows = (
+        await db.execute(
+            select(Room.room_number)
+            .join(BookingRoom, BookingRoom.room_id == Room.id)
+            .where(
+                BookingRoom.booking_id == booking.id,
+                BookingRoom.is_current.is_(True),
+            )
+            .order_by(Room.room_number)
+        )
+    ).scalars().all()
+    room_str = ", ".join(room_rows) if room_rows else "Assigned at check-in"
+
+    nights = None
+    if booking.check_in_date and booking.check_out_date:
+        nights = max(1, (booking.check_out_date - booking.check_in_date).days)
+
+    return PublicVoucherOut(
+        id=booking.id,
+        voucher_number=f"VCH-{booking.booking_number}",
+        booking_number=booking.booking_number,
+        status=booking.status,
+        guest_name=guest_name,
+        guest_phone=guest_phone,
+        hotel_name=hotel_name,
+        hotel_address=hotel_addr,
+        hotel_phone=hotel_phone,
+        hotel_gstin=hotel_gstin,
+        room_numbers_or_type=room_str,
+        check_in_date=booking.check_in_date,
+        check_in_time=booking.check_in_time,
+        check_out_date=booking.check_out_date,
+        check_out_time=booking.check_out_time,
+        nights=nights,
+        adults=booking.adults,
+        children=booking.children,
+        total_estimated_tariff=booking.total_amount,
+        advance_paid=booking.advance_amount,
+        balance_due=booking.due_amount,
+        payment_method=booking.payment_status,
+        pdf_url=f"/api/v1/bookings/public/{booking.id}/voucher/pdf",
+    )
+
+
+@router.get("/public/{booking_id}/registration")
+async def public_booking_registration_detail(
+    booking_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> PublicStaySlipOut:
+    """Public read-only in-stay registration & stay slip details for customer preview."""
+    from sqlalchemy import select
+
+    from app.core.errors import NotFoundError
+    from app.models.booking import Booking, BookingRoom
+    from app.models.guest import Guest
+    from app.models.hotel import Hotel
+    from app.models.room import Room
+
+    booking = await db.get(Booking, booking_id)
+    if not booking:
+        raise NotFoundError("Booking not found", code="booking_not_found")
+
+    hotel = await db.get(Hotel, booking.hotel_id)
+    hotel_name = hotel.name if hotel else "Hotel"
+    hotel_addr = (
+        ", ".join(
+            filter(
+                None,
+                [
+                    hotel.address_line1 if hotel else "",
+                    hotel.city if hotel else "",
+                    hotel.state if hotel else "",
+                ],
+            )
+        )
+        if hotel
+        else None
+    )
+    hotel_phone = hotel.phone if hotel else None
+    hotel_gstin: str | None = None
+
+    guest_name = "Guest"
+    guest_phone = None
+    if booking.primary_guest_id:
+        guest = await db.get(Guest, booking.primary_guest_id)
+        if guest:
+            guest_name = guest.full_name
+            guest_phone = guest.normalized_phone
+
+    room_rows = (
+        await db.execute(
+            select(Room.room_number)
+            .join(BookingRoom, BookingRoom.room_id == Room.id)
+            .where(
+                BookingRoom.booking_id == booking.id,
+                BookingRoom.is_current.is_(True),
+            )
+            .order_by(Room.room_number)
+        )
+    ).scalars().all()
+    room_str = ", ".join(room_rows) if room_rows else "—"
+
+    return PublicStaySlipOut(
+        id=booking.id,
+        booking_number=booking.booking_number,
+        guest_name=guest_name,
+        guest_phone=guest_phone,
+        hotel_name=hotel_name,
+        hotel_address=hotel_addr,
+        hotel_phone=hotel_phone,
+        hotel_gstin=hotel_gstin,
+        room_numbers=room_str,
+        check_in_date=str(booking.check_in_date) if booking.check_in_date else None,
+        check_in_time=booking.check_in_time,
+        check_out_date=str(booking.check_out_date) if booking.check_out_date else None,
+        check_out_time=booking.check_out_time,
+        guest_count=booking.adults + booking.children,
+        due_amount=booking.due_amount,
+        payment_status=booking.payment_status,
+        pdf_url=f"/api/v1/bookings/public/{booking.id}/registration/pdf",
     )
 
 

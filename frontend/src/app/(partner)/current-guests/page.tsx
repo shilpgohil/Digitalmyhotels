@@ -60,9 +60,11 @@ import {
   buildStaySlipWhatsAppMessage,
   downloadPdfBlob,
   getAbsolutePublicUrl,
+  normalizeWhatsAppPhone,
   openWhatsAppToCustomer,
   sharePdfFileViaNative,
 } from "@/lib/whatsapp-share";
+import { WhatsAppPhoneDialog } from "@/components/stay/whatsapp-phone-dialog";
 import type { ListOut, RoomOut } from "@/types/hotel";
 import type { BookingGuestDocOut, BookingGuestOut, BookingOut, CurrentGuestOut, ForeignGuestIn, GuestOut } from "@/types/stay";
 import { RequirePermission } from "@/components/auth/require-permission";
@@ -126,6 +128,17 @@ function CurrentGuestsContent() {
   // When set, the stay-detail dialog auto-triggers the registration print as
   // soon as the booking detail loads (row "Print" action).
   const [autoPrint, setAutoPrint] = useState(false);
+  const [waDialogState, setWaDialogState] = useState<{
+    open: boolean;
+    phone?: string | null;
+    guestName?: string | null;
+    documentTitle: string;
+    message: string;
+  }>({
+    open: false,
+    documentTitle: "Stay Slip",
+    message: "",
+  });
 
   // Keep URL in sync with search filter so refresh/share preserves state
   useEffect(() => {
@@ -186,27 +199,30 @@ function CurrentGuestsContent() {
     staleTime: 5 * 60_000,
   });
 
-  const handleShareStaySlip = async (entry: CurrentGuestOut) => {
-    try {
-      const token = getAccessToken();
-      const res = await fetch(`${API_BASE}/api/v1/bookings/${entry.booking_id}/registration/pdf`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : "",
-          "X-Hotel-Id": activeHotelId ?? "",
-        },
-        credentials: "include",
-      });
-      if (res.ok) {
-        const blob = await res.blob();
-        const guestClean = (entry.primary_guest_name || "Guest")
-          .replace(/[^\w\s-]/g, "")
-          .trim()
-          .replace(/\s+/g, "_");
-        downloadPdfBlob(blob, `Stay_Slip_${entry.booking_number}_${guestClean}.pdf`);
+  const handleShareStaySlip = (entry: CurrentGuestOut) => {
+    // 1. Download the official Stay Slip PDF in background without blocking user gesture
+    void (async () => {
+      try {
+        const token = getAccessToken();
+        const res = await fetch(`${API_BASE}/api/v1/bookings/${entry.booking_id}/registration/pdf`, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+            "X-Hotel-Id": activeHotelId ?? "",
+          },
+          credentials: "include",
+        });
+        if (res.ok) {
+          const blob = await res.blob();
+          const guestClean = (entry.primary_guest_name || "Guest")
+            .replace(/[^\w\s-]/g, "")
+            .trim()
+            .replace(/\s+/g, "_");
+          downloadPdfBlob(blob, `Stay_Slip_${entry.booking_number}_${guestClean}.pdf`);
+        }
+      } catch {
+        // Continue even if direct background PDF download fails
       }
-    } catch {
-      // Continue to open WhatsApp even if direct PDF download fails
-    }
+    })();
 
     const hotelAddr = hotelProfile.data
       ? [hotelProfile.data.address_line1, hotelProfile.data.city].filter(Boolean).join(", ")
@@ -227,15 +243,23 @@ function CurrentGuestsContent() {
       adults: entry.guest_count,
       dueAmount: entry.due_amount,
       paymentStatus: entry.payment_status,
-      pdfUrl: getAbsolutePublicUrl(`/api/v1/bookings/public/${entry.booking_id}/registration/pdf`),
+      pdfUrl: getAbsolutePublicUrl(`/stay-slip/${entry.booking_id}`),
     });
 
-    openWhatsAppToCustomer(entry.primary_guest_phone, message);
-    toast.success(
-      entry.primary_guest_phone
-        ? `Stay Slip PDF downloaded & WhatsApp opened for ${entry.primary_guest_name || entry.primary_guest_phone}!`
-        : "Stay Slip PDF downloaded & WhatsApp opened!",
-    );
+    if (normalizeWhatsAppPhone(entry.primary_guest_phone)) {
+      openWhatsAppToCustomer(entry.primary_guest_phone, message);
+      toast.success(
+        `Stay Slip PDF downloaded & WhatsApp opened for ${entry.primary_guest_name || entry.primary_guest_phone}!`,
+      );
+    } else {
+      setWaDialogState({
+        open: true,
+        phone: entry.primary_guest_phone || "",
+        guestName: entry.primary_guest_name,
+        documentTitle: `Stay Slip (${entry.booking_number})`,
+        message,
+      });
+    }
   };
 
   const handleShareStaySlipNative = async (entry: CurrentGuestOut) => {
@@ -258,7 +282,7 @@ function CurrentGuestsContent() {
         .trim()
         .replace(/\s+/g, "_");
       const filename = `Stay_Slip_${entry.booking_number}_${guestClean}.pdf`;
-      const pdfUrl = getAbsolutePublicUrl(`/api/v1/bookings/public/${entry.booking_id}/registration/pdf`);
+      const pdfUrl = getAbsolutePublicUrl(`/stay-slip/${entry.booking_id}`);
       const hotelAddr = hotelProfile.data
         ? [hotelProfile.data.address_line1, hotelProfile.data.city].filter(Boolean).join(", ")
         : "";
@@ -289,7 +313,17 @@ function CurrentGuestsContent() {
       );
       if (!shared) {
         downloadPdfBlob(blob, filename);
-        openWhatsAppToCustomer(entry.primary_guest_phone, message);
+        if (normalizeWhatsAppPhone(entry.primary_guest_phone)) {
+          openWhatsAppToCustomer(entry.primary_guest_phone, message);
+        } else {
+          setWaDialogState({
+            open: true,
+            phone: entry.primary_guest_phone || "",
+            guestName: entry.primary_guest_name,
+            documentTitle: `Stay Slip (${entry.booking_number})`,
+            message,
+          });
+        }
       }
     } catch {
       toast.error("Failed to share stay slip");
@@ -569,6 +603,15 @@ function CurrentGuestsContent() {
           entry={transferTarget}
           onClose={() => setTransferTarget(null)}
           onDone={invalidate}
+        />
+
+        <WhatsAppPhoneDialog
+          open={waDialogState.open}
+          onClose={() => setWaDialogState((prev) => ({ ...prev, open: false }))}
+          initialPhone={waDialogState.phone}
+          guestName={waDialogState.guestName}
+          documentTitle={waDialogState.documentTitle}
+          message={waDialogState.message}
         />
       </main>
     </>

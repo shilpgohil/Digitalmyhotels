@@ -39,9 +39,12 @@ import { getAccessToken } from "@/lib/auth/session";
 import {
   buildInvoiceWhatsAppMessage,
   downloadPdfBlob,
+  getAbsolutePublicUrl,
+  normalizeWhatsAppPhone,
   openWhatsAppToCustomer,
   sharePdfFileViaNative,
 } from "@/lib/whatsapp-share";
+import { WhatsAppPhoneDialog } from "@/components/stay/whatsapp-phone-dialog";
 import type { GstSettingsOut, HotelOut, ListOut } from "@/types/hotel";
 import type { BookingOut } from "@/types/stay";
 import type { InvoiceOut } from "@/types/money";
@@ -77,6 +80,17 @@ function InvoicesContent() {
   // Selected invoice for the styled preview card.
   const [selectedId, setSelectedId] = useState("");
   const [sharingPdf, setSharingPdf] = useState(false);
+  const [waDialogState, setWaDialogState] = useState<{
+    open: boolean;
+    phone?: string | null;
+    guestName?: string | null;
+    documentTitle: string;
+    message: string;
+  }>({
+    open: false,
+    documentTitle: "Tax Invoice",
+    message: "",
+  });
   /** Scroll target for the preview card. */
   const previewRef = useRef<HTMLDivElement>(null);
 
@@ -175,34 +189,35 @@ function InvoicesContent() {
         .join(", ")
     : "";
 
-  const guestPhone = booking.data?.primary_guest_phone ?? null;
+  const guestPhone = invoice?.guest_phone || booking.data?.primary_guest_phone || null;
 
-  const shareInvoiceWhatsApp = async () => {
+  const shareInvoiceWhatsApp = () => {
     if (!invoice) return;
     const phone = guestPhone;
-    setSharingPdf(true);
-    try {
-      const token = getAccessToken();
-      const res = await fetch(`${API_BASE}/api/v1/invoices/${invoice.id}/pdf`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : "",
-          "X-Hotel-Id": activeHotelId ?? "",
-        },
-        credentials: "include",
-      });
-      if (res.ok) {
-        const blob = await res.blob();
-        const guestClean = (invoice.guest_name || "Guest")
-          .replace(/[^\w\s-]/g, "")
-          .trim()
-          .replace(/\s+/g, "_");
-        downloadPdfBlob(blob, `Invoice_${invoice.invoice_number}_${guestClean}.pdf`);
+
+    // Trigger local PDF download asynchronously without blocking the user gesture
+    void (async () => {
+      try {
+        const token = getAccessToken();
+        const res = await fetch(`${API_BASE}/api/v1/invoices/${invoice.id}/pdf`, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+            "X-Hotel-Id": activeHotelId ?? "",
+          },
+          credentials: "include",
+        });
+        if (res.ok) {
+          const blob = await res.blob();
+          const guestClean = (invoice.guest_name || "Guest")
+            .replace(/[^\w\s-]/g, "")
+            .trim()
+            .replace(/\s+/g, "_");
+          downloadPdfBlob(blob, `Invoice_${invoice.invoice_number}_${guestClean}.pdf`);
+        }
+      } catch {
+        // Continue even if direct background PDF download fails
       }
-    } catch {
-      // Continue to open WhatsApp even if direct PDF download fails
-    } finally {
-      setSharingPdf(false);
-    }
+    })();
 
     const roomNumbers =
       booking.data?.rooms
@@ -221,7 +236,7 @@ function InvoicesContent() {
           )
         : undefined;
 
-    const pdfUrl = `${API_BASE}/api/v1/invoices/public/${invoice.id}/pdf`;
+    const pdfUrl = getAbsolutePublicUrl(`/invoice/${invoice.id}`);
 
     const message = buildInvoiceWhatsAppMessage({
       hotelName: hotel.data?.name || "Hotel",
@@ -244,12 +259,20 @@ function InvoicesContent() {
       pdfUrl,
     });
 
-    openWhatsAppToCustomer(phone, message);
-    toast.success(
-      phone
-        ? `Invoice PDF downloaded & WhatsApp opened for ${invoice.guest_name || phone}!`
-        : "Invoice PDF downloaded & WhatsApp opened!",
-    );
+    if (normalizeWhatsAppPhone(phone)) {
+      openWhatsAppToCustomer(phone, message);
+      toast.success(
+        `Invoice PDF downloaded & WhatsApp opened for ${invoice.guest_name || phone}!`,
+      );
+    } else {
+      setWaDialogState({
+        open: true,
+        phone: phone || "",
+        guestName: invoice.guest_name,
+        documentTitle: `Tax Invoice (${invoice.invoice_number})`,
+        message,
+      });
+    }
   };
 
   const shareInvoiceNativeFile = async () => {
@@ -274,7 +297,7 @@ function InvoicesContent() {
         .trim()
         .replace(/\s+/g, "_");
       const filename = `Invoice_${invoice.invoice_number}_${guestClean}.pdf`;
-      const pdfUrl = `${API_BASE}/api/v1/invoices/public/${invoice.id}/pdf`;
+      const pdfUrl = getAbsolutePublicUrl(`/invoice/${invoice.id}`);
       const message = buildInvoiceWhatsAppMessage({
         hotelName: hotel.data?.name || "Hotel",
         hotelPhone: hotel.data?.phone,
@@ -297,7 +320,17 @@ function InvoicesContent() {
       );
       if (!shared) {
         downloadPdfBlob(blob, filename);
-        openWhatsAppToCustomer(guestPhone, message);
+        if (normalizeWhatsAppPhone(guestPhone)) {
+          openWhatsAppToCustomer(guestPhone, message);
+        } else {
+          setWaDialogState({
+            open: true,
+            phone: guestPhone || "",
+            guestName: invoice.guest_name,
+            documentTitle: `Tax Invoice (${invoice.invoice_number})`,
+            message,
+          });
+        }
       }
     } catch {
       toast.error(tc("error"));
@@ -510,17 +543,15 @@ function InvoicesContent() {
                 <Printer className="size-4" aria-hidden />
                 {tp("print")}
               </Button>
-              {guestPhone && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  disabled={sharingPdf}
-                  onClick={() => void shareInvoiceWhatsApp()}
-                >
-                  <MessageCircle className="size-4" aria-hidden />
-                  {sharingPdf ? tp("preparingPdf") : tp("whatsapp")}
-                </Button>
-              )}
+              <Button
+                variant="default"
+                size="sm"
+                disabled={sharingPdf}
+                onClick={() => void shareInvoiceWhatsApp()}
+              >
+                <MessageCircle className="size-4" aria-hidden />
+                {sharingPdf ? tp("preparingPdf") : tp("whatsapp")}
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -770,6 +801,14 @@ function InvoicesContent() {
             cancelConfirm.hide();
             setCancelTarget(null);
           }}
+        />
+        <WhatsAppPhoneDialog
+          open={waDialogState.open}
+          onClose={() => setWaDialogState((prev) => ({ ...prev, open: false }))}
+          initialPhone={waDialogState.phone}
+          guestName={waDialogState.guestName}
+          documentTitle={waDialogState.documentTitle}
+          message={waDialogState.message}
         />
       </main>
     </>

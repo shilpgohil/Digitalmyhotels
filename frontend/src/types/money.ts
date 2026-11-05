@@ -81,6 +81,7 @@ export interface InvoiceOut {
   status: string;
   guest_name: string;
   guest_address: string | null;
+  guest_phone?: string | null;
   subtotal: string;
   discount_amount: string;
   cgst_amount: string;

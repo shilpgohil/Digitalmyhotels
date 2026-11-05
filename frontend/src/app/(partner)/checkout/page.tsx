@@ -54,9 +54,11 @@ import { fmtMoney, money } from "@/components/stay/checkout-summary";
 import {
   buildInvoiceWhatsAppMessage,
   downloadPdfBlob,
+  getAbsolutePublicUrl,
+  normalizeWhatsAppPhone,
   openWhatsAppToCustomer,
-  sharePdfFileViaNative,
 } from "@/lib/whatsapp-share";
+import { WhatsAppPhoneDialog } from "@/components/stay/whatsapp-phone-dialog";
 import type { ListOut, HotelOut, HotelSettingsOut } from "@/types/hotel";
 import type { ChargeOut } from "@/types/money";
 import type {
@@ -169,6 +171,17 @@ function CheckoutContent() {
   const [checkoutResult, setCheckoutResult] = useState<CheckOutOut | null>(null);
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
   const [invoiceBusy, setInvoiceBusy] = useState(false);
+  const [waDialogState, setWaDialogState] = useState<{
+    open: boolean;
+    phone?: string | null;
+    guestName?: string | null;
+    documentTitle: string;
+    message: string;
+  }>({
+    open: false,
+    documentTitle: "Tax Invoice",
+    message: "",
+  });
 
   const resetForm = () => {
     setActualCheckoutTime(settingsQuery.data?.check_out_time?.slice(0, 5) ?? "");
@@ -580,32 +593,27 @@ function CheckoutContent() {
   };
 
   const openWhatsApp = async () => {
-    const phone = booking?.primary_guest_phone;
-    if (!phone) {
-      toast.error(tp("noGuestPhone"));
-      return;
-    }
+    const phone = booking?.primary_guest_phone ?? null;
     const total = checkoutResult ? money(checkoutResult.final_total) : grandTotal;
     const hotelName = hotelQuery.data?.name ?? tp("waHotelFallback");
 
     const id = invoiceId ?? (done ? await ensureInvoice() : null);
     if (id) {
-      setInvoiceBusy(true);
-      try {
-        const blob = await fetchInvoicePdfBlob(id);
-        if (blob) {
-          const guestClean = (booking?.primary_guest_name || "Guest")
-            .replace(/[^\w\s-]/g, "")
-            .trim()
-            .replace(/\s+/g, "_");
-          const bNum = entry?.booking_number || id;
-          downloadPdfBlob(blob, `Invoice_${bNum}_${guestClean}.pdf`);
+      void (async () => {
+        try {
+          const blob = await fetchInvoicePdfBlob(id);
+          if (blob) {
+            const guestClean = (booking?.primary_guest_name || "Guest")
+              .replace(/[^\w\s-]/g, "")
+              .trim()
+              .replace(/\s+/g, "_");
+            const bNum = entry?.booking_number || id;
+            downloadPdfBlob(blob, `Invoice_${bNum}_${guestClean}.pdf`);
+          }
+        } catch {
+          // Continue even if background download fails
         }
-      } catch {
-        // Continue to open WhatsApp
-      } finally {
-        setInvoiceBusy(false);
-      }
+      })();
     }
 
     const hotelAddr = hotelQuery.data
@@ -653,13 +661,23 @@ function CheckoutContent() {
       totalAmount: total.toFixed(2),
       paidAmount: total.toFixed(2),
       dueAmount: "0.00",
-      pdfUrl: id ? `${API_BASE}/api/v1/invoices/public/${id}/pdf` : undefined,
+      pdfUrl: id ? getAbsolutePublicUrl(`/invoice/${id}`) : undefined,
     });
 
-    openWhatsAppToCustomer(phone, message);
-    toast.success(
-      `Invoice PDF downloaded & WhatsApp opened for ${booking?.primary_guest_name || phone}!`,
-    );
+    if (normalizeWhatsAppPhone(phone)) {
+      openWhatsAppToCustomer(phone, message);
+      toast.success(
+        `Invoice PDF downloaded & WhatsApp opened for ${booking?.primary_guest_name || phone}!`,
+      );
+    } else {
+      setWaDialogState({
+        open: true,
+        phone: phone || "",
+        guestName: booking?.primary_guest_name || "Guest",
+        documentTitle: `Tax Invoice (${entry?.booking_number ? `INV-${entry.booking_number}` : "INVOICE"})`,
+        message,
+      });
+    }
   };
 
   /** Copy the raw UPI ID (owner/admin only — button lives behind canViewUpiId). */
@@ -1383,7 +1401,7 @@ function CheckoutContent() {
                         variant="outline"
                         className="h-[42px] w-full text-success hover:text-success"
                         onClick={() => void openWhatsApp()}
-                        disabled={!done || !booking?.primary_guest_phone || invoiceBusy}
+                        disabled={!done || invoiceBusy}
                       >
                         <MessageCircle className="mr-2 size-4" aria-hidden />
                         WhatsApp
@@ -1400,6 +1418,15 @@ function CheckoutContent() {
             </Card>
           </div>
         </div>
+
+        <WhatsAppPhoneDialog
+          open={waDialogState.open}
+          onClose={() => setWaDialogState((prev) => ({ ...prev, open: false }))}
+          initialPhone={waDialogState.phone}
+          guestName={waDialogState.guestName}
+          documentTitle={waDialogState.documentTitle}
+          message={waDialogState.message}
+        />
       </main>
     </>
   );

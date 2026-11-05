@@ -58,14 +58,37 @@ export function getAbsolutePublicUrl(path: string): string {
 export function openWhatsAppToCustomer(
   phone: string | null | undefined,
   message: string,
-): Window | null {
-  if (typeof window === "undefined") return null;
+): { success: boolean; cleanPhone: string | null } {
+  if (typeof window === "undefined") return { success: false, cleanPhone: null };
   const cleanPhone = normalizeWhatsAppPhone(phone);
   const encodedText = encodeURIComponent(message);
-  const url = cleanPhone
-    ? `https://wa.me/${cleanPhone}?text=${encodedText}`
-    : `https://wa.me/?text=${encodedText}`;
-  return window.open(url, "_blank", "noopener,noreferrer");
+
+  const isMobile =
+    typeof navigator !== "undefined" &&
+    /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  if (cleanPhone) {
+    if (isMobile) {
+      // Mobile deep-linking to open WhatsApp app directly into customer's chat
+      const appUrl = `whatsapp://send?phone=${cleanPhone}&text=${encodedText}`;
+      const webFallback = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
+      try {
+        window.location.href = appUrl;
+      } catch {
+        window.open(webFallback, "_blank", "noopener,noreferrer");
+      }
+    } else {
+      // Desktop: directly open WhatsApp Web to open contact chat without landing screen
+      const webUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
+      window.open(webUrl, "_blank", "noopener,noreferrer");
+    }
+    return { success: true, cleanPhone };
+  } else {
+    // When phone is missing: fallback to general share
+    const fallbackUrl = `https://wa.me/?text=${encodedText}`;
+    window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+    return { success: false, cleanPhone: null };
+  }
 }
 
 export async function sharePdfFileViaNative(

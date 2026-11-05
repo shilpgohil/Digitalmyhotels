@@ -192,3 +192,54 @@ class BookingCancel(BaseModel):
 class BookingListOut(BaseModel):
     items: list[BookingOut]
     total: int
+
+
+class PublicVoucherOut(BaseModel):
+    """Public read-only advance booking voucher for customer viewing & 1-click PDF download."""
+
+    id: UUID
+    voucher_number: str
+    booking_number: str
+    status: str
+    guest_name: str
+    guest_phone: str | None = None
+    hotel_name: str
+    hotel_address: str | None = None
+    hotel_phone: str | None = None
+    hotel_gstin: str | None = None
+    room_numbers_or_type: str | None = None
+    check_in_date: date | None = None
+    check_in_time: str | None = None
+    check_out_date: date | None = None
+    check_out_time: str | None = None
+    nights: int | None = None
+    adults: int = 1
+    children: int = 0
+    total_estimated_tariff: Decimal
+    advance_paid: Decimal
+    balance_due: Decimal
+    payment_method: str | None = None
+    pdf_url: str
+
+
+class PublicStaySlipOut(BaseModel):
+    """Public read-only stay slip for customer viewing & 1-click PDF download."""
+
+    id: UUID
+    booking_number: str
+    guest_name: str
+    guest_phone: str | None = None
+    hotel_name: str
+    hotel_address: str | None = None
+    hotel_phone: str | None = None
+    hotel_gstin: str | None = None
+    room_numbers: str | None = None
+    check_in_date: str | None = None
+    check_in_time: str | None = None
+    check_out_date: str | None = None
+    check_out_time: str | None = None
+    guest_count: int = 1
+    due_amount: Decimal
+    payment_status: str
+    pdf_url: str
+
