@@ -55,6 +55,15 @@ export function getAbsolutePublicUrl(path: string): string {
   return `${origin}${cleanPath}`;
 }
 
+/**
+ * Opens WhatsApp directly to the customer's chat with the pre-filled message.
+ *
+ * Uses the canonical, official Meta universal link: https://wa.me/<cleanPhone>?text=<encodedText>
+ * - On Mobile (Android/iOS): App Links / Universal Links immediately open the native WhatsApp application
+ *   directly into the customer's chat without opening WhatsApp Web.
+ * - On Desktop: Seamlessly gives the choice to launch the WhatsApp Desktop app or use WhatsApp Web.
+ * - Never forces web.whatsapp.com onto a mobile browser.
+ */
 export function openWhatsAppToCustomer(
   phone: string | null | undefined,
   message: string,
@@ -63,32 +72,26 @@ export function openWhatsAppToCustomer(
   const cleanPhone = normalizeWhatsAppPhone(phone);
   const encodedText = encodeURIComponent(message);
 
+  const targetUrl = cleanPhone
+    ? `https://wa.me/${cleanPhone}?text=${encodedText}`
+    : `https://wa.me/?text=${encodedText}`;
+
+  // Check if running on a touch/mobile device
   const isMobile =
     typeof navigator !== "undefined" &&
-    /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    (/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints && navigator.maxTouchPoints > 1));
 
-  if (cleanPhone) {
-    if (isMobile) {
-      // Mobile deep-linking to open WhatsApp app directly into customer's chat
-      const appUrl = `whatsapp://send?phone=${cleanPhone}&text=${encodedText}`;
-      const webFallback = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
-      try {
-        window.location.href = appUrl;
-      } catch {
-        window.open(webFallback, "_blank", "noopener,noreferrer");
-      }
-    } else {
-      // Desktop: directly open WhatsApp Web to open contact chat without landing screen
-      const webUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
-      window.open(webUrl, "_blank", "noopener,noreferrer");
-    }
-    return { success: true, cleanPhone };
+  if (isMobile) {
+    // On mobile devices: direct window location navigation cleanly triggers iOS Universal Links
+    // or Android App Links directly into the native WhatsApp app without leaving an empty browser tab
+    window.location.href = targetUrl;
   } else {
-    // When phone is missing: fallback to general share
-    const fallbackUrl = `https://wa.me/?text=${encodedText}`;
-    window.open(fallbackUrl, "_blank", "noopener,noreferrer");
-    return { success: false, cleanPhone: null };
+    // On desktop: open in a new tab so the hotel management dashboard remains active
+    window.open(targetUrl, "_blank", "noopener,noreferrer");
   }
+
+  return { success: !!cleanPhone, cleanPhone };
 }
 
 export async function sharePdfFileViaNative(
