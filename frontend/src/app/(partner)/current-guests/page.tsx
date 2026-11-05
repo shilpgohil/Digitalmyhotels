@@ -59,7 +59,9 @@ import { getAccessToken } from "@/lib/auth/session";
 import {
   buildStaySlipWhatsAppMessage,
   downloadPdfBlob,
+  getAbsolutePublicUrl,
   openWhatsAppToCustomer,
+  sharePdfFileViaNative,
 } from "@/lib/whatsapp-share";
 import type { ListOut, RoomOut } from "@/types/hotel";
 import type { BookingGuestDocOut, BookingGuestOut, BookingOut, CurrentGuestOut, ForeignGuestIn, GuestOut } from "@/types/stay";
@@ -225,7 +227,7 @@ function CurrentGuestsContent() {
       adults: entry.guest_count,
       dueAmount: entry.due_amount,
       paymentStatus: entry.payment_status,
-      pdfUrl: `${API_BASE}/api/v1/bookings/public/${entry.booking_id}/registration/pdf`,
+      pdfUrl: getAbsolutePublicUrl(`/api/v1/bookings/public/${entry.booking_id}/registration/pdf`),
     });
 
     openWhatsAppToCustomer(entry.primary_guest_phone, message);
@@ -234,6 +236,64 @@ function CurrentGuestsContent() {
         ? `Stay Slip PDF downloaded & WhatsApp opened for ${entry.primary_guest_name || entry.primary_guest_phone}!`
         : "Stay Slip PDF downloaded & WhatsApp opened!",
     );
+  };
+
+  const handleShareStaySlipNative = async (entry: CurrentGuestOut) => {
+    try {
+      const token = getAccessToken();
+      const res = await fetch(`${API_BASE}/api/v1/bookings/${entry.booking_id}/registration/pdf`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+          "X-Hotel-Id": activeHotelId ?? "",
+        },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        toast.error("Failed to generate Stay Slip PDF");
+        return;
+      }
+      const blob = await res.blob();
+      const guestClean = (entry.primary_guest_name || "Guest")
+        .replace(/[^\w\s-]/g, "")
+        .trim()
+        .replace(/\s+/g, "_");
+      const filename = `Stay_Slip_${entry.booking_number}_${guestClean}.pdf`;
+      const pdfUrl = getAbsolutePublicUrl(`/api/v1/bookings/public/${entry.booking_id}/registration/pdf`);
+      const hotelAddr = hotelProfile.data
+        ? [hotelProfile.data.address_line1, hotelProfile.data.city].filter(Boolean).join(", ")
+        : "";
+
+      const message = buildStaySlipWhatsAppMessage({
+        hotelName: hotelProfile.data?.name || "Hotel",
+        hotelPhone: hotelProfile.data?.phone,
+        hotelAddress: hotelAddr,
+        guestName: entry.primary_guest_name || "Guest",
+        guestPhone: entry.primary_guest_phone,
+        bookingNumber: entry.booking_number,
+        roomNumbers: (entry.rooms ?? []).join(", "),
+        checkInDate: fmtApiDate(entry.checked_in_at.split("T")[0]),
+        checkInTime: entry.check_in_time,
+        checkOutDate: fmtApiDate(entry.check_out_date),
+        checkOutTime: entry.check_out_time,
+        adults: entry.guest_count,
+        dueAmount: entry.due_amount,
+        paymentStatus: entry.payment_status,
+        pdfUrl,
+      });
+
+      const shared = await sharePdfFileViaNative(
+        blob,
+        filename,
+        `${hotelProfile.data?.name || "Hotel"} Stay Slip ${entry.booking_number}`,
+        message,
+      );
+      if (!shared) {
+        downloadPdfBlob(blob, filename);
+        openWhatsAppToCustomer(entry.primary_guest_phone, message);
+      }
+    } catch {
+      toast.error("Failed to share stay slip");
+    }
   };
 
   const handleDownloadStaySlipPdf = async (entry: CurrentGuestOut) => {
@@ -396,6 +456,10 @@ function CurrentGuestsContent() {
                             <Share2 className="size-4 text-emerald-600" aria-hidden />
                             {t("shareStaySlipWhatsApp")}
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => void handleShareStaySlipNative(entry)}>
+                            <Share2 className="size-4" aria-hidden />
+                            Share PDF File
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => void handleDownloadStaySlipPdf(entry)}>
                             <Download className="size-4" aria-hidden />
                             {t("downloadStaySlipPdf")}
@@ -493,6 +557,7 @@ function CurrentGuestsContent() {
             setAutoPrint(false);
           }}
           onShareWhatsApp={handleShareStaySlip}
+          onShareNative={handleShareStaySlipNative}
           onDownloadPdf={handleDownloadStaySlipPdf}
         />
         <EditStayDialog
@@ -515,6 +580,7 @@ function StayDetailDialog({
   autoPrint = false,
   onClose,
   onShareWhatsApp,
+  onShareNative,
   onDownloadPdf,
 }: {
   entry: CurrentGuestOut | null;
@@ -522,6 +588,7 @@ function StayDetailDialog({
   autoPrint?: boolean;
   onClose: () => void;
   onShareWhatsApp?: (entry: CurrentGuestOut) => void;
+  onShareNative?: (entry: CurrentGuestOut) => void;
   onDownloadPdf?: (entry: CurrentGuestOut) => void;
 }) {
   const t = useTranslations("stay");
@@ -851,6 +918,18 @@ function StayDetailDialog({
               >
                 <Share2 className="size-4" aria-hidden />
                 {t("shareStaySlipWhatsApp")}
+              </Button>
+            )}
+            {entry && onShareNative && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onShareNative(entry)}
+                className="gap-1.5"
+                title="Attach PDF file to WhatsApp or apps"
+              >
+                <Share2 className="size-4" aria-hidden />
+                Share PDF File
               </Button>
             )}
             {entry && onDownloadPdf && (

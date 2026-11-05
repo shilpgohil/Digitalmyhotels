@@ -44,7 +44,9 @@ import { useAuth } from "@/lib/auth/auth-context";
 import {
   buildAdvanceBookingWhatsAppMessage,
   downloadPdfBlob,
+  getAbsolutePublicUrl,
   openWhatsAppToCustomer,
+  sharePdfFileViaNative,
 } from "@/lib/whatsapp-share";
 import type { BookingOut } from "@/types/stay";
 import type { HotelOut } from "@/types/hotel";
@@ -217,7 +219,7 @@ export function AdvanceBookingVoucherModal({
       advancePaid,
       paymentMethod: payMethod,
       balanceDue: booking.due_amount,
-      pdfUrl: `${API_BASE}/api/v1/bookings/public/${booking.id}/voucher/pdf`,
+      pdfUrl: getAbsolutePublicUrl(`/api/v1/bookings/public/${booking.id}/voucher/pdf`),
     });
 
     openWhatsAppToCustomer(booking.primary_guest_phone, message);
@@ -226,6 +228,81 @@ export function AdvanceBookingVoucherModal({
         ? `Voucher PDF downloaded & WhatsApp opened for ${booking.primary_guest_name || booking.primary_guest_phone}!`
         : "Voucher PDF downloaded & WhatsApp opened!",
     );
+  };
+
+  const handleShareNative = async () => {
+    try {
+      const token = getAccessToken();
+      const res = await fetch(`${API_BASE}/api/v1/bookings/${booking.id}/voucher/pdf`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+          "X-Hotel-Id": activeHotelId ?? "",
+        },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        toast.error("Failed to generate voucher PDF");
+        return;
+      }
+      const blob = await res.blob();
+      const guestClean = (booking.primary_guest_name || "Guest")
+        .replace(/[^\w\s-]/g, "")
+        .trim()
+        .replace(/\s+/g, "_");
+      const filename = `Booking_Voucher_${voucherRef}_${guestClean}.pdf`;
+      const pdfUrl = getAbsolutePublicUrl(`/api/v1/bookings/public/${booking.id}/voucher/pdf`);
+      const hotelAddr = hotel
+        ? [hotel.address_line1, hotel.city, hotel.state].filter(Boolean).join(", ")
+        : "";
+      const roomList =
+        booking.rooms?.map((r) => r.room_number).join(", ") || "Assigned at check-in";
+      const nights =
+        booking.check_in_date && booking.check_out_date
+          ? Math.max(
+              1,
+              Math.round(
+                (new Date(booking.check_out_date).getTime() -
+                  new Date(booking.check_in_date).getTime()) /
+                  86400000,
+              ),
+            )
+          : undefined;
+
+      const message = buildAdvanceBookingWhatsAppMessage({
+        hotelName: hotel?.name || "Hotel Reservation",
+        hotelPhone: hotel?.phone,
+        hotelAddress: hotelAddr,
+        guestName: booking.primary_guest_name || "Guest",
+        guestPhone: booking.primary_guest_phone,
+        voucherNumber: voucherRef,
+        checkInDate: fmtApiDate(booking.check_in_date),
+        checkInTime: booking.check_in_time,
+        checkOutDate: fmtApiDate(booking.check_out_date),
+        checkOutTime: booking.check_out_time,
+        nights,
+        roomNumbersOrType: roomList,
+        adults: booking.adults,
+        children: booking.children,
+        totalEstimatedTariff: booking.total_amount,
+        advancePaid,
+        paymentMethod: payMethod,
+        balanceDue: booking.due_amount,
+        pdfUrl,
+      });
+
+      const shared = await sharePdfFileViaNative(
+        blob,
+        filename,
+        `${hotel?.name || "Hotel"} Booking Voucher ${voucherRef}`,
+        message,
+      );
+      if (!shared) {
+        downloadPdfBlob(blob, filename);
+        openWhatsAppToCustomer(booking.primary_guest_phone, message);
+      }
+    } catch {
+      toast.error("Failed to share voucher");
+    }
   };
 
   const handlePrint = () => {
@@ -621,6 +698,17 @@ export function AdvanceBookingVoucherModal({
             >
               <Share2 className="size-3.5" />
               WhatsApp Guest
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleShareNative}
+              className="gap-1.5"
+              title="Attach PDF file to WhatsApp or apps"
+            >
+              <Share2 className="size-3.5" />
+              Share PDF File
             </Button>
           </div>
 

@@ -48,6 +48,13 @@ export function downloadPdfBlob(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+export function getAbsolutePublicUrl(path: string): string {
+  if (typeof window === "undefined") return path;
+  const origin = window.location.origin.replace(/\/$/, "");
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  return `${origin}${cleanPath}`;
+}
+
 export function openWhatsAppToCustomer(
   phone: string | null | undefined,
   message: string,
