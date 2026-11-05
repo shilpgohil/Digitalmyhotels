@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FileText, MessageCircle, Printer } from "lucide-react";
+import { FileText, MessageCircle, Printer, Share2 } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -40,6 +40,7 @@ import {
   buildInvoiceWhatsAppMessage,
   downloadPdfBlob,
   openWhatsAppToCustomer,
+  sharePdfFileViaNative,
 } from "@/lib/whatsapp-share";
 import type { GstSettingsOut, HotelOut, ListOut } from "@/types/hotel";
 import type { BookingOut } from "@/types/stay";
@@ -220,6 +221,8 @@ function InvoicesContent() {
           )
         : undefined;
 
+    const pdfUrl = `${API_BASE}/api/v1/invoices/public/${invoice.id}/pdf`;
+
     const message = buildInvoiceWhatsAppMessage({
       hotelName: hotel.data?.name || "Hotel",
       hotelPhone: hotel.data?.phone,
@@ -238,6 +241,7 @@ function InvoicesContent() {
       totalAmount: invoice.total_amount,
       paidAmount: invoice.paid_amount,
       dueAmount: invoice.due_amount,
+      pdfUrl,
     });
 
     openWhatsAppToCustomer(phone, message);
@@ -246,6 +250,60 @@ function InvoicesContent() {
         ? `Invoice PDF downloaded & WhatsApp opened for ${invoice.guest_name || phone}!`
         : "Invoice PDF downloaded & WhatsApp opened!",
     );
+  };
+
+  const shareInvoiceNativeFile = async () => {
+    if (!invoice) return;
+    setSharingPdf(true);
+    try {
+      const token = getAccessToken();
+      const res = await fetch(`${API_BASE}/api/v1/invoices/${invoice.id}/pdf`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+          "X-Hotel-Id": activeHotelId ?? "",
+        },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        toast.error(tc("error"));
+        return;
+      }
+      const blob = await res.blob();
+      const guestClean = (invoice.guest_name || "Guest")
+        .replace(/[^\w\s-]/g, "")
+        .trim()
+        .replace(/\s+/g, "_");
+      const filename = `Invoice_${invoice.invoice_number}_${guestClean}.pdf`;
+      const pdfUrl = `${API_BASE}/api/v1/invoices/public/${invoice.id}/pdf`;
+      const message = buildInvoiceWhatsAppMessage({
+        hotelName: hotel.data?.name || "Hotel",
+        hotelPhone: hotel.data?.phone,
+        hotelAddress,
+        guestName: invoice.guest_name,
+        guestPhone,
+        invoiceNumber: invoice.invoice_number,
+        bookingNumber: invoice.booking_number || booking.data?.booking_number,
+        totalAmount: invoice.total_amount,
+        paidAmount: invoice.paid_amount,
+        dueAmount: invoice.due_amount,
+        pdfUrl,
+      });
+
+      const shared = await sharePdfFileViaNative(
+        blob,
+        filename,
+        `${hotel.data?.name || "Hotel"} Invoice ${invoice.invoice_number}`,
+        message,
+      );
+      if (!shared) {
+        downloadPdfBlob(blob, filename);
+        openWhatsAppToCustomer(guestPhone, message);
+      }
+    } catch {
+      toast.error(tc("error"));
+    } finally {
+      setSharingPdf(false);
+    }
   };
 
   const invalidate = () =>
@@ -463,6 +521,16 @@ function InvoicesContent() {
                   {sharingPdf ? tp("preparingPdf") : tp("whatsapp")}
                 </Button>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={sharingPdf}
+                onClick={() => void shareInvoiceNativeFile()}
+                title="Attach PDF file to WhatsApp or apps"
+              >
+                <Share2 className="size-4" aria-hidden />
+                Share PDF File
+              </Button>
             </div>
             <div
               id="invoice-print-area"

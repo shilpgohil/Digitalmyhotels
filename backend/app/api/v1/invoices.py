@@ -89,6 +89,34 @@ async def invoice_pdf(
     )
 
 
+@router.get("/public/{invoice_id}/pdf")
+async def public_invoice_pdf(
+    invoice_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Public read-only invoice PDF for direct customer download via WhatsApp/SMS."""
+    from app.core.errors import NotFoundError
+    from app.core.permissions import RoleCode
+    from app.models.invoice import Invoice
+
+    invoice = await db.get(Invoice, invoice_id)
+    if not invoice:
+        raise NotFoundError("Invoice not found", code="invoice_not_found")
+    tenant = TenantContext(
+        user_id=invoice.created_by_id or invoice.hotel_id,
+        hotel_id=invoice.hotel_id,
+        role=RoleCode.OWNER,
+        is_super_admin=False,
+    )
+    pdf = await invoices_service.render_invoice_pdf(db, tenant, invoice_id)
+    fname = f"invoice-{invoice.invoice_number}.pdf"
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{fname}"'},
+    )
+
+
 @router.post("/{invoice_id}/email")
 async def email_invoice(
     invoice_id: UUID,

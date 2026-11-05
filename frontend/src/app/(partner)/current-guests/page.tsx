@@ -225,6 +225,7 @@ function CurrentGuestsContent() {
       adults: entry.guest_count,
       dueAmount: entry.due_amount,
       paymentStatus: entry.payment_status,
+      pdfUrl: `${API_BASE}/api/v1/bookings/public/${entry.booking_id}/registration/pdf`,
     });
 
     openWhatsAppToCustomer(entry.primary_guest_phone, message);

@@ -4,8 +4,9 @@
  * Handles:
  * 1. Indian & international phone number normalization (91 prefix for 10-digit Indian mobiles).
  * 2. Instant client-side PDF download with clean, professional filenames.
- * 3. Opening WhatsApp directly to the customer's phone number with beautifully formatted,
- *    warm, and complete messages for:
+ * 3. Native Web Share API file attachment (attaches physical .pdf file on mobile devices).
+ * 4. Opening WhatsApp directly to the customer's phone number with beautifully formatted,
+ *    warm, and complete messages containing direct 1-click official PDF download links for:
  *    - Tax Invoices (in /invoices and /checkout)
  *    - Advance Booking Confirmation & Receipt Vouchers (in /advance-bookings)
  *    - Guest Registration Cards & Stay Slips (in /current-guests)
@@ -60,6 +61,35 @@ export function openWhatsAppToCustomer(
   return window.open(url, "_blank", "noopener,noreferrer");
 }
 
+export async function sharePdfFileViaNative(
+  blob: Blob,
+  filename: string,
+  title: string,
+  text: string,
+): Promise<boolean> {
+  if (
+    typeof navigator !== "undefined" &&
+    typeof navigator.share === "function" &&
+    typeof navigator.canShare === "function"
+  ) {
+    try {
+      const file = new File([blob], filename, { type: "application/pdf" });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title,
+          text,
+        });
+        return true;
+      }
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") return true;
+      return false;
+    }
+  }
+  return false;
+}
+
 export interface InvoiceShareParams {
   hotelName: string;
   hotelPhone?: string | null;
@@ -81,6 +111,7 @@ export interface InvoiceShareParams {
   paidAmount: string | number;
   dueAmount: string | number;
   paymentMethod?: string | null;
+  pdfUrl?: string | null;
 }
 
 export function buildInvoiceWhatsAppMessage(p: InvoiceShareParams): string {
@@ -127,9 +158,20 @@ export function buildInvoiceWhatsAppMessage(p: InvoiceShareParams): string {
     lines.push(`• *Balance Due:* ₹${p.dueAmount}`);
   }
 
+  if (p.pdfUrl) {
+    lines.push(
+      ``,
+      `📥 *VIEW / DOWNLOAD OFFICIAL TAX INVOICE (PDF):*`,
+      `👉 ${p.pdfUrl}`,
+    );
+  } else {
+    lines.push(
+      ``,
+      `📎 _Your official Tax Invoice PDF has been downloaded and is ready to attach for your records & tax filing._`,
+    );
+  }
+
   lines.push(
-    ``,
-    `📎 _Your official Tax Invoice PDF has been downloaded and is ready to attach for your records & tax filing._`,
     ``,
     `For any questions or future reservations, please feel free to contact us:`,
   );
@@ -163,6 +205,7 @@ export interface AdvanceBookingShareParams {
   advancePaid: string | number;
   paymentMethod?: string | null;
   balanceDue: string | number;
+  pdfUrl?: string | null;
 }
 
 export function buildAdvanceBookingWhatsAppMessage(p: AdvanceBookingShareParams): string {
@@ -203,8 +246,22 @@ export function buildAdvanceBookingWhatsAppMessage(p: AdvanceBookingShareParams)
     `ℹ️ *IMPORTANT CHECK-IN GUIDELINES*`,
     `• Valid Government Photo ID (Aadhaar / Passport / DL / Voter ID) is required for all adult guests at check-in.`,
     `• Standard Check-In: ${p.checkInTime || "12:00 PM"} | Check-Out: ${p.checkOutTime || "11:00 AM"}`,
-    ``,
-    `📎 _Your official Advance Booking Confirmation & Receipt Voucher PDF has been downloaded and is ready to attach._`,
+  );
+
+  if (p.pdfUrl) {
+    lines.push(
+      ``,
+      `📥 *VIEW / DOWNLOAD OFFICIAL BOOKING VOUCHER (PDF):*`,
+      `👉 ${p.pdfUrl}`,
+    );
+  } else {
+    lines.push(
+      ``,
+      `📎 _Your official Advance Booking Confirmation & Receipt Voucher PDF has been downloaded and is ready to attach._`,
+    );
+  }
+
+  lines.push(
     ``,
     `For directions, airport/station pickup, or special requests, please contact our front desk:`,
   );
@@ -238,6 +295,7 @@ export interface StaySlipShareParams {
   paidAmount?: string | number | null;
   dueAmount: string | number;
   paymentStatus?: string | null;
+  pdfUrl?: string | null;
 }
 
 export function buildStaySlipWhatsAppMessage(p: StaySlipShareParams): string {
@@ -273,14 +331,25 @@ export function buildStaySlipWhatsAppMessage(p: StaySlipShareParams): string {
     lines.push(`• Folio Status: *${p.paymentStatus.toUpperCase()}*`);
   }
 
+  if (p.pdfUrl) {
+    lines.push(
+      ``,
+      `📥 *VIEW / DOWNLOAD OFFICIAL STAY REGISTRATION SLIP (PDF):*`,
+      `👉 ${p.pdfUrl}`,
+    );
+  } else {
+    lines.push(
+      ``,
+      `📎 _Your official Guest Registration Card & Stay Slip PDF has been downloaded and is ready to attach._`,
+    );
+  }
+
   lines.push(
     ``,
     `🛎️ *IN-STAY HOTEL ASSISTANCE*`,
     `• Front Desk / Room Service: Dial *9* from your room intercom or call *${p.hotelPhone || "Front Desk"}*`,
     `• High-Speed Wi-Fi is available across all rooms and lobby areas.`,
     `• Need housekeeping, fresh linens, or dining assistance? Our team is at your service 24/7!`,
-    ``,
-    `📎 _Your official Guest Registration Card & Stay Slip PDF has been downloaded and is ready to attach._`,
     ``,
     `Please let us know if there is anything we can do to make your stay more comfortable. Enjoy your stay! 🙏`,
   );

@@ -310,3 +310,61 @@ async def booking_registration_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="stay-slip-{booking_id}.pdf"'},
     )
+
+
+@router.get("/public/{booking_id}/voucher/pdf")
+async def public_booking_voucher_pdf(
+    booking_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Public read-only booking voucher PDF for direct customer download via WhatsApp."""
+    from app.core.errors import NotFoundError
+    from app.core.permissions import RoleCode
+    from app.models.booking import Booking
+
+    booking = await db.get(Booking, booking_id)
+    if not booking:
+        raise NotFoundError("Booking not found", code="booking_not_found")
+    tenant = TenantContext(
+        user_id=booking.hotel_id,
+        hotel_id=booking.hotel_id,
+        role=RoleCode.OWNER,
+        is_super_admin=False,
+    )
+    pdf = await bookings_service.render_booking_voucher_pdf(db, tenant, booking_id)
+    bn = booking.booking_number
+    fname = f"voucher-{bn}.pdf"
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{fname}"'},
+    )
+
+
+@router.get("/public/{booking_id}/registration/pdf")
+async def public_booking_registration_pdf(
+    booking_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Public read-only guest stay registration card PDF for direct customer download."""
+    from app.core.errors import NotFoundError
+    from app.core.permissions import RoleCode
+    from app.models.booking import Booking
+
+    booking = await db.get(Booking, booking_id)
+    if not booking:
+        raise NotFoundError("Booking not found", code="booking_not_found")
+    tenant = TenantContext(
+        user_id=booking.hotel_id,
+        hotel_id=booking.hotel_id,
+        role=RoleCode.OWNER,
+        is_super_admin=False,
+    )
+    pdf = await bookings_service.render_registration_slip_pdf(db, tenant, booking_id)
+    bn = booking.booking_number
+    fname = f"stay-slip-{bn}.pdf"
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{fname}"'},
+    )

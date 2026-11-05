@@ -55,6 +55,7 @@ import {
   buildInvoiceWhatsAppMessage,
   downloadPdfBlob,
   openWhatsAppToCustomer,
+  sharePdfFileViaNative,
 } from "@/lib/whatsapp-share";
 import type { ListOut, HotelOut, HotelSettingsOut } from "@/types/hotel";
 import type { ChargeOut } from "@/types/money";
@@ -652,6 +653,7 @@ function CheckoutContent() {
       totalAmount: total.toFixed(2),
       paidAmount: total.toFixed(2),
       dueAmount: "0.00",
+      pdfUrl: id ? `${API_BASE}/api/v1/invoices/public/${id}/pdf` : undefined,
     });
 
     openWhatsAppToCustomer(phone, message);

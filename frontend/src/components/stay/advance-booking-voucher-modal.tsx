@@ -217,6 +217,7 @@ export function AdvanceBookingVoucherModal({
       advancePaid,
       paymentMethod: payMethod,
       balanceDue: booking.due_amount,
+      pdfUrl: `${API_BASE}/api/v1/bookings/public/${booking.id}/voucher/pdf`,
     });
 
     openWhatsAppToCustomer(booking.primary_guest_phone, message);
