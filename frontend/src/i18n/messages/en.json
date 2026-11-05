@@ -2153,6 +2153,7 @@
     "fromBooking": "(from booking)",
     "collectAtCheckin": "Collect at Check-in (₹)",
     "enterZeroHint": "Enter 0 if collecting later",
+    "paymentCollectedFromGuest": "Payment collected from guest",
     "advanceNotRecordedWarning": "Advance will NOT be recorded unless 'Payment collected' is ticked",
     "overpaidHint": "Collected {amount} more than the bill — adjusted or refunded at checkout",
     "fieldCity": "City",

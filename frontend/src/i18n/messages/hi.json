@@ -2149,6 +2149,7 @@
     "fromBooking": "(बुकिंग से)",
     "collectAtCheckin": "चेक-इन पर वसूलें (₹)",
     "enterZeroHint": "बाद में लेना हो तो 0 दर्ज करें",
+    "paymentCollectedFromGuest": "अतिथि से भुगतान प्राप्त हुआ",
     "advanceNotRecordedWarning": "जब तक 'भुगतान प्राप्त हुआ' टिक नहीं होगा, अग्रिम दर्ज नहीं होगा",
     "overpaidHint": "बिल से {amount} अधिक लिया गया — चेकआउट पर समायोजित या वापस किया जाएगा",
     "fieldCity": "शहर",

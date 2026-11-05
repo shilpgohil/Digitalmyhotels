@@ -56,8 +56,8 @@ function monthsOf(plan: SubscriptionPlanOut): number {
 function parseBold(text: string): React.ReactNode {
   const parts = text.split(/(\*\*?[^*\n]+\*\*?)/g);
   return parts.map((p, i) => {
-    if (/^\*\*[^*]+\*\*$/.test(p)) return <strong key={i}>{p.slice(2, -2)}</strong>;
-    if (/^\*[^*]+\*$/.test(p))     return <strong key={i}>{p.slice(1, -1)}</strong>;
+    if (/^\*\*[^*]+\*\*$/.test(p)) return <strong key={`b-${p}-${i}`}>{p.slice(2, -2)}</strong>;
+    if (/^\*[^*]+\*$/.test(p))     return <strong key={`i-${p}-${i}`}>{p.slice(1, -1)}</strong>;
     return p;
   });
 }
@@ -68,6 +68,91 @@ function featureTier(months: number): "m1" | "m3" | "m6" | "m12" {
   if (months >= 6) return "m6";
   if (months >= 3) return "m3";
   return "m1";
+}
+
+function PaymentModeSelector({
+  payMode,
+  setPayMode,
+  t,
+}: {
+  readonly payMode: "upi" | "cash" | "bank_transfer" | "card" | "other";
+  readonly setPayMode: (mode: "upi" | "cash" | "bank_transfer" | "card" | "other") => void;
+  readonly t: (key: string) => string;
+}) {
+  const modes = ["upi", "cash", "bank_transfer", "card", "other"] as const;
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {t("paymentMode")}
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        {modes.map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setPayMode(m)}
+            className={[
+              "h-[42px] rounded-lg border text-xs font-semibold transition-colors",
+              payMode === m
+                ? "bg-navy-900 text-white border-navy-900"
+                : "bg-muted/30 text-foreground border-border hover:bg-muted",
+            ].join(" ")}
+          >
+            {t(`payMode_${m}`)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function UpiPaymentSection({
+  info,
+  qrData,
+  onCopyUpi,
+  t,
+}: {
+  readonly info: SubscriptionPaymentInfoOut | undefined;
+  readonly qrData: string | null | undefined;
+  readonly onCopyUpi: () => void;
+  readonly t: (key: string) => string;
+}) {
+  if (!info?.configured) {
+    return (
+      <p className="rounded-lg border border-warning/20 bg-warning-bg px-3 py-2 text-center text-sm text-warning">
+        {t("contactTeam")}
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <p className="text-sm font-semibold">{t("scanPay")}</p>
+      {qrData ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={qrData}
+          alt={t("scanPay")}
+          className="size-44 rounded-lg border p-1"
+        />
+      ) : (
+        <Skeleton className="size-44 rounded-lg" />
+      )}
+      <button
+        type="button"
+        onClick={onCopyUpi}
+        className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 hover:bg-amber-100 transition-colors"
+      >
+        <span className="text-[11px] font-medium text-amber-600 shrink-0 tracking-wide">
+          {t("upiIdLabel")}
+        </span>
+        <span className="text-sm font-normal text-gray-800">
+          {info.upi_id}
+        </span>
+        <Copy className="size-3.5 text-amber-500 shrink-0" aria-hidden />
+      </button>
+    </div>
+  );
 }
 
 function PaymentModal({
@@ -140,7 +225,7 @@ function PaymentModal({
       }),
     onSuccess: () => {
       setSubmitted(true);
-      queryClient.invalidateQueries({ queryKey: ["renewal-request-mine"] });
+      void queryClient.invalidateQueries({ queryKey: ["renewal-request-mine"] });
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
   });
@@ -194,80 +279,16 @@ function PaymentModal({
             </div>
 
             {/* ── Payment mode selector ──────────────────────────────── */}
-            <div className="space-y-1.5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("paymentMode")}
-              </p>
-              {/* All 5 buttons same h-[42px] so no row is taller than another.
-                  "Credit/Debit Card" shortened to "Card" here to avoid 2-line
-                  wrapping — the full label is used in billing history only. */}
-              <div className="grid grid-cols-3 gap-2">
-                {(["upi", "cash", "bank_transfer", "card", "other"] as const).map((m) => {
-                  const labels: Record<string, string> = {
-                    upi: t("payMode_upi"),
-                    cash: t("payMode_cash"),
-                    bank_transfer: t("payMode_bank_transfer"),
-                    card: t("payMode_card"),
-                    other: t("payMode_other"),
-                  };
-                  return (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setPayMode(m)}
-                      className={[
-                        "h-[42px] rounded-lg border text-xs font-semibold transition-colors",
-                        payMode === m
-                          ? "bg-navy-900 text-white border-navy-900"
-                          : "bg-muted/30 text-foreground border-border hover:bg-muted",
-                      ].join(" ")}
-                    >
-                      {labels[m]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <PaymentModeSelector payMode={payMode} setPayMode={setPayMode} t={t} />
 
             {/* ── UPI: show QR + UPI ID ──────────────────────────────── */}
             {payMode === "upi" && (
-              info.data?.configured ? (
-                <div className="flex flex-col items-center gap-2">
-                  <p className="text-sm font-semibold">{t("scanPay")}</p>
-                  {qr.data ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={qr.data}
-                      alt={t("scanPay")}
-                      className="size-44 rounded-lg border p-1"
-                    />
-                  ) : (
-                    <Skeleton className="size-44 rounded-lg" />
-                  )}
-                {/* UPI ID pill — matches hotel payment QR style (screenshot ref):
-                    single rounded-border box, 'UPI ID' label in amber text,
-                    VPA in normal text, copy icon on right — no filled block. */}
-                <button
-                  type="button"
-                  onClick={copyUpi}
-                  className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 hover:bg-amber-100 transition-colors"
-                >
-                  <span className="text-[11px] font-medium text-amber-600 shrink-0 tracking-wide">
-                    {t("upiIdLabel")}
-                  </span>
-                  <span className="text-sm font-normal text-gray-800">
-                    {info.data.upi_id}
-                  </span>
-                  <Copy className="size-3.5 text-amber-500 shrink-0" aria-hidden />
-                </button>
-                </div>
-              ) : (
-                !info.isLoading && (
-                  <p className="rounded-lg border border-warning/20 bg-warning-bg px-3 py-2 text-center text-sm text-warning">
-                    {t("contactTeam")}
-                  </p>
-                )
-              )
+              <UpiPaymentSection
+                info={info.data}
+                qrData={qr.data}
+                onCopyUpi={copyUpi}
+                t={t}
+              />
             )}
 
             {/* ── Non-UPI: show transfer instructions ───────────────── */}
@@ -348,12 +369,12 @@ function PlanContent() {
   });
 
   const status = sub.data?.status;
-  const tone =
-    status === "expired" || status === "suspended"
-      ? "danger"
-      : status === "expiring_soon"
-        ? "warning"
-        : "success";
+  let tone: "danger" | "warning" | "success" = "success";
+  if (status === "expired" || status === "suspended") {
+    tone = "danger";
+  } else if (status === "expiring_soon") {
+    tone = "warning";
+  }
 
   const visiblePlans = (plans.data ?? [])
     .filter((p) => p.is_active && Number.parseFloat(p.price) > 0)

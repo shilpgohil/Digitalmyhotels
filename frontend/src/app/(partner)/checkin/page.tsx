@@ -3721,7 +3721,7 @@ function CheckinForm({
                 disabled={newAdvance === 0}
               />
               <span className={newAdvance === 0 ? "text-muted-foreground" : "font-medium"}>
-                Payment collected from guest
+                {t("paymentCollectedFromGuest")}
               </span>
             </label>
             {!paymentReceived && newAdvance > 0 && (
@@ -5807,7 +5807,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               disabled={newAdvance === 0}
             />
             <span className={newAdvance === 0 ? "text-muted-foreground" : "font-medium"}>
-              Payment collected from guest
+              {t("paymentCollectedFromGuest")}
             </span>
           </label>
           {!paymentReceived && newAdvance > 0 && (

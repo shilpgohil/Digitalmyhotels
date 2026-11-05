@@ -397,7 +397,7 @@ export function NotificationsBell() {
 
       <DropdownMenuContent
         align="end"
-        className="flex w-[38rem] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden p-0 shadow-xl"
+        className="flex w-[42rem] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden p-0 shadow-xl"
         sideOffset={6}
       >
         {/* Header */}
@@ -475,7 +475,7 @@ export function NotificationsBell() {
         {/* Category tabs: "All" + one tab per category present in the data.
             Only show tabs for categories the role can see. */}
         {all.length > 0 && (
-          <div className="flex gap-1.5 overflow-x-auto border-b px-2.5 py-2 scroll-smooth scrollbar-thin scrollbar-thumb-border hover:scrollbar-thumb-muted-foreground/30">
+          <div className="flex gap-1.5 overflow-x-auto border-b px-3 py-2 scroll-smooth scrollbar-thin scrollbar-thumb-border hover:scrollbar-thumb-muted-foreground/30 overscroll-x-contain touch-pan-x">
             {[
               ["all", null] as const,
               ...grouped

@@ -1214,7 +1214,7 @@ function AdvanceBookingContent() {
                     className="size-4 rounded accent-gold-500"
                   />
                   <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                    Payment collected from guest
+                    {t("paymentCollectedFromGuest")}
                     <Check className="size-3.5 text-success" aria-hidden />
                   </span>
                 </label>
