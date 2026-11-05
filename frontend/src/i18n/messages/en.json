@@ -534,7 +534,9 @@
     "abModeOther": "Other",
     "abRecordCardNote": "Collect payment via card machine, then this records it in your accounts.",
     "abRecordBankNote": "Collect payment via net banking, then this records it in your accounts.",
-    "abRecordOtherNote": "Collect payment from the guest, then this records it in your accounts."
+    "abRecordOtherNote": "Collect payment from the guest, then this records it in your accounts.",
+    "downloadVoucherPdf": "Download Voucher (PDF)",
+    "whatsappVoucher": "WhatsApp Voucher"
   },
   "staff": {
     "myAttendanceTitle": "My Attendance",
@@ -945,7 +947,9 @@
     "noPaymentsYet": "No payments recorded yet",
     "noInvoiceYet": "No invoice generated yet",
     "noCheckoutReadyHint": "Guests with upcoming checkout dates will appear here.",
-    "actualCheckoutTime": "Actual Checkout Time"
+    "actualCheckoutTime": "Actual Checkout Time",
+    "shareStaySlipWhatsApp": "WhatsApp Stay Slip",
+    "downloadStaySlipPdf": "Download Stay Slip (PDF)"
   },
   "money": {
     "paymentsTitle": "Payment Details",

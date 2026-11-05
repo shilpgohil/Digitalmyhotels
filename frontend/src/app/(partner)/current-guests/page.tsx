@@ -15,6 +15,8 @@ import {
   ChevronDown,
   CreditCard,
   FileText,
+  Share2,
+  Download,
 } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
@@ -54,6 +56,11 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/client";
 import { API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
+import {
+  buildStaySlipWhatsAppMessage,
+  downloadPdfBlob,
+  openWhatsAppToCustomer,
+} from "@/lib/whatsapp-share";
 import type { ListOut, RoomOut } from "@/types/hotel";
 import type { BookingGuestDocOut, BookingGuestOut, BookingOut, CurrentGuestOut, ForeignGuestIn, GuestOut } from "@/types/stay";
 import { RequirePermission } from "@/components/auth/require-permission";
@@ -162,6 +169,96 @@ function CurrentGuestsContent() {
   const invalidate = () => {
     invalidateRoomState(queryClient);
     invalidateMoney(queryClient);
+  };
+
+  const hotelProfile = useQuery({
+    queryKey: ["hotel-profile-cg", activeHotelId],
+    queryFn: () =>
+      api<{
+        name: string;
+        address_line1?: string | null;
+        city?: string | null;
+        phone?: string | null;
+      }>("/api/v1/hotels/me"),
+    enabled: !!activeHotelId,
+    staleTime: 5 * 60_000,
+  });
+
+  const handleShareStaySlip = async (entry: CurrentGuestOut) => {
+    try {
+      const token = getAccessToken();
+      const res = await fetch(`${API_BASE}/api/v1/bookings/${entry.booking_id}/registration/pdf`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+          "X-Hotel-Id": activeHotelId ?? "",
+        },
+        credentials: "include",
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const guestClean = (entry.primary_guest_name || "Guest")
+          .replace(/[^\w\s-]/g, "")
+          .trim()
+          .replace(/\s+/g, "_");
+        downloadPdfBlob(blob, `Stay_Slip_${entry.booking_number}_${guestClean}.pdf`);
+      }
+    } catch {
+      // Continue to open WhatsApp even if direct PDF download fails
+    }
+
+    const hotelAddr = hotelProfile.data
+      ? [hotelProfile.data.address_line1, hotelProfile.data.city].filter(Boolean).join(", ")
+      : "";
+
+    const message = buildStaySlipWhatsAppMessage({
+      hotelName: hotelProfile.data?.name || "Hotel",
+      hotelPhone: hotelProfile.data?.phone,
+      hotelAddress: hotelAddr,
+      guestName: entry.primary_guest_name || "Guest",
+      guestPhone: entry.primary_guest_phone,
+      bookingNumber: entry.booking_number,
+      roomNumbers: (entry.rooms ?? []).join(", "),
+      checkInDate: fmtApiDate(entry.checked_in_at.split("T")[0]),
+      checkInTime: entry.check_in_time,
+      checkOutDate: fmtApiDate(entry.check_out_date),
+      checkOutTime: entry.check_out_time,
+      adults: entry.guest_count,
+      dueAmount: entry.due_amount,
+      paymentStatus: entry.payment_status,
+    });
+
+    openWhatsAppToCustomer(entry.primary_guest_phone, message);
+    toast.success(
+      entry.primary_guest_phone
+        ? `Stay Slip PDF downloaded & WhatsApp opened for ${entry.primary_guest_name || entry.primary_guest_phone}!`
+        : "Stay Slip PDF downloaded & WhatsApp opened!",
+    );
+  };
+
+  const handleDownloadStaySlipPdf = async (entry: CurrentGuestOut) => {
+    try {
+      const token = getAccessToken();
+      const res = await fetch(`${API_BASE}/api/v1/bookings/${entry.booking_id}/registration/pdf`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+          "X-Hotel-Id": activeHotelId ?? "",
+        },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        toast.error("Failed to generate Stay Slip PDF");
+        return;
+      }
+      const blob = await res.blob();
+      const guestClean = (entry.primary_guest_name || "Guest")
+        .replace(/[^\w\s-]/g, "")
+        .trim()
+        .replace(/\s+/g, "_");
+      downloadPdfBlob(blob, `Stay_Slip_${entry.booking_number}_${guestClean}.pdf`);
+      toast.success("Stay Slip PDF downloaded!");
+    } catch {
+      toast.error("Failed to download Stay Slip PDF");
+    }
   };
 
   return (
@@ -294,6 +391,14 @@ function CurrentGuestsContent() {
                             <Printer className="size-4" aria-hidden />
                             {t("printAction")}
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => void handleShareStaySlip(entry)}>
+                            <Share2 className="size-4 text-emerald-600" aria-hidden />
+                            {t("shareStaySlipWhatsApp")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => void handleDownloadStaySlipPdf(entry)}>
+                            <Download className="size-4" aria-hidden />
+                            {t("downloadStaySlipPdf")}
+                          </DropdownMenuItem>
                           {can(PERMISSIONS.bookingsManage) && (
                             <DropdownMenuItem onClick={() => setEditTarget(entry)}>
                               <Pencil className="size-4" aria-hidden />
@@ -386,6 +491,8 @@ function CurrentGuestsContent() {
             setViewTarget(null);
             setAutoPrint(false);
           }}
+          onShareWhatsApp={handleShareStaySlip}
+          onDownloadPdf={handleDownloadStaySlipPdf}
         />
         <EditStayDialog
           entry={editTarget}
@@ -406,11 +513,15 @@ function StayDetailDialog({
   entry,
   autoPrint = false,
   onClose,
+  onShareWhatsApp,
+  onDownloadPdf,
 }: {
   entry: CurrentGuestOut | null;
   /** Trigger the registration print automatically once the detail loads. */
   autoPrint?: boolean;
   onClose: () => void;
+  onShareWhatsApp?: (entry: CurrentGuestOut) => void;
+  onDownloadPdf?: (entry: CurrentGuestOut) => void;
 }) {
   const t = useTranslations("stay");
   const tb = useTranslations("bookings");
@@ -728,19 +839,45 @@ function StayDetailDialog({
             </div>
           </div>
         )}
-        <DialogFooter>
-          <DialogClose className="inline-flex h-[42px] items-center rounded-lg bg-[#d1d1d1] px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors">
-            {tc("cancel")}
-          </DialogClose>
-          {/* Close dialog THEN print — prevents two overlapping windows
-              (ss21: "Currently open 2 models this is wrong") */}
-          <Button
-            onClick={() => { onClose(); printRegistration(); }}
-            disabled={!b}
-          >
-            <Printer className="size-4" aria-hidden />
-            {t("printRegistration")}
-          </Button>
+        <DialogFooter className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {entry && onShareWhatsApp && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onShareWhatsApp(entry)}
+                className="gap-1.5 border-emerald-600 text-emerald-700 hover:bg-emerald-50"
+              >
+                <Share2 className="size-4" aria-hidden />
+                {t("shareStaySlipWhatsApp")}
+              </Button>
+            )}
+            {entry && onDownloadPdf && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onDownloadPdf(entry)}
+                className="gap-1.5"
+              >
+                <Download className="size-4" aria-hidden />
+                {t("downloadStaySlipPdf")}
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <DialogClose className="inline-flex h-[42px] items-center rounded-lg bg-[#d1d1d1] px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors">
+              {tc("cancel")}
+            </DialogClose>
+            {/* Close dialog THEN print — prevents two overlapping windows
+                (ss21: "Currently open 2 models this is wrong") */}
+            <Button
+              onClick={() => { onClose(); printRegistration(); }}
+              disabled={!b}
+            >
+              <Printer className="size-4" aria-hidden />
+              {t("printRegistration")}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

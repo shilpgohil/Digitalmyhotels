@@ -534,7 +534,9 @@
     "abModeOther": "अन्य",
     "abRecordCardNote": "कार्ड मशीन से भुगतान लें, फिर यह आपके खातों में दर्ज होगा।",
     "abRecordBankNote": "नेट बैंकिंग से भुगतान लें, फिर यह आपके खातों में दर्ज होगा।",
-    "abRecordOtherNote": "अतिथि से भुगतान प्राप्त करें, फिर यह आपके खातों में दर्ज होगा।"
+    "abRecordOtherNote": "अतिथि से भुगतान प्राप्त करें, फिर यह आपके खातों में दर्ज होगा।",
+    "downloadVoucherPdf": "वाउचर डाउनलोड करें (PDF)",
+    "whatsappVoucher": "वाउचर व्हाट्सएप करें"
   },
   "staff": {
     "myAttendanceTitle": "मेरी उपस्थिति",
@@ -945,7 +947,9 @@
     "noPaymentsYet": "अभी तक कोई भुगतान दर्ज नहीं",
     "noInvoiceYet": "अभी तक कोई चालान नहीं बनाया गया",
     "noCheckoutReadyHint": "आगामी चेक-आउट तिथियों वाले अतिथि यहाँ दिखेंगे।",
-    "actualCheckoutTime": "वास्तविक चेक-आउट समय"
+    "actualCheckoutTime": "वास्तविक चेक-आउट समय",
+    "shareStaySlipWhatsApp": "स्टे स्लिप व्हाट्सएप करें",
+    "downloadStaySlipPdf": "स्टे स्लिप डाउनलोड करें (PDF)"
   },
   "settings": {
     "title": "सेटिंग्स",

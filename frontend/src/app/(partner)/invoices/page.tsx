@@ -36,6 +36,11 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { fmtApiDate, fmtApiDateTime, fmtINR } from "@/lib/formatting";
 import { API_BASE, ApiError } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
+import {
+  buildInvoiceWhatsAppMessage,
+  downloadPdfBlob,
+  openWhatsAppToCustomer,
+} from "@/lib/whatsapp-share";
 import type { GstSettingsOut, HotelOut, ListOut } from "@/types/hotel";
 import type { BookingOut } from "@/types/stay";
 import type { InvoiceOut } from "@/types/money";
@@ -172,50 +177,74 @@ function InvoicesContent() {
   const guestPhone = booking.data?.primary_guest_phone ?? null;
 
   const shareInvoiceWhatsApp = async () => {
-    if (!invoice || !guestPhone) return;
-    const hotelName = hotel.data?.name ?? "";
-    const isPaid = Number(invoice.due_amount) <= 0;
-    const paymentPart = isPaid
-      ? `${tp("totalPaid")} ${fmtINR(invoice.total_amount)} (${tp("paidInFull")})`
-      : `${tp("waTotalDue")} ${fmtINR(invoice.due_amount)}`;
-    const text = `${hotelName} : ${tp("waInvoice")} ${invoice.invoice_number} : ${paymentPart}`;
-
-    // Mobile: try Web Share API with the PDF file attached.
-    if (typeof navigator !== "undefined" && "share" in navigator) {
-      try {
-        setSharingPdf(true);
-        const token = getAccessToken();
-        const res = await fetch(`${API_BASE}/api/v1/invoices/${invoice.id}/pdf`, {
-          headers: {
-            Authorization: token ? `Bearer ${token}` : "",
-            "X-Hotel-Id": activeHotelId ?? "",
-          },
-          credentials: "include",
-        });
-        if (res.ok) {
-          const blob = await res.blob();
-          const file = new File([blob], `${invoice.invoice_number}.pdf`, {
-            type: "application/pdf",
-          });
-          if (navigator.canShare?.({ files: [file] })) {
-            await navigator.share({ files: [file], title: `${hotelName} Invoice`, text });
-            return;
-          }
-        }
-      } catch (e) {
-        if (e instanceof Error && e.name === "AbortError") return;
-        // Fall through to URL on any error.
-        toast.error(tp("shareFailed"));
-      } finally {
-        setSharingPdf(false);
+    if (!invoice) return;
+    const phone = guestPhone;
+    setSharingPdf(true);
+    try {
+      const token = getAccessToken();
+      const res = await fetch(`${API_BASE}/api/v1/invoices/${invoice.id}/pdf`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+          "X-Hotel-Id": activeHotelId ?? "",
+        },
+        credentials: "include",
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const guestClean = (invoice.guest_name || "Guest")
+          .replace(/[^\w\s-]/g, "")
+          .trim()
+          .replace(/\s+/g, "_");
+        downloadPdfBlob(blob, `Invoice_${invoice.invoice_number}_${guestClean}.pdf`);
       }
+    } catch {
+      // Continue to open WhatsApp even if direct PDF download fails
+    } finally {
+      setSharingPdf(false);
     }
 
-    // Desktop fallback: text-only wa.me link.
-    window.open(
-      `https://wa.me/${waPhone(guestPhone)}?text=${encodeURIComponent(text)}`,
-      "_blank",
-      "noopener,noreferrer",
+    const roomNumbers =
+      booking.data?.rooms
+        ?.filter((r) => r.is_current)
+        .map((r) => r.room_number)
+        .join(", ") || "";
+    const nights =
+      booking.data?.check_in_date && booking.data?.check_out_date
+        ? Math.max(
+            1,
+            Math.round(
+              (new Date(booking.data.check_out_date).getTime() -
+                new Date(booking.data.check_in_date).getTime()) /
+                86400000,
+            ),
+          )
+        : undefined;
+
+    const message = buildInvoiceWhatsAppMessage({
+      hotelName: hotel.data?.name || "Hotel",
+      hotelPhone: hotel.data?.phone,
+      hotelAddress,
+      guestName: invoice.guest_name,
+      guestPhone: phone,
+      invoiceNumber: invoice.invoice_number,
+      bookingNumber: invoice.booking_number || booking.data?.booking_number,
+      roomNumbers,
+      checkInDate: booking.data ? fmtApiDate(booking.data.check_in_date) : undefined,
+      checkInTime: booking.data?.check_in_time,
+      checkOutDate: booking.data ? fmtApiDate(booking.data.check_out_date) : undefined,
+      checkOutTime: booking.data?.check_out_time,
+      nights,
+      gstTotal: gstTotal > 0 ? gstTotal.toFixed(2) : undefined,
+      totalAmount: invoice.total_amount,
+      paidAmount: invoice.paid_amount,
+      dueAmount: invoice.due_amount,
+    });
+
+    openWhatsAppToCustomer(phone, message);
+    toast.success(
+      phone
+        ? `Invoice PDF downloaded & WhatsApp opened for ${invoice.guest_name || phone}!`
+        : "Invoice PDF downloaded & WhatsApp opened!",
     );
   };
 

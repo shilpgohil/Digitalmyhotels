@@ -282,3 +282,31 @@ async def mark_no_show(
         db, tenant, booking_id, correlation_id=_correlation(request)
     )
     return await bookings_service.to_out(db, booking)
+
+
+@router.get("/{booking_id}/voucher/pdf")
+async def booking_voucher_pdf(
+    booking_id: UUID,
+    tenant: TenantContext = Depends(require_permissions(Permission.BOOKINGS_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    pdf = await bookings_service.render_booking_voucher_pdf(db, tenant, booking_id)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="voucher-{booking_id}.pdf"'},
+    )
+
+
+@router.get("/{booking_id}/registration/pdf")
+async def booking_registration_pdf(
+    booking_id: UUID,
+    tenant: TenantContext = Depends(require_permissions(Permission.BOOKINGS_VIEW)),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    pdf = await bookings_service.render_registration_slip_pdf(db, tenant, booking_id)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="stay-slip-{booking_id}.pdf"'},
+    )

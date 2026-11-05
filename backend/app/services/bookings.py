@@ -1256,3 +1256,506 @@ async def export_bookings_csv(
             created_str,
         ])
     return "\ufeff" + buf.getvalue()
+
+
+async def render_booking_voucher_pdf(
+    db: AsyncSession, tenant: TenantContext, booking_id: UUID
+) -> bytes:
+    """Render an A4 Advance Booking Confirmation & Receipt Voucher PDF."""
+    from fpdf import FPDF
+
+    from app.models.guest import Guest
+    from app.models.hotel import Hotel
+    from app.models.payment import Payment
+    from app.models.room import Room
+    from app.repositories.hotels import get_gst_context
+
+    booking = await get_booking(db, tenant, booking_id)
+    hotel = await db.get(Hotel, tenant.require_hotel())
+    gst, gst_registered, _ = await get_gst_context(db, tenant.require_hotel())
+    primary_guest = (
+        await db.get(Guest, booking.primary_guest_id)
+        if booking.primary_guest_id
+        else None
+    )
+
+    room_ids = [br.room_id for br in booking.rooms if br.is_current]
+    rooms_text = "Assigned at check-in"
+    if room_ids:
+        r_rows = (
+            await db.execute(
+                select(Room)
+                .options(selectinload(Room.room_type))
+                .where(Room.id.in_(room_ids))
+                .order_by(Room.room_number)
+            )
+        ).scalars().all()
+        if r_rows:
+            rooms_text = ", ".join(
+                f"{r.room_number} ({r.room_type.name if r.room_type else 'Standard'})"
+                for r in r_rows
+            )
+
+    pay_rows = (
+        await db.execute(
+            select(Payment)
+            .where(Payment.booking_id == booking_id, Payment.status == "completed")
+            .order_by(Payment.paid_at.desc())
+        )
+    ).scalars().all()
+
+    advance_paid = sum((p.amount for p in pay_rows), Decimal("0.00")) or booking.advance_amount
+    pay_methods = ", ".join(sorted({p.method.upper() for p in pay_rows})) or "CASH / UPI"
+
+    def latin1(text: str) -> str:
+        _trans = str.maketrans({
+            "\u2014": "-",
+            "\u2013": "-",
+            "\u2018": "'",
+            "\u2019": "'",
+            "\u201c": '"',
+            "\u201d": '"',
+            "\u2026": "...",
+        })
+        return str(text).translate(_trans).encode("latin-1", errors="replace").decode("latin-1")
+
+    def inr(value: object) -> str:
+        return f"Rs. {value}"
+
+    NAVY = (14, 26, 51)
+    MUTED = (110, 120, 138)
+    INK = (17, 24, 39)
+    GOLD = (161, 128, 47)
+    RULE = (226, 230, 236)
+    BG_LIGHT = (248, 250, 252)
+
+    pdf = FPDF(format="A4")
+    pdf.set_auto_page_break(auto=True, margin=18)
+    pdf.add_page()
+
+    # Navy header band
+    pdf.set_fill_color(*NAVY)
+    pdf.rect(0, 0, 210, 40, style="F")
+    pdf.set_xy(14, 10)
+    pdf.set_font("helvetica", "B", 16)
+    pdf.set_text_color(255, 255, 255)
+    hotel_name = hotel.name if hotel else "Hotel Reservation"
+    pdf.cell(120, 8, latin1(hotel_name), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "", 8)
+    pdf.set_text_color(196, 204, 218)
+    address_bits = (
+        [b for b in [hotel.address_line1, hotel.city, hotel.state] if b] if hotel else []
+    )
+    if address_bits:
+        pdf.cell(120, 4.5, latin1(", ".join(address_bits)), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_x(14)
+    if gst_registered and gst.gstin:
+        pdf.cell(120, 4.5, f"GSTIN: {gst.gstin}", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_x(14)
+    if hotel and hotel.phone:
+        pdf.cell(120, 4.5, f"Contact: {hotel.phone}", new_x="LMARGIN", new_y="NEXT")
+
+    # Right side: voucher title + number
+    pdf.set_xy(110, 10)
+    pdf.set_font("helvetica", "B", 7)
+    pdf.set_text_color(170, 180, 200)
+    pdf.cell(
+        86, 4, "BOOKING CONFIRMATION & RECEIPT VOUCHER", align="R", new_x="LMARGIN", new_y="NEXT"
+    )
+    pdf.set_xy(110, 15)
+    pdf.set_font("helvetica", "B", 12)
+    pdf.set_text_color(255, 255, 255)
+    bn = booking.booking_number
+    voucher_num = bn if bn.startswith("BK-") else f"BK-{bn}"
+    pdf.cell(86, 6, voucher_num, align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_xy(110, 22)
+    pdf.set_font("helvetica", "", 9)
+    pdf.set_text_color(196, 204, 218)
+    pdf.cell(86, 5, f"Date: {date.today().strftime('%d/%m/%Y')}", align="R")
+
+    # Section 1: Guest & Stay Details
+    pdf.set_xy(14, 48)
+    pdf.set_font("helvetica", "B", 8)
+    pdf.set_text_color(*MUTED)
+    pdf.cell(90, 5, "GUEST DETAILS")
+    pdf.cell(90, 5, "RESERVATION DETAILS", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_draw_color(*RULE)
+    pdf.line(14, pdf.get_y(), 196, pdf.get_y())
+    pdf.ln(2)
+
+    guest_name = (primary_guest.full_name if primary_guest else None) or "Guest"
+    guest_phone = (
+        primary_guest.normalized_phone if primary_guest else None
+    ) or "-"
+    guest_email = (primary_guest.email if primary_guest else None) or "-"
+
+    cin_t = f" ({booking.check_in_time})" if booking.check_in_time else ""
+    cout_t = f" ({booking.check_out_time})" if booking.check_out_time else ""
+    cin_str = booking.check_in_date.strftime("%d/%m/%Y") + cin_t
+    cout_str = booking.check_out_date.strftime("%d/%m/%Y") + cout_t
+
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "B", 10)
+    pdf.set_text_color(*INK)
+    pdf.cell(90, 5.5, latin1(guest_name))
+    pdf.set_font("helvetica", "", 9)
+    pdf.cell(90, 5.5, latin1(f"Check-In:  {cin_str}"), new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "", 9)
+    pdf.set_text_color(*MUTED)
+    pdf.cell(90, 5, latin1(f"Phone: {guest_phone}"))
+    pdf.set_text_color(*INK)
+    pdf.cell(90, 5, latin1(f"Check-Out: {cout_str}"), new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "", 9)
+    pdf.set_text_color(*MUTED)
+    pdf.cell(90, 5, latin1(f"Email: {guest_email}"))
+    pdf.set_text_color(*INK)
+    pdf.cell(90, 5, latin1(f"Room(s): {rooms_text}"), new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "", 9)
+    pdf.cell(90, 5, "")
+    ch_str = f", {booking.children} Children" if booking.children else ""
+    guest_cnt = latin1(f"Guests: {booking.adults} Adults{ch_str}")
+    pdf.cell(90, 5, guest_cnt, new_x="LMARGIN", new_y="NEXT")
+
+    pdf.ln(5)
+
+    # Section 2: Financial Details
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "B", 8)
+    pdf.set_text_color(*MUTED)
+    pdf.cell(140, 5, "FINANCIAL PARTICULARS")
+    pdf.cell(42, 5, "AMOUNT", align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.line(14, pdf.get_y(), 196, pdf.get_y())
+    pdf.ln(1)
+
+    def voucher_row(label: str, val: str, *, bold: bool = False, color=None):
+        pdf.set_x(14)
+        pdf.set_font("helvetica", "B" if bold else "", 9.5)
+        pdf.set_text_color(*(color or INK))
+        pdf.cell(140, 7, latin1(label))
+        pdf.cell(42, 7, latin1(val), align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.line(14, pdf.get_y(), 196, pdf.get_y())
+
+    voucher_row("Estimated Room Tariff & Charges", inr(f"{booking.total_amount:.2f}"))
+    voucher_row(
+        f"Advance Received ({pay_methods})", inr(f"{advance_paid:.2f}"), color=GOLD, bold=True
+    )
+    voucher_row("Balance Payable at Check-In", inr(f"{booking.due_amount:.2f}"), bold=True)
+
+    pdf.ln(8)
+
+    # Section 3: Statutory Note & Terms
+    pdf.set_x(14)
+    pdf.set_fill_color(*BG_LIGHT)
+    pdf.rect(14, pdf.get_y(), 182, 34, style="F")
+    pdf.set_draw_color(*RULE)
+    pdf.rect(14, pdf.get_y(), 182, 34, style="D")
+
+    y_start = pdf.get_y() + 3
+    pdf.set_xy(18, y_start)
+    pdf.set_font("helvetica", "B", 8)
+    pdf.set_text_color(*NAVY)
+    pdf.cell(
+        174, 4,
+        "IMPORTANT RESERVATION INFORMATION & STATUTORY NOTICE",
+        new_x="LMARGIN",
+        new_y="NEXT"
+    )
+
+    pdf.set_x(18)
+    pdf.set_font("helvetica", "", 7.5)
+    pdf.set_text_color(*MUTED)
+    notice_text = (
+        "1. Statutory Receipt Voucher: Issued pursuant to Section 31(3)(d) of the CGST Act, "
+        "2017 for advance receipt.\n"
+        "2. Final Tax Invoice: A final GST invoice detailing room breakdown and tax slabs will "
+        "be issued at check-out.\n"
+        "3. Identification: Valid Government photo ID (Aadhaar, Passport, Voter ID, "
+        "Driving Licence) is mandatory for all guests.\n"
+        "4. Standard check-in & check-out timings apply unless early arrival/late departure "
+        "was pre-arranged."
+    )
+    pdf.multi_cell(174, 4, latin1(notice_text))
+
+    pdf.ln(18)
+
+    # Signatures
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "", 8)
+    pdf.set_text_color(*MUTED)
+    pdf.line(14, pdf.get_y() + 15, 75, pdf.get_y() + 15)
+    pdf.line(135, pdf.get_y() + 15, 196, pdf.get_y() + 15)
+    pdf.set_xy(14, pdf.get_y() + 17)
+    pdf.cell(61, 4, "Guest Signature", align="C")
+    pdf.set_x(135)
+    pdf.cell(61, 4, "Authorized Hotel Signatory", align="C")
+
+    return bytes(pdf.output())
+
+
+async def render_registration_slip_pdf(
+    db: AsyncSession, tenant: TenantContext, booking_id: UUID
+) -> bytes:
+    """Render an A4 Guest Registration Card & Stay Slip PDF."""
+    from fpdf import FPDF
+
+    from app.models.guest import Guest, GuestRegistration
+    from app.models.hotel import Hotel
+    from app.models.payment import Payment
+    from app.models.room import Room
+    from app.repositories.hotels import get_gst_context
+
+    booking = await get_booking(db, tenant, booking_id)
+    hotel = await db.get(Hotel, tenant.require_hotel())
+    gst, gst_registered, _ = await get_gst_context(db, tenant.require_hotel())
+    primary_guest = (
+        await db.get(Guest, booking.primary_guest_id)
+        if booking.primary_guest_id
+        else None
+    )
+
+    co_guests = (
+        await db.execute(
+            select(Guest)
+            .join(GuestRegistration, GuestRegistration.guest_id == Guest.id)
+            .where(GuestRegistration.booking_id == booking_id)
+        )
+    ).scalars().all()
+
+    room_ids = [br.room_id for br in booking.rooms if br.is_current]
+    rooms_text = "-"
+    if room_ids:
+        r_rows = (
+            await db.execute(
+                select(Room)
+                .options(selectinload(Room.room_type))
+                .where(Room.id.in_(room_ids))
+                .order_by(Room.room_number)
+            )
+        ).scalars().all()
+        if r_rows:
+            rooms_text = ", ".join(
+                f"Room {r.room_number} ({r.room_type.name if r.room_type else 'Standard'})"
+                for r in r_rows
+            )
+
+    pay_rows = (
+        await db.execute(
+            select(Payment)
+            .where(Payment.booking_id == booking_id, Payment.status == "completed")
+            .order_by(Payment.paid_at.desc())
+        )
+    ).scalars().all()
+    total_paid = sum((p.amount for p in pay_rows), Decimal("0.00")) or booking.advance_amount
+
+    def latin1(text: str) -> str:
+        _trans = str.maketrans({
+            "\u2014": "-",
+            "\u2013": "-",
+            "\u2018": "'",
+            "\u2019": "'",
+            "\u201c": '"',
+            "\u201d": '"',
+            "\u2026": "...",
+        })
+        return str(text).translate(_trans).encode("latin-1", errors="replace").decode("latin-1")
+
+    def inr(value: object) -> str:
+        return f"Rs. {value}"
+
+    NAVY = (14, 26, 51)
+    MUTED = (110, 120, 138)
+    INK = (17, 24, 39)
+    GOLD = (161, 128, 47)
+    RULE = (226, 230, 236)
+    BG_LIGHT = (248, 250, 252)
+
+    pdf = FPDF(format="A4")
+    pdf.set_auto_page_break(auto=True, margin=18)
+    pdf.add_page()
+
+    # Navy header band
+    pdf.set_fill_color(*NAVY)
+    pdf.rect(0, 0, 210, 40, style="F")
+    pdf.set_xy(14, 10)
+    pdf.set_font("helvetica", "B", 16)
+    pdf.set_text_color(255, 255, 255)
+    hotel_name = hotel.name if hotel else "Hotel"
+    pdf.cell(120, 8, latin1(hotel_name), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "", 8)
+    pdf.set_text_color(196, 204, 218)
+    address_bits = (
+        [b for b in [hotel.address_line1, hotel.city, hotel.state] if b] if hotel else []
+    )
+    if address_bits:
+        pdf.cell(120, 4.5, latin1(", ".join(address_bits)), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_x(14)
+    if gst_registered and gst.gstin:
+        pdf.cell(120, 4.5, f"GSTIN: {gst.gstin}", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_x(14)
+    if hotel and hotel.phone:
+        pdf.cell(120, 4.5, f"Front Desk: {hotel.phone}", new_x="LMARGIN", new_y="NEXT")
+
+    # Right side: title + ref
+    pdf.set_xy(110, 10)
+    pdf.set_font("helvetica", "B", 7)
+    pdf.set_text_color(170, 180, 200)
+    pdf.cell(
+        86, 4, "GUEST REGISTRATION CARD & STAY SLIP", align="R", new_x="LMARGIN", new_y="NEXT"
+    )
+    pdf.set_xy(110, 15)
+    pdf.set_font("helvetica", "B", 12)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(86, 6, booking.booking_number, align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_xy(110, 22)
+    pdf.set_font("helvetica", "", 9)
+    pdf.set_text_color(196, 204, 218)
+    pdf.cell(86, 5, f"Status: {booking.status.upper()}", align="R")
+
+    # Primary Guest Details
+    pdf.set_xy(14, 48)
+    pdf.set_font("helvetica", "B", 8)
+    pdf.set_text_color(*MUTED)
+    pdf.cell(90, 5, "PRIMARY GUEST")
+    pdf.cell(90, 5, "STAY DETAILS", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_draw_color(*RULE)
+    pdf.line(14, pdf.get_y(), 196, pdf.get_y())
+    pdf.ln(2)
+
+    guest_name = (primary_guest.full_name if primary_guest else None) or "Guest"
+    guest_phone = (
+        primary_guest.normalized_phone if primary_guest else None
+    ) or "-"
+    id_info = (
+        f"{primary_guest.id_proof_type or 'ID'} (****{primary_guest.id_last4 or ''})"
+        if primary_guest and primary_guest.id_last4
+        else "-"
+    )
+
+    cin_t = f" ({booking.check_in_time})" if booking.check_in_time else ""
+    cout_t = f" ({booking.check_out_time})" if booking.check_out_time else ""
+    cin_str = booking.check_in_date.strftime("%d/%m/%Y") + cin_t
+    cout_str = booking.check_out_date.strftime("%d/%m/%Y") + cout_t
+
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "B", 10)
+    pdf.set_text_color(*INK)
+    pdf.cell(90, 5.5, latin1(guest_name))
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(90, 5.5, latin1(rooms_text), new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "", 9)
+    pdf.set_text_color(*MUTED)
+    pdf.cell(90, 5, latin1(f"Phone: {guest_phone}"))
+    pdf.set_text_color(*INK)
+    pdf.cell(90, 5, latin1(f"Check-In:  {cin_str}"), new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "", 9)
+    pdf.set_text_color(*MUTED)
+    pdf.cell(90, 5, latin1(f"ID Proof: {id_info}"))
+    pdf.set_text_color(*INK)
+    pdf.cell(90, 5, latin1(f"Check-Out: {cout_str}"), new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "", 9)
+    pdf.cell(90, 5, "")
+    ch_str = f", {booking.children} Children" if booking.children else ""
+    pdf.cell(
+        90, 5, latin1(f"Occupancy: {booking.adults} Adults{ch_str}"), new_x="LMARGIN", new_y="NEXT"
+    )
+
+    pdf.ln(4)
+
+    # Co-Guests
+    if co_guests:
+        pdf.set_x(14)
+        pdf.set_font("helvetica", "B", 8)
+        pdf.set_text_color(*MUTED)
+        pdf.cell(182, 5, "CO-GUESTS REGISTERED", new_x="LMARGIN", new_y="NEXT")
+        pdf.line(14, pdf.get_y(), 196, pdf.get_y())
+        pdf.ln(1)
+        pdf.set_font("helvetica", "", 8.5)
+        pdf.set_text_color(*INK)
+        for cg in co_guests:
+            if cg.id != booking.primary_guest_id:
+                cg_id = (
+                    f" ({cg.id_proof_type or 'ID'} ****{cg.id_last4})" if cg.id_last4 else ""
+                )
+                pdf.set_x(18)
+                cg_text = f"- {cg.full_name} - {cg.normalized_phone or ''}{cg_id}"
+                pdf.cell(178, 5, latin1(cg_text), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(3)
+
+    # Billing & Folio Summary
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "B", 8)
+    pdf.set_text_color(*MUTED)
+    pdf.cell(140, 5, "FOLIO & BILLING PARTICULARS")
+    pdf.cell(42, 5, "AMOUNT", align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.line(14, pdf.get_y(), 196, pdf.get_y())
+    pdf.ln(1)
+
+    def slip_row(label: str, val: str, *, bold: bool = False, color=None):
+        pdf.set_x(14)
+        pdf.set_font("helvetica", "B" if bold else "", 9.5)
+        pdf.set_text_color(*(color or INK))
+        pdf.cell(140, 6.5, latin1(label))
+        pdf.cell(42, 6.5, latin1(val), align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.line(14, pdf.get_y(), 196, pdf.get_y())
+
+    slip_row("Room Charges (Estimated Total)", inr(f"{booking.total_amount:.2f}"))
+    slip_row("Payments / Advance Received", inr(f"{total_paid:.2f}"), color=GOLD, bold=True)
+    slip_row("Current Folio Balance", inr(f"{booking.due_amount:.2f}"), bold=True)
+
+    pdf.ln(6)
+
+    # House Rules
+    pdf.set_fill_color(*BG_LIGHT)
+    pdf.rect(14, pdf.get_y(), 182, 30, style="F")
+    pdf.set_draw_color(*RULE)
+    pdf.rect(14, pdf.get_y(), 182, 30, style="D")
+
+    y_start = pdf.get_y() + 2.5
+    pdf.set_xy(18, y_start)
+    pdf.set_font("helvetica", "B", 8)
+    pdf.set_text_color(*NAVY)
+    pdf.cell(174, 4, "HOTEL HOUSE POLICIES & DECLARATION", new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_x(18)
+    pdf.set_font("helvetica", "", 7.5)
+    pdf.set_text_color(*MUTED)
+    rules_text = (
+        "1. Check-out time is strictly adhered to. Late check-out is subject to room availability "
+        "and extra fee.\n"
+        "2. Valid Government photo ID is required for all guests per local law. Non-registered "
+        "visitors not allowed in rooms past 10 PM.\n"
+        "3. Hotel management is not responsible for any cash, jewelry, or valuables left in "
+        "guest rooms.\n"
+        "4. Guest agrees to settle all food, room service, laundry, and damage charges prior "
+        "to departure."
+    )
+    pdf.multi_cell(174, 3.8, latin1(rules_text))
+
+    pdf.ln(16)
+
+    # Signatures
+    pdf.set_x(14)
+    pdf.set_font("helvetica", "", 8)
+    pdf.set_text_color(*MUTED)
+    pdf.line(14, pdf.get_y() + 15, 75, pdf.get_y() + 15)
+    pdf.line(135, pdf.get_y() + 15, 196, pdf.get_y() + 15)
+    pdf.set_xy(14, pdf.get_y() + 17)
+    pdf.cell(61, 4, "Guest Signature", align="C")
+    pdf.set_x(135)
+    pdf.cell(61, 4, "Duty Manager / Receptionist Signature", align="C")
+
+    return bytes(pdf.output())

@@ -51,6 +51,11 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import { fmtMoney, money } from "@/components/stay/checkout-summary";
+import {
+  buildInvoiceWhatsAppMessage,
+  downloadPdfBlob,
+  openWhatsAppToCustomer,
+} from "@/lib/whatsapp-share";
 import type { ListOut, HotelOut, HotelSettingsOut } from "@/types/hotel";
 import type { ChargeOut } from "@/types/money";
 import type {
@@ -581,54 +586,77 @@ function CheckoutContent() {
     }
     const total = checkoutResult ? money(checkoutResult.final_total) : grandTotal;
     const hotelName = hotelQuery.data?.name ?? tp("waHotelFallback");
-    const text = [
-      tp("waThanks", { hotel: hotelName }),
-      `${tp("booking")}: ${entry?.booking_number}`,
-      `${tp("grandTotal")}: ${fmtMoney(total)}`,
-    ].join("\n");
 
-    // Sharing requires a completed checkout AND an invoice (generated on
-    // demand if needed) — the button is also gated on `done` below.
     const id = invoiceId ?? (done ? await ensureInvoice() : null);
-    if (!id) return;
-
-    // On mobile: try Web Share API with the PDF file attached.
-    // Navigator.share with files is supported on Android Chrome + iOS Safari.
-    // On desktop (where file-sharing via WhatsApp URL is impossible anyway)
-    // we fall back to the text-only wa.me link.
-    if (typeof navigator !== "undefined" && "share" in navigator) {
+    if (id) {
+      setInvoiceBusy(true);
       try {
-        setInvoiceBusy(true);
         const blob = await fetchInvoicePdfBlob(id);
         if (blob) {
-          const file = new File(
-            [blob],
-            `invoice-${entry?.booking_number ?? id}.pdf`,
-            { type: "application/pdf" },
-          );
-          if (navigator.canShare?.({ files: [file] })) {
-            await navigator.share({
-              files: [file],
-              title: `${hotelName} — Invoice`,
-              text,
-            });
-            return; // successfully shared via native sheet
-          }
+          const guestClean = (booking?.primary_guest_name || "Guest")
+            .replace(/[^\w\s-]/g, "")
+            .trim()
+            .replace(/\s+/g, "_");
+          const bNum = entry?.booking_number || id;
+          downloadPdfBlob(blob, `Invoice_${bNum}_${guestClean}.pdf`);
         }
-      } catch (e) {
-        // AbortError = user dismissed the share sheet — don't fall through.
-        if (e instanceof Error && e.name === "AbortError") return;
-        // Any other error: fall through to URL link below.
+      } catch {
+        // Continue to open WhatsApp
       } finally {
         setInvoiceBusy(false);
       }
     }
 
-    // Fallback: open wa.me with text-only (desktop / unsupported browsers).
-    window.open(
-      `https://wa.me/${waPhone(phone)}?text=${encodeURIComponent(text)}`,
-      "_blank",
-      "noopener,noreferrer",
+    const hotelAddr = hotelQuery.data
+      ? [
+          hotelQuery.data.address_line1,
+          hotelQuery.data.address_line2,
+          hotelQuery.data.city,
+          hotelQuery.data.state,
+          hotelQuery.data.postal_code,
+        ]
+          .filter(Boolean)
+          .join(", ")
+      : "";
+
+    const roomNums =
+      booking?.rooms?.filter((r) => r.is_current).map((r) => r.room_number).join(", ") ||
+      entry?.rooms?.join(", ") ||
+      "";
+    const nights =
+      booking?.check_in_date && booking?.check_out_date
+        ? Math.max(
+            1,
+            Math.round(
+              (new Date(booking.check_out_date).getTime() -
+                new Date(booking.check_in_date).getTime()) /
+                86400000,
+            ),
+          )
+        : undefined;
+
+    const message = buildInvoiceWhatsAppMessage({
+      hotelName,
+      hotelPhone: hotelQuery.data?.phone,
+      hotelAddress: hotelAddr,
+      guestName: booking?.primary_guest_name || "Guest",
+      guestPhone: phone,
+      invoiceNumber: entry?.booking_number ? `INV-${entry.booking_number}` : (id ? `INV-${id.slice(0, 8)}` : "INVOICE"),
+      bookingNumber: entry?.booking_number,
+      roomNumbers: roomNums,
+      checkInDate: booking ? fmtApiDate(booking.check_in_date) : undefined,
+      checkInTime: booking?.check_in_time,
+      checkOutDate: booking ? fmtApiDate(booking.check_out_date) : undefined,
+      checkOutTime: booking?.check_out_time,
+      nights,
+      totalAmount: total.toFixed(2),
+      paidAmount: total.toFixed(2),
+      dueAmount: "0.00",
+    });
+
+    openWhatsAppToCustomer(phone, message);
+    toast.success(
+      `Invoice PDF downloaded & WhatsApp opened for ${booking?.primary_guest_name || phone}!`,
     );
   };
 

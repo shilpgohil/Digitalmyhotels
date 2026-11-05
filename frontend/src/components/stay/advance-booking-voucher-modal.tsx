@@ -27,6 +27,7 @@ import {
   Phone,
   BedDouble,
   ShieldCheck,
+  Download,
 } from "lucide-react";
 import {
   Dialog,
@@ -37,7 +38,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
 import { useApi } from "@/lib/api/use-api";
+import { API_BASE } from "@/lib/api/client";
+import { getAccessToken } from "@/lib/auth/session";
 import { useAuth } from "@/lib/auth/auth-context";
+import {
+  buildAdvanceBookingWhatsAppMessage,
+  downloadPdfBlob,
+  openWhatsAppToCustomer,
+} from "@/lib/whatsapp-share";
 import type { BookingOut } from "@/types/stay";
 import type { HotelOut } from "@/types/hotel";
 
@@ -124,19 +132,99 @@ export function AdvanceBookingVoucherModal({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleWhatsApp = () => {
-    const rawPhone = (booking.primary_guest_phone || "").replace(/\D/g, "");
-    const targetPhone =
-      rawPhone.startsWith("91") && rawPhone.length === 12
-        ? rawPhone
-        : rawPhone.length === 10
-        ? `91${rawPhone}`
-        : rawPhone;
-    const text = buildSummaryText();
-    const url = targetPhone
-      ? `https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`
-      : `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(url, "_blank");
+  const handleDownloadPdf = async () => {
+    try {
+      const token = getAccessToken();
+      const res = await fetch(`${API_BASE}/api/v1/bookings/${booking.id}/voucher/pdf`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+          "X-Hotel-Id": activeHotelId ?? "",
+        },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        toast.error("Failed to generate voucher PDF");
+        return;
+      }
+      const blob = await res.blob();
+      const guestClean = (booking.primary_guest_name || "Guest")
+        .replace(/[^\w\s-]/g, "")
+        .trim()
+        .replace(/\s+/g, "_");
+      downloadPdfBlob(blob, `Booking_Voucher_${voucherRef}_${guestClean}.pdf`);
+      toast.success("Voucher PDF downloaded!");
+    } catch {
+      toast.error("Failed to download voucher PDF");
+    }
+  };
+
+  const handleWhatsApp = async () => {
+    // 1. Download the official PDF voucher
+    try {
+      const token = getAccessToken();
+      const res = await fetch(`${API_BASE}/api/v1/bookings/${booking.id}/voucher/pdf`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+          "X-Hotel-Id": activeHotelId ?? "",
+        },
+        credentials: "include",
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const guestClean = (booking.primary_guest_name || "Guest")
+          .replace(/[^\w\s-]/g, "")
+          .trim()
+          .replace(/\s+/g, "_");
+        downloadPdfBlob(blob, `Booking_Voucher_${voucherRef}_${guestClean}.pdf`);
+      }
+    } catch {
+      // Continue to open WhatsApp even if direct PDF download fails
+    }
+
+    const hotelAddr = hotel
+      ? [hotel.address_line1, hotel.city, hotel.state].filter(Boolean).join(", ")
+      : "";
+    const roomList =
+      booking.rooms?.map((r) => r.room_number).join(", ") || "Assigned at check-in";
+    const nights =
+      booking.check_in_date && booking.check_out_date
+        ? Math.max(
+            1,
+            Math.round(
+              (new Date(booking.check_out_date).getTime() -
+                new Date(booking.check_in_date).getTime()) /
+                86400000,
+            ),
+          )
+        : undefined;
+
+    const message = buildAdvanceBookingWhatsAppMessage({
+      hotelName: hotel?.name || "Hotel Reservation",
+      hotelPhone: hotel?.phone,
+      hotelAddress: hotelAddr,
+      guestName: booking.primary_guest_name || "Guest",
+      guestPhone: booking.primary_guest_phone,
+      voucherNumber: voucherRef,
+      checkInDate: fmtApiDate(booking.check_in_date),
+      checkInTime: booking.check_in_time,
+      checkOutDate: fmtApiDate(booking.check_out_date),
+      checkOutTime: booking.check_out_time,
+      nights,
+      roomNumbersOrType: roomList,
+      adults: booking.adults,
+      children: booking.children,
+      totalEstimatedTariff: booking.total_amount,
+      advancePaid,
+      paymentMethod: payMethod,
+      balanceDue: booking.due_amount,
+    });
+
+    openWhatsAppToCustomer(booking.primary_guest_phone, message);
+    toast.success(
+      booking.primary_guest_phone
+        ? `Voucher PDF downloaded & WhatsApp opened for ${booking.primary_guest_name || booking.primary_guest_phone}!`
+        : "Voucher PDF downloaded & WhatsApp opened!",
+    );
   };
 
   const handlePrint = () => {
@@ -536,6 +624,16 @@ export function AdvanceBookingVoucherModal({
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadPdf}
+              className="gap-1.5"
+            >
+              <Download className="size-3.5" />
+              Download PDF
+            </Button>
             <Button
               type="button"
               variant="outline"
