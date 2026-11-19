@@ -246,7 +246,6 @@ export function buildAdvanceBookingWhatsAppMessage(p: AdvanceBookingShareParams)
   const childrenStr = p.children ? `, ${p.children} Children` : "";
   const cinTime = p.checkInTime ? ` (${p.checkInTime})` : "";
   const coutTime = p.checkOutTime ? ` (${p.checkOutTime})` : "";
-  const nightsStr = p.nights ? ` (${p.nights} Night${p.nights > 1 ? "s" : ""})` : "";
 
   const lines: string[] = [
     `Dear *${p.guestName || "Guest"}*,`,

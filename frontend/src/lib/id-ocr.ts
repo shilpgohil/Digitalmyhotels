@@ -9,7 +9,7 @@
  * bilingual Hindi/English handling, and robust Indian ID regex matching.
  */
 
-import { isIdMask } from "@/lib/input-discipline";
+import { scanAadhaarSide, mergeAadhaarSides } from "@/lib/aadhaar-scanner";
 
 export interface ParsedIdFields {
   name?: string;
@@ -925,7 +925,12 @@ export async function parseIdDocument(
   side: DocumentSide = "front",
   options?: { hotelId?: string; signal?: AbortSignal; qrOnly?: boolean },
 ): Promise<IdOcrResult> {
-  // ─── TIER 1: SERVER-SIDE SMART CASCADE (QR -> MRZ -> RapidOCR) ─────────────
+  // Aadhaar Card: Run the manager's deep-scan engine (100% browser-side, high-accuracy name & number)
+  if (!idType || idType === "Aadhar Card") {
+    return await scanAadhaarSide(imageFile, side);
+  }
+
+  // ─── TIER 1: SERVER-SIDE SMART CASCADE FOR NON-AADHAAR (Passport MRZ / PAN / DL / Voter ID) ─
   try {
     const { apiUpload } = await import("@/lib/api/client");
     const { prepareUncroppedScanFile } = await import("@/lib/compress-image");
@@ -1283,6 +1288,18 @@ export function mergeOcrResults(
   front: IdOcrResult | null | undefined,
   back: IdOcrResult | null | undefined,
 ): IdOcrResult | null {
+  if (!front && !back) return null;
+
+  const fType = front?.fields?.id_type_detected;
+  const bType = back?.fields?.id_type_detected;
+  if (
+    fType === "Aadhar Card" ||
+    bType === "Aadhar Card" ||
+    (!fType && !bType)
+  ) {
+    return mergeAadhaarSides(front, back);
+  }
+
   const formatSingle = (res: IdOcrResult): IdOcrResult => {
     if (!res.fields?.id_number) return res;
     const digits = res.fields.id_number.replace(/\D/g, "");
