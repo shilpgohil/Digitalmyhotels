@@ -3,6 +3,19 @@
   "name": "I want you to understand the",
   "createdAt": "2026-11-22T21:41:06.116Z",
   "filename": "ebce2f85-a141-4577-9097-b22438b2af6f.json",
-  "geminiStarted": false,
-  "messages": []
+  "geminiStarted": true,
+  "messages": [
+    {
+      "id": "b08fc161-aa90-48bf-b41e-bde522cbf311",
+      "role": "user",
+      "content": "I want you to understand the whole project, whole back end and front end in-depth.  And make me a MD file for what all the things that you understood in depth.",
+      "status": "pending",
+      "model": "gemini-3.8-flash-high",
+      "client_type": "gemini-bridge",
+      "parent_message_id": null,
+      "created_at": "2026-11-22T21:41:08.408Z",
+      "sender": "ios",
+      "is_cancelled": false
+    }
+  ]
 }
