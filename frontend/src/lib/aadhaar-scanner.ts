@@ -571,7 +571,7 @@ function cleanSeg(s: string, loose: boolean): string {
     )
     .filter(Boolean);
   const ok = t.filter(loose ? plausLoose : plaus);
-  if (!ok.length || ok.length / t.length < 0.6 || !ok.some((x) => /[A-Za-z]{3,}|\d/.test(x)))
+  if (!ok.length || ok.length / t.length < 0.5 || !ok.some((x) => /[A-Za-z]{2,}|\d/.test(x)))
     return "";
   const r = ok.join(" ");
   return loose && r === r.toLowerCase() ? title(r) : r;
@@ -592,18 +592,36 @@ function parseBack(res: { lines: OcrLine[]; conf: number }): ParsedBackResult {
   const text = L.map((l) => l.t).join("\n");
   const d: ParsedBackResult["d"] = {};
   const conf = res.conf;
-  const loose = /Address\s*[:\-]/i.test(text);
+  const loose = /Address|Addr|Addres|Adres|C\/O|S\/O|W\/O|D\/O|\b[1-9]\d{5}\b/i.test(text);
 
-  let b = (text.match(/Address\s*[:\-]?\s*([\s\S]*)/i) || [0, text])[1].split(
-    /help@|www\.|uidai\.gov|\b1947\b|Unique Identification/i,
-  )[0];
+  // Match Address block starting from Address / Addr / पता OR starting directly from C/O / S/O / W/O / D/O
+  let b = "";
+  const addrMatch = text.match(/(?:Address|Addres|Addrs|Adres|Addr|पता)\s*[:\-\/]?\s*([\s\S]*)/i);
+  if (addrMatch && addrMatch[1]) {
+    b = addrMatch[1];
+  } else {
+    const coMatch = text.match(/(?:[CSDW]\/O|Care of|Son of|Wife of|Daughter of)\b[\s\S]*/i);
+    if (coMatch) {
+      b = coMatch[0];
+    } else {
+      b = text;
+    }
+  }
+
+  // Strip UIDAI help/website footers and numbers
+  b = b.split(/help@|www\.|uidai\.gov|\b1947\b|Unique Identification|\bUIDAI\b/i)[0];
   b = b.replace(/\b\d{4}\s?\d{4}\s?\d{4}(?:\s?\d{4})?\b/g, " ").replace(/\bVID\b\s*:?/gi, " ");
+
   let a = b
     .split(/\n|,/)
     .map((x) => cleanSeg(x, loose))
     .filter(Boolean)
     .join(", ");
-  a = a.replace(/^.{1,6}?(?=\b[SDWC]\/O\b)/i, "");
+
+  // Strip leading noise before C/O, S/O, etc.
+  a = a.replace(/^.{1,10}?(?=\b[SDWC]\/O\b)/i, "");
+
+  // Match 6-digit PIN code
   const pm = [...a.matchAll(/\b[1-9]\d{5}\b/g)];
   const last = pm[pm.length - 1];
   if (last && typeof last.index === "number") a = a.slice(0, last.index + 6);
@@ -612,27 +630,39 @@ function parseBack(res: { lines: OcrLine[]; conf: number }): ParsedBackResult {
     .replace(/(,\s*)+/g, ", ")
     .replace(/^[,\s-]+|[,\s-]+$/g, "");
   if (!/:\s*\d{6}$/.test(a)) a = a.replace(/[\s,-]*\b([1-9]\d{5})$/, " - $1");
+
   if (a) d.address = { v: a, c: conf };
   if (last) d.pincode = { v: last[0], c: conf };
-  const st = findState(a);
+
+  // Resolve State: from text or inferred from PIN code
+  let st = findState(a);
+  if (!st && last) {
+    const inferred = statesForPin(last[0]);
+    if (inferred && inferred.length === 1) {
+      st = inferred[0];
+    }
+  }
   if (st) d.state = { v: st, c: conf };
 
+  // Resolve City / District:
   const parts = a
     .replace(/[\s,-]*\b[1-9]\d{5}\b$/, "")
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean);
-  const cm = a.match(/\b(?:VTC|City|Town)\s*[:\-]\s*([A-Za-z][A-Za-z .'-]*?)(?=,|$)/i);
-  const dm = a.match(/\b(?:District|Dist)\s*[:\-]\s*([A-Za-z][A-Za-z .'-]*?)(?=,|$)/i);
+
+  const cm = a.match(/\b(?:VTC|City|Town|Village|Taluka|Taluk|Tehsil|Ta)\.?\s*[:\-]?\s*([A-Za-z][A-Za-z .'-]*?)(?=,|$)/i);
+  const dm = a.match(/\b(?:District|Dist|Dt)\.?\s*[:\-]?\s*([A-Za-z][A-Za-z .'-]*?)(?=,|$)/i);
   let city: string | null = null;
-  if (dm) {
+  if (dm && dm[1]) {
     city = dm[1].trim();
-  } else if (cm) {
+  } else if (cm && cm[1]) {
     city = cm[1].trim();
   } else {
-    const ci = parts.findIndex((x) => /\bcity\b/i.test(x));
-    if (ci >= 0) city = parts[ci].replace(/\bcity\b/i, "").trim() || parts[ci - 1];
-    else if (st) {
+    const ci = parts.findIndex((x) => /\b(?:city|town|district|dist|taluka)\b/i.test(x));
+    if (ci >= 0) {
+      city = parts[ci].replace(/\b(?:city|town|district|dist|dt|taluka|ta)\b[:\.]?/i, "").trim() || (ci > 0 ? parts[ci - 1] : null);
+    } else if (st) {
       let si = -1;
       for (let pIdx = parts.length - 1; pIdx >= 0; pIdx--) {
         if (findState(parts[pIdx]) === st) {
@@ -640,14 +670,26 @@ function parseBack(res: { lines: OcrLine[]; conf: number }): ParsedBackResult {
           break;
         }
       }
-      if (si > 0) city = parts[si - 1];
+      if (si > 0) {
+        city = parts[si - 1];
+      } else if (si === 0 && parts.length > 1) {
+        city = parts[1];
+      }
+    } else if (parts.length > 0) {
+      city = parts[parts.length - 1];
     }
   }
+
   if (city) {
     city = title(
-      city.replace(/^(?:dist(?:rict)?|dt)\.?\s*[:\-]?\s*/i, "").replace(/[^A-Za-z .'-]/g, "").trim(),
+      city
+        .replace(/^(?:dist(?:rict)?|dt|taluka|ta|vtc|city|town)\.?\s*[:\-]?\s*/i, "")
+        .replace(/[^A-Za-z .'-]/g, "")
+        .trim(),
     );
-    if (city) d.city = { v: city, c: conf };
+    if (city && (!st || city.toLowerCase() !== st.toLowerCase()) && city.length >= 2) {
+      d.city = { v: city, c: conf };
+    }
   }
 
   return {
@@ -1414,6 +1456,8 @@ export async function scanAadhaarSide(
       Boolean(fields.name && fields.date_of_birth) ||
       Boolean(fields.address && fields.pincode) ||
       Boolean(fields.address && side === "back") ||
+      Boolean(fields.city && fields.state && side === "back") ||
+      Boolean(fields.pincode && side === "back") ||
       Boolean(fields.id_number && fields.date_of_birth);
 
     return {

@@ -29,6 +29,7 @@ import {
   ClipboardList,
   Clock,
   CreditCard,
+  Loader2,
   FileText,
   Minus,
   Pencil,
@@ -187,24 +188,26 @@ function AdvanceBookingContent() {
     hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
       let filledAny = false;
-      if (fields.address && !pgAddress) {
+      if (fields.address) {
         setPgAddress(fields.address);
         filledAny = true;
       }
-      if (fields.pincode && !pgPostalCode) {
+      if (fields.pincode) {
         setPgPostalCode(fields.pincode);
         filledAny = true;
       }
-      if (fields.city && !pgCity) {
+      if (fields.city) {
         setPgCity(fields.city);
         filledAny = true;
       }
-      if (fields.state && !pgState) {
+      if (fields.state) {
         setPgState(fields.state);
         filledAny = true;
       }
       if (filledAny) {
-        toast.info(t("addressAutofilled"));
+        toast.success(t("addressAutofilled"));
+      } else {
+        toast.warning(t("addressNotFoundOnBack"));
       }
     },
     onIdNumberAutofill: (idNum) => {
@@ -909,6 +912,7 @@ function AdvanceBookingContent() {
                       label={t("uploadFrontFace")}
                       idType={pgIdType}
                       existingDocId={pgExistingDocs.front}
+                      isScanning={pgScan.isFrontScanning}
                       onOriginal={(_side, original) => pgScan.handleFrontUpload(original)}
                     />
                     <DocUpload
@@ -918,6 +922,7 @@ function AdvanceBookingContent() {
                       label={t("uploadBackFace")}
                       idType={pgIdType}
                       existingDocId={pgExistingDocs.back}
+                      isScanning={pgScan.isBackScanning}
                       onOriginal={(_side, original) => pgScan.handleBackUpload(original)}
                     />
                     <DocUpload
@@ -934,6 +939,17 @@ function AdvanceBookingContent() {
                     <div className="flex items-center gap-3 rounded-xl border border-gold-400 bg-gold-50/70 p-3 text-gold-800 animate-pulse">
                       <div className="size-4 animate-spin rounded-full border-2 border-gold-600 border-t-transparent" />
                       <span className="text-xs font-medium">{t("extractingDetails")}</span>
+                    </div>
+                  )}
+
+                  {/* Back face OCR active banner (visible even after front autofill is accepted) */}
+                  {pgScan.isBackScanning && (
+                    <div className="flex items-center gap-3 rounded-lg border border-gold-400/50 bg-gold-50/90 p-3 text-xs text-navy-950 shadow-sm animate-pulse">
+                      <Loader2 className="size-4 animate-spin text-gold-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gold-950">{t("readingBackFace")}</p>
+                        <p className="text-micro text-gold-800">{pgScan.scanProgressText || t("extractingAddressDetails")}</p>
+                      </div>
                     </div>
                   )}
 
@@ -1013,7 +1029,15 @@ function AdvanceBookingContent() {
                       <DatePicker value={pgDob} onChange={setPgDob} max={localToday()} />
                     </div>
                     <div className="space-y-1.5 sm:col-span-2">
-                      <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>
+                      <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground flex items-center justify-between">
+                        <span>{t("fieldAddress")}</span>
+                        {pgScan.isBackScanning && (
+                          <span className="flex items-center gap-1 text-micro text-gold-700 font-normal lowercase">
+                            <Loader2 className="size-3 animate-spin text-gold-600" />
+                            {t("extractingAddress")}
+                          </span>
+                        )}
+                      </Label>
                       <Input value={pgAddress} onChange={(e) => setPgAddress(e.target.value)} placeholder={t("fieldAddress")} />
                     </div>
                     <div className="space-y-1.5">

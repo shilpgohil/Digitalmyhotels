@@ -923,11 +923,16 @@ export async function parseIdDocument(
   imageFile: File,
   idType: string,
   side: DocumentSide = "front",
-  options?: { hotelId?: string; signal?: AbortSignal; qrOnly?: boolean },
+  options?: {
+    hotelId?: string;
+    signal?: AbortSignal;
+    qrOnly?: boolean;
+    onProgress?: (pct: number, status: string) => void;
+  },
 ): Promise<IdOcrResult> {
   // Aadhaar Card: Run the manager's deep-scan engine (100% browser-side, high-accuracy name & number)
   if (!idType || idType === "Aadhar Card") {
-    return await scanAadhaarSide(imageFile, side);
+    return await scanAadhaarSide(imageFile, side, options?.onProgress);
   }
 
   // ─── TIER 1: SERVER-SIDE SMART CASCADE FOR NON-AADHAAR (Passport MRZ / PAN / DL / Voter ID) ─

@@ -41,6 +41,7 @@ import {
   BadgeCheck,
   BedDouble,
   Camera,
+  Loader2,
   Car,
   ChevronDown,
   Clock,
@@ -678,6 +679,7 @@ function DocUpload({
   onOcrResult,
   onScanStart,
   onOriginal,
+  isScanning,
 }: {
   readonly guestId: string | null;
   readonly side: DocSide;
@@ -689,6 +691,7 @@ function DocUpload({
   readonly onOcrResult?: (result: import("@/lib/id-ocr").IdOcrResult) => void;
   readonly onScanStart?: () => void;
   readonly onOriginal?: (side: DocSide, file: File) => void;
+  readonly isScanning?: boolean;
 }) {
   const t = useTranslations("checkin");
   const { activeHotelId } = useAuth();
@@ -832,22 +835,24 @@ function DocUpload({
     }
   };
 
-  // Tile border/background — preview wins, then OCR-in-progress, then idle.
+  const activeScanning = isScanning || ocrRunning;
+
+  // Tile border/background — active scanning wins, then preview, then idle.
   let tileStateClass: string;
-  if (preview) {
+  if (activeScanning) {
+    tileStateClass = "border-gold-500 bg-gold-50/80 text-gold-900 ring-2 ring-gold-400/40 animate-pulse " + (preview ? "p-0 h-40" : "p-4");
+  } else if (preview) {
     // Taller preview so the ID text is actually readable at the desk
     // (client 9-08 item 5 — the old h-28 strip cropped most of the card).
     tileStateClass = "border-green-400 p-0 h-40";
-  } else if (ocrRunning) {
-    tileStateClass = "border-gold-400 bg-gold-50 text-gold-700 animate-pulse p-4";
   } else {
     tileStateClass = "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4";
   }
 
-  // Status text — OCR running wins, then uploading; fallback differs per view.
+  // Status text — active scanning wins, then uploading; fallback differs per view.
   let overlayStatusText: string;
-  if (ocrRunning) {
-    overlayStatusText = t("readingId");
+  if (activeScanning) {
+    overlayStatusText = side === "back" ? t("extractingAddress") : t("readingId");
   } else if (busy) {
     overlayStatusText = t("uploading");
   } else {
@@ -855,8 +860,8 @@ function DocUpload({
   }
 
   let tileLabelText: string;
-  if (ocrRunning) {
-    tileLabelText = t("readingId");
+  if (activeScanning) {
+    tileLabelText = side === "back" ? t("extractingAddress") : t("readingId");
   } else if (busy) {
     tileLabelText = t("uploading");
   } else {
@@ -894,20 +899,31 @@ function DocUpload({
             />
             {/* Status overlay */}
             <div className={cn(
-              "absolute bottom-0 left-0 right-0 px-2 py-1 text-micro font-semibold text-center",
-              uploaded ? "bg-success/80 text-white" : "bg-gold-500/80 text-navy-900",
+              "absolute bottom-0 left-0 right-0 px-2 py-1 text-micro font-semibold text-center flex items-center justify-center gap-1.5",
+              activeScanning
+                ? "bg-gold-500 text-navy-950 shadow-sm"
+                : uploaded
+                  ? "bg-success/80 text-white"
+                  : "bg-gold-500/80 text-navy-900",
             )}>
-              {overlayStatusText}
+              {activeScanning && <Loader2 className="size-3 animate-spin text-navy-950" />}
+              <span>{overlayStatusText}</span>
             </div>
           </>
         ) : (
           <>
-            <Upload className={cn("size-5", ocrRunning && "animate-spin")} aria-hidden />
+            {activeScanning ? (
+              <Loader2 className="size-5 animate-spin text-gold-600" aria-hidden />
+            ) : (
+              <Upload className="size-5" aria-hidden />
+            )}
             <span className="font-medium">
               {tileLabelText}
             </span>
-            {ocrRunning && (
-              <span className="text-micro text-gold-600">{t("extractingDetails")}</span>
+            {activeScanning && (
+              <span className="text-micro text-gold-600">
+                {side === "back" ? t("extractingAddressDetails") : t("extractingDetails")}
+              </span>
             )}
           </>
         )}
@@ -988,6 +1004,7 @@ function QueuedDocUpload({
   onOcrResult,
   onScanStart,
   initialFile,
+  isScanning,
 }: {
   readonly side: DocSide;
   readonly label: string;
@@ -1009,6 +1026,7 @@ function QueuedDocUpload({
    *  Guest Details", the parent passes the queued file back so the preview
    *  survives — previously the card showed three BLANK tiles (client bug). */
   readonly initialFile?: File | null;
+  readonly isScanning?: boolean;
 }) {
   const t = useTranslations("checkin");
   const { activeHotelId } = useAuth();
@@ -1141,9 +1159,11 @@ function QueuedDocUpload({
         }}
         className={cn(
           "relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 overflow-hidden text-center text-xs transition-colors",
-          preview
-            ? "border-gold-400 p-0 h-40"
-            : "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4",
+          (isScanning || ocrRunning)
+            ? "border-gold-500 bg-gold-50/80 ring-2 ring-gold-400/40 animate-pulse " + (preview ? "p-0 h-40" : "p-4")
+            : preview
+              ? "border-gold-400 p-0 h-40"
+              : "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4",
         )}
       >
         {preview ? (
@@ -1154,20 +1174,40 @@ function QueuedDocUpload({
               alt={side === "selfie" ? t("selfieAlt") : t("idDocumentAlt")}
               className={side === "selfie" ? "h-full w-full object-cover" : "h-full w-full bg-navy-900/5 object-contain"}
             />
-            <div className="absolute bottom-0 left-0 right-0 bg-gold-500/80 px-2 py-1 text-micro font-semibold text-navy-900 text-center">
-              {ocrRunning
-                ? t("readingId")
-                : queued
-                  ? t("readyToUpload")
-                  : showingExisting
-                    ? t("savedOnFile")
-                    : t("processing")}
+            <div className={cn(
+              "absolute bottom-0 left-0 right-0 px-2 py-1 text-micro font-semibold text-center flex items-center justify-center gap-1.5",
+              (isScanning || ocrRunning) ? "bg-gold-500 text-navy-950 shadow-sm" : "bg-gold-500/80 text-navy-900",
+            )}>
+              {(isScanning || ocrRunning) && <Loader2 className="size-3 animate-spin text-navy-950" />}
+              <span>
+                {(isScanning || ocrRunning)
+                  ? (side === "back" ? t("extractingAddress") : t("readingId"))
+                  : queued
+                    ? t("readyToUpload")
+                    : showingExisting
+                      ? t("savedOnFile")
+                      : t("processing")}
+              </span>
             </div>
           </>
         ) : (
           <>
-            <Upload className="size-5" aria-hidden />
-            <span className="font-medium">{label}</span>
+            {(isScanning || ocrRunning) ? (
+              <>
+                <Loader2 className="size-5 animate-spin text-gold-600" aria-hidden />
+                <span className="font-semibold text-gold-950">
+                  {side === "back" ? t("extractingAddress") : t("readingId")}
+                </span>
+                <span className="text-micro text-gold-700">
+                  {side === "back" ? t("extractingAddressDetails") : t("extractingDetails")}
+                </span>
+              </>
+            ) : (
+              <>
+                <Upload className="size-5" aria-hidden />
+                <span className="font-medium">{label}</span>
+              </>
+            )}
           </>
         )}
         <input
@@ -1295,36 +1335,41 @@ function NewGuestForm({
   const {
     unifiedResult: unifiedOcrResult,
     isScanning: isOcrScanning,
+    isFrontScanning,
+    isBackScanning,
+    scanProgressText,
     autofillAccepted,
     setAutofillAccepted,
     isWaitingForBack,
     triggerFrontOcrFallback,
     handleFrontUpload,
     handleBackUpload,
-    reset: resetCoordinatedScan,
+    
   } = useCoordinatedIdScan({
     idType: form.id_proof_type,
     hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
       let filledAny = false;
-      if (fields.address && !form.address) {
+      if (fields.address) {
         set("address", fields.address);
         filledAny = true;
       }
-      if (fields.pincode && !form.postal_code) {
+      if (fields.pincode) {
         set("postal_code", fields.pincode);
         filledAny = true;
       }
-      if (fields.city && !form.city) {
+      if (fields.city) {
         set("city", fields.city);
         filledAny = true;
       }
-      if (fields.state && !form.state) {
+      if (fields.state) {
         set("state", fields.state);
         filledAny = true;
       }
       if (filledAny) {
-        toast.info(t("addressAutofilled"));
+        toast.success(t("addressAutofilled"));
+      } else {
+        toast.warning(t("addressNotFoundOnBack"));
       }
     },
     onIdNumberAutofill: (idNum) => {
@@ -1394,6 +1439,7 @@ function NewGuestForm({
           idType={form.id_proof_type}
           existingDocId={existingDocs.front}
           guestId={guestId ?? undefined}
+          isScanning={isFrontScanning}
           onOriginal={(_side, original) => handleFrontUpload(original)}
         />
         <QueuedDocUpload
@@ -1403,6 +1449,7 @@ function NewGuestForm({
           idType={form.id_proof_type}
           existingDocId={existingDocs.back}
           guestId={guestId ?? undefined}
+          isScanning={isBackScanning}
           onOriginal={(_side, original) => handleBackUpload(original)}
         />
         <QueuedDocUpload
@@ -1416,6 +1463,17 @@ function NewGuestForm({
 
       {/* OCR Shimmer Loading Banner */}
       {!autofillAccepted && isOcrScanning && !unifiedOcrResult && <AutofillSkeletonBanner />}
+
+      {/* Back face OCR active banner (visible even after front autofill is accepted) */}
+      {isBackScanning && (
+        <div className="flex items-center gap-3 rounded-lg border border-gold-400/50 bg-gold-50/90 p-3 text-xs text-navy-950 shadow-sm animate-pulse">
+          <Loader2 className="size-4 animate-spin text-gold-600 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-gold-950">{t("readingBackFace")}</p>
+            <p className="text-micro text-gold-800">{scanProgressText || t("extractingAddressDetails")}</p>
+          </div>
+        </div>
+      )}
 
       {/* Waiting for Back Card to Scan QR (PVC Card) */}
       {!autofillAccepted && !unifiedOcrResult && !isOcrScanning && isWaitingForBack && (
@@ -1502,7 +1560,15 @@ function NewGuestForm({
           <Input value={form.postal_code} onChange={(e) => set("postal_code", e.target.value)} placeholder={t("pincode")} inputMode="numeric" />
         </div>
         <div className="space-y-1.5 sm:col-span-2">
-          <Label className="text-xs">{t("fieldAddress")}</Label>
+          <Label className="text-xs flex items-center justify-between">
+            <span>{t("fieldAddress")}</span>
+            {isBackScanning && (
+              <span className="flex items-center gap-1 text-micro text-gold-700 font-normal">
+                <Loader2 className="size-3 animate-spin text-gold-600" />
+                {t("extractingAddress")}
+              </span>
+            )}
+          </Label>
           <Input value={form.address} onChange={(e) => set("address", e.target.value)} placeholder={t("fieldAddress")} />
         </div>
         {/* City / State / Country — client reference layout (Aadhaar-style). */}
@@ -1600,8 +1666,10 @@ function AdditionalGuestEntry({
     idType: "Aadhar Card",
     hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
+      let filledAny = false;
       setAutofill((prev) => {
         if (!prev) return prev;
+        if (fields.address || fields.pincode || fields.city || fields.state) filledAny = true;
         return {
           ...prev,
           ...(fields.address && { address: fields.address }),
@@ -1613,11 +1681,16 @@ function AdditionalGuestEntry({
       if (resolved?.guest_id?.startsWith("__new__")) {
         const resAny = resolved as ResolvedCoGuest & { _newForm?: GuestCreatePayload };
         if (resAny._newForm) {
-          if (fields.address) resAny._newForm.address = fields.address;
-          if (fields.pincode) resAny._newForm.postal_code = fields.pincode;
-          if (fields.city) resAny._newForm.city = fields.city;
-          if (fields.state) resAny._newForm.state = fields.state;
+          if (fields.address) { resAny._newForm.address = fields.address; filledAny = true; }
+          if (fields.pincode) { resAny._newForm.postal_code = fields.pincode; filledAny = true; }
+          if (fields.city) { resAny._newForm.city = fields.city; filledAny = true; }
+          if (fields.state) { resAny._newForm.state = fields.state; filledAny = true; }
         }
+      }
+      if (filledAny) {
+        toast.success(t("addressAutofilled"));
+      } else {
+        toast.warning(t("addressNotFoundOnBack"));
       }
     },
     onIdNumberAutofill: (idNum) => {
@@ -2192,6 +2265,17 @@ function AdditionalGuestEntry({
         {/* Co-guest OCR scanning loading banner */}
         {coGuestScan.isScanning && !activeCoGuestOcrResult && <AutofillSkeletonBanner />}
 
+        {/* Back face OCR active banner */}
+        {coGuestScan.isBackScanning && (
+          <div className="flex items-center gap-3 rounded-lg border border-gold-400/50 bg-gold-50/90 p-3 text-xs text-navy-950 shadow-sm animate-pulse">
+            <Loader2 className="size-4 animate-spin text-gold-600 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gold-950">{t("readingBackFace")}</p>
+              <p className="text-micro text-gold-800">{coGuestScan.scanProgressText || t("extractingAddressDetails")}</p>
+            </div>
+          </div>
+        )}
+
         {/* Waiting for Back Card to Scan QR (PVC Card) */}
         {!activeCoGuestOcrResult && !coGuestScan.isScanning && coGuestScan.isWaitingForBack && (
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-lg border border-gold-200 bg-gold-50/70 p-3 text-xs text-gold-900 shadow-xs">
@@ -2216,6 +2300,7 @@ function AdditionalGuestEntry({
             side="front"
             label={t("uploadFront")}
             onQueued={handleQueueDoc}
+            isScanning={coGuestScan.isFrontScanning}
             onOriginal={(_side, original) => coGuestScan.handleFrontUpload(original)}
             guestId={resolved.guest_id}
             existingDocId={existingDocs.front}
@@ -2225,6 +2310,7 @@ function AdditionalGuestEntry({
             side="back"
             label={t("uploadBack")}
             onQueued={handleQueueDoc}
+            isScanning={coGuestScan.isBackScanning}
             onOriginal={(_side, original) => coGuestScan.handleBackUpload(original)}
             guestId={resolved.guest_id}
             existingDocId={existingDocs.back}
@@ -2643,24 +2729,26 @@ function CheckinForm({
     hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
       let filledAny = false;
-      if (fields.address && !pgAddress) {
+      if (fields.address) {
         setPgAddress(fields.address);
         filledAny = true;
       }
-      if (fields.pincode && !pgPostalCode) {
+      if (fields.pincode) {
         setPgPostalCode(fields.pincode);
         filledAny = true;
       }
-      if (fields.city && !pgCity) {
+      if (fields.city) {
         setPgCity(fields.city);
         filledAny = true;
       }
-      if (fields.state && !pgState) {
+      if (fields.state) {
         setPgState(fields.state);
         filledAny = true;
       }
       if (filledAny) {
-        toast.info(t("addressAutofilled"));
+        toast.success(t("addressAutofilled"));
+      } else {
+        toast.warning(t("addressNotFoundOnBack"));
       }
     },
     onIdNumberAutofill: (idNum) => {
@@ -3283,6 +3371,7 @@ function CheckinForm({
               label={t("uploadFrontFace")}
               idType={pgIdType}
               existingDocId={pgExistingDocs.front}
+              isScanning={pgScan.isFrontScanning}
               onOriginal={(_side, file) => pgScan.handleFrontUpload(file)}
             />
             <DocUpload
@@ -3292,6 +3381,7 @@ function CheckinForm({
               label={t("uploadBackFace")}
               idType={pgIdType}
               existingDocId={pgExistingDocs.back}
+              isScanning={pgScan.isBackScanning}
               onOriginal={(_side, file) => pgScan.handleBackUpload(file)}
             />
             <DocUpload
@@ -3305,6 +3395,17 @@ function CheckinForm({
 
           {/* OCR Shimmer Loading Banner */}
           {!pgAutofillAccepted && pgScan.isScanning && !unifiedPgOcrResult && <AutofillSkeletonBanner />}
+
+          {/* Back face OCR active banner (visible even after front autofill is accepted) */}
+          {pgScan.isBackScanning && (
+            <div className="flex items-center gap-3 rounded-lg border border-gold-400/50 bg-gold-50/90 p-3 text-xs text-navy-950 shadow-sm animate-pulse">
+              <Loader2 className="size-4 animate-spin text-gold-600 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gold-950">{t("readingBackFace")}</p>
+                <p className="text-micro text-gold-800">{pgScan.scanProgressText || t("extractingAddressDetails")}</p>
+              </div>
+            </div>
+          )}
 
           {/* Waiting for Back Card to Scan QR (PVC Card) */}
           {!pgAutofillAccepted && !unifiedPgOcrResult && !pgScan.isScanning && pgScan.isWaitingForBack && (
@@ -3382,7 +3483,15 @@ function CheckinForm({
               <DatePicker value={pgDob} onChange={setPgDob} max={localToday()} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>
+              <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground flex items-center justify-between">
+                <span>{t("fieldAddress")}</span>
+                {pgScan.isBackScanning && (
+                  <span className="flex items-center gap-1 text-micro text-gold-700 font-normal lowercase">
+                    <Loader2 className="size-3 animate-spin text-gold-600" />
+                    {t("extractingAddress")}
+                  </span>
+                )}
+              </Label>
               <Input value={pgAddress} onChange={(e) => setPgAddress(e.target.value)} placeholder={t("fieldAddress")} />
             </div>
             <div className="space-y-1.5">
@@ -4025,24 +4134,26 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
       let filledAny = false;
-      if (fields.address && !pgAddress) {
+      if (fields.address) {
         setPgAddress(fields.address);
         filledAny = true;
       }
-      if (fields.pincode && !pgPostalCode) {
+      if (fields.pincode) {
         setPgPostalCode(fields.pincode);
         filledAny = true;
       }
-      if (fields.city && !pgCity) {
+      if (fields.city) {
         setPgCity(fields.city);
         filledAny = true;
       }
-      if (fields.state && !pgState) {
+      if (fields.state) {
         setPgState(fields.state);
         filledAny = true;
       }
       if (filledAny) {
-        toast.info(t("addressAutofilled"));
+        toast.success(t("addressAutofilled"));
+      } else {
+        toast.warning(t("addressNotFoundOnBack"));
       }
     },
     onIdNumberAutofill: (idNum) => {
@@ -5404,6 +5515,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   label={t("uploadFrontFace")}
                   idType={pgIdType}
                   existingDocId={pgExistingDocs.front}
+                  isScanning={pgScan.isFrontScanning}
                   onOriginal={(_side, file) => pgScan.handleFrontUpload(file)}
                 />
                 <DocUpload
@@ -5413,6 +5525,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   label={t("uploadBackFace")}
                   idType={pgIdType}
                   existingDocId={pgExistingDocs.back}
+                  isScanning={pgScan.isBackScanning}
                   onOriginal={(_side, file) => pgScan.handleBackUpload(file)}
                 />
                 <DocUpload
@@ -5426,6 +5539,17 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
 
               {/* OCR Shimmer Loading Banner */}
               {!pgAutofillAccepted && pgScan.isScanning && !unifiedPgOcrResult && <AutofillSkeletonBanner />}
+
+              {/* Back face OCR active banner (visible even after front autofill is accepted) */}
+              {pgScan.isBackScanning && (
+                <div className="flex items-center gap-3 rounded-lg border border-gold-400/50 bg-gold-50/90 p-3 text-xs text-navy-950 shadow-sm animate-pulse">
+                  <Loader2 className="size-4 animate-spin text-gold-600 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gold-950">{t("readingBackFace")}</p>
+                    <p className="text-micro text-gold-800">{pgScan.scanProgressText || t("extractingAddressDetails")}</p>
+                  </div>
+                </div>
+              )}
 
               {/* Waiting for Back Card to Scan QR (PVC Card) */}
               {!pgAutofillAccepted && !unifiedPgOcrResult && !pgScan.isScanning && pgScan.isWaitingForBack && (
@@ -5503,7 +5627,15 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   <DatePicker value={pgDob} onChange={setPgDob} max={localToday()} />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">{t("fieldAddress")}</Label>
+                  <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground flex items-center justify-between">
+                    <span>{t("fieldAddress")}</span>
+                    {pgScan.isBackScanning && (
+                      <span className="flex items-center gap-1 text-micro text-gold-700 font-normal lowercase">
+                        <Loader2 className="size-3 animate-spin text-gold-600" />
+                        {t("extractingAddress")}
+                      </span>
+                    )}
+                  </Label>
                   <Input value={pgAddress} onChange={(e) => setPgAddress(e.target.value)} placeholder={t("fieldAddress")} />
                 </div>
                 <div className="space-y-1.5">

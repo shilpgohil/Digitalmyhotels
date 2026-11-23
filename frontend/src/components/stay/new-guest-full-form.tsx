@@ -24,7 +24,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { docAspectFor, useImageEditor } from "@/components/media/image-editor";
-import { Camera, Globe, Upload } from "lucide-react";
+import { Camera, Globe, Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -168,6 +168,7 @@ export function QueuedDocUpload({
   onQueued,
   onOriginal,
   idType,
+  isScanning,
 }: {
   readonly side: DocSide;
   readonly label: string;
@@ -177,6 +178,7 @@ export function QueuedDocUpload({
   readonly onOriginal?: (side: DocSide, file: File) => void;
   /** ID proof type — picks the matching crop frame (Aadhaar card vs passport). */
   readonly idType?: string | null;
+  readonly isScanning?: boolean;
 }) {
   const t = useTranslations("checkin");
   const { edit } = useImageEditor();
@@ -240,9 +242,11 @@ export function QueuedDocUpload({
         }}
         className={cn(
           "relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 overflow-hidden text-center text-xs transition-colors",
-          preview
-            ? "border-gold-400 p-0 h-40"
-            : "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4",
+          isScanning
+            ? "border-gold-500 bg-gold-50/80 ring-2 ring-gold-400/40 animate-pulse " + (preview ? "p-0 h-40" : "p-4")
+            : preview
+              ? "border-gold-400 p-0 h-40"
+              : "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4",
         )}
       >
         {preview ? (
@@ -253,14 +257,36 @@ export function QueuedDocUpload({
               alt={side === "selfie" ? t("selfieAlt") : t("idDocumentAlt")}
               className={side === "selfie" ? "h-full w-full object-cover" : "h-full w-full bg-navy-900/5 object-contain"}
             />
-            <div className="absolute bottom-0 left-0 right-0 bg-gold-500/80 px-2 py-1 text-micro font-semibold text-navy-900 text-center">
-              {queued ? t("readyToUpload") : t("processing")}
+            <div className={cn(
+              "absolute bottom-0 left-0 right-0 px-2 py-1 text-micro font-semibold text-center flex items-center justify-center gap-1.5",
+              isScanning ? "bg-gold-500 text-navy-950 shadow-sm" : "bg-gold-500/80 text-navy-900",
+            )}>
+              {isScanning && <Loader2 className="size-3 animate-spin text-navy-950" />}
+              <span>
+                {isScanning
+                  ? (side === "back" ? t("extractingAddress") : t("readingId"))
+                  : (queued ? t("readyToUpload") : t("processing"))}
+              </span>
             </div>
           </>
         ) : (
           <>
-            <Upload className="size-5" aria-hidden />
-            <span className="font-medium">{label}</span>
+            {isScanning ? (
+              <>
+                <Loader2 className="size-5 animate-spin text-gold-600" aria-hidden />
+                <span className="font-semibold text-gold-950">
+                  {side === "back" ? t("extractingAddress") : t("readingId")}
+                </span>
+                <span className="text-micro text-gold-700">
+                  {side === "back" ? t("extractingAddressDetails") : t("extractingDetails")}
+                </span>
+              </>
+            ) : (
+              <>
+                <Upload className="size-5" aria-hidden />
+                <span className="font-medium">{label}</span>
+              </>
+            )}
           </>
         )}
         <input
@@ -331,6 +357,7 @@ export function DocUpload({
   onOcrResult,
   onScanStart,
   onOriginal,
+  isScanning,
 }: {
   readonly guestId: string | null;
   readonly side: DocSide;
@@ -342,6 +369,7 @@ export function DocUpload({
   readonly onOcrResult?: (result: import("@/lib/id-ocr").IdOcrResult) => void;
   readonly onScanStart?: () => void;
   readonly onOriginal?: (side: DocSide, file: File) => void;
+  readonly isScanning?: boolean;
 }) {
   const t = useTranslations("checkin");
   const { activeHotelId } = useAuth();
@@ -471,18 +499,20 @@ export function DocUpload({
     }
   };
 
+  const activeScanning = isScanning || ocrRunning;
+
   let tileStateClass: string;
-  if (preview) {
+  if (activeScanning) {
+    tileStateClass = "border-gold-500 bg-gold-50/80 text-gold-900 ring-2 ring-gold-400/40 animate-pulse " + (preview ? "p-0 h-40" : "p-4");
+  } else if (preview) {
     tileStateClass = "border-green-400 p-0 h-40";
-  } else if (ocrRunning) {
-    tileStateClass = "border-gold-400 bg-gold-50 text-gold-700 animate-pulse p-4";
   } else {
     tileStateClass = "border-dashed border-border hover:border-gold-400 hover:bg-gold-50 text-muted-foreground p-4";
   }
 
   let overlayStatusText: string;
-  if (ocrRunning) {
-    overlayStatusText = t("readingId");
+  if (activeScanning) {
+    overlayStatusText = side === "back" ? t("extractingAddress") : t("readingId");
   } else if (busy) {
     overlayStatusText = t("uploading");
   } else {
@@ -490,8 +520,8 @@ export function DocUpload({
   }
 
   let tileLabelText: string;
-  if (ocrRunning) {
-    tileLabelText = t("readingId");
+  if (activeScanning) {
+    tileLabelText = side === "back" ? t("extractingAddress") : t("readingId");
   } else if (busy) {
     tileLabelText = t("uploading");
   } else {
@@ -528,19 +558,30 @@ export function DocUpload({
             />
             <div
               className={cn(
-                "absolute bottom-0 left-0 right-0 px-2 py-1 text-micro font-semibold text-center",
-                uploaded ? "bg-success/80 text-white" : "bg-gold-500/80 text-navy-900",
+                "absolute bottom-0 left-0 right-0 px-2 py-1 text-micro font-semibold text-center flex items-center justify-center gap-1.5",
+                activeScanning
+                  ? "bg-gold-500 text-navy-950 shadow-sm"
+                  : uploaded
+                    ? "bg-success/80 text-white"
+                    : "bg-gold-500/80 text-navy-900",
               )}
             >
-              {overlayStatusText}
+              {activeScanning && <Loader2 className="size-3 animate-spin text-navy-950" />}
+              <span>{overlayStatusText}</span>
             </div>
           </>
         ) : (
           <>
-            <Upload className={cn("size-5", ocrRunning && "animate-spin")} aria-hidden />
+            {activeScanning ? (
+              <Loader2 className="size-5 animate-spin text-gold-600" aria-hidden />
+            ) : (
+              <Upload className="size-5" aria-hidden />
+            )}
             <span className="font-medium">{tileLabelText}</span>
-            {ocrRunning && (
-              <span className="text-micro text-gold-600">{t("extractingDetails")}</span>
+            {activeScanning && (
+              <span className="text-micro text-gold-600">
+                {side === "back" ? t("extractingAddressDetails") : t("extractingDetails")}
+              </span>
             )}
           </>
         )}
@@ -950,30 +991,35 @@ export function NewGuestFullForm({
     triggerFrontOcrFallback,
     handleFrontUpload,
     handleBackUpload,
-    reset: resetCoordinatedScan,
+    
+    isFrontScanning,
+    isBackScanning,
+    scanProgressText,
   } = useCoordinatedIdScan({
     idType: form.id_proof_type,
     hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
       let filledAny = false;
-      if (fields.address && !form.address) {
+      if (fields.address) {
         set("address", fields.address);
         filledAny = true;
       }
-      if (fields.pincode && !form.postal_code) {
+      if (fields.pincode) {
         set("postal_code", fields.pincode);
         filledAny = true;
       }
-      if (fields.city && !form.city) {
+      if (fields.city) {
         set("city", fields.city);
         filledAny = true;
       }
-      if (fields.state && !form.state) {
+      if (fields.state) {
         set("state", fields.state);
         filledAny = true;
       }
       if (filledAny) {
-        toast.info(t("addressAutofilled"));
+        toast.success(t("addressAutofilled"));
+      } else {
+        toast.warning(t("addressNotFoundOnBack"));
       }
     },
     onIdNumberAutofill: (idNum) => {
@@ -1024,6 +1070,7 @@ export function NewGuestFullForm({
           label={t("uploadFront")}
           onQueued={handleQueueDoc}
           idType={form.id_proof_type}
+          isScanning={isFrontScanning}
           onOriginal={(_side, original) => handleFrontUpload(original)}
         />
         <QueuedDocUpload
@@ -1031,6 +1078,7 @@ export function NewGuestFullForm({
           label={t("uploadBack")}
           onQueued={handleQueueDoc}
           idType={form.id_proof_type}
+          isScanning={isBackScanning}
           onOriginal={(_side, original) => handleBackUpload(original)}
         />
         <QueuedDocUpload side="selfie" label={t("selfieCapture")} onQueued={handleQueueDoc} />
@@ -1038,6 +1086,17 @@ export function NewGuestFullForm({
 
       {/* OCR Shimmer Loading Banner */}
       {!autofillAccepted && isOcrScanning && !unifiedOcrResult && <AutofillSkeletonBanner />}
+
+      {/* Back face OCR active banner (visible even after front autofill is accepted) */}
+      {isBackScanning && (
+        <div className="flex items-center gap-3 rounded-lg border border-gold-400/50 bg-gold-50/90 p-3 text-xs text-navy-950 shadow-sm animate-pulse">
+          <Loader2 className="size-4 animate-spin text-gold-600 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-gold-950">{t("readingBackFace")}</p>
+            <p className="text-micro text-gold-800">{scanProgressText || t("extractingAddressDetails")}</p>
+          </div>
+        </div>
+      )}
 
       {/* Waiting for Back Card to Scan QR (PVC Card) */}
       {!autofillAccepted && !unifiedOcrResult && !isOcrScanning && isWaitingForBack && (
@@ -1150,7 +1209,15 @@ export function NewGuestFullForm({
           />
         </div>
         <div className="space-y-1.5 sm:col-span-2">
-          <Label className="text-xs">{t("fieldAddress")}</Label>
+          <Label className="text-xs flex items-center justify-between">
+            <span>{t("fieldAddress")}</span>
+            {isBackScanning && (
+              <span className="flex items-center gap-1 text-micro text-gold-700 font-normal">
+                <Loader2 className="size-3 animate-spin text-gold-600" />
+                {t("extractingAddress")}
+              </span>
+            )}
+          </Label>
           <Input
             value={form.address}
             onChange={(e) => set("address", e.target.value)}

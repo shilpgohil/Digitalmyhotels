@@ -20,6 +20,9 @@ export interface UseCoordinatedIdScanReturn {
   setBackResult: React.Dispatch<React.SetStateAction<IdOcrResult | null>>;
   unifiedResult: IdOcrResult | null;
   isScanning: boolean;
+  isFrontScanning: boolean;
+  isBackScanning: boolean;
+  scanProgressText: string;
   scanningCount: number;
   setScanningCount: React.Dispatch<React.SetStateAction<number>>;
   autofillAccepted: boolean;
@@ -60,6 +63,9 @@ export function useCoordinatedIdScan(
   const [frontResult, setFrontResult] = useState<IdOcrResult | null>(null);
   const [backResult, setBackResult] = useState<IdOcrResult | null>(null);
   const [scanningCount, setScanningCount] = useState<number>(0);
+  const [isFrontScanning, setIsFrontScanning] = useState<boolean>(false);
+  const [isBackScanning, setIsBackScanning] = useState<boolean>(false);
+  const [scanProgressText, setScanProgressText] = useState<string>("");
   const [autofillAccepted, setAutofillAccepted] = useState<boolean>(false);
   const [isWaitingForBack, setIsWaitingForBack] = useState<boolean>(false);
 
@@ -83,6 +89,9 @@ export function useCoordinatedIdScan(
     setFrontResult(null);
     setBackResult(null);
     setScanningCount(0);
+    setIsFrontScanning(false);
+    setIsBackScanning(false);
+    setScanProgressText("");
     setAutofillAccepted(false);
   }, []);
 
@@ -101,6 +110,8 @@ export function useCoordinatedIdScan(
       setIsWaitingForBack(false);
       setFrontResult(null);
       setAutofillAccepted(false);
+      setIsFrontScanning(true);
+      setScanProgressText("Reading front face…");
 
       const currentIdType = optionsRef.current?.idType ?? "Aadhar Card";
 
@@ -108,6 +119,7 @@ export function useCoordinatedIdScan(
       try {
         const res = await parseIdDocument(file, currentIdType, "front", {
           hotelId: optionsRef.current?.hotelId,
+          onProgress: (_pct, status) => setScanProgressText(status),
         });
         setFrontResult(res);
         frontResultRef.current = res;
@@ -125,6 +137,7 @@ export function useCoordinatedIdScan(
         if (err instanceof DOMException && err.name === "AbortError") return;
         optionsRef.current?.onScanError?.("Could not process front document");
       } finally {
+        setIsFrontScanning(false);
         setScanningCount((c) => Math.max(0, c - 1));
       }
     },
@@ -135,6 +148,8 @@ export function useCoordinatedIdScan(
     async (file: File) => {
       setIsWaitingForBack(false);
       setBackResult(null);
+      setIsBackScanning(true);
+      setScanProgressText("Reading back face and extracting address…");
       setScanningCount((c) => c + 1);
 
       const currentIdType = optionsRef.current?.idType ?? "Aadhar Card";
@@ -142,12 +157,14 @@ export function useCoordinatedIdScan(
       try {
         const backRes = await parseIdDocument(file, currentIdType, "back", {
           hotelId: optionsRef.current?.hotelId,
+          onProgress: (_pct, status) => setScanProgressText(status),
         });
         setBackResult(backRes);
         backResultRef.current = backRes;
 
-        // If autofill was already accepted, autofill the back-face address fields
-        if (autofillAcceptedRef.current && optionsRef.current?.onAddressAutofill && backRes.fields) {
+        // If autofill was already accepted (e.g. front was accepted earlier),
+        // or caller provided onAddressAutofill, trigger autofill of address and location!
+        if (optionsRef.current?.onAddressAutofill && backRes.fields) {
           optionsRef.current.onAddressAutofill(backRes.fields);
         }
 
@@ -155,7 +172,6 @@ export function useCoordinatedIdScan(
         const backDigits = (backRes.fields?.id_number || "").replace(/\D/g, "");
         if (
           backDigits.length === 12 &&
-          autofillAcceptedRef.current &&
           optionsRef.current?.onIdNumberAutofill
         ) {
           optionsRef.current.onIdNumberAutofill(backRes.fields.id_number!);
@@ -164,6 +180,7 @@ export function useCoordinatedIdScan(
         if (err instanceof DOMException && err.name === "AbortError") return;
         optionsRef.current?.onScanError?.("Could not process back document");
       } finally {
+        setIsBackScanning(false);
         setScanningCount((c) => Math.max(0, c - 1));
       }
     },
@@ -178,6 +195,7 @@ export function useCoordinatedIdScan(
     }
     if (frontScanPromiseRef.current) {
       setScanningCount((c) => c + 1);
+      setIsFrontScanning(true);
       try {
         const fRes = await frontScanPromiseRef.current;
         if (fRes) {
@@ -193,6 +211,7 @@ export function useCoordinatedIdScan(
           }
         }
       } finally {
+        setIsFrontScanning(false);
         setScanningCount((c) => Math.max(0, c - 1));
       }
       return;
@@ -201,6 +220,7 @@ export function useCoordinatedIdScan(
     const frontFile = pendingFrontRef.current;
     pendingFrontRef.current = null;
     setScanningCount((c) => c + 1);
+    setIsFrontScanning(true);
     try {
       const fullRes = await parseIdDocument(
         frontFile,
@@ -208,6 +228,7 @@ export function useCoordinatedIdScan(
         "front",
         {
           hotelId: optionsRef.current?.hotelId,
+          onProgress: (_pct, status) => setScanProgressText(status),
         },
       );
       setFrontResult(fullRes);
@@ -224,6 +245,7 @@ export function useCoordinatedIdScan(
       if (err instanceof DOMException && err.name === "AbortError") return;
       optionsRef.current?.onScanError?.("Could not process document");
     } finally {
+      setIsFrontScanning(false);
       setScanningCount((c) => Math.max(0, c - 1));
     }
   }, []);
@@ -242,6 +264,9 @@ export function useCoordinatedIdScan(
     setBackResult,
     unifiedResult,
     isScanning: scanningCount > 0,
+    isFrontScanning,
+    isBackScanning,
+    scanProgressText,
     scanningCount,
     setScanningCount,
     autofillAccepted,
