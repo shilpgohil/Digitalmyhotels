@@ -124,7 +124,7 @@ export function PartnerMobileTabBar() {
 
   return (
     /* Wrapper — centered pill, mobile only, pointer-events-none so margins don't block clicks */
-    <div className="lg:hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-35 w-[calc(100%-20px)] max-w-[430px] pointer-events-none select-none">
+    <div className="lg:hidden fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 z-35 w-[calc(100%-20px)] max-w-[430px] pointer-events-none select-none">
       <nav
         className="pointer-events-auto glass-tabbar-warm border border-slate-900/[0.08] dark:border-white/[0.1] rounded-full h-[60px] flex items-stretch justify-around px-1 shadow-[0_4px_24px_-2px_rgba(0,0,0,0.12)]"
         aria-label="Mobile navigation"
@@ -142,7 +142,7 @@ export function PartnerMobileTabBar() {
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative flex-1 min-w-0 h-full flex flex-col items-center justify-center py-1.5 px-0.5 rounded-full transition-all duration-150",
+                "relative flex-1 min-w-0 h-full flex flex-col items-center justify-center py-1.5 px-0.5 rounded-full transition-all duration-150 active:scale-95 active:duration-75",
                 active
                   ? "text-amber-800 dark:text-amber-300"
                   : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100",

@@ -41,7 +41,7 @@ export function SegmentedChips<T extends string>({
           type="button"
           aria-pressed={value === o.value}
           className={cn(
-            "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+            "rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-150 active:scale-95 active:duration-75",
             value === o.value
               ? "bg-navy-900 text-white"
               : "text-muted-foreground hover:bg-muted hover:text-foreground",

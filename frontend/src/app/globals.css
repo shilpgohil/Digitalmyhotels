@@ -166,12 +166,34 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    -webkit-tap-highlight-color: transparent;
+  }
+  html,
+  body {
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
   }
   body {
     @apply text-foreground antialiased;
     background: var(--background); /* Flat, calm — depth comes from shadows, not gradients */
     font-feature-settings: 'cv01', 'cv02', 'cv11', 'ss01';
     text-rendering: optimizeLegibility;
+  }
+
+  /* Kinetic momentum scrolling & scroll chaining containment */
+  main,
+  .overflow-y-auto,
+  .overflow-x-auto,
+  [data-slot="table-container"] {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Ensure scrollable main content has bottom clearance for the floating mobile tab bar */
+  @media (max-width: 1023px) {
+    main {
+      padding-bottom: max(6rem, calc(5.5rem + env(safe-area-inset-bottom, 0px)));
+    }
   }
 
   /* ── Minimalist scrollbars — everywhere ─────────────────────────────── */
@@ -470,25 +492,40 @@
   [role="row"] {
     transition: background-color 150ms ease, box-shadow 150ms ease;
   }
-  /* Table row left gold accent on hover — only on non-header rows */
-  [data-slot="table-row"]:not([class*="bg-navy"]):hover {
-    box-shadow: inset 2px 0 0 var(--color-gold-400);
+
+  /* Desktop hover enhancements: only applied when a real mouse/pointer is present */
+  @media (hover: hover) and (pointer: fine) {
+    /* Table row left gold accent on hover — only on non-header rows */
+    [data-slot="table-row"]:not([class*="bg-navy"]):hover {
+      box-shadow: inset 2px 0 0 var(--color-gold-400);
+    }
+
+    /* Cards lift slightly on hover (opt-in via Tailwind class) */
+    .card-hover:hover {
+      box-shadow: 0 4px 16px rgb(0 0 0 / 0.08);
+      transform: translateY(-1px);
+    }
   }
 
-  /* Badge / status pill pop-in */
-  .badge,
-  [data-slot="badge"],
-  [data-slot="status-badge"] {
-    transition: opacity 100ms ease, transform 100ms ease;
+  /* Touch devices: avoid sticky hover states and provide clean active feedback */
+  @media (hover: none) {
+    .card-hover:hover {
+      box-shadow: none;
+      transform: none;
+    }
+    [data-slot="table-row"]:not([class*="bg-navy"]):active {
+      background-color: var(--muted);
+    }
   }
 
-  /* Cards lift slightly on hover (opt-in via Tailwind class) */
-  .card-hover {
-    transition: box-shadow 150ms ease, transform 150ms ease;
+  /* ── Tactile micro-press feedback ────────────────────────────────────── */
+  .touch-press {
+    transition: transform 120ms cubic-bezier(0.2, 0, 0, 1), opacity 120ms ease;
+    will-change: transform;
   }
-  .card-hover:hover {
-    box-shadow: 0 4px 16px rgb(0 0 0 / 0.08);
-    transform: translateY(-1px);
+  .touch-press:active {
+    transform: scale(0.975);
+    transition-duration: 60ms;
   }
 
   /* Sidebar link transitions — slightly longer + smooth easing for premium feel */

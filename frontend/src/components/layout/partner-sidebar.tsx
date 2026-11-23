@@ -351,8 +351,8 @@ export function PartnerNav({ onNavigate }: { readonly onNavigate?: () => void })
                       aria-current={active ? "page" : undefined}
                       onClick={onNavigate}
                       className={cn(
-                        // Modern depth: smooth 180ms transitions, gold pill glow
-                        "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-all duration-200",
+                        // Modern depth: smooth 180ms transitions, gold pill glow, micro-spring tactile press
+                        "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-all duration-200 active:scale-[0.98]",
                         active
                           ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[0_2px_14px_rgba(192,154,46,0.30)]"
                           : "text-sidebar-foreground hover:bg-white/[0.06] hover:text-white",
@@ -494,7 +494,7 @@ export function PartnerBottomNav({ onNavigate }: { readonly onNavigate?: () => v
               aria-current={active ? "page" : undefined}
               onClick={onNavigate}
               className={cn(
-                "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-all duration-200",
+                "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-all duration-200 active:scale-[0.98]",
                 active
                   ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[0_2px_14px_rgba(192,154,46,0.30)]"
                   : "text-sidebar-foreground hover:bg-white/[0.06] hover:text-white",

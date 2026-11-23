@@ -31,7 +31,7 @@ export default function PartnerLayout({ children }: { readonly children: React.R
         {/* Idle auto-logout — 15 min inactivity (client 15/09, plan §7.2) */}
         <IdleLogout />
 
-        <div className="flex h-screen overflow-hidden">
+        <div className="flex h-screen h-[100dvh] overflow-hidden">
           {/* Fixed 256px navy sidebar — always expanded (classic frame) */}
           <div className="hidden lg:block w-64 shrink-0">
             <PartnerSidebar />

@@ -640,7 +640,7 @@ function RoomsContent() {
                         <div
                           key={room.id}
                           className={cn(
-                            "relative flex h-full flex-col justify-between items-center rounded-xl border bg-card p-3.5 pt-4 pb-3 text-center shadow-2xs transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 overflow-hidden",
+                            "relative flex h-full flex-col justify-between items-center rounded-xl border bg-card p-3.5 pt-4 pb-3 text-center shadow-2xs transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.985] active:translate-y-0 overflow-hidden",
                             ROOM_BUCKET_BORDER_HOVER[bucket],
                           )}
                         >
