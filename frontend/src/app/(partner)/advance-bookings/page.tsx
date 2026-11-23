@@ -191,7 +191,7 @@ function AdvanceBookingsContent() {
   return (
     <>
       <PartnerHeader title={t("advanceBookingsTitle")} subtitle={tn("frontDesk")} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <FilterBar
             searchValue={search}

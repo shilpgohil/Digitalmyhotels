@@ -151,7 +151,7 @@ function RestaurantBillingContent() {
   return (
     <>
       <PartnerHeader title={t("title")} subtitle={tn("money")} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
         {/* Quick filter chips — platform segmented pattern (client 09/2026) */}
         <div className="mb-4">
           <SegmentedChips

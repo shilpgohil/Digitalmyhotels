@@ -6238,7 +6238,7 @@ function CheckinContent() {
     return (
       <>
         <PartnerHeader title={ts("checkinTitle")} subtitle={tn("frontDesk")} />
-        <main className="flex-1 overflow-y-auto bg-[#f5f5f0] px-4 py-6">
+        <main className="flex-1 overflow-y-auto bg-[#f5f5f0] px-4 py-6 pb-24 lg:pb-6">
           <CheckinForm
             booking={selectedBooking}
             onBack={() => {
@@ -6260,7 +6260,7 @@ function CheckinContent() {
   return (
     <>
       <PartnerHeader title={ts("checkinTitle")} subtitle={tn("frontDesk")} />
-      <main className="flex-1 overflow-y-auto bg-[#f5f5f0] px-4 py-6">
+      <main className="flex-1 overflow-y-auto bg-[#f5f5f0] px-4 py-6 pb-24 lg:pb-6">
         <div className="mx-auto max-w-4xl space-y-6 pb-12">
           <ArrivalsStrip
             bookings={bookings.data?.items ?? []}

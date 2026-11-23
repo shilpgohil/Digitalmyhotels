@@ -288,7 +288,7 @@ function PaymentsContent() {
   return (
     <>
       <PartnerHeader title={t("paymentsTitle")} subtitle={tn("money")} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
         {/* ── Filter bar: quick chips + dates + payment mode + apply/clear ── */}
         <div className="mb-4 rounded-lg border bg-card p-4">
           {/* Platform segmented chip pattern (client 09/2026) */}

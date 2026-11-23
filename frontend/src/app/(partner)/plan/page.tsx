@@ -57,7 +57,7 @@ function parseBold(text: string): React.ReactNode {
   const parts = text.split(/(\*\*?[^*\n]+\*\*?)/g);
   return parts.map((p, i) => {
     if (/^\*\*[^*]+\*\*$/.test(p)) return <strong key={`b-${p}-${i}`}>{p.slice(2, -2)}</strong>;
-    if (/^\*[^*]+\*$/.test(p))     return <strong key={`i-${p}-${i}`}>{p.slice(1, -1)}</strong>;
+    if (/^\*[^*]+\*$/.test(p)) return <strong key={`i-${p}-${i}`}>{p.slice(1, -1)}</strong>;
     return p;
   });
 }
@@ -390,7 +390,7 @@ function PlanContent() {
   return (
     <>
       <PartnerHeader title={t("title")} subtitle={tn("overview")} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
         <div className="mx-auto max-w-6xl">
           <div className="text-center">
             <h1 className="font-display text-3xl">{t("chooseTitle")}</h1>

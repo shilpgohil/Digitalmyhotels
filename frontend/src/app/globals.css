@@ -189,13 +189,6 @@
     overscroll-behavior-y: contain;
   }
 
-  /* Ensure scrollable main content has bottom clearance for the floating mobile tab bar */
-  @media (max-width: 1023px) {
-    main {
-      padding-bottom: max(6rem, calc(5.5rem + env(safe-area-inset-bottom, 0px)));
-    }
-  }
-
   /* ── Minimalist scrollbars — everywhere ─────────────────────────────── */
   /* Thin (6px), transparent track, rounded soft thumb. Firefox + WebKit. */
   * {
@@ -373,6 +366,16 @@
 }
 
 @layer utilities {
+  /* ── Mobile clearance for floating bottom navigation bar ───────────── */
+  /* Ensures content inside partner scrollable views clears the 72px–106px
+     floating tab bar on mobile screens (< 1024px) without extra desktop padding. */
+  @media (max-width: 1023px) {
+    [data-slot="partner-content"] main,
+    main.overflow-y-auto {
+      padding-bottom: max(6rem, calc(5.5rem + env(safe-area-inset-bottom, 0px))) !important;
+    }
+  }
+
   /* ── Navy sidebar — classic frame with modern depth ─────────────────── */
   /* Fixed, always-expanded dark navy (client-approved old structure).
      Subtle vertical gradient gives dimensionality without decoration.

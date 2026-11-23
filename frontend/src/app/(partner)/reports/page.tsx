@@ -200,7 +200,7 @@ function ReportsContent() {
   return (
     <>
       <PartnerHeader title={t("title")} subtitle={tn("operations")} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6 space-y-6">
 
         {/* ── Date range filter + export ──────────────────────────────── */}
         <div className="flex flex-wrap items-end justify-between gap-3">
