@@ -467,7 +467,7 @@ function CurrentGuestsContent() {
                         >
                           <MoreVertical className="size-4" aria-hidden />
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-48 whitespace-nowrap">
+                        <DropdownMenuContent align="end" collisionPadding={16} className="min-w-48 whitespace-nowrap">
                           <DropdownMenuItem
                             onClick={() => {
                               setAutoPrint(false);
@@ -840,15 +840,16 @@ function StayDetailDialog({
     // so its booking/payments queries can load, but no modal flashes behind
     // the browser print window.
     <Dialog open={entry !== null && !autoPrint} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="w-full sm:max-w-xl max-h-[90dvh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="p-4 sm:p-6 pb-3 border-b shrink-0">
           <DialogTitle>
             {t("stayDetails")} — {entry?.booking_number}
           </DialogTitle>
         </DialogHeader>
-        {booking.isLoading && <Skeleton className="h-48" />}
-        {b && (
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+        <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4">
+          {booking.isLoading && <Skeleton className="h-48" />}
+          {b && (
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <Detail label={tb("guest")} value={b.primary_guest_name ?? "—"} />
             <Detail
               label={t("contactNumber")}
@@ -938,7 +939,7 @@ function StayDetailDialog({
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {t("registeredGuestsLabel")}
             </p>
-            <div className="max-h-[30rem] overflow-y-auto space-y-2 pr-1">
+            <div className="space-y-2 pr-1">
               {registeredGuests.data.map((g) => (
                 <RegisteredGuestCard
                   key={g.guest_id}
@@ -950,7 +951,8 @@ function StayDetailDialog({
             </div>
           </div>
         )}
-        <DialogFooter className="flex flex-wrap items-center justify-between gap-2">
+        </div>
+        <DialogFooter className="p-4 sm:p-6 pt-3 border-t bg-muted/10 shrink-0 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             {entry && onShareWhatsApp && (
               <Button
@@ -1854,7 +1856,7 @@ function TransferDialog({
 
   return (
     <Dialog open={entry !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {t("roomTransfer")} — {entry?.booking_number}

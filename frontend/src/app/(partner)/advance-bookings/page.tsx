@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, MoreVertical, LogIn, XCircle, UserX, Receipt } from "lucide-react";
+import { Plus, MoreVertical, LogIn, XCircle, UserX, FileCheck } from "lucide-react";
 import { AdvanceBookingVoucherModal } from "@/components/stay/advance-booking-voucher-modal";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
@@ -349,11 +349,11 @@ function AdvanceBookingsContent() {
                             <MoreVertical className="size-4" aria-hidden />
                           </DropdownMenuTrigger>
                           {/* min-w keeps "Mark No-show" on one line (client 09/2026) */}
-                          <DropdownMenuContent align="end" className="min-w-48 whitespace-nowrap">
+                          <DropdownMenuContent align="end" collisionPadding={16} className="min-w-48 whitespace-nowrap">
                             <DropdownMenuItem
                               onClick={() => setVoucherTarget(booking)}
                             >
-                              <Receipt className="size-4" aria-hidden />
+                              <FileCheck className="size-4" aria-hidden />
                               {t("voucherAction")}
                             </DropdownMenuItem>
                             {booking.status === "confirmed" && (

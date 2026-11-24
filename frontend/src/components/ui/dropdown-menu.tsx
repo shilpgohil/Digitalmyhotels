@@ -23,13 +23,29 @@ function DropdownMenuContent({
   alignOffset = 0,
   side = "bottom",
   sideOffset = 4,
+  collisionPadding = 12,
+  collisionBoundary,
+  collisionAvoidance,
   className,
   ...props
 }: MenuPrimitive.Popup.Props &
   Pick<
     MenuPrimitive.Positioner.Props,
-    "align" | "alignOffset" | "side" | "sideOffset"
+    | "align"
+    | "alignOffset"
+    | "side"
+    | "sideOffset"
+    | "collisionPadding"
+    | "collisionBoundary"
+    | "collisionAvoidance"
   >) {
+  // When align is "end", default collisionAvoidance to avoid flipping to "start"
+  // which causes right-aligned table action dropdowns to flip and extend beyond
+  // the right edge of the screen.
+  const effectiveCollisionAvoidance =
+    collisionAvoidance ??
+    (align === "end" ? { side: "flip", align: "none" } : undefined);
+
   return (
     <MenuPrimitive.Portal>
       <MenuPrimitive.Positioner
@@ -38,6 +54,9 @@ function DropdownMenuContent({
         alignOffset={alignOffset}
         side={side}
         sideOffset={sideOffset}
+        collisionPadding={collisionPadding}
+        collisionBoundary={collisionBoundary}
+        collisionAvoidance={effectiveCollisionAvoidance}
       >
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"

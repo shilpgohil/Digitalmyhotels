@@ -16,12 +16,11 @@ import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  Printer,
   Share2,
   Copy,
   Check,
   CheckCircle2,
-  Receipt,
+  FileCheck,
   Calendar,
   User,
   Phone,
@@ -338,139 +337,6 @@ export function AdvanceBookingVoucherModal({
     }
   };
 
-  const handlePrint = () => {
-    const printContent = printRef.current;
-    if (!printContent) return;
-
-    const hotelName = hotel?.name || "Hotel Reservation";
-    const guestName = booking.primary_guest_name || "Guest";
-    // Title format: Guest Name (VoucherRef) - Hotel Name
-    // 1. Saved PDF filename defaults to `Guest Name (VoucherRef) - Hotel Name.pdf` ("File Customer ID or Customer name")
-    // 2. Printed top-right header displays Hotel Name ("Here showing Hotel Name")
-    const docTitle = `${guestName} (${voucherRef}) - ${hotelName}`;
-    const prevTitle = document.title;
-    document.title = docTitle;
-
-    // Reset scroll offset on modal content so fallback isn't scrolled
-    if (printContent.parentElement) {
-      printContent.parentElement.scrollTop = 0;
-    }
-
-    // Create an isolated off-screen iframe for clean, unclipped A4 printing
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.left = "-9999px";
-    iframe.style.top = "0";
-    iframe.style.width = "800px";
-    iframe.style.height = "1100px";
-    iframe.style.border = "0";
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (!doc) {
-      window.print();
-      document.title = prevTitle;
-      return;
-    }
-
-    // Copy all stylesheets from parent document
-    const headStyles = Array.from(
-      document.querySelectorAll("link[rel='stylesheet'], style")
-    )
-      .map((el) => el.outerHTML)
-      .join("\n");
-
-    doc.open();
-    doc.write(`
-      <!DOCTYPE html>
-      <html lang="en">
-        <head>
-          <meta charset="utf-8" />
-          <title>${docTitle}</title>
-          ${headStyles}
-          <style>
-            @page {
-              size: A4 portrait;
-              margin: 10mm 12mm;
-            }
-            html, body {
-              margin: 0 !important;
-              padding: 0 !important;
-              background: #ffffff !important;
-              color: #0f172a !important;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
-            #print-wrapper {
-              width: 100% !important;
-              max-width: 100% !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              background: #ffffff !important;
-            }
-          </style>
-        </head>
-        <body>
-          <div id="print-wrapper" class="bg-white text-navy-900">
-            ${printContent.innerHTML}
-          </div>
-        </body>
-      </html>
-    `);
-    doc.close();
-
-    const doPrint = () => {
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } catch {
-        window.print();
-      } finally {
-        setTimeout(() => {
-          try {
-            if (document.body.contains(iframe)) {
-              document.body.removeChild(iframe);
-            }
-          } catch {
-            // ignore
-          }
-          document.title = prevTitle;
-        }, 1500);
-      }
-    };
-
-    // Wait for stylesheets inside the iframe to finish loading before invoking print
-    const links = Array.from(
-      iframe.contentDocument?.querySelectorAll('link[rel="stylesheet"]') || []
-    );
-    let loadedCount = 0;
-    const totalLinks = links.length;
-
-    if (totalLinks === 0) {
-      setTimeout(doPrint, 150);
-    } else {
-      let printed = false;
-      const onLinkDone = () => {
-        loadedCount++;
-        if (loadedCount >= totalLinks && !printed) {
-          printed = true;
-          setTimeout(doPrint, 100);
-        }
-      };
-      links.forEach((l) => {
-        l.addEventListener("load", onLinkDone);
-        l.addEventListener("error", onLinkDone);
-      });
-      // Safety timeout in case load events are suppressed
-      setTimeout(() => {
-        if (!printed) {
-          printed = true;
-          doPrint();
-        }
-      }, 500);
-    }
-  };
-
   return (
     <>
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -523,7 +389,7 @@ export function AdvanceBookingVoucherModal({
         <DialogHeader className="p-4 pb-3 border-b bg-muted/20">
           <div className="flex items-center gap-2.5">
             <div className="flex size-9 items-center justify-center rounded-lg bg-navy-900 text-white shadow-sm">
-              <Receipt className="size-4" />
+              <FileCheck className="size-4" />
             </div>
             <div>
               <DialogTitle className="text-base font-bold text-navy-900">
@@ -756,16 +622,6 @@ export function AdvanceBookingVoucherModal({
             >
               <Download className="size-3.5" />
               Download PDF
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handlePrint}
-              className="gap-1.5"
-            >
-              <Printer className="size-3.5" />
-              Print Voucher
             </Button>
             <Button
               type="button"
