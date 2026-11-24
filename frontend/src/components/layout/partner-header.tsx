@@ -185,7 +185,7 @@ export function PartnerHeader({
   };
 
   return (
-    <header className="sticky top-0 z-20 relative flex items-center justify-between gap-2 sm:gap-4 bg-background/90 glass-nav px-3 sm:px-4 py-2.5 shadow-[0_1px_3px_rgba(16,24,40,0.04)] lg:px-6">
+    <header className="sticky top-0 z-30 shrink-0 w-full flex items-center justify-between gap-2 sm:gap-4 bg-background/95 glass-nav px-3 sm:px-4 pt-[max(0.625rem,env(safe-area-inset-top,0px))] sm:pt-2.5 pb-2.5 shadow-[0_1px_3px_rgba(16,24,40,0.04)] lg:px-6">
       {/* ── 1. Left Section: Drawer + Title & Subtitle ── */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 md:flex-initial md:max-w-xs lg:max-w-sm">
         <MobileNavDrawer />
