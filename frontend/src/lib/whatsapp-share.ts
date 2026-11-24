@@ -153,10 +153,10 @@ export function buildInvoiceWhatsAppMessage(p: InvoiceShareParams): string {
   const lines: string[] = [
     `Dear *${p.guestName || "Guest"}*,`,
     ``,
-    `Greetings from *${p.hotelName}*! 🏨✨`,
+    `Greetings from *${p.hotelName}*!`,
     `Thank you for choosing to stay with us. Please find below the Tax Invoice summary for your recent stay:`,
     ``,
-    `📄 *TAX INVOICE DETAILS*`,
+    `*TAX INVOICE DETAILS*`,
     `• *Invoice No:* ${p.invoiceNumber}`,
   ];
 
@@ -172,7 +172,7 @@ export function buildInvoiceWhatsAppMessage(p: InvoiceShareParams): string {
   }
   lines.push(`• *Guest Name:* ${p.guestName || "Guest"}`);
 
-  lines.push(``, `💳 *BILLING & PAYMENT SUMMARY*`);
+  lines.push(``, `*BILLING & PAYMENT SUMMARY*`);
   if (p.roomCharges !== undefined && p.roomCharges !== null) {
     lines.push(`• Room Tariff: ₹${p.roomCharges}`);
   }
@@ -186,7 +186,7 @@ export function buildInvoiceWhatsAppMessage(p: InvoiceShareParams): string {
   lines.push(`• *Amount Paid:* ₹${p.paidAmount}${paymentMethodStr}`);
 
   if (isPaid) {
-    lines.push(`• Payment Status: *Paid in Full ✅*`);
+    lines.push(`• Payment Status: *Paid in Full ✓*`);
   } else {
     lines.push(`• *Balance Due:* ₹${p.dueAmount}`);
   }
@@ -194,13 +194,13 @@ export function buildInvoiceWhatsAppMessage(p: InvoiceShareParams): string {
   if (p.pdfUrl) {
     lines.push(
       ``,
-      `📥 *VIEW / DOWNLOAD OFFICIAL TAX INVOICE (PDF):*`,
-      `👉 ${p.pdfUrl}`,
+      `*VIEW / DOWNLOAD OFFICIAL TAX INVOICE (PDF):*`,
+      `${p.pdfUrl}`,
     );
   } else {
     lines.push(
       ``,
-      `📎 _Your official Tax Invoice PDF has been downloaded and is ready to attach for your records & tax filing._`,
+      `_Your official Tax Invoice PDF has been downloaded and is ready to attach for your records & tax filing._`,
     );
   }
 
@@ -209,12 +209,12 @@ export function buildInvoiceWhatsAppMessage(p: InvoiceShareParams): string {
     `For any questions or future reservations, please feel free to contact us:`,
   );
   if (p.hotelPhone) {
-    lines.push(`📞 Phone: ${p.hotelPhone}`);
+    lines.push(`• Phone: ${p.hotelPhone}`);
   }
   if (p.hotelAddress) {
-    lines.push(`📍 Address: ${p.hotelAddress}`);
+    lines.push(`• Address: ${p.hotelAddress}`);
   }
-  lines.push(``, `We look forward to welcoming you again! Have a safe and pleasant journey ahead! 🙏`);
+  lines.push(``, `We look forward to welcoming you again! Have a safe and pleasant journey ahead!`);
 
   return lines.join("\n");
 }
@@ -250,10 +250,10 @@ export function buildAdvanceBookingWhatsAppMessage(p: AdvanceBookingShareParams)
   const lines: string[] = [
     `Dear *${p.guestName || "Guest"}*,`,
     ``,
-    `Greetings from *${p.hotelName}*! 🏨✨`,
+    `Greetings from *${p.hotelName}*!`,
     `We are delighted to confirm your room reservation. Your advance booking confirmation and receipt voucher details are below:`,
     ``,
-    `📅 *RESERVATION DETAILS*`,
+    `*RESERVATION DETAILS*`,
     `• *Booking ID / Voucher:* ${p.voucherNumber}`,
     `• *Guest Name:* ${p.guestName || "Guest"}`,
     `• *Check-In:* ${p.checkInDate}${cinTime}`,
@@ -270,12 +270,12 @@ export function buildAdvanceBookingWhatsAppMessage(p: AdvanceBookingShareParams)
 
   lines.push(
     ``,
-    `💰 *TARIFF & ADVANCE RECEIPT*`,
+    `*TARIFF & ADVANCE RECEIPT*`,
     `• Total Estimated Tariff: ₹${p.totalEstimatedTariff}`,
-    `• *Advance Received:* ₹${p.advancePaid}${payMethod} ✅`,
+    `• *Advance Received:* ₹${p.advancePaid}${payMethod} ✓`,
     `• *Balance Due at Check-In:* ₹${p.balanceDue}`,
     ``,
-    `ℹ️ *IMPORTANT CHECK-IN GUIDELINES*`,
+    `*IMPORTANT CHECK-IN GUIDELINES*`,
     `• Valid Government Photo ID (Aadhaar / Passport / DL / Voter ID) is required for all adult guests at check-in.`,
     `• Standard Check-In: ${p.checkInTime || "12:00 PM"} | Check-Out: ${p.checkOutTime || "11:00 AM"}`,
   );
@@ -283,13 +283,13 @@ export function buildAdvanceBookingWhatsAppMessage(p: AdvanceBookingShareParams)
   if (p.pdfUrl) {
     lines.push(
       ``,
-      `📥 *VIEW / DOWNLOAD OFFICIAL BOOKING VOUCHER (PDF):*`,
-      `👉 ${p.pdfUrl}`,
+      `*VIEW / DOWNLOAD OFFICIAL BOOKING VOUCHER (PDF):*`,
+      `${p.pdfUrl}`,
     );
   } else {
     lines.push(
       ``,
-      `📎 _Your official Advance Booking Confirmation & Receipt Voucher PDF has been downloaded and is ready to attach._`,
+      `_Your official Advance Booking Confirmation & Receipt Voucher PDF has been downloaded and is ready to attach._`,
     );
   }
 
@@ -299,12 +299,12 @@ export function buildAdvanceBookingWhatsAppMessage(p: AdvanceBookingShareParams)
   );
 
   if (p.hotelPhone) {
-    lines.push(`📞 Phone: ${p.hotelPhone}`);
+    lines.push(`• Phone: ${p.hotelPhone}`);
   }
   if (p.hotelAddress) {
-    lines.push(`📍 Address: ${p.hotelAddress}`);
+    lines.push(`• Address: ${p.hotelAddress}`);
   }
-  lines.push(``, `We look forward to hosting you at ${p.hotelName}! 🌟`);
+  lines.push(``, `We look forward to hosting you at ${p.hotelName}!`);
 
   return lines.join("\n");
 }
@@ -338,10 +338,10 @@ export function buildStaySlipWhatsAppMessage(p: StaySlipShareParams): string {
   const lines: string[] = [
     `Dear *${p.guestName || "Guest"}*,`,
     ``,
-    `Welcome to *${p.hotelName}*! 🏨✨`,
+    `Welcome to *${p.hotelName}*!`,
     `We hope you are having a pleasant and comfortable stay with us. Here is your official Guest Registration Card & Stay summary:`,
     ``,
-    `📋 *CURRENT STAY DETAILS*`,
+    `*CURRENT STAY DETAILS*`,
     `• *Guest Name:* ${p.guestName || "Guest"}`,
     `• *Room Assigned:* ${p.roomNumbers}`,
     `• *Booking ID:* ${p.bookingNumber}`,
@@ -349,14 +349,14 @@ export function buildStaySlipWhatsAppMessage(p: StaySlipShareParams): string {
     `• *Scheduled Check-Out:* ${p.checkOutDate}${coutTime}`,
     `• *Guests Registered:* ${p.adults ?? 1} Adult(s)${childrenStr}`,
     ``,
-    `💳 *CURRENT FOLIO SUMMARY*`,
+    `*CURRENT FOLIO SUMMARY*`,
   ];
 
   if (p.totalAmount !== undefined && p.totalAmount !== null) {
     lines.push(`• Room Charges (Estimated): ₹${p.totalAmount}`);
   }
   if (p.paidAmount !== undefined && p.paidAmount !== null && Number(p.paidAmount) > 0) {
-    lines.push(`• *Advance / Paid:* ₹${p.paidAmount} ✅`);
+    lines.push(`• *Advance / Paid:* ₹${p.paidAmount} ✓`);
   }
   lines.push(`• *Current Balance Due:* ₹${p.dueAmount}`);
   if (p.paymentStatus) {
@@ -366,24 +366,24 @@ export function buildStaySlipWhatsAppMessage(p: StaySlipShareParams): string {
   if (p.pdfUrl) {
     lines.push(
       ``,
-      `📥 *VIEW / DOWNLOAD OFFICIAL STAY REGISTRATION SLIP (PDF):*`,
-      `👉 ${p.pdfUrl}`,
+      `*VIEW / DOWNLOAD OFFICIAL STAY REGISTRATION SLIP (PDF):*`,
+      `${p.pdfUrl}`,
     );
   } else {
     lines.push(
       ``,
-      `📎 _Your official Guest Registration Card & Stay Slip PDF has been downloaded and is ready to attach._`,
+      `_Your official Guest Registration Card & Stay Slip PDF has been downloaded and is ready to attach._`,
     );
   }
 
   lines.push(
     ``,
-    `🛎️ *IN-STAY HOTEL ASSISTANCE*`,
+    `*IN-STAY HOTEL ASSISTANCE*`,
     `• Front Desk / Room Service: Dial *9* from your room intercom or call *${p.hotelPhone || "Front Desk"}*`,
     `• High-Speed Wi-Fi is available across all rooms and lobby areas.`,
     `• Need housekeeping, fresh linens, or dining assistance? Our team is at your service 24/7!`,
     ``,
-    `Please let us know if there is anything we can do to make your stay more comfortable. Enjoy your stay! 🙏`,
+    `Please let us know if there is anything we can do to make your stay more comfortable. Enjoy your stay!`,
   );
 
   return lines.join("\n");

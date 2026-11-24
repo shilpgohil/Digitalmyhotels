@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -140,14 +140,20 @@ function CurrentGuestsContent() {
     message: "",
   });
 
-  // Keep URL in sync with search filter so refresh/share preserves state
+  // Keep URL in sync with search filter and view modal so refresh/share preserves state
   useEffect(() => {
     const params = new URLSearchParams();
     if (search) params.set("q", search);
+    const viewParam = searchParams.get("view") ?? searchParams.get("bookingId");
+    if (viewTarget?.booking_id) {
+      params.set("view", viewTarget.booking_id);
+    } else if (viewParam && !viewTarget) {
+      params.set("view", viewParam);
+    }
     const qs = params.toString();
     const url = qs ? `/current-guests?${qs}` : "/current-guests";
     router.replace(url, { scroll: false });
-  }, [search, router]);
+  }, [search, viewTarget?.booking_id, searchParams, router]);
 
   // Sync if searchParams changes from outside (e.g. global search navigation)
   useEffect(() => {
@@ -158,6 +164,8 @@ function CurrentGuestsContent() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  const viewBookingId = searchParams.get("view") ?? searchParams.get("bookingId");
 
   const guests = useQuery({
     queryKey: ["current-guests", activeHotelId, search],
@@ -171,13 +179,48 @@ function CurrentGuestsContent() {
   });
 
   // Client-side pagination over the (already search-filtered) full list.
-  const allItems = guests.data?.items ?? [];
+  const allItems = useMemo(() => guests.data?.items ?? [], [guests.data?.items]);
   const totalPages = Math.max(1, Math.ceil(allItems.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pageItems = allItems.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
   );
+
+  // Auto-open StayDetailDialog when view param is present in URL
+  useEffect(() => {
+    if (viewBookingId && allItems.length > 0 && !viewTarget) {
+      const match = allItems.find(
+        (g) => g.booking_id === viewBookingId || g.booking_number === viewBookingId,
+      );
+      if (match) {
+        setViewTarget(match);
+      }
+    }
+  }, [viewBookingId, allItems, viewTarget]);
+
+  // Fallback query if booking not found in active list (e.g. searched or paginated)
+  const fallbackBooking = useQuery({
+    queryKey: ["booking-fallback-cg", viewBookingId],
+    queryFn: async () => {
+      if (!viewBookingId) return null;
+      const res = await api<ListOut<CurrentGuestOut>>(
+        `/api/v1/current-guests?limit=1&q=${encodeURIComponent(viewBookingId)}`,
+      );
+      return res.items[0] ?? null;
+    },
+    enabled:
+      !!viewBookingId &&
+      !viewTarget &&
+      allItems.length > 0 &&
+      !allItems.some((g) => g.booking_id === viewBookingId || g.booking_number === viewBookingId),
+  });
+
+  useEffect(() => {
+    if (fallbackBooking.data && !viewTarget) {
+      setViewTarget(fallbackBooking.data);
+    }
+  }, [fallbackBooking.data, viewTarget]);
 
   // Stay edits/transfers change room state and can reprice the stay —
   // refresh both families across every page (plan Part 6).
@@ -589,6 +632,11 @@ function CurrentGuestsContent() {
           onClose={() => {
             setViewTarget(null);
             setAutoPrint(false);
+            const params = new URLSearchParams(window.location.search);
+            params.delete("view");
+            params.delete("bookingId");
+            const qs = params.toString();
+            router.replace(qs ? `/current-guests?${qs}` : "/current-guests", { scroll: false });
           }}
           onShareWhatsApp={handleShareStaySlip}
           onShareNative={handleShareStaySlipNative}

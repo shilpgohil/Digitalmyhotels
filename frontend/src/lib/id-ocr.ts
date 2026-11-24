@@ -10,6 +10,9 @@
  */
 
 import { scanAadhaarSide, mergeAadhaarSides } from "@/lib/aadhaar-scanner";
+import { scanPanCard } from "@/lib/pan-scanner";
+import { scanVoterCard } from "@/lib/voter-scanner";
+import { scanDrivingLicense } from "@/lib/dl-scanner";
 
 export interface ParsedIdFields {
   name?: string;
@@ -935,6 +938,21 @@ export async function parseIdDocument(
     return await scanAadhaarSide(imageFile, side, options?.onProgress);
   }
 
+  // PAN Card: Run browser-side deep scanner (10-char repair, surname check, continuous DOB)
+  if (idType === "PAN Card") {
+    return await scanPanCard(imageFile, options?.onProgress);
+  }
+
+  // Voter ID: Run browser-side deep scanner (portrait auto-rotation, EPIC repair, elector's name)
+  if (idType === "Voter ID" || idType === "Election Card") {
+    return await scanVoterCard(imageFile, side, options?.onProgress);
+  }
+
+  // Driving License: Run browser-side deep scanner (MoRTH Sarathi, 36 state codes, DOB vs validity)
+  if (idType === "Driving License" || idType === "Driving Licence") {
+    return await scanDrivingLicense(imageFile, side, options?.onProgress);
+  }
+
   // ─── TIER 1: SERVER-SIDE SMART CASCADE FOR NON-AADHAAR (Passport MRZ / PAN / DL / Voter ID) ─
   try {
     const { apiUpload } = await import("@/lib/api/client");
@@ -1307,6 +1325,8 @@ export function mergeOcrResults(
 
   const formatSingle = (res: IdOcrResult): IdOcrResult => {
     if (!res.fields?.id_number) return res;
+    const docType = res.fields.id_type_detected;
+    if (docType && docType !== "Aadhar Card") return res;
     const digits = res.fields.id_number.replace(/\D/g, "");
     if (digits.length === 12) {
       return {
@@ -1358,27 +1378,37 @@ export function mergeOcrResults(
     name = cleanName(bFields.name);
   }
 
-  // ID Number: Full 12 digits ALWAYS takes 100% precedence over any 4-digit mask or partial
+  // ID Number: Full 12 digits ALWAYS takes 100% precedence for Aadhaar.
+  // For non-Aadhaar IDs (PAN, DL, Voter ID, Passport), preserve exact alphanumeric ID.
   let idNumber = "";
   const fId = fFields.id_number || "";
   const bId = bFields.id_number || "";
-  const fDigits = fId.replace(/\D/g, "");
-  const bDigits = bId.replace(/\D/g, "");
-  const fIsFull = fDigits.length === 12;
-  const bIsFull = bDigits.length === 12;
+  const isAadhaarDoc =
+    fType === "Aadhar Card" ||
+    bType === "Aadhar Card" ||
+    (!fType && !bType);
 
-  if (fIsFull) {
-    idNumber = `${fDigits.slice(0, 4)} ${fDigits.slice(4, 8)} ${fDigits.slice(8)}`;
-  } else if (bIsFull) {
-    idNumber = `${bDigits.slice(0, 4)} ${bDigits.slice(4, 8)} ${bDigits.slice(8)}`;
-  } else {
-    // Neither face provided 12 digits. Format as masked with known last 4 digits
-    const last4 = fDigits.slice(-4) || bDigits.slice(-4) || "";
-    if (last4.length === 4) {
-      idNumber = `•••• •••• ${last4}`;
+  if (isAadhaarDoc) {
+    const fDigits = fId.replace(/\D/g, "");
+    const bDigits = bId.replace(/\D/g, "");
+    const fIsFull = fDigits.length === 12;
+    const bIsFull = bDigits.length === 12;
+
+    if (fIsFull) {
+      idNumber = `${fDigits.slice(0, 4)} ${fDigits.slice(4, 8)} ${fDigits.slice(8)}`;
+    } else if (bIsFull) {
+      idNumber = `${bDigits.slice(0, 4)} ${bDigits.slice(4, 8)} ${bDigits.slice(8)}`;
     } else {
-      idNumber = fId || bId || "";
+      // Neither face provided 12 digits. Format as masked with known last 4 digits
+      const last4 = fDigits.slice(-4) || bDigits.slice(-4) || "";
+      if (last4.length === 4) {
+        idNumber = `•••• •••• ${last4}`;
+      } else {
+        idNumber = fId || bId || "";
+      }
     }
+  } else {
+    idNumber = fId || bId || "";
   }
 
   // DOB & Gender: Prefer full date (DD/MM/YYYY) over year-only (-01-01), fallback to whichever is present

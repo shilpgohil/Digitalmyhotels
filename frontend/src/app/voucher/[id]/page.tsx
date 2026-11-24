@@ -73,6 +73,7 @@ export default function PublicVoucherPage({
   const { id } = use(params);
   const searchParams = useSearchParams();
   const autoDownload = searchParams.get("download") === "1";
+  const autoPrint = searchParams.get("print") === "1";
 
   const [data, setData] = useState<PublicVoucherData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,25 +108,28 @@ export default function PublicVoucherPage({
   }, [id]);
 
   const handleDownloadPdf = async () => {
+    const pdfUrl = `/api/v1/bookings/public/${id}/voucher/pdf`;
+    window.open(pdfUrl, "_blank", "noopener,noreferrer");
     try {
       setDownloading(true);
-      const res = await fetch(`/api/v1/bookings/public/${id}/voucher/pdf`);
-      if (!res.ok) throw new Error("Failed to download voucher PDF");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const cleanName = (data?.guest_name || "Guest")
-        .replace(/[^\w\s-]/g, "")
-        .trim()
-        .replace(/\s+/g, "_");
-      a.download = `Voucher_${data?.booking_number || id}_${cleanName}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      const res = await fetch(pdfUrl);
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const cleanName = (data?.guest_name || "Guest")
+          .replace(/[^\w\s-]/g, "")
+          .trim()
+          .replace(/\s+/g, "_");
+        a.download = `Voucher_${data?.booking_number || id}_${cleanName}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      }
     } catch {
-      alert("Failed to download booking voucher PDF. Please try again.");
+      // PDF opened in new tab anyway
     } finally {
       setDownloading(false);
     }
@@ -137,6 +141,15 @@ export default function PublicVoucherPage({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoDownload, data, loading, error]);
+
+  useEffect(() => {
+    if (autoPrint && data && !loading && !error) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint, data, loading, error]);
 
   if (loading) {
     return (
@@ -276,7 +289,7 @@ export default function PublicVoucherPage({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => window.print()}
+                onClick={() => window.open(`/voucher/${id}?print=1`, "_blank", "noopener,noreferrer")}
                 className="gap-2 flex-1 sm:flex-initial"
               >
                 <Printer className="size-4" />
@@ -289,7 +302,7 @@ export default function PublicVoucherPage({
                 className="gap-2 bg-navy-950 hover:bg-navy-900 text-white flex-1 sm:flex-initial"
               >
                 <Download className="size-4 text-gold-400" />
-                {downloading ? "Downloading..." : "Download Official PDF"}
+                {downloading ? "Opening & Downloading..." : "Download Official PDF"}
               </Button>
             </div>
           </div>

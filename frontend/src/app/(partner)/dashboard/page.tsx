@@ -642,7 +642,7 @@ export default function DashboardPage() {
                             <MoreVertical className="size-3.5" />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => router.push("/current-guests")}>
+                            <DropdownMenuItem onClick={() => router.push(`/current-guests?view=${guest.booking_id}`)}>
                               <Eye className="size-4" />{tc("view")}
                             </DropdownMenuItem>
                             {can(PERMISSIONS.checkout) && (
