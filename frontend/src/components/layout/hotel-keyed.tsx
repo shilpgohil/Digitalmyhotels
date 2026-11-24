@@ -13,7 +13,8 @@
  * new hotel. Switching hotels mid-form intentionally abandons the form (the
  * hotel-scoped draft feature is the supported way to keep unfinished work).
  *
- * display:contents keeps this wrapper out of the flex layout entirely.
+ * Uses a concrete flex container (flex-1 min-h-0 h-full overflow-hidden flex flex-col)
+ * so Android Chrome and WebKit create a stable layout box across dynamic mounts.
  */
 
 import { useAuth } from "@/lib/auth/auth-context";
@@ -21,7 +22,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 export function HotelKeyed({ children }: { readonly children: React.ReactNode }) {
   const { activeHotelId } = useAuth();
   return (
-    <div key={activeHotelId ?? "none"} className="contents">
+    <div key={activeHotelId ?? "none"} className="flex-1 min-h-0 h-full overflow-hidden flex flex-col">
       {children}
     </div>
   );

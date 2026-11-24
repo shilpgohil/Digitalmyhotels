@@ -41,11 +41,8 @@ export default function PartnerLayout({ children }: { readonly children: React.R
           <div className="flex min-w-0 flex-1 min-h-0 flex-col h-full overflow-hidden" data-slot="partner-content">
             <SubscriptionGate>
               <PageTransition id="main-content" className="flex min-w-0 flex-1 min-h-0 flex-col h-full overflow-hidden">
-                {/* Tab bar floats over content with reserved bottom clearance on mobile */}
-                <div className="flex-1 min-h-0 h-full overflow-hidden flex flex-col">
-                  {/* Remount pages on hotel switch to reset cross-hotel form state */}
-                  <HotelKeyed>{children}</HotelKeyed>
-                </div>
+                {/* Remount pages on hotel switch to reset cross-hotel form state */}
+                <HotelKeyed>{children}</HotelKeyed>
               </PageTransition>
             </SubscriptionGate>
           </div>

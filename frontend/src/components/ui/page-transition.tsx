@@ -16,6 +16,7 @@
  * Used in both (partner) and (super-admin) layouts to wrap {children}.
  */
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 export function PageTransition({
@@ -29,6 +30,15 @@ export function PageTransition({
   id?: string;
 }>) {
   const pathname = usePathname();
+
+  // Reset scroll on navigation so no prior scroll position can displace the header
+  useEffect(() => {
+    const el = document.getElementById(id ?? "main-content");
+    if (el) el.scrollTop = 0;
+    const parent = el?.parentElement;
+    if (parent) parent.scrollTop = 0;
+    window.scrollTo(0, 0);
+  }, [pathname, id]);
 
   return (
     <div
