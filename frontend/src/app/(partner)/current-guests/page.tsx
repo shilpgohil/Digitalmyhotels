@@ -467,7 +467,7 @@ function CurrentGuestsContent() {
                         >
                           <MoreVertical className="size-4" aria-hidden />
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" collisionPadding={16} className="min-w-48 whitespace-nowrap">
+                        <DropdownMenuContent align="end" alignOffset={-4} collisionPadding={16} className="min-w-44 whitespace-nowrap">
                           <DropdownMenuItem
                             onClick={() => {
                               setAutoPrint(false);

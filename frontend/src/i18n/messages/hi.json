@@ -535,7 +535,7 @@
     "abRecordCardNote": "कार्ड मशीन से भुगतान लें, फिर यह आपके खातों में दर्ज होगा।",
     "abRecordBankNote": "नेट बैंकिंग से भुगतान लें, फिर यह आपके खातों में दर्ज होगा।",
     "abRecordOtherNote": "अतिथि से भुगतान प्राप्त करें, फिर यह आपके खातों में दर्ज होगा।",
-    "downloadVoucherPdf": "वाउचर डाउनलोड करें (PDF)",
+    "downloadVoucherPdf": "वाउचर डाउनलोड करें",
     "whatsappVoucher": "वाउचर व्हाट्सएप करें"
   },
   "staff": {
@@ -949,7 +949,7 @@
     "noCheckoutReadyHint": "आगामी चेक-आउट तिथियों वाले अतिथि यहाँ दिखेंगे।",
     "actualCheckoutTime": "वास्तविक चेक-आउट समय",
     "shareStaySlipWhatsApp": "स्टे स्लिप व्हाट्सएप करें",
-    "downloadStaySlipPdf": "स्टे स्लिप डाउनलोड करें (PDF)"
+    "downloadStaySlipPdf": "स्टे स्लिप डाउनलोड करें"
   },
   "settings": {
     "title": "सेटिंग्स",

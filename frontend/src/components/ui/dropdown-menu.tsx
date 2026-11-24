@@ -40,11 +40,11 @@ function DropdownMenuContent({
     | "collisionAvoidance"
   >) {
   // When align is "end", default collisionAvoidance to avoid flipping to "start"
-  // which causes right-aligned table action dropdowns to flip and extend beyond
-  // the right edge of the screen.
+  // while actively shifting along the align axis so right-aligned table action dropdowns
+  // are nudged inward and never extend beyond the right edge of the screen.
   const effectiveCollisionAvoidance =
     collisionAvoidance ??
-    (align === "end" ? { side: "flip", align: "none" } : undefined);
+    (align === "end" ? { side: "flip", align: "shift" } : undefined);
 
   return (
     <MenuPrimitive.Portal>

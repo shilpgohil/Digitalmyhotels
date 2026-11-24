@@ -349,7 +349,7 @@ function AdvanceBookingsContent() {
                             <MoreVertical className="size-4" aria-hidden />
                           </DropdownMenuTrigger>
                           {/* min-w keeps "Mark No-show" on one line (client 09/2026) */}
-                          <DropdownMenuContent align="end" collisionPadding={16} className="min-w-48 whitespace-nowrap">
+                          <DropdownMenuContent align="end" alignOffset={-4} collisionPadding={16} className="min-w-44 whitespace-nowrap">
                             <DropdownMenuItem
                               onClick={() => setVoucherTarget(booking)}
                             >
