@@ -340,7 +340,7 @@ export function AdvanceBookingVoucherModal({
   return (
     <>
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="w-full sm:max-w-[920px] max-h-[92vh] overflow-y-auto p-0 border border-slate-200 shadow-2xl">
+      <DialogContent className="w-[calc(100vw-1rem)] sm:w-full sm:max-w-[860px] max-h-[92dvh] flex flex-col p-0 overflow-hidden border border-slate-200 shadow-2xl">
         {/* Scoped print styles for crystal-clear A4 paper vouchers */}
         <style>{`
           @media print {
@@ -386,17 +386,17 @@ export function AdvanceBookingVoucherModal({
           }
         `}</style>
 
-        <DialogHeader className="p-4 pb-3 border-b bg-muted/20">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-navy-900 text-white shadow-sm">
+        <DialogHeader className="p-3 sm:p-4 pb-2.5 sm:pb-3 border-b bg-muted/20 shrink-0 pr-12">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="flex size-8 sm:size-9 items-center justify-center rounded-lg bg-navy-900 text-white shadow-sm shrink-0">
               <FileCheck className="size-4" />
             </div>
-            <div>
-              <DialogTitle className="text-base font-bold text-navy-900">
+            <div className="min-w-0">
+              <DialogTitle className="text-sm sm:text-base font-bold text-navy-900 leading-snug">
                 Advance Booking Confirmation & Receipt Voucher
               </DialogTitle>
-              <p className="text-xs text-muted-foreground">
-                Statutory payment proof for advance room reservations under CGST Act Sec 31(3)(d)
+              <p className="text-[11px] sm:text-xs text-muted-foreground truncate sm:whitespace-normal">
+                Statutory payment proof under CGST Act Sec 31(3)(d)
               </p>
             </div>
           </div>
@@ -404,18 +404,18 @@ export function AdvanceBookingVoucherModal({
 
         {/* Printable Voucher Paper */}
         <div
-          className="p-6 sm:p-8 print:p-0 space-y-5 print:space-y-4 bg-white"
+          className="flex-1 overflow-y-auto overflow-x-hidden p-3.5 sm:p-8 space-y-4 sm:space-y-5 bg-white min-h-0 print:p-0 print:space-y-4"
           id="advance-voucher-print-area"
           ref={printRef}
         >
           {/* Header with Hotel Branding */}
-          <div className="flex justify-between items-start gap-4 border-b pb-4">
-            <div className="space-y-1">
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-navy-900">
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-2.5 sm:gap-4 border-b pb-3.5 sm:pb-4 print:flex-row print:justify-between">
+            <div className="space-y-0.5 sm:space-y-1 min-w-0">
+              <h2 className="text-lg sm:text-2xl font-bold tracking-tight text-navy-900 break-words">
                 {hotel?.name || "Hotel Reservation"}
               </h2>
-              <div className="text-xs text-muted-foreground space-y-0.5">
-                {hotel?.address_line1 && <p>{hotel.address_line1}</p>}
+              <div className="text-[11px] sm:text-xs text-muted-foreground space-y-0.5">
+                {hotel?.address_line1 && <p className="break-words">{hotel.address_line1}</p>}
                 {(hotel?.city || hotel?.state) && (
                   <p>
                     {[hotel.city, hotel.state, hotel.postal_code]
@@ -425,69 +425,67 @@ export function AdvanceBookingVoucherModal({
                 )}
                 {hotel?.phone && (
                   <p className="flex items-center gap-1.5 pt-0.5">
-                    <Phone className="size-3" /> {hotel.phone}
+                    <Phone className="size-3 shrink-0" /> {hotel.phone}
                   </p>
                 )}
                 {gstin && (
-                  <p className="pt-1 font-semibold tracking-wide text-foreground">
+                  <p className="pt-0.5 font-semibold tracking-wide text-foreground">
                     GSTIN: <span className="text-navy-900">{gstin}</span>
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="text-right space-y-1.5 shrink-0">
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/90 text-emerald-800 px-3.5 py-1 text-xs font-semibold">
-                <CheckCircle2 className="size-3.5" />
+            <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-1.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100 print:border-0">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/90 text-emerald-800 px-2.5 sm:px-3.5 py-0.5 sm:py-1 text-[11px] sm:text-xs font-semibold">
+                <CheckCircle2 className="size-3 sm:size-3.5" />
                 Confirmed Reservation
               </div>
-              <p className="text-xs text-muted-foreground">
-                Voucher Ref: <span className="font-semibold tracking-wide text-foreground">{voucherRef}</span>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Date: <span className="font-medium text-foreground">{fmtApiDate(booking.created_at)}</span>
-              </p>
+              <div className="text-right text-[11px] sm:text-xs text-muted-foreground">
+                <p>Voucher Ref: <span className="font-semibold tracking-wide text-foreground">{voucherRef}</span></p>
+                <p>Date: <span className="font-medium text-foreground">{fmtApiDate(booking.created_at)}</span></p>
+              </div>
             </div>
           </div>
 
           {/* Guest and Stay Details Grid */}
-          <div className="grid grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-xs">
-            <div className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3 sm:p-4 text-xs print:grid-cols-2">
+            <div className="space-y-1.5 sm:space-y-2 min-w-0">
               <span className="font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 text-micro">
-                <User className="size-3.5 text-navy-800" /> Guest Information
+                <User className="size-3.5 text-navy-800 shrink-0" /> Guest Information
               </span>
-              <p className="font-bold text-sm text-navy-900">
+              <p className="font-bold text-sm text-navy-900 break-words">
                 {booking.primary_guest_name || "—"}
               </p>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground text-[11px] sm:text-xs">
                 Mobile: <span className="font-medium text-foreground">{booking.primary_guest_phone || "—"}</span>
               </p>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground text-[11px] sm:text-xs">
                 Occupancy: <span className="font-medium text-foreground">{booking.adults} Adults{booking.children ? `, ${booking.children} Children` : ""}</span>
               </p>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5 sm:space-y-2 pt-2.5 sm:pt-0 border-t sm:border-0 border-slate-200/70 min-w-0 print:border-0">
               <span className="font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 text-micro">
-                <Calendar className="size-3.5 text-navy-800" /> Stay Period & Rooms
+                <Calendar className="size-3.5 text-navy-800 shrink-0" /> Stay Period & Rooms
               </span>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between text-[11px] sm:text-xs">
                 <span className="text-muted-foreground">Check-in:</span>
                 <span className="font-semibold text-foreground">
                   {fmtApiDate(booking.check_in_date)}
                   {booking.check_in_time ? ` @ ${booking.check_in_time}` : ""}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between text-[11px] sm:text-xs">
                 <span className="text-muted-foreground">Check-out:</span>
                 <span className="font-semibold text-foreground">
                   {fmtApiDate(booking.check_out_date)}
                   {booking.check_out_time ? ` @ ${booking.check_out_time}` : ""}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between text-[11px] sm:text-xs">
                 <span className="text-muted-foreground flex items-center gap-1">
-                  <BedDouble className="size-3 text-muted-foreground" /> Room(s):
+                  <BedDouble className="size-3 text-muted-foreground shrink-0" /> Room(s):
                 </span>
                 <span className="font-semibold text-navy-900">
                   {booking.rooms?.map((r) => r.room_number).join(", ") || "Assigned on arrival"}
@@ -501,46 +499,46 @@ export function AdvanceBookingVoucherModal({
             <table className="w-full text-xs">
               <thead className="bg-slate-100/70 border-b border-slate-200">
                 <tr>
-                  <th className="py-2.5 px-4 text-left font-semibold text-muted-foreground">
+                  <th className="py-2 sm:py-2.5 px-3 sm:px-4 text-left font-semibold text-muted-foreground text-[11px] sm:text-xs">
                     Description
                   </th>
-                  <th className="py-2.5 px-4 text-right font-semibold text-muted-foreground">
+                  <th className="py-2 sm:py-2.5 px-3 sm:px-4 text-right font-semibold text-muted-foreground text-[11px] sm:text-xs whitespace-nowrap">
                     Amount (INR)
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 <tr>
-                  <td className="py-2.5 px-4">
-                    <p className="font-medium text-foreground">Estimated Accommodation Charges</p>
-                    <p className="text-muted-foreground text-micro">
+                  <td className="py-2 sm:py-2.5 px-3 sm:px-4 min-w-0">
+                    <p className="font-medium text-foreground text-[11px] sm:text-xs">Estimated Accommodation Charges</p>
+                    <p className="text-muted-foreground text-[10px] sm:text-micro">
                       {booking.rooms?.length ?? 1} Room(s) • Final taxes calculated upon check-out
                     </p>
                   </td>
-                  <td className="py-2.5 px-4 text-right font-semibold tabular-nums text-foreground">
+                  <td className="py-2 sm:py-2.5 px-3 sm:px-4 text-right font-semibold tabular-nums text-foreground text-xs sm:text-sm whitespace-nowrap">
                     {fmtINR(booking.total_amount)}
                   </td>
                 </tr>
 
                 <tr className="bg-emerald-50/60">
-                  <td className="py-2.5 px-4">
-                    <p className="font-medium text-emerald-950">
+                  <td className="py-2 sm:py-2.5 px-3 sm:px-4 min-w-0">
+                    <p className="font-medium text-emerald-950 text-[11px] sm:text-xs">
                       Advance Payment Received
                     </p>
-                    <p className="text-emerald-700 text-micro">
+                    <p className="text-emerald-700 text-[10px] sm:text-micro break-words">
                       Mode: {payMethod.toUpperCase()} • Receipt Voucher under Sec 31(3)(d) CGST Act
                     </p>
                   </td>
-                  <td className="py-2.5 px-4 text-right font-bold tabular-nums text-emerald-700">
+                  <td className="py-2 sm:py-2.5 px-3 sm:px-4 text-right font-bold tabular-nums text-emerald-700 text-xs sm:text-sm whitespace-nowrap">
                     −{fmtINR(advancePaid)}
                   </td>
                 </tr>
 
                 <tr className="bg-slate-100/70 font-semibold border-t border-slate-200">
-                  <td className="py-2.5 px-4 text-navy-900 font-bold">
+                  <td className="py-2 sm:py-2.5 px-3 sm:px-4 text-navy-900 font-bold text-[11px] sm:text-xs">
                     Balance Payable at Check-in
                   </td>
-                  <td className="py-2.5 px-4 text-right tabular-nums text-sm font-bold text-navy-900">
+                  <td className="py-2 sm:py-2.5 px-3 sm:px-4 text-right tabular-nums text-xs sm:text-sm font-bold text-navy-900 whitespace-nowrap">
                     {fmtINR(booking.due_amount)}
                   </td>
                 </tr>
@@ -549,12 +547,12 @@ export function AdvanceBookingVoucherModal({
           </div>
 
           {/* Statutory Disclosure & Signature */}
-          <div className="space-y-4 pt-1">
-            <div className="rounded-lg border border-amber-300/80 bg-amber-50/50 p-3 text-micro text-amber-950 flex items-start gap-2.5">
-              <ShieldCheck className="size-4 shrink-0 text-amber-700 mt-0.5" />
+          <div className="space-y-3 sm:space-y-4 pt-1">
+            <div className="rounded-lg border border-amber-300/80 bg-amber-50/50 p-2.5 sm:p-3 text-[10px] sm:text-micro text-amber-950 flex items-start gap-2 sm:gap-2.5">
+              <ShieldCheck className="size-3.5 sm:size-4 shrink-0 text-amber-700 mt-0.5" />
               <div>
                 <p className="font-bold">GST Statutory Compliance Note:</p>
-                <p className="mt-0.5 leading-relaxed text-amber-900/90">
+                <p className="mt-0.5 leading-relaxed text-amber-900/90 text-[10px] sm:text-micro">
                   In compliance with Section 31(3)(d) of the CGST Act, 2017, this document is a
                   Receipt Voucher acknowledging advance consideration. Final Tax Invoice with
                   detailed HSN/SAC and GST breakdown will be issued upon check-out when the
@@ -563,13 +561,13 @@ export function AdvanceBookingVoucherModal({
               </div>
             </div>
 
-            <div className="flex justify-between items-end pt-4 border-t border-slate-200 text-micro text-muted-foreground">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 sm:gap-0 pt-3 sm:pt-4 border-t border-slate-200 text-[10px] sm:text-micro text-muted-foreground print:flex-row print:justify-between">
               <div>
                 <p className="font-medium text-foreground">Generated by DigitalMyHotels Operations Desk</p>
                 <p>{new Date().toLocaleString("en-IN")}</p>
               </div>
-              <div className="text-center">
-                <div className="h-8 border-b border-muted-foreground/30 w-40 mb-1.5" />
+              <div className="text-left sm:text-center self-end sm:self-auto">
+                <div className="h-6 sm:h-8 border-b border-muted-foreground/30 w-32 sm:w-40 mb-1" />
                 <p className="font-medium text-foreground">Authorized Signatory</p>
               </div>
             </div>
@@ -577,14 +575,14 @@ export function AdvanceBookingVoucherModal({
         </div>
 
         {/* Action Controls Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-t bg-muted/20">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 sm:p-4 border-t bg-muted/20 shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleCopy}
-              className="gap-1.5"
+              className="gap-1 sm:gap-1.5 text-xs h-8 sm:h-9 px-2.5 sm:px-3"
             >
               {copied ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
               {copied ? "Copied" : "Copy Details"}
@@ -594,7 +592,7 @@ export function AdvanceBookingVoucherModal({
               variant="outline"
               size="sm"
               onClick={handleWhatsApp}
-              className="gap-1.5 text-emerald-700 hover:text-emerald-800"
+              className="gap-1 sm:gap-1.5 text-emerald-700 hover:text-emerald-800 text-xs h-8 sm:h-9 px-2.5 sm:px-3"
             >
               <Share2 className="size-3.5" />
               WhatsApp Guest
@@ -604,7 +602,7 @@ export function AdvanceBookingVoucherModal({
               variant="outline"
               size="sm"
               onClick={handleShareNative}
-              className="gap-1.5"
+              className="gap-1 sm:gap-1.5 text-xs h-8 sm:h-9 px-2.5 sm:px-3"
               title="Attach PDF file to WhatsApp or apps"
             >
               <Share2 className="size-3.5" />
@@ -612,13 +610,13 @@ export function AdvanceBookingVoucherModal({
             </Button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleDownloadPdf}
-              className="gap-1.5"
+              className="gap-1 sm:gap-1.5 text-xs h-8 sm:h-9 px-2.5 sm:px-3"
             >
               <Download className="size-3.5" />
               Download PDF
@@ -627,7 +625,7 @@ export function AdvanceBookingVoucherModal({
               type="button"
               size="sm"
               onClick={onClose}
-              className="bg-navy-900 text-white hover:bg-navy-800"
+              className="bg-navy-900 text-white hover:bg-navy-800 text-xs h-8 sm:h-9 px-3.5 sm:px-4"
             >
               Done
             </Button>
