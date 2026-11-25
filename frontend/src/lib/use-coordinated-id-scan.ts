@@ -124,14 +124,16 @@ export function useCoordinatedIdScan(
         setFrontResult(res);
         frontResultRef.current = res;
 
-        // If autofill was already accepted and 12-digit UID was discovered, autofill it
+        // If autofill was already accepted and full ID was discovered (12-digit UID or non-Aadhaar), update ID
         const digitsOnly = (res.fields?.id_number || "").replace(/\D/g, "");
+        const isAadhaar = !currentIdType || currentIdType === "Aadhar Card";
         if (
-          digitsOnly.length === 12 &&
+          res.fields?.id_number &&
+          (!isAadhaar || digitsOnly.length === 12) &&
           autofillAcceptedRef.current &&
           optionsRef.current?.onIdNumberAutofill
         ) {
-          optionsRef.current.onIdNumberAutofill(res.fields.id_number!);
+          optionsRef.current.onIdNumberAutofill(res.fields.id_number);
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -168,13 +170,15 @@ export function useCoordinatedIdScan(
           optionsRef.current.onAddressAutofill(backRes.fields);
         }
 
-        // If back had 12 digits and front did not, update ID number
+        // If back face extracted full ID (e.g. Aadhaar back QR 12 digits or DL back QR DLNO), update ID number
         const backDigits = (backRes.fields?.id_number || "").replace(/\D/g, "");
+        const isAadhaar = !currentIdType || currentIdType === "Aadhar Card";
         if (
-          backDigits.length === 12 &&
+          backRes.fields?.id_number &&
+          (!isAadhaar || backDigits.length === 12) &&
           optionsRef.current?.onIdNumberAutofill
         ) {
-          optionsRef.current.onIdNumberAutofill(backRes.fields.id_number!);
+          optionsRef.current.onIdNumberAutofill(backRes.fields.id_number);
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -201,13 +205,16 @@ export function useCoordinatedIdScan(
         if (fRes) {
           setFrontResult(fRes);
           frontResultRef.current = fRes;
-          const fDigits = (fRes.fields?.id_number || "").replace(/\D/g, "");
+          const fId = (fRes.fields?.id_number || "").trim();
+          const fDigits = fId.replace(/\D/g, "");
+          const isAadhaar = (fRes.fields?.id_type_detected || optionsRef.current?.idType || "Aadhar Card") === "Aadhar Card";
           if (
-            fDigits.length === 12 &&
+            fId.length >= 4 &&
+            (!isAadhaar || fDigits.length === 12) &&
             autofillAcceptedRef.current &&
             optionsRef.current?.onIdNumberAutofill
           ) {
-            optionsRef.current.onIdNumberAutofill(fRes.fields.id_number!);
+            optionsRef.current.onIdNumberAutofill(fId);
           }
         }
       } finally {
@@ -233,13 +240,16 @@ export function useCoordinatedIdScan(
       );
       setFrontResult(fullRes);
       frontResultRef.current = fullRes;
-      const fDigits = (fullRes.fields?.id_number || "").replace(/\D/g, "");
+      const fId = (fullRes.fields?.id_number || "").trim();
+      const fDigits = fId.replace(/\D/g, "");
+      const isAadhaar = (fullRes.fields?.id_type_detected || optionsRef.current?.idType || "Aadhar Card") === "Aadhar Card";
       if (
-        fDigits.length === 12 &&
+        fId.length >= 4 &&
+        (!isAadhaar || fDigits.length === 12) &&
         autofillAcceptedRef.current &&
         optionsRef.current?.onIdNumberAutofill
       ) {
-        optionsRef.current.onIdNumberAutofill(fullRes.fields.id_number!);
+        optionsRef.current.onIdNumberAutofill(fId);
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;

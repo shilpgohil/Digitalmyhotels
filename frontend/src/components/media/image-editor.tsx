@@ -50,7 +50,9 @@ export function docAspectFor(idType: string | null | undefined, side: string): E
   if (side === "selfie") return "square";
   const t = (idType ?? "").toLowerCase();
   if (t.includes("passport")) return "passport";
-  // Aadhaar, PAN, driving licence, voter ID — all ISO ID-1 cards.
+  // Voter IDs in India can be either vertical portrait booklets/cards or horizontal PVCs.
+  if (t.includes("voter") || t.includes("election")) return "free";
+  // Aadhaar, PAN, driving licence — ISO ID-1 landscape cards.
   return "id_card";
 }
 

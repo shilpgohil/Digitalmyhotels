@@ -13,6 +13,7 @@ import { scanAadhaarSide, mergeAadhaarSides } from "@/lib/aadhaar-scanner";
 import { scanPanCard } from "@/lib/pan-scanner";
 import { scanVoterCard } from "@/lib/voter-scanner";
 import { scanDrivingLicense } from "@/lib/dl-scanner";
+import { scanPassport } from "@/lib/passport-scanner";
 
 export interface ParsedIdFields {
   name?: string;
@@ -948,9 +949,14 @@ export async function parseIdDocument(
     return await scanVoterCard(imageFile, side, options?.onProgress);
   }
 
-  // Driving License: Run browser-side deep scanner (MoRTH Sarathi, 36 state codes, DOB vs validity)
+  // Driving License: Run browser-side deep scanner (MoRTH Sarathi, QR & deskew multi-pass)
   if (idType === "Driving License" || idType === "Driving Licence") {
     return await scanDrivingLicense(imageFile, side, options?.onProgress);
+  }
+
+  // Passport: Run browser-side MRZ & visual scanner (deskew + TD3 check digits)
+  if (idType === "Passport") {
+    return await scanPassport(imageFile, options?.onProgress);
   }
 
   // ─── TIER 1: SERVER-SIDE SMART CASCADE FOR NON-AADHAAR (Passport MRZ / PAN / DL / Voter ID) ─
@@ -1408,7 +1414,7 @@ export function mergeOcrResults(
       }
     }
   } else {
-    idNumber = fId || bId || "";
+    idNumber = (backIsQr && bId) ? bId : (frontIsQr && fId) ? fId : (fId || bId || "");
   }
 
   // DOB & Gender: Prefer full date (DD/MM/YYYY) over year-only (-01-01), fallback to whichever is present

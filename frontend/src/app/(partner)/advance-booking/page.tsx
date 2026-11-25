@@ -211,10 +211,15 @@ function AdvanceBookingContent() {
       }
     },
     onIdNumberAutofill: (idNum) => {
-      const d = idNum.replace(/\D/g, "");
-      if (d.length === 12) {
-        setPgIdNumber(d);
-        toast.info(t("guestAutofilled") ?? "Aadhaar number updated");
+      if (pgIdType === "Aadhar Card") {
+        const d = idNum.replace(/\D/g, "");
+        if (d.length === 12) {
+          setPgIdNumber(d);
+          toast.info(t("guestAutofilled") ?? "Aadhaar number updated");
+        }
+      } else if (idNum.trim().length >= 4) {
+        setPgIdNumber(idNum.trim());
+        toast.info(t("guestAutofilled") ?? "ID number updated");
       }
     },
     onScanError: (msg) => toast.warning(msg),

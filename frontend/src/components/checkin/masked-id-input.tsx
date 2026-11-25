@@ -72,7 +72,7 @@ export function MaskedIdInput({
   // When a real unmasked ID number is autofilled or entered into the field,
   // automatically reveal the digits so staff can verify what was scanned.
   useEffect(() => {
-    if (value && !isIdMask(value) && value.replace(/\D/g, "").length >= 4) {
+    if (value && !isIdMask(value) && value.replace(/[^A-Za-z0-9]/g, "").length >= 4) {
       setShow(true);
     }
   }, [value]);

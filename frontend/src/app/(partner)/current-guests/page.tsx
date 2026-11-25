@@ -17,6 +17,7 @@ import {
   FileText,
   Share2,
   Download,
+  Loader2,
 } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
@@ -53,8 +54,7 @@ import { useApi } from "@/lib/api/use-api";
 import { invalidateMoney, invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
-import { ApiError } from "@/lib/api/client";
-import { API_BASE } from "@/lib/api/client";
+import { ApiError, API_BASE, refreshAccessToken } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import {
   buildStaySlipWhatsAppMessage,
@@ -140,20 +140,23 @@ function CurrentGuestsContent() {
     message: "",
   });
 
-  // Keep URL in sync with search filter and view modal so refresh/share preserves state
+  // Keep URL in sync with search filter (`q`) so refresh/share preserves search.
+  // Never re-inject `view` back into the URL here — `?view=` is a one-shot
+  // deep-link trigger consumed once on arrival and cleared cleanly on close.
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (search) params.set("q", search);
-    const viewParam = searchParams.get("view") ?? searchParams.get("bookingId");
-    if (viewTarget?.booking_id) {
-      params.set("view", viewTarget.booking_id);
-    } else if (viewParam && !viewTarget) {
-      params.set("view", viewParam);
+    const params = new URLSearchParams(window.location.search);
+    if (search) {
+      params.set("q", search);
+    } else {
+      params.delete("q");
     }
     const qs = params.toString();
-    const url = qs ? `/current-guests?${qs}` : "/current-guests";
-    router.replace(url, { scroll: false });
-  }, [search, viewTarget?.booking_id, searchParams, router]);
+    const nextUrl = qs ? `/current-guests?${qs}` : "/current-guests";
+    const curUrl = `${window.location.pathname}${window.location.search}`;
+    if (nextUrl !== curUrl) {
+      router.replace(nextUrl, { scroll: false });
+    }
+  }, [search, router]);
 
   // Sync if searchParams changes from outside (e.g. global search navigation)
   useEffect(() => {
@@ -166,6 +169,7 @@ function CurrentGuestsContent() {
   }, [searchParams]);
 
   const viewBookingId = searchParams.get("view") ?? searchParams.get("bookingId");
+  const handledViewRef = useRef<string | null>(null);
 
   const guests = useQuery({
     queryKey: ["current-guests", activeHotelId, search],
@@ -187,17 +191,23 @@ function CurrentGuestsContent() {
     currentPage * PAGE_SIZE,
   );
 
-  // Auto-open StayDetailDialog when view param is present in URL
+  // Auto-open StayDetailDialog ONCE when ?view=<booking_id> arrives in URL
   useEffect(() => {
-    if (viewBookingId && allItems.length > 0 && !viewTarget) {
+    if (!viewBookingId) {
+      handledViewRef.current = null;
+      return;
+    }
+    if (handledViewRef.current === viewBookingId) return;
+    if (allItems.length > 0) {
       const match = allItems.find(
         (g) => g.booking_id === viewBookingId || g.booking_number === viewBookingId,
       );
       if (match) {
+        handledViewRef.current = viewBookingId;
         setViewTarget(match);
       }
     }
-  }, [viewBookingId, allItems, viewTarget]);
+  }, [viewBookingId, allItems]);
 
   // Fallback query if booking not found in active list (e.g. searched or paginated)
   const fallbackBooking = useQuery({
@@ -211,16 +221,18 @@ function CurrentGuestsContent() {
     },
     enabled:
       !!viewBookingId &&
+      handledViewRef.current !== viewBookingId &&
       !viewTarget &&
       allItems.length > 0 &&
       !allItems.some((g) => g.booking_id === viewBookingId || g.booking_number === viewBookingId),
   });
 
   useEffect(() => {
-    if (fallbackBooking.data && !viewTarget) {
+    if (fallbackBooking.data && viewBookingId && handledViewRef.current !== viewBookingId) {
+      handledViewRef.current = viewBookingId;
       setViewTarget(fallbackBooking.data);
     }
-  }, [fallbackBooking.data, viewTarget]);
+  }, [fallbackBooking.data, viewBookingId]);
 
   // Stay edits/transfers change room state and can reprice the stay —
   // refresh both families across every page (plan Part 6).
@@ -242,31 +254,29 @@ function CurrentGuestsContent() {
     staleTime: 5 * 60_000,
   });
 
-  const handleShareStaySlip = (entry: CurrentGuestOut) => {
-    // 1. Download the official Stay Slip PDF in background without blocking user gesture
-    void (async () => {
-      try {
+  const fetchStaySlipPdfBlob = useCallback(
+    async (bookingId: string): Promise<Blob | null> => {
+      const doFetch = async () => {
         const token = getAccessToken();
-        const res = await fetch(`${API_BASE}/api/v1/bookings/${entry.booking_id}/registration/pdf`, {
+        return fetch(`${API_BASE}/api/v1/bookings/${bookingId}/registration/pdf`, {
           headers: {
             Authorization: token ? `Bearer ${token}` : "",
             "X-Hotel-Id": activeHotelId ?? "",
           },
           credentials: "include",
         });
-        if (res.ok) {
-          const blob = await res.blob();
-          const guestClean = (entry.primary_guest_name || "Guest")
-            .replace(/[^\w\s-]/g, "")
-            .trim()
-            .replace(/\s+/g, "_");
-          downloadPdfBlob(blob, `Stay_Slip_${entry.booking_number}_${guestClean}.pdf`);
-        }
-      } catch {
-        // Continue even if direct background PDF download fails
+      };
+      let res = await doFetch();
+      if (res.status === 401 && (await refreshAccessToken())) {
+        res = await doFetch();
       }
-    })();
+      if (!res.ok) return null;
+      return res.blob();
+    },
+    [activeHotelId],
+  );
 
+  const handleShareStaySlip = (entry: CurrentGuestOut) => {
     const hotelAddr = hotelProfile.data
       ? [hotelProfile.data.address_line1, hotelProfile.data.city].filter(Boolean).join(", ")
       : "";
@@ -289,10 +299,25 @@ function CurrentGuestsContent() {
       pdfUrl: getAbsolutePublicUrl(`/stay-slip/${entry.booking_id}`),
     });
 
+    // Download the PDF locally on desktop (mobile browsers immediately navigate to wa.me).
+    const isMobile =
+      typeof navigator !== "undefined" &&
+      /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (!isMobile) {
+      void fetchStaySlipPdfBlob(entry.booking_id).then((blob) => {
+        if (!blob) return;
+        const guestClean = (entry.primary_guest_name || "Guest")
+          .replace(/[^\w\s-]/g, "")
+          .trim()
+          .replace(/\s+/g, "_");
+        downloadPdfBlob(blob, `Stay_Slip_${entry.booking_number}_${guestClean}.pdf`);
+      });
+    }
+
     if (normalizeWhatsAppPhone(entry.primary_guest_phone)) {
       openWhatsAppToCustomer(entry.primary_guest_phone, message);
       toast.success(
-        `Stay Slip PDF downloaded & WhatsApp opened for ${entry.primary_guest_name || entry.primary_guest_phone}!`,
+        `WhatsApp opened for ${entry.primary_guest_name || entry.primary_guest_phone}!`,
       );
     } else {
       setWaDialogState({
@@ -307,19 +332,11 @@ function CurrentGuestsContent() {
 
   const handleShareStaySlipNative = async (entry: CurrentGuestOut) => {
     try {
-      const token = getAccessToken();
-      const res = await fetch(`${API_BASE}/api/v1/bookings/${entry.booking_id}/registration/pdf`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : "",
-          "X-Hotel-Id": activeHotelId ?? "",
-        },
-        credentials: "include",
-      });
-      if (!res.ok) {
+      const blob = await fetchStaySlipPdfBlob(entry.booking_id);
+      if (!blob) {
         toast.error("Failed to generate Stay Slip PDF");
         return;
       }
-      const blob = await res.blob();
       const guestClean = (entry.primary_guest_name || "Guest")
         .replace(/[^\w\s-]/g, "")
         .trim()
@@ -356,6 +373,7 @@ function CurrentGuestsContent() {
       );
       if (!shared) {
         downloadPdfBlob(blob, filename);
+        toast.success("Stay Slip PDF downloaded! Opening WhatsApp to send link.");
         if (normalizeWhatsAppPhone(entry.primary_guest_phone)) {
           openWhatsAppToCustomer(entry.primary_guest_phone, message);
         } else {
@@ -375,19 +393,11 @@ function CurrentGuestsContent() {
 
   const handleDownloadStaySlipPdf = async (entry: CurrentGuestOut) => {
     try {
-      const token = getAccessToken();
-      const res = await fetch(`${API_BASE}/api/v1/bookings/${entry.booking_id}/registration/pdf`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : "",
-          "X-Hotel-Id": activeHotelId ?? "",
-        },
-        credentials: "include",
-      });
-      if (!res.ok) {
+      const blob = await fetchStaySlipPdfBlob(entry.booking_id);
+      if (!blob) {
         toast.error("Failed to generate Stay Slip PDF");
         return;
       }
-      const blob = await res.blob();
       const guestClean = (entry.primary_guest_name || "Guest")
         .replace(/[^\w\s-]/g, "")
         .trim()
@@ -630,13 +640,18 @@ function CurrentGuestsContent() {
           entry={viewTarget}
           autoPrint={autoPrint}
           onClose={() => {
+            if (viewBookingId) {
+              handledViewRef.current = viewBookingId;
+            }
             setViewTarget(null);
             setAutoPrint(false);
             const params = new URLSearchParams(window.location.search);
-            params.delete("view");
-            params.delete("bookingId");
-            const qs = params.toString();
-            router.replace(qs ? `/current-guests?${qs}` : "/current-guests", { scroll: false });
+            if (params.has("view") || params.has("bookingId")) {
+              params.delete("view");
+              params.delete("bookingId");
+              const qs = params.toString();
+              router.replace(qs ? `/current-guests?${qs}` : "/current-guests", { scroll: false });
+            }
           }}
           onShareWhatsApp={handleShareStaySlip}
           onShareNative={handleShareStaySlipNative}
@@ -679,8 +694,8 @@ function StayDetailDialog({
   autoPrint?: boolean;
   onClose: () => void;
   onShareWhatsApp?: (entry: CurrentGuestOut) => void;
-  onShareNative?: (entry: CurrentGuestOut) => void;
-  onDownloadPdf?: (entry: CurrentGuestOut) => void;
+  onShareNative?: (entry: CurrentGuestOut) => Promise<void> | void;
+  onDownloadPdf?: (entry: CurrentGuestOut) => Promise<void> | void;
 }) {
   const t = useTranslations("stay");
   const tb = useTranslations("bookings");
@@ -688,6 +703,7 @@ function StayDetailDialog({
   const tm = useTranslations("money");
   const api = useApi();
   const { activeHotelId } = useAuth();
+  const [busyAction, setBusyAction] = useState<"share" | "download" | null>(null);
 
   const booking = useQuery({
     queryKey: ["booking", entry?.booking_id, "detail"],
@@ -762,7 +778,10 @@ function StayDetailDialog({
     const b = booking.data;
     if (!b || !entry) return;
     const win = window.open("", "_blank", "width=800,height=900");
-    if (!win) return;
+    if (!win) {
+      toast.error("Please allow pop-ups to open the registration card print view.");
+      return;
+    }
     const rooms = b.rooms
       .filter((r) => r.is_current)
       .map((r) => `${r.room_number} (${r.room_type_name})`)
@@ -1017,11 +1036,23 @@ function StayDetailDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onShareNative(entry)}
+                disabled={busyAction !== null}
+                onClick={async () => {
+                  setBusyAction("share");
+                  try {
+                    await onShareNative(entry);
+                  } finally {
+                    setBusyAction(null);
+                  }
+                }}
                 className="gap-1.5"
                 title="Attach PDF file to WhatsApp or apps"
               >
-                <Share2 className="size-4" aria-hidden />
+                {busyAction === "share" ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                ) : (
+                  <Share2 className="size-4" aria-hidden />
+                )}
                 Share PDF File
               </Button>
             )}
@@ -1029,22 +1060,38 @@ function StayDetailDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onDownloadPdf(entry)}
+                disabled={busyAction !== null}
+                onClick={async () => {
+                  setBusyAction("download");
+                  try {
+                    await onDownloadPdf(entry);
+                  } finally {
+                    setBusyAction(null);
+                  }
+                }}
                 className="gap-1.5"
               >
-                <Download className="size-4" aria-hidden />
+                {busyAction === "download" ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                ) : (
+                  <Download className="size-4" aria-hidden />
+                )}
                 {t("downloadStaySlipPdf")}
               </Button>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <DialogClose className="inline-flex h-[42px] items-center rounded-lg bg-[#d1d1d1] px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors">
-              {tc("cancel")}
-            </DialogClose>
-            {/* Close dialog THEN print — prevents two overlapping windows
-                (ss21: "Currently open 2 models this is wrong") */}
             <Button
-              onClick={() => { onClose(); printRegistration(); }}
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-[42px] items-center rounded-lg bg-[#d1d1d1] px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors"
+            >
+              {tc("cancel")}
+            </Button>
+            {/* Print synchronously inside user click, then close modal cleanly */}
+            <Button
+              type="button"
+              onClick={() => { printRegistration(); onClose(); }}
               disabled={!b}
             >
               <Printer className="size-4" aria-hidden />

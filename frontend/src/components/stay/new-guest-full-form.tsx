@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/ui/date-picker";
-import { compressDocument, prepareUncroppedScanFile } from "@/lib/compress-image";
+import { compressDocument } from "@/lib/compress-image";
 import { localToday } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -207,15 +207,14 @@ export function QueuedDocUpload({
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
-    // Prepare uncropped, orientation-preserved high-res scan file for QR/OCR scanning
-    const scanFile = await prepareUncroppedScanFile(file, 2400);
-    onOriginal?.(side, scanFile);
-
+    // Crop & deskew in image editor FIRST so OCR/QR always receives a straight, clean card
     const edited = await edit(file, {
       aspect: docAspectFor(idType, side),
-      maxDimension: side === "selfie" ? 1000 : 1800,
+      maxDimension: side === "selfie" ? 1000 : 2200,
     });
     if (!edited) return;
+
+    onOriginal?.(side, edited);
     const previewUrl = URL.createObjectURL(edited);
     setPreview(previewUrl);
     try {
@@ -440,15 +439,14 @@ export function DocUpload({
     abortControllerRef.current = controller;
     onScanStart?.();
 
-    // Prepare uncropped, orientation-preserved high-res scan file for QR/OCR scanning
-    const scanFile = await prepareUncroppedScanFile(file, 2400);
-    onOriginal?.(side, scanFile);
-
+    // Crop & deskew in image editor FIRST so OCR/QR always receives a straight, clean card
     const edited = await edit(file, {
       aspect: docAspectFor(idType, side),
-      maxDimension: side === "selfie" ? 1000 : 1800,
+      maxDimension: side === "selfie" ? 1000 : 2200,
     });
     if (!edited) return;
+
+    onOriginal?.(side, edited);
     setBusy(true);
     const previewUrl = URL.createObjectURL(edited);
     setPreview(previewUrl);
@@ -458,7 +456,7 @@ export function DocUpload({
       if ((side === "front" || side === "back") && onOcrResult && !onOriginal) {
         setOcrRunning(true);
         const { parseIdDocument } = await import("@/lib/id-ocr");
-        parseIdDocument(scanFile, idType ?? "Aadhar Card", side, { signal: controller.signal })
+        parseIdDocument(edited, idType ?? "Aadhar Card", side, { signal: controller.signal })
           .then((result) => {
             if (side === "back" && !result.fields.name && !result.fields.id_number) {
               const addressOnly = {
@@ -1023,9 +1021,15 @@ export function NewGuestFullForm({
       }
     },
     onIdNumberAutofill: (idNum) => {
-      const d = idNum.replace(/\D/g, "");
-      if (d.length === 12) {
-        set("id_number", d);
+      const cleaned = idNum.trim();
+      const d = cleaned.replace(/\D/g, "");
+      if (form.id_proof_type === "Aadhar Card") {
+        if (d.length === 12) {
+          set("id_number", d);
+          toast.info(t("guestAutofilled"));
+        }
+      } else if (cleaned.length >= 4) {
+        set("id_number", cleaned);
         toast.info(t("guestAutofilled"));
       }
     },

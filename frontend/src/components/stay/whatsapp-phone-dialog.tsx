@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MessageSquare, Phone, Send } from "lucide-react";
 import {
   Dialog,
@@ -34,6 +34,13 @@ export function WhatsAppPhoneDialog({
 }: WhatsAppPhoneDialogProps) {
   const [phone, setPhone] = useState(initialPhone || "");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setPhone(initialPhone || "");
+      setError(null);
+    }
+  }, [open, initialPhone]);
 
   const handleSend = () => {
     const clean = normalizeWhatsAppPhone(phone);

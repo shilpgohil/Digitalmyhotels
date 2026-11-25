@@ -77,7 +77,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { API_BASE, ApiError, apiUpload } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
 import { docAspectFor, useImageEditor } from "@/components/media/image-editor";
-import { compressDocument, prepareUncroppedScanFile } from "@/lib/compress-image";
+import { compressDocument } from "@/lib/compress-image";
 import { fmtApiDate, fmtApiDateTime, fmtINR, localToday, localTomorrow } from "@/lib/formatting"; // eslint-disable-line @typescript-eslint/no-unused-vars
 import { cn } from "@/lib/utils";
 import type { ListOut, RoomAvailableItem } from "@/types/hotel";
@@ -763,18 +763,14 @@ function DocUpload({
     abortControllerRef.current = controller;
     onScanStart?.();
 
-    // Prepare uncropped, orientation-preserved high-res scan file for QR/OCR scanning
-    const scanFile = await prepareUncroppedScanFile(file, 2400);
-    onOriginal?.(side, scanFile);
-
-    // Selfie: 1000px (face recognition doesn't need more).
-    // ID docs: 1800px (Tesseract OCR works best at full card resolution).
-    // Crop frame matches the document shape (Aadhaar/DL card vs passport page).
+    // Crop & deskew in image editor FIRST so OCR/QR always receives a straight, clean card
     const edited = await edit(file, {
       aspect: docAspectFor(idType, side),
-      maxDimension: side === "selfie" ? 1000 : 1800,
+      maxDimension: side === "selfie" ? 1000 : 2200,
     });
     if (!edited) return;
+
+    onOriginal?.(side, edited);
     setBusy(true);
     // Show local preview immediately — before upload
     const previewUrl = URL.createObjectURL(edited);
@@ -790,7 +786,7 @@ function DocUpload({
       if ((side === "front" || side === "back") && onOcrResult && !onOriginal) {
         setOcrRunning(true);
         const { parseIdDocument } = await import("@/lib/id-ocr");
-        parseIdDocument(scanFile, idType ?? "Aadhar Card", side, { signal: controller.signal })
+        parseIdDocument(edited, idType ?? "Aadhar Card", side, { signal: controller.signal })
           .then((result) => {
             if (side === "back" && !result.fields.name && !result.fields.id_number) {
               // Back face: surface address + pincode only if name/id were not
@@ -1099,15 +1095,14 @@ function QueuedDocUpload({
     abortControllerRef.current = controller;
     onScanStart?.();
 
-    // Prepare uncropped, orientation-preserved high-res scan file for QR/OCR scanning
-    const scanFile = await prepareUncroppedScanFile(file, 2400);
-    onOriginal?.(side, scanFile);
-
+    // Crop & deskew in image editor FIRST so OCR/QR always receives a straight, clean card
     const edited = await edit(file, {
       aspect: docAspectFor(idType, side),
-      maxDimension: side === "selfie" ? 1000 : 1800,
+      maxDimension: side === "selfie" ? 1000 : 2200,
     });
     if (!edited) return;
+
+    onOriginal?.(side, edited);
     const previewUrl = URL.createObjectURL(edited);
     setPreview(previewUrl);
     setShowingExisting(false);
@@ -1126,7 +1121,7 @@ function QueuedDocUpload({
       setOcrRunning(true);
       try {
         const { parseIdDocument } = await import("@/lib/id-ocr");
-        const ocrFile = scanFile; // use uncropped, full-field photo for OCR
+        const ocrFile = edited; // use cropped, deskewed card for OCR
         const result = await parseIdDocument(
           ocrFile,
           idType ?? "Aadhar Card",
@@ -1373,9 +1368,15 @@ function NewGuestForm({
       }
     },
     onIdNumberAutofill: (idNum) => {
-      const d = idNum.replace(/\D/g, "");
-      if (d.length === 12) {
-        set("id_number", d);
+      const cleaned = idNum.trim();
+      const d = cleaned.replace(/\D/g, "");
+      if (form.id_proof_type === "Aadhar Card") {
+        if (d.length === 12) {
+          set("id_number", d);
+          toast.info(t("guestAutofilled"));
+        }
+      } else if (cleaned.length >= 4) {
+        set("id_number", cleaned);
         toast.info(t("guestAutofilled"));
       }
     },
@@ -1661,9 +1662,13 @@ function AdditionalGuestEntry({
   /** Full details of an existing guest (from /autofill) — used to pre-fill edits. */
   const [autofill, setAutofill] = useState<GuestAutofill | null>(null);
   const { activeHotelId } = useAuth();
+  const coGuestIdType =
+    (resolved as (ResolvedCoGuest & { _newForm?: GuestCreatePayload }) | null)?._newForm?.id_proof_type ||
+    autofill?.id_proof_type ||
+    "Aadhar Card";
   /** Coordinated front/back ID scanning hook for co-guest uploads */
   const coGuestScan = useCoordinatedIdScan({
-    idType: "Aadhar Card",
+    idType: coGuestIdType,
     hotelId: activeHotelId ?? undefined,
     onAddressAutofill: (fields) => {
       let filledAny = false;
@@ -1694,9 +1699,12 @@ function AdditionalGuestEntry({
       }
     },
     onIdNumberAutofill: (idNum) => {
-      const d = idNum.replace(/\D/g, "");
+      const cleaned = idNum.trim();
+      const d = cleaned.replace(/\D/g, "");
       if (d.length === 12) {
         setCoGuestOcrId(d);
+      } else if (cleaned.length >= 4) {
+        setCoGuestOcrId(cleaned);
       }
     },
     onScanError: (msg) => toast.warning(msg),
@@ -2298,6 +2306,7 @@ function AdditionalGuestEntry({
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <QueuedDocUpload
             side="front"
+            idType={coGuestIdType}
             label={t("uploadFront")}
             onQueued={handleQueueDoc}
             isScanning={coGuestScan.isFrontScanning}
@@ -2308,6 +2317,7 @@ function AdditionalGuestEntry({
           />
           <QueuedDocUpload
             side="back"
+            idType={coGuestIdType}
             label={t("uploadBack")}
             onQueued={handleQueueDoc}
             isScanning={coGuestScan.isBackScanning}
@@ -2752,9 +2762,15 @@ function CheckinForm({
       }
     },
     onIdNumberAutofill: (idNum) => {
-      const d = idNum.replace(/\D/g, "");
-      if (d.length === 12) {
-        setPgIdNumber(d);
+      const cleaned = idNum.trim();
+      const d = cleaned.replace(/\D/g, "");
+      if (pgIdType === "Aadhar Card") {
+        if (d.length === 12) {
+          setPgIdNumber(d);
+          toast.info(t("guestAutofilled"));
+        }
+      } else if (cleaned.length >= 4) {
+        setPgIdNumber(cleaned);
         toast.info(t("guestAutofilled"));
       }
     },
@@ -4157,9 +4173,15 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       }
     },
     onIdNumberAutofill: (idNum) => {
-      const d = idNum.replace(/\D/g, "");
-      if (d.length === 12) {
-        setPgIdNumber(d);
+      const cleaned = idNum.trim();
+      const d = cleaned.replace(/\D/g, "");
+      if (pgIdType === "Aadhar Card") {
+        if (d.length === 12) {
+          setPgIdNumber(d);
+          toast.info(t("guestAutofilled"));
+        }
+      } else if (cleaned.length >= 4) {
+        setPgIdNumber(cleaned);
         toast.info(t("guestAutofilled"));
       }
     },

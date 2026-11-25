@@ -1,27 +1,38 @@
 /**
- * Driving License (DL) Scanner — Deep In-Browser OCR Engine
+ * Driving License (DL) Scanner — Deep In-Browser OCR & QR Engine
  * -------------------------------------------------------------
- * 100% client-side processing using Tesseract.js & HTML5 Canvas.
- * Implements:
- *   1. Auto-orientation (0/90/180/270 deg) for smart cards.
- *   2. MoRTH Sarathi DL national format parser with 36 Indian state codes (e.g. MP-07-2021-0390898).
- *   3. Intelligent date disambiguation: strictly separates DOB (age >= 18) from Validity/Expiry dates.
- *   4. Targeted Name & Care-Of (S/W/D of) extraction.
- *   5. Back face / Front face address block and 6-digit PIN code extraction.
+ * 100% client-side processing via Tesseract.js, BarcodeDetector QR & HTML5 Canvas:
+ *   1. Instant QR probe (smart card backs like MP Transport QR encode exact DLNO & DOB)
+ *   2. 4-way orientation probe + fine projection-profile deskewing (+/- 22 deg)
+ *   3. Multi-pass recognition directly on HTMLCanvasElement:
+ *        - Full grayscale & adaptiveBinarize (psm 6)
+ *        - Smart-card inner-column crop (strips gold EMV chip on left & right signature)
+ *        - Upscaled single-line DOB bbox crop (psm 7) for dot-matrix fonts
+ *   4. Supports BOTH Indian DL layouts:
+ *        - Classic State Smart Cards (Number :MP07N..., 2-line wrapped Name, front Address w/o PIN)
+ *        - Modern MoRTH Form-7 Cards (MP07R-2021-0390898, labeled Name/DOB/Address + PIN)
+ *   5. Outputs clean <=16-char alphanumeric DL number matching schema validation
  */
 
 import type { IdOcrResult } from "@/lib/id-ocr";
 import {
+  adaptiveBinarize,
+  cleanTrailingOcrNoise,
+  cloneCanvas,
+  cropCanvas,
+  cropPadCanvas,
   drawToCanvas,
-  loadImageSource,
-  toGrayContrast,
-  toTitleCase,
-  canvasToBlob,
+  estimateCanvasSkewAngle,
   findIndianState,
   getIndianStatesForPin,
+  loadImageSource,
+  otsuBinarize,
+  runCanvasOcr,
+  toGrayContrast,
+  toTitleCase,
+  type OcrPassOutput,
 } from "@/lib/ocr-canvas-utils";
 
-// 36 Official Indian State & UT 2-letter codes for Driving Licences
 const DL_STATE_CODES = new Set([
   "AN", "AP", "AR", "AS", "BR", "CH", "CG", "DN", "DD", "DL",
   "GA", "GJ", "HR", "HP", "JK", "JH", "KA", "KL", "LA", "LD",
@@ -29,225 +40,272 @@ const DL_STATE_CODES = new Set([
   "SK", "TN", "TS", "TR", "UP", "UK", "WB",
 ]);
 
+const DL_KEYWORDS_RE =
+  /DRIVING|LICENCE|LICENSE|UNION|INDIA|TRANSPORT|AUTHORITY|VALIDITY|ISSUE|NAME|DOB|DATE\s*OF\s*BIRTH|BLOOD|ADDRESS|FORM\s*7/gi;
+
+const DL_STOP_WORDS_RE =
+  /S\/D\/W|SON\/DAUGHTER|SON\s+OF|DAUGHTER\s+OF|WIFE\s+OF|ADDRESS|ISSUED\s*ON|ISSUE\s*DATE|VALID|DOB|DATE\s*OF\s*BIRTH|BLOOD|ORGAN|LICENCE|LICENSE|VEHICLE|MCWGR|LMV/i;
+
+function fixDigitsOnly(s: string): string {
+  return s
+    .replace(/[OoQD]/g, "0")
+    .replace(/[Il|i]/g, "1")
+    .replace(/[Zz]/g, "2")
+    .replace(/[Ss]/g, "5")
+    .replace(/B/g, "8");
+}
+
+/**
+ * Extract & repair Indian MoRTH DL number into schema-safe alphanumeric <=16 chars
+ * (e.g. "MP07R-2021-0390898" -> "MP07R20210390898", preserving RTO series letter R/N).
+ */
 export function repairDlNumber(text: string): string | null {
-  // 1. Search for standard MoRTH format: SS-RR-YYYY-NNNNNNN or SS-RR-YYYYNNNNNNN
-  // Accepts common OCR artifacts (e.g. leading lowercase m, space or hyphen between elements)
-  const regex = /\b(?:[a-z]{0,2})?([A-Z]{2})[-/\s]?([0-9OIl]{2})[A-Za-z]?[-/\s]?((?:19|20)\d{2})[-/\s]?([0-9OIl]{4,8})\b/i;
-  const match = text.match(regex);
-  if (match) {
-    const rawState = match[1].toUpperCase();
-    if (DL_STATE_CODES.has(rawState)) {
-      const rto = match[2].replace(/[Oo]/g, "0").replace(/[Il]/g, "1");
-      const year = match[3];
-      const serial = match[4].replace(/[Oo]/g, "0").replace(/[Il]/g, "1");
-      return `${rawState}-${rto}-${year}-${serial}`;
+  const candidates: { dl: string; score: number }[] = [];
+
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.toUpperCase();
+    // Pattern 1: SS-RR[A]?[-/:\s]YYYY[-/:\s]NNNNNNN (e.g. MP07R-2021-0390898, EMPO7N-2018:0177745)
+    for (const m of line.matchAll(
+      /(?:[A-Z]{0,2})?([A-Z]{2})([0-9OIl]{2})([A-Z0-9])?[-/:\s]{0,2}((?:19|20)[0-9OIl]{2})[-/:\s]{0,2}([0-9OIl]{6,8})\b/g,
+    )) {
+      const state = m[1];
+      if (!DL_STATE_CODES.has(state)) continue;
+      const rto = fixDigitsOnly(m[2]);
+      const series = m[3] && /[A-Z]/.test(m[3]) ? m[3] : "";
+      const year = fixDigitsOnly(m[4]);
+      const serial = fixDigitsOnly(m[5]);
+      if (!/^\d{2}$/.test(rto) || !/^(?:19|20)\d{2}$/.test(year) || !/^\d{6,8}$/.test(serial)) {
+        continue;
+      }
+      const dl = `${state}${rto}${series}${year}${serial}`.slice(0, 16);
+      candidates.push({ dl, score: 12 });
     }
-  }
 
-  // 2. Continuous 15-16 alphanumeric format: SSRRYYYYNNNNNNN
-  const contRegex = /\b([A-Z]{2})([0-9]{2})((?:19|20)\d{2})([0-9]{7})\b/;
-  const contMatch = text.match(contRegex);
-  if (contMatch && DL_STATE_CODES.has(contMatch[1])) {
-    return `${contMatch[1]}-${contMatch[2]}-${contMatch[3]}-${contMatch[4]}`;
-  }
-
-  // 3. Fallback: Search token-wise for DL-like sequences
-  const tokens = text.split(/[\s,]+/);
-  for (const t of tokens) {
-    const clean = t.replace(/[^A-Za-z0-9-]/g, "").toUpperCase();
-    if (clean.length >= 13 && clean.length <= 18) {
-      const st = clean.slice(0, 2);
-      if (DL_STATE_CODES.has(st)) {
-        return clean;
+    // Pattern 2: Handle rare 0O doubling inside RTO on shaded headers (e.g. "MP0O7N-2019-0115460")
+    for (const m of line.matchAll(
+      /\b([A-Z]{2})([0-9OIl]{3})([A-Z])[-/:\s]{0,2}((?:19|20)[0-9OIl]{2})[-/:\s]{0,2}([0-9OIl]{6,8})\b/g,
+    )) {
+      const state = m[1];
+      if (!DL_STATE_CODES.has(state)) continue;
+      const rtoRaw = fixDigitsOnly(m[2]).replace(/00/g, "0");
+      if (rtoRaw.length !== 2) continue;
+      const year = fixDigitsOnly(m[4]);
+      const serial = fixDigitsOnly(m[5]);
+      if (/^(?:19|20)\d{2}$/.test(year) && /^\d{6,8}$/.test(serial)) {
+        const dl = `${state}${rtoRaw}${m[3]}${year}${serial}`.slice(0, 16);
+        candidates.push({ dl, score: 10 });
       }
     }
   }
 
+  if (candidates.length === 0) return null;
+  const tally = new Map<string, number>();
+  for (const c of candidates) {
+    tally.set(c.dl, (tally.get(c.dl) || 0) + c.score);
+  }
+  return [...tally.entries()].sort((a, b) => b[1] - a[1])[0][0];
+}
+
+function normalizeDateParts(dStr: string, mStr: string, yStr: string): string | null {
+  const d = parseInt(fixDigitsOnly(dStr), 10);
+  const mo = parseInt(fixDigitsOnly(mStr), 10);
+  let y = parseInt(fixDigitsOnly(yStr), 10);
+  // Common dot-matrix OCR fix for DOB year: 18xx or 98xx -> 19xx only if clearly impossible (<1925)
+  if (y >= 1880 && y <= 1899) y += 100;
+  if (y >= 9000 && y <= 9999) y = 1900 + (y % 100);
+  if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12 && y >= 1925 && y <= 2099) {
+    return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
   return null;
 }
 
-export function extractDlDates(text: string): { dob?: string; validity?: string } {
+function extractDlDobFromPasses(passes: OcrPassOutput[]): string | undefined {
   const curYear = new Date().getFullYear();
-  let dob: string | undefined;
-  let validity: string | undefined;
+  const tally = new Map<string, number>();
 
-  // Find all dates in DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY
-  const dateRegex = /\b([0-3]?\d)[/.-]([0-1]?\d)[/.-]((?:19|20)\d{2})\b/g;
-  const allMatches = [...text.matchAll(dateRegex)];
+  for (const p of passes) {
+    const lines = p.text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const hasDobLabel = /D\.?O\.?B|DATE\s*OF\s*BIRTH|BIRTH/i.test(line) ||
+        (i > 0 && /D\.?O\.?B|DATE\s*OF\s*BIRTH/i.test(lines[i - 1]));
 
-  // Look for labeled DOB
-  const dobLineMatch = text.match(
-    /(?:D\.?O\.?B\.?|Date of Birth|Birth Date|DOB)[:\s]*([0-3]?\d)[/.-]([0-1]?\d)[/.-]((?:19|20)\d{2})/i,
-  );
-  if (dobLineMatch) {
-    const d = parseInt(dobLineMatch[1], 10);
-    const m = parseInt(dobLineMatch[2], 10);
-    const y = parseInt(dobLineMatch[3], 10);
-    if (d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 1930 && y <= curYear - 18) {
-      dob = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    }
-  }
-
-  // Process all dates found
-  for (const m of allMatches) {
-    const d = parseInt(m[1], 10);
-    const mo = parseInt(m[2], 10);
-    const y = parseInt(m[3], 10);
-    if (d < 1 || d > 31 || mo < 1 || mo > 12) continue;
-
-    const iso = `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-
-    if (!dob && y >= 1930 && y <= curYear - 18) {
-      dob = iso;
-    } else if (y >= curYear) {
-      validity = iso;
-    }
-  }
-
-  return { dob, validity };
-}
-
-export function extractDlNameAndCareOf(
-  lines: string[],
-): { name?: string; careOf?: string } {
-  let name: string | undefined;
-  let careOf: string | undefined;
-
-  const noisePatterns = [
-    "UNION OF INDIA", "INDIAN UNION", "TRANSPORT", "DEPARTMENT", "DRIVING",
-    "LICENCE", "LICENSE", "FORM 7", "MOTOR VEHICLES", "COMMISSIONER", "GOVERNMENT",
-  ];
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const upper = line.toUpperCase();
-
-    // Check if line is header noise
-    if (noisePatterns.some((np) => upper.includes(np))) continue;
-
-    // Check Name line: "Name: John Doe" or "Name\nJohn Doe"
-    if (!name && (upper.startsWith("NAME") || upper.includes("NAME:"))) {
-      const parts = line.split(/[:\-–]/);
-      let val = parts.length > 1 ? parts.slice(1).join(" ").trim() : "";
-      if (val.length < 3 && i + 1 < lines.length) {
-        const next = lines[i + 1].trim();
-        if (
-          !next.toUpperCase().includes("S/W/D") &&
-          !next.toUpperCase().includes("SON OF") &&
-          !next.toUpperCase().includes("DOB") &&
-          /^[A-Za-z\s.'-]+$/.test(next)
-        ) {
-          val = next;
+      for (const m of line.matchAll(
+        /\b([0-3OIl]?\d|[OIl]{2})[/.\-]([0-1OIl]?\d)[/.\-]((?:18|19|20|98)\d{2}|[1920][89]\d{2})\b/g,
+      )) {
+        const iso = normalizeDateParts(m[1], m[2], m[3]);
+        if (!iso) continue;
+        const yr = parseInt(iso.slice(0, 4), 10);
+        // Cardholder DOB must make holder at least 18 years old, NOT an Issue Date
+        if (yr <= curYear - 18 && !/ISSUED\s*ON|ISSUE\s*DATE/i.test(line)) {
+          tally.set(iso, (tally.get(iso) || 0) + (hasDobLabel ? 12 : 4));
         }
       }
-      val = val.replace(/[^A-Za-z\s.'-]/g, "").trim();
-      if (val.length >= 3) {
-        name = toTitleCase(val);
-      }
-    }
-
-    // Check S/W/D of (Care Of): "S/W/D of: Jane Doe" or "Son of: Jane Doe"
-    if (
-      !careOf &&
-      (upper.includes("S/W/D") ||
-        upper.includes("S/O") ||
-        upper.includes("W/O") ||
-        upper.includes("D/O") ||
-        upper.includes("SON OF") ||
-        upper.includes("DAUGHTER OF") ||
-        upper.includes("WIFE OF"))
-    ) {
-      const parts = line.split(/[:\-–]/);
-      let val = parts.length > 1 ? parts.slice(1).join(" ").trim() : "";
-      if (val.length < 3 && i + 1 < lines.length) {
-        const next = lines[i + 1].trim();
-        if (
-          !next.toUpperCase().includes("DOB") &&
-          !next.toUpperCase().includes("ADDRESS") &&
-          /^[A-Za-z\s.'-]+$/.test(next)
-        ) {
-          val = next;
-        }
-      }
-      val = val.replace(/[^A-Za-z\s.'-]/g, "").trim();
-      if (val.length >= 3) {
-        careOf = `S/O ${toTitleCase(val)}`;
-      }
     }
   }
 
-  return { name, careOf };
+  if (tally.size === 0) return undefined;
+  return [...tally.entries()].sort((a, b) => b[1] - a[1])[0][0];
 }
 
-export function extractDlAddress(text: string): {
+function extractDlFieldsFromPasses(passes: OcrPassOutput[]): {
+  dlNumber?: string;
+  name?: string;
+  careOf?: string;
+  dob?: string;
   address?: string;
   pincode?: string;
   city?: string;
   state?: string;
 } {
-  let address: string | undefined;
-  let pincode: string | undefined;
+  const dlTally = new Map<string, number>();
+  const nameTally = new Map<string, number>();
+  const careOfTally = new Map<string, number>();
+  let bestAddress = "";
+
+  for (const p of passes) {
+    const mult = p.weight ?? 1;
+    const dl = repairDlNumber(p.text);
+    if (dl) dlTally.set(dl, (dlTally.get(dl) || 0) + 10 * mult);
+
+    const lines = p.lines.map((l) => l.text.trim()).filter(Boolean);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const upper = line.toUpperCase();
+
+      // Name extraction (handles "Name :MUKESH" + next line "RAWAT", or "Name: PRADEEP RAWAT")
+      if (/\bNAME\b/i.test(upper) && !/HOLDER/i.test(upper)) {
+        let after = line
+          .replace(/^.*?\bNAME\b\s*[:\-~]?\s*/i, "")
+          .replace(/\s*[=[\]{}()|*;:"<>!@#$%^`\\].*$/, "")
+          .trim();
+        after = cleanTrailingOcrNoise(after.replace(/^[:"'`\s‘“]+/, ""));
+        const parts: string[] = [];
+        if (after.length >= 2 && /^[A-Za-z\s.'-]+$/.test(after) && !DL_STOP_WORDS_RE.test(after)) {
+          parts.push(after);
+        }
+        // Check immediate next line if it's a continuation of wrapped name (like MUKESH \n RAWAT)
+        if (i + 1 < lines.length) {
+          const nextRaw = lines[i + 1].trim();
+          const nextClean = cleanTrailingOcrNoise(
+            nextRaw
+              .replace(/^[\\\/:|\s“"'`]+/, "")
+              .replace(/\s*[=[\]{}()|*;:"<>!@#$%^`\\].*$/, ""),
+          );
+          if (
+            nextClean.length >= 2 &&
+            nextClean.length <= 22 &&
+            /^[A-Za-z\s.'-]+$/.test(nextClean) &&
+            !DL_STOP_WORDS_RE.test(nextClean) &&
+            !nextClean.includes(":")
+          ) {
+            parts.push(nextClean);
+          }
+        }
+        const combined = parts.join(" ").trim();
+        if (combined.length >= 3) {
+          const formatted = toTitleCase(combined);
+          nameTally.set(formatted, (nameTally.get(formatted) || 0) + (parts.length > 1 ? 12 : 8) * mult);
+        }
+      }
+
+      // S/D/W of / Care-Of extraction
+      if (/S\/D\/W|SON\/DAUGHTER|SON\s+OF|DAUGHTER\s+OF|WIFE\s+OF|SIW\s*OF|IW\s*OF/i.test(upper)) {
+        let val = line.replace(/^.*?(?:OF|of)\s*[:\-~]?\s*/i, "").trim();
+        val = cleanTrailingOcrNoise(val.replace(/^[\\\/:"'`\s]+/, ""));
+        if (val.length < 3 && i + 1 < lines.length) {
+          val = cleanTrailingOcrNoise(lines[i + 1].replace(/^[\\\/:"'`\s]+/, ""));
+        }
+        if (val.length >= 3 && /^[A-Za-z\s.'-]+$/.test(val) && !DL_STOP_WORDS_RE.test(val)) {
+          const f = `S/O ${toTitleCase(val)}`;
+          careOfTally.set(f, (careOfTally.get(f) || 0) + 8);
+        }
+      }
+
+      // Address extraction (works BOTH WITH and WITHOUT PIN codes!)
+      if (/\b(?:ADDRESS|DDRESS)\b/i.test(upper)) {
+        const collected: string[] = [];
+        const sameLine = line
+          .replace(/^.*?(?:ADDRESS|DDRESS)\s*[:\-~]?\s*/i, "")
+          .replace(/^[\\\/:"'`\s]+/, "")
+          .trim();
+        if (sameLine.length >= 2) collected.push(sameLine);
+
+        for (let j = i + 1; j < Math.min(lines.length, i + 5); j++) {
+          const nl = lines[j].trim();
+          const nUpper = nl.toUpperCase();
+          if (
+            /ORG\.?\s*DL|ISSUED\s*ON|ISSUE\s*DATE|D\.?O\.?B|DATE\s*OF\s*BIRTH|BLOOD|VEHICLE|VALID|BADGE|LICENSING/i.test(
+              nUpper,
+            )
+          ) {
+            break;
+          }
+          // Stop before standalone card serial fragments like "No."
+          if (/^NO\.?$/i.test(nl)) continue;
+          const cleanNl = nl.replace(/[|[\]{}_*~]+/g, " ").trim();
+          if (cleanNl.length >= 3) collected.push(cleanNl);
+          if (/\b[1-9]\d{5}\b/.test(cleanNl)) break;
+        }
+
+        if (collected.length > 0) {
+          const joined = collected.join(", ").replace(/,\s*,+/g, ",").trim();
+          if (joined.length > bestAddress.length) {
+            bestAddress = joined;
+          }
+        }
+      }
+    }
+  }
+
+  const dob = extractDlDobFromPasses(passes);
+  const allText = passes.map((p) => p.text).join("\n");
+  // Extract PIN strictly from address block (never match validity dates like 04-112038)
+  const pinMatch = bestAddress.match(/\b([1-9]\d{5})\b/);
+  const pincode = pinMatch ? pinMatch[1] : undefined;
+
+  let state = findIndianState(bestAddress) || findIndianState(allText) || undefined;
+  if (!state && pincode) {
+    const s = getIndianStatesForPin(pincode);
+    if (s && s.length === 1) state = s[0];
+  }
+
+  // Extract city before ", MP" or state alias
   let city: string | undefined;
-  let state: string | undefined;
-
-  // Extract 6-digit PIN code
-  const pinMatch = text.match(/\b([1-9]\d{5})\b/);
-  if (pinMatch) {
-    pincode = pinMatch[1];
-    const states = getIndianStatesForPin(pincode);
-    if (states && states.length > 0) {
-      state = states[0];
-    }
+  const cityMatch = bestAddress.match(/([A-Za-z]{3,20}),\s*(?:MP|MH|RJ|GJ|UP|KA|TN|DL|PB|HR|BR|WB)/i);
+  if (cityMatch) {
+    city = toTitleCase(cityMatch[1]);
   }
 
-  if (!state) {
-    const st = findIndianState(text);
-    if (st) state = st;
+  let cleanAddr = bestAddress;
+  if (cleanAddr && pincode) {
+    cleanAddr = cleanAddr.replace(pincode, "").replace(/[,-\s]+$/, "").trim();
   }
 
-  // Address lines
-  const lines = text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
+  return {
+    dlNumber: dlTally.size ? [...dlTally.entries()].sort((a, b) => b[1] - a[1])[0][0] : undefined,
+    name: nameTally.size ? [...nameTally.entries()].sort((a, b) => b[1] - a[1])[0][0] : undefined,
+    careOf: careOfTally.size ? [...careOfTally.entries()].sort((a, b) => b[1] - a[1])[0][0] : undefined,
+    dob,
+    address: cleanAddr ? toTitleCase(cleanAddr) : undefined,
+    pincode,
+    city,
+    state,
+  };
+}
 
-  const addressLines: string[] = [];
-  let inAddress = false;
-
-  for (const line of lines) {
-    const upper = line.toUpperCase();
-    if (upper.includes("ADDRESS") || upper.includes("PATA") || upper.includes("RESIDENCE")) {
-      inAddress = true;
-      const colonIdx = line.indexOf(":");
-      if (colonIdx >= 0) {
-        const val = line.slice(colonIdx + 1).trim();
-        if (val.length > 0) addressLines.push(val);
-      }
-      continue;
-    }
-
-    if (inAddress) {
-      if (
-        upper.includes("BADGE") ||
-        upper.includes("AUTHORITY") ||
-        upper.includes("SIGNATURE") ||
-        upper.includes("CARD NO") ||
-        upper.includes("CLASS OF VEHICLE")
-      ) {
-        break;
-      }
-      addressLines.push(line);
-      if (pinMatch && line.includes(pinMatch[1])) {
-        break;
-      }
-    }
-  }
-
-  if (addressLines.length > 0) {
-    address = addressLines.join(", ").replace(/,\s*,/g, ",").trim();
-  }
-
-  return { address, pincode, city, state };
+/**
+ * Parse digital MP / Parivahan DL QR payload (e.g. "...?DLNO=MP07R-2021-0390898&DOB=11/01/1992").
+ */
+function parseDlQrText(raw: string): { dlNumber?: string; dob?: string } | null {
+  const dlMatch = raw.match(/DLNO\s*=\s*([A-Z0-9\-/]+)/i);
+  const dobMatch = raw.match(/DOB\s*=\s*([0-3]?\d)[/.-]([0-1]?\d)[/.-]((?:19|20)\d{2})/i);
+  const dlNumber = dlMatch ? repairDlNumber(dlMatch[1]) || dlMatch[1].replace(/[^A-Z0-9]/gi, "").toUpperCase().slice(0, 16) : undefined;
+  const dob = dobMatch
+    ? `${dobMatch[3]}-${dobMatch[2].padStart(2, "0")}-${dobMatch[1].padStart(2, "0")}`
+    : undefined;
+  if (!dlNumber && !dob) return null;
+  return { dlNumber, dob };
 }
 
 /**
@@ -258,119 +316,167 @@ export async function scanDrivingLicense(
   side: "front" | "back" = "front",
   onProgress?: (pct: number, status: string) => void,
 ): Promise<IdOcrResult> {
-  onProgress?.(15, "Loading image & normalizing contrast…");
+  onProgress?.(10, "Loading Driving License image…");
   const imgSource = await loadImageSource(file);
 
-  const baseCanvas = toGrayContrast(drawToCanvas(imgSource, 2200, 0));
-
-  onProgress?.(30, "Initializing OCR engine…");
-  const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("eng", 1, {
-    logger: () => undefined,
-  });
-
+  // 1. Silent QR probe via native BarcodeDetector (if available in Chrome/Android/Edge)
   try {
-    await worker.setParameters({
-      preserve_interword_spaces: "1",
-    });
-  } catch {
-    // Ignore parameter warning
-  }
-
-  try {
-    onProgress?.(45, "Scanning card orientation…");
-    const blob0 = await canvasToBlob(baseCanvas);
-    const res0 = await worker.recognize(blob0);
-    let bestText = res0.data.text;
-
-    const scoreDlText = (t: string): number => {
-      let s = 0;
-      const u = t.toUpperCase();
-      if (u.includes("DRIVING")) s += 3;
-      if (u.includes("LICENCE") || u.includes("LICENSE")) s += 3;
-      if (u.includes("TRANSPORT")) s += 2;
-      if (u.includes("UNION OF INDIA")) s += 2;
-      if (u.includes("NAME")) s += 2;
-      if (u.includes("DOB") || u.includes("VALIDITY")) s += 2;
-      if (/[A-Z]{2}[-/\s]?[0-9]{2}/.test(u)) s += 3;
-      return s;
+    type BarcodeDetectorCtor = new (opt?: { formats?: string[] }) => {
+      detect: (src: ImageBitmap | HTMLImageElement) => Promise<Array<{ rawValue?: string }>>;
     };
-
-    let bestScore = scoreDlText(bestText);
-
-    if (bestScore < 4) {
-      for (const rot of [180, 90, 270]) {
-        onProgress?.(55, `Checking orientation (${rot}°)…`);
-        const rotCanvas = toGrayContrast(drawToCanvas(imgSource, 2200, rot));
-        const rotBlob = await canvasToBlob(rotCanvas);
-        const rotRes = await worker.recognize(rotBlob);
-        const sc = scoreDlText(rotRes.data.text);
-        if (sc > bestScore) {
-          bestScore = sc;
-          bestText = rotRes.data.text;
-          if (sc >= 5) break;
+    const BD = (globalThis as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
+    if (typeof BD !== "undefined") {
+      const det = new BD({ formats: ["qr_code"] });
+      const hits = await det.detect(imgSource);
+      for (const h of hits) {
+        if (h.rawValue) {
+          const qr = parseDlQrText(h.rawValue);
+          if (qr && (qr.dlNumber || qr.dob)) {
+            onProgress?.(100, "Done");
+            return {
+              fields: {
+                id_number: qr.dlNumber,
+                date_of_birth: qr.dob,
+                id_type_detected: "Driving License",
+              },
+              confidence: 1.0,
+              source: "qr",
+              message: `Extracted digitally from Driving License QR (${qr.dlNumber ?? "DOB verified"})`,
+              can_autofill: true,
+            };
+          }
         }
       }
     }
+  } catch {
+    // Continue to OCR passes
+  }
 
-    onProgress?.(80, "Extracting DL number, name, DOB & address…");
-
-    const lines = bestText
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-
-    const dlNumber = repairDlNumber(bestText);
-    const { dob } = extractDlDates(bestText);
-    const { name, careOf } = extractDlNameAndCareOf(lines);
-    const { address, pincode, city, state } = extractDlAddress(bestText);
-
-    onProgress?.(100, "Done");
-
-    const hasDl = Boolean(dlNumber);
-    const hasName = Boolean(name);
-    const hasAddress = Boolean(address || pincode || state);
-
-    if (side === "back" && !hasDl && hasAddress) {
-      return {
-        fields: {
-          address,
-          pincode,
-          city,
-          state,
-          id_type_detected: "Driving License",
-        },
-        confidence: 0.92,
-        source: "tesseract",
-        message: "Driving License back face scanned successfully",
-        can_autofill: true,
-      };
+  // 2. 4-way orientation probe
+  onProgress?.(20, "Checking license orientation…");
+  let rot = 0;
+  let bestScore = -1;
+  for (const r of [0, 90, 180, 270]) {
+    const probe = adaptiveBinarize(toGrayContrast(drawToCanvas(imgSource, 1000, r)), 34, 0.88);
+    const out = await runCanvasOcr(probe, { psm: "6" });
+    const sc = (out.text.match(DL_KEYWORDS_RE) || []).length;
+    if (sc > bestScore) {
+      bestScore = sc;
+      rot = r;
     }
+    if (sc >= 3) break;
+  }
 
-    const confidence =
-      hasDl && hasName ? 0.95 : hasDl ? 0.85 : hasName ? 0.75 : 0.4;
-    const canAutofill = hasDl || (hasName && Boolean(dob));
+  // 3. Projection-profile fine deskew (+/- 22 deg)
+  onProgress?.(35, "Correcting tilt & enhancing smart card…");
+  const fineSkew = estimateCanvasSkewAngle(imgSource, rot);
+  const totalRot = rot - fineSkew;
 
+  const side0 = Math.max(imgSource.width, imgSource.height) < 1300 ? 2800 : 2200;
+  const rawHi = drawToCanvas(imgSource, side0, totalRot);
+  const deskewed =
+    Math.abs(fineSkew) >= 1.0
+      ? cropCanvas(rawHi, rawHi.width * 0.02, rawHi.height * 0.02, rawHi.width * 0.96, rawHi.height * 0.96)
+      : rawHi;
+
+  const gray = toGrayContrast(cloneCanvas(deskewed));
+  const bin = adaptiveBinarize(cloneCanvas(gray), 38, 0.88);
+
+  onProgress?.(55, "Running multi-pass Driving License OCR…");
+  const passes: OcrPassOutput[] = [];
+  passes.push(await runCanvasOcr(gray, { psm: "6" }));
+  passes.push(await runCanvasOcr(bin, { psm: "6" }));
+
+  // Inner column crop avoids EMV chip / right portrait & stamps
+  const innerGray = cropCanvas(
+    gray,
+    gray.width * 0.14,
+    gray.height * 0.14,
+    gray.width * 0.68,
+    gray.height * 0.80,
+  );
+  passes.push(await runCanvasOcr(innerGray, { psm: "6" }));
+
+  // Upper-inner data band crop isolates DL Number + Name away from dark header banner.
+  // Otsu global threshold with -42 offset cleans shaded pale-blue header ribbons to crisp white.
+  const topBand = cropCanvas(
+    deskewed,
+    deskewed.width * 0.16,
+    deskewed.height * 0.11,
+    deskewed.width * 0.66,
+    deskewed.height * 0.36,
+  );
+  const topGray = toGrayContrast(cloneCanvas(topBand));
+  const topOtsu = otsuBinarize(cloneCanvas(topGray), -42);
+  passes.push({ ...(await runCanvasOcr(topOtsu, { psm: "6" })), weight: 3 });
+  passes.push({ ...(await runCanvasOcr(topGray, { psm: "6" })), weight: 2 });
+
+  // Targeted DOB line crop at 2.5x upscale for dot-matrix fonts
+  let extracted = extractDlFieldsFromPasses(passes);
+  if (!extracted.dob) {
+    for (const p of passes) {
+      for (const l of p.lines) {
+        if (l.bbox && /D\.?O\.?B|BIRTH/i.test(l.text)) {
+          const lh = Math.max(10, l.bbox.y1 - l.bbox.y0);
+          const cc = cropPadCanvas(
+            gray,
+            l.bbox.x0,
+            l.bbox.y0 - lh * 0.2,
+            l.bbox.x1 - l.bbox.x0 + lh * 2,
+            lh * 1.5,
+            2.5,
+            16,
+          );
+          passes.push(await runCanvasOcr(cc, { psm: "7", whitelist: "0123456789-/:DOBirthaeof " }));
+        }
+      }
+    }
+    extracted = extractDlFieldsFromPasses(passes);
+  }
+
+  onProgress?.(100, "Done");
+
+  const hasDl = Boolean(extracted.dlNumber);
+  const hasName = Boolean(extracted.name);
+  const hasAddr = Boolean(extracted.address || extracted.pincode || extracted.state);
+
+  if (side === "back" && !hasDl && hasAddr) {
     return {
       fields: {
-        id_number: dlNumber || undefined,
-        name,
-        date_of_birth: dob,
-        care_of: careOf,
-        address,
-        pincode,
-        city,
-        state,
+        address: extracted.address,
+        pincode: extracted.pincode,
+        city: extracted.city,
+        state: extracted.state,
         id_type_detected: "Driving License",
       },
-      confidence,
+      confidence: 0.90,
       source: "tesseract",
-      message: hasDl
-        ? `Driving License scanned successfully (${dlNumber})`
-        : "Driving License scanned with partial details",
-      can_autofill: canAutofill,
+      message: "Driving License back face scanned cleanly",
+      can_autofill: true,
     };
-  } finally {
-    await worker.terminate();
   }
+
+  const confidence =
+    hasDl && hasName ? 0.95 : hasDl ? 0.88 : hasName ? 0.78 : 0.42;
+  const canAutofill = hasDl || (hasName && Boolean(extracted.dob));
+
+  return {
+    fields: {
+      id_number: extracted.dlNumber,
+      name: extracted.name,
+      date_of_birth: extracted.dob,
+      care_of: extracted.careOf,
+      address: extracted.address,
+      pincode: extracted.pincode,
+      city: extracted.city,
+      state: extracted.state,
+      id_type_detected: "Driving License",
+    },
+    confidence,
+    source: "tesseract",
+    message: hasDl
+      ? `Driving License scanned cleanly (${extracted.dlNumber})`
+      : "Driving License scanned with partial details",
+    can_autofill: canAutofill,
+  };
 }
