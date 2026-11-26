@@ -34,7 +34,11 @@
     "download": "Download",
     "exportCsv": "Export CSV",
     "exportSuccess": "CSV exported successfully",
-    "back": "Back"
+    "back": "Back",
+    "sectionErrorTitle": "This page hit a temporary error",
+    "sectionErrorBody": "Your navigation keeps working. Try reloading or return to the dashboard.",
+    "tryAgain": "Try again",
+    "backToDashboard": "Dashboard"
   },
   "imageEditor": {
     "title": "Edit Photo",

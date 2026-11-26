@@ -118,18 +118,22 @@ export function PartnerMobileTabBar() {
       }
     };
     const onFocusChange = () => {
-      if (window.innerWidth >= 1024) {
+      try {
+        if (window.innerWidth >= 1024) {
+          setKeyboardOpen(false);
+          return;
+        }
+        const el = document.activeElement as HTMLElement | null;
+        const tag = el?.tagName?.toLowerCase();
+        const inputType = el instanceof HTMLInputElement ? el.type.toLowerCase() : "";
+        const isTextField =
+          tag === "textarea" ||
+          (tag === "input" &&
+            !["checkbox", "radio", "file", "button", "submit", "reset", "range", "color"].includes(inputType));
+        setKeyboardOpen(Boolean(isTextField));
+      } catch {
         setKeyboardOpen(false);
-        return;
       }
-      const el = document.activeElement as HTMLElement | null;
-      const tag = el?.tagName?.toLowerCase();
-      const inputType = el instanceof HTMLInputElement ? el.type.toLowerCase() : "";
-      const isTextField =
-        tag === "textarea" ||
-        (tag === "input" &&
-          !["checkbox", "radio", "file", "button", "submit", "reset", "range", "color"].includes(inputType));
-      setKeyboardOpen(Boolean(isTextField));
     };
 
     let focusTimer: number | undefined;
@@ -182,9 +186,10 @@ export function PartnerMobileTabBar() {
       >
         {items.map(({ href, labelKey, icon: Icon }) => {
           // Longest-prefix wins so nested routes never light two tabs at once.
+          const curPath = pathname ?? "";
           const matches = items
             .map((i) => i.href)
-            .filter((h) => pathname === h || pathname.startsWith(`${h}/`))
+            .filter((h) => curPath === h || curPath.startsWith(`${h}/`))
             .sort((a, b) => b.length - a.length);
           const active = matches[0] === href;
           return (

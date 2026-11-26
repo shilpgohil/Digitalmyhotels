@@ -34,7 +34,11 @@
     "download": "डाउनलोड करें",
     "exportCsv": "CSV निर्यात करें",
     "exportSuccess": "CSV सफलतापूर्वक निर्यात किया गया",
-    "back": "वापस"
+    "back": "वापस",
+    "sectionErrorTitle": "इस पृष्ठ पर अस्थायी त्रुटि आई",
+    "sectionErrorBody": "नेविगेशन काम कर रहा है। फिर से कोशिश करें या डैशबोर्ड पर लौटें।",
+    "tryAgain": "फिर से कोशिश करें",
+    "backToDashboard": "डैशबोर्ड"
   },
   "imageEditor": {
     "title": "फ़ोटो संपादित करें",

@@ -239,12 +239,17 @@ function TeamContent() {
                     <TableCell className="text-muted-foreground">{member.phone || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{member.email || "—"}</TableCell>
                     <TableCell>
-                      {t(`role_${member.role_code}` as Parameters<typeof t>[0]) || member.role_name}
+                      {(() => {
+                        const rk = `role_${member.role_code}` as Parameters<typeof t>[0];
+                        return t.has(rk) ? t(rk) : member.role_name;
+                      })()}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {member.department
-                        ? ts(`dept_${member.department}` as Parameters<typeof ts>[0])
-                        : "—"}
+                      {(() => {
+                        if (!member.department) return "—";
+                        const dk = `dept_${member.department}` as Parameters<typeof ts>[0];
+                        return ts.has(dk) ? ts(dk) : member.department;
+                      })()}
                     </TableCell>
                     <TableCell>
                       <StatusBadge tone={member.is_active ? "success" : "danger"}>

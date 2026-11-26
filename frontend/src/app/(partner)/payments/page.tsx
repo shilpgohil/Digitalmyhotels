@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1052,7 +1052,9 @@ function ChargeDialog({ bookingId, onDone }: { bookingId: string; onDone: () => 
 export default function PaymentsPage() {
   return (
     <RequirePermission permission={PERMISSIONS.paymentsView}>
-      <PaymentsContent />
+      <Suspense fallback={<div className="flex-1 p-6"><Skeleton className="h-10 w-full" /></div>}>
+        <PaymentsContent />
+      </Suspense>
     </RequirePermission>
   );
 }

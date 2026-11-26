@@ -177,9 +177,11 @@ export function PartnerHeader({
   const router = useRouter();
 
   const activeMem = memberships.find((m) => m.hotel_id === activeHotelId);
-  const roleName = activeMem?.role_code
-    ? ts(`role_${activeMem.role_code}` as Parameters<typeof ts>[0]) || activeMem.role_name
-    : activeMem?.role_name;
+  const roleKey = activeMem?.role_code
+    ? (`role_${activeMem.role_code}` as Parameters<typeof ts>[0])
+    : null;
+  const roleName =
+    roleKey && ts.has(roleKey) ? ts(roleKey) : activeMem?.role_name;
 
   // Use startTourInPlace — the user is already on a partner page,
   // so the tour runs contextually without navigating away.

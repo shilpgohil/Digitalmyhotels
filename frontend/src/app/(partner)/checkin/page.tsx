@@ -6189,6 +6189,30 @@ function ArrivalsStrip({
 const checkinSessionKey = (hotelId: string | null) =>
   `dmh.checkin.selectedBookingId:${hotelId ?? "none"}`;
 
+function safeGetSession(key: string): string | null {
+  try {
+    return typeof window !== "undefined" ? window.sessionStorage.getItem(key) : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeSetSession(key: string, val: string): void {
+  try {
+    window.sessionStorage.setItem(key, val);
+  } catch {
+    // Ignore storage restriction errors in Safari Private mode
+  }
+}
+
+function safeRemoveSession(key: string): void {
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // Ignore storage restriction errors
+  }
+}
+
 function CheckinContent() {
   const t = useTranslations("checkin");
   const ts = useTranslations("stay");
@@ -6205,7 +6229,7 @@ function CheckinContent() {
     // ?booking=<id> lets other pages (e.g. Advance Bookings) deep-link into
     // the check-in form for a specific booking.
     const fromUrl = new URLSearchParams(window.location.search).get("booking");
-    return fromUrl ?? sessionStorage.getItem(checkinSessionKey(activeHotelId));
+    return fromUrl ?? safeGetSession(checkinSessionKey(activeHotelId));
   });
 
   // Clean ?new=1 / ?booking= from URL after reading them (prevents re-opening
@@ -6246,7 +6270,7 @@ function CheckinContent() {
     const match = bookings.data.items.find((b) => b.id === pendingBookingId);
     if (match) setSelectedBooking(match);
     setPendingBookingId(null);
-    sessionStorage.removeItem(checkinSessionKey(activeHotelId));
+    safeRemoveSession(checkinSessionKey(activeHotelId));
   }, [pendingBookingId, bookings.data]);
 
   // Check-in changes room state AND money (advance collected) — refresh both
@@ -6264,11 +6288,11 @@ function CheckinContent() {
           <CheckinForm
             booking={selectedBooking}
             onBack={() => {
-              sessionStorage.removeItem(checkinSessionKey(activeHotelId));
+              safeRemoveSession(checkinSessionKey(activeHotelId));
               setSelectedBooking(null);
             }}
             onDone={() => {
-              sessionStorage.removeItem(checkinSessionKey(activeHotelId));
+              safeRemoveSession(checkinSessionKey(activeHotelId));
               setSelectedBooking(null);
               invalidate();
             }}
@@ -6290,7 +6314,7 @@ function CheckinContent() {
             defaultInTime={defaultInTime}
             defaultOutTime={defaultOutTime}
             onSelect={(booking) => {
-              sessionStorage.setItem(checkinSessionKey(activeHotelId), booking.id);
+              safeSetSession(checkinSessionKey(activeHotelId), booking.id);
               setSelectedBooking(booking);
             }}
           />

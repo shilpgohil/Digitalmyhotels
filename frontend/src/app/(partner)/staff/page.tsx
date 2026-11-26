@@ -219,8 +219,19 @@ function StaffListContent() {
                   <span className="font-medium">{s.full_name}</span>
                 </span>
               </TableCell>
-              <TableCell>{s.role_code ? t(`role_${s.role_code}`) : "—"}</TableCell>
-              <TableCell>{t(`dept_${s.department}`)}</TableCell>
+              <TableCell>
+                {(() => {
+                  if (!s.role_code) return "—";
+                  const rk = `role_${s.role_code}` as Parameters<typeof t>[0];
+                  return t.has(rk) ? t(rk) : s.role_code;
+                })()}
+              </TableCell>
+              <TableCell>
+                {(() => {
+                  const dk = `dept_${s.department}` as Parameters<typeof t>[0];
+                  return t.has(dk) ? t(dk) : s.department;
+                })()}
+              </TableCell>
               <TableCell className="tabular-nums">{s.phone ?? "—"}</TableCell>
               <TableCell>
                 <StatusBadge tone={STATUS_TONE[s.status] ?? "neutral"}>
