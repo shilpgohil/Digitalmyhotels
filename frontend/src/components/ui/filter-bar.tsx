@@ -127,7 +127,7 @@ export function FilterBar({
 
       {/* Primary select */}
       {onSelectChange !== undefined && selectOptions && (
-        <div className="min-w-[140px]">
+        <div className="min-w-[135px] flex-1 sm:flex-initial">
           {selectLabel && (
             <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
               {selectLabel}
@@ -150,7 +150,7 @@ export function FilterBar({
 
       {/* Secondary select */}
       {onSelect2Change !== undefined && select2Options && (
-        <div className="min-w-[140px]">
+        <div className="min-w-[135px] flex-1 sm:flex-initial">
           {select2Label && (
             <Label className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
               {select2Label}
@@ -173,9 +173,9 @@ export function FilterBar({
 
       {/* Search */}
       {onSearchChange !== undefined && (
-        <div className={cn("min-w-[240px] sm:min-w-[280px] flex-1", searchClassName)}>
+        <div className={cn("w-full min-w-0 sm:w-auto sm:min-w-[240px] sm:flex-1", searchClassName)}>
           {/* Client spec 09/2026: 42px controls across the filter row */}
-          <div className="relative mt-5">
+          <div className="relative sm:mt-5">
             <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <Input
               className="pl-8 h-[42px]"

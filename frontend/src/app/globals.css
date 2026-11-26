@@ -250,7 +250,9 @@
   input:not([type]),
   select,
   textarea {
+    font-family: inherit;
     font-size: 0.875rem;
+    line-height: 1.25rem;
   }
 
   @media (max-width: 767px) {

@@ -58,7 +58,7 @@ function DialogContent({
         className={cn(
           // Frosted glass dialog: bg-white/92 + backdrop-blur.
           // rounded-2xl uses the new --radius-2xl (28px) token for premium feel.
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] max-h-[calc(100dvh-2rem)] overflow-y-auto overflow-x-hidden overscroll-contain [-webkit-overflow-scrolling:touch] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-white p-4 text-sm text-popover-foreground shadow-elevated duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] max-h-[calc(100dvh-2rem)] overflow-y-auto overflow-x-hidden overscroll-contain [-webkit-overflow-scrolling:touch] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-white p-4 text-sm text-popover-foreground shadow-elevated duration-100 outline-none [&>*]:min-w-0 sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -93,7 +93,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
       className={cn(
         // Bottom border separates title from body; consistent across all dialogs
         // (client 09/2026: "Common changes for header and close button in the model").
-        "flex flex-col gap-1.5 border-b border-[#d1d1d1] pb-3 mb-1",
+        "flex flex-col gap-1.5 border-b border-[#d1d1d1] pb-3 pr-10 mb-1",
         className,
       )}
       {...props}
@@ -113,7 +113,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2.5 rounded-b-xl border-t bg-muted/50 p-4 [&>button]:w-full [&>a]:w-full sm:flex-row sm:justify-end sm:gap-2 sm:[&>button]:w-auto sm:[&>a]:w-auto",
+        "-mx-4 -mb-4 flex flex-col-reverse gap-2.5 rounded-b-xl border-t bg-muted/50 p-4 [&>button]:w-full [&>button]:justify-center [&>a]:w-full [&>a]:justify-center sm:flex-row sm:justify-end sm:gap-2 sm:[&>button]:w-auto sm:[&>a]:w-auto",
         className
       )}
       {...props}

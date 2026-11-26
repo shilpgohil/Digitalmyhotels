@@ -397,13 +397,13 @@ export function NotificationsBell() {
 
       <DropdownMenuContent
         align="end"
-        className="flex w-[42rem] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden p-0 shadow-xl"
+        className="flex w-[42rem] max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-6rem)] flex-col overflow-hidden p-0 shadow-xl"
         sideOffset={6}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold">{t("title")}</p>
+            <p className="text-sm font-semibold whitespace-nowrap">{t("title")}</p>
             {/* Quick Ringer / Silent Toggle */}
             <button
               type="button"
@@ -413,7 +413,7 @@ export function NotificationsBell() {
                 toast.success(next ? t("soundEnabled") : t("soundMuted"));
               }}
               className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-micro font-medium transition-colors border",
+                "inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-full px-2 py-0.5 text-micro font-medium transition-colors border",
                 soundEnabled
                   ? "bg-gold-50 text-gold-800 border-gold-300 dark:bg-gold-950/40 dark:text-gold-300 dark:border-gold-800"
                   : "bg-muted text-muted-foreground border-border hover:text-foreground",
@@ -422,28 +422,28 @@ export function NotificationsBell() {
               aria-label={soundEnabled ? t("muteSound") : t("unmuteSound")}
             >
               {soundEnabled ? (
-                <Volume2 className="size-3" aria-hidden />
+                <Volume2 className="size-3 shrink-0" aria-hidden />
               ) : (
-                <VolumeX className="size-3" aria-hidden />
+                <VolumeX className="size-3 shrink-0" aria-hidden />
               )}
               <span>{soundEnabled ? t("ringerOn") : t("ringerOff")}</span>
             </button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5 shrink-0">
             {unread > 0 && (
               <button
                 type="button"
-                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-label text-muted-foreground hover:bg-muted"
+                className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded px-1.5 py-0.5 text-label text-muted-foreground hover:bg-muted"
                 onClick={() => markAll.mutate()}
                 disabled={markAll.isPending}
               >
-                <Check className="size-3" aria-hidden />
+                <Check className="size-3 shrink-0" aria-hidden />
                 {t("markAllRead")}
               </button>
             )}
             <button
               type="button"
-              className="text-label text-gold-600 hover:underline"
+              className="shrink-0 whitespace-nowrap text-label font-medium text-gold-600 hover:underline"
               onClick={() => router.push("/notifications")}
             >
               {t("viewAll")}

@@ -192,13 +192,13 @@ function GuestCard({
           {guest.phone ?? guest.phone_masked}
         </span>
       </div>
-      <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+      <dl className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
         <div>
           <dt className="text-xs text-muted-foreground">{t("registrationNumber")}</dt>
           <dd>{guest.registration_number}</dd>
         </div>
         {guest.address && (
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <dt className="text-xs text-muted-foreground">{t("addressLabel")}</dt>
             <dd>
               {guest.address}
@@ -254,7 +254,7 @@ function GuestCard({
             {showFormC ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
           </button>
           {showFormC && (
-            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            <dl className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs">
               {foreignGuest.passport_number && (
                 <div><dt className="text-muted-foreground">{t("fgPassport")}</dt><dd className="font-medium">{foreignGuest.passport_number}</dd></div>
               )}

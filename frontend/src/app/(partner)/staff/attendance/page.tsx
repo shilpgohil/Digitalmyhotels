@@ -143,7 +143,7 @@ function TodaysAttendanceContent() {
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {/* Day pager + export */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
               className="h-[42px] px-3"
@@ -152,7 +152,7 @@ function TodaysAttendanceContent() {
             >
               <ChevronLeft className="size-4" aria-hidden />
             </Button>
-            <DatePicker value={onDate} onChange={setOnDate} className="w-44" />
+            <DatePicker value={onDate} onChange={setOnDate} className="w-36 sm:w-44" />
             <Button
               variant="outline"
               className="h-[42px] px-3"

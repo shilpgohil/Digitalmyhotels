@@ -232,7 +232,7 @@ function OpenMaintenanceDialog({ onDone }: { onDone: () => void }) {
           <div>
             <Label>{t("room")}</Label>
             <select
-              className="mt-1 h-8 w-full rounded-lg border px-2.5 text-sm"
+              className="mt-1 h-[42px] w-full rounded-lg border px-2.5 text-sm"
               value={roomId}
               onChange={(e) => setRoomId(e.target.value)}
             >

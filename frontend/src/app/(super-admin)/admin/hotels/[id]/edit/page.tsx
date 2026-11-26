@@ -1136,7 +1136,7 @@ export default function AdminEditHotelPage({
                   <button type="button" onClick={() => removeRoom(entry.key)} className="absolute right-3 top-3 text-danger hover:opacity-75" aria-label={t("removeRoom")}>
                     <Trash2 className="size-4" />
                   </button>
-                  <p className="text-sm font-semibold">{t("roomEntry")} #{idx + 1}</p>
+                  <p className="pr-8 text-sm font-semibold">{t("roomEntry")} #{idx + 1}</p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label className="text-xs">{t("roomNumber")}</Label>
@@ -1205,7 +1205,7 @@ export default function AdminEditHotelPage({
                   <button type="button" onClick={() => removeReq(entry.key)} className="absolute right-3 top-3 text-danger hover:opacity-75" aria-label={t("removeRequirement")}>
                     <Trash2 className="size-4" />
                   </button>
-                  <p className="text-sm font-semibold">{t("reqEntry")} #{idx + 1}</p>
+                  <p className="pr-8 text-sm font-semibold">{t("reqEntry")} #{idx + 1}</p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label className="text-xs">{t("reqName")}</Label>

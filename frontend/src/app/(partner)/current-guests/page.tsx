@@ -907,8 +907,8 @@ function StayDetailDialog({
     // so its booking/payments queries can load, but no modal flashes behind
     // the browser print window.
     <Dialog open={entry !== null && !autoPrint} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-full sm:max-w-xl max-h-[90dvh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="p-4 sm:p-6 pb-3 border-b shrink-0">
+      <DialogContent className="w-[calc(100vw-1rem)] sm:w-full sm:max-w-xl max-h-[90dvh] flex flex-col p-0 overflow-hidden gap-0">
+        <DialogHeader className="p-4 sm:p-6 pb-3 pr-12 mb-0 border-b shrink-0">
           <DialogTitle>
             {t("stayDetails")} — {entry?.booking_number}
           </DialogTitle>
@@ -991,7 +991,7 @@ function StayDetailDialog({
               />
             )}
             {b.special_requests && (
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <dt className="text-xs uppercase tracking-wide text-muted-foreground">
                   {tb("specialRequests")}
                 </dt>
@@ -1019,18 +1019,18 @@ function StayDetailDialog({
           </div>
         )}
         </div>
-        <DialogFooter className="p-3.5 sm:p-6 pt-3 pb-[max(0.875rem,env(safe-area-inset-bottom,0px))] sm:pb-5 border-t bg-muted/10 shrink-0 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:m-0">
-          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full sm:w-auto">
+        <DialogFooter className="m-0 p-4 sm:p-6 pt-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] sm:pb-5 border-t bg-muted/10 shrink-0 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             {entry && onShareWhatsApp && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => onShareWhatsApp(entry)}
-                className="col-span-2 sm:col-span-1 h-9 gap-1.5 border-emerald-600 text-emerald-700 hover:bg-emerald-50 w-full sm:w-auto"
+                className="h-9 gap-1.5 border-emerald-600 text-emerald-700 hover:bg-emerald-50 w-full sm:w-auto"
               >
                 <Share2 className="size-3.5 shrink-0" aria-hidden />
-                <span className="truncate">{t("shareStaySlipWhatsApp")}</span>
+                <span>{t("shareStaySlipWhatsApp")}</span>
               </Button>
             )}
             {entry && onShareNative && (
@@ -1047,7 +1047,7 @@ function StayDetailDialog({
                     setBusyAction(null);
                   }
                 }}
-                className="h-9 gap-1.5 w-full sm:w-auto"
+                className="h-9 gap-1.5 flex-1 min-w-[138px] sm:flex-initial sm:w-auto"
                 title="Attach PDF file to WhatsApp or apps"
               >
                 {busyAction === "share" ? (
@@ -1055,7 +1055,7 @@ function StayDetailDialog({
                 ) : (
                   <Share2 className="size-3.5 shrink-0" aria-hidden />
                 )}
-                <span className="truncate">Share PDF File</span>
+                <span>Share PDF File</span>
               </Button>
             )}
             {entry && onDownloadPdf && (
@@ -1072,22 +1072,22 @@ function StayDetailDialog({
                     setBusyAction(null);
                   }
                 }}
-                className="h-9 gap-1.5 w-full sm:w-auto"
+                className="h-9 gap-1.5 flex-1 min-w-[146px] sm:flex-initial sm:w-auto"
               >
                 {busyAction === "download" ? (
                   <Loader2 className="size-3.5 animate-spin shrink-0" aria-hidden />
                 ) : (
                   <Download className="size-3.5 shrink-0" aria-hidden />
                 )}
-                <span className="truncate">{t("downloadStaySlipPdf")}</span>
+                <span>{t("downloadStaySlipPdf")}</span>
               </Button>
             )}
           </div>
-          <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <Button
               type="button"
               onClick={onClose}
-              className="inline-flex h-10 sm:h-[42px] items-center justify-center rounded-lg bg-[#d1d1d1] px-4 sm:px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors w-full sm:w-auto"
+              className="inline-flex h-10 sm:h-[42px] items-center justify-center rounded-lg bg-[#d1d1d1] px-4 sm:px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors flex-1 min-w-[92px] sm:flex-initial sm:w-auto"
             >
               {tc("cancel")}
             </Button>
@@ -1096,10 +1096,10 @@ function StayDetailDialog({
               type="button"
               onClick={() => { printRegistration(); onClose(); }}
               disabled={!b}
-              className="h-10 sm:h-[42px] gap-1.5 w-full sm:w-auto"
+              className="h-10 sm:h-[42px] gap-1.5 flex-[2] min-w-[180px] sm:flex-initial sm:w-auto px-4"
             >
               <Printer className="size-4 shrink-0" aria-hidden />
-              <span className="truncate">{t("printRegistration")}</span>
+              <span>{t("printRegistration")}</span>
             </Button>
           </div>
         </DialogFooter>
@@ -1975,7 +1975,7 @@ function TransferDialog({
                 id="tr-from"
                 name="from_room_id"
                 required
-                className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
                 {currentRooms.map((room) => (
                   <option key={room.room_id} value={room.room_id}>
@@ -1990,7 +1990,7 @@ function TransferDialog({
                 id="tr-to"
                 name="to_room_id"
                 required
-                className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
                 <option value="">—</option>
                 {targetRooms.map((room) => (

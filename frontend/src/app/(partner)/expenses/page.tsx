@@ -648,7 +648,7 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
             <Label htmlFor="rec-name">{t("name")}</Label>
             <Input id="rec-name" className="mt-1" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label htmlFor="rec-amount">{t("amount")}</Label>
               <Input id="rec-amount" className="mt-1" value={amount} onChange={(e) => setAmount(e.target.value)} />
@@ -684,7 +684,7 @@ function AddRecurringDialog({ onDone }: { onDone: () => void }) {
               />
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label htmlFor="rec-start">{t("startDate")}</Label>
               <DatePicker
@@ -875,7 +875,7 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
   return (
     <section className="mb-4 rounded-lg border bg-card p-4">
       <h2 className="mb-3 text-sm font-semibold">{t("addExpense")}</h2>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6 [&>div]:min-w-0">
         <div>
           <Label htmlFor="exp-date">{t("expenseDate")}</Label>
           <DatePicker id="exp-date" className="mt-1" value={expenseDate} onChange={setExpenseDate} />
@@ -884,7 +884,7 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
           <Label htmlFor="exp-category">{t("category")}</Label>
           <select
             id="exp-category"
-            className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            className="mt-1 h-[42px] w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
           >
@@ -919,7 +919,7 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
           <Label htmlFor="exp-method">{t("paymentMode")}</Label>
           <select
             id="exp-method"
-            className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            className="mt-1 h-[42px] w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
             value={paymentMethod}
             onChange={(e) => setPaymentMethod(e.target.value)}
           >
@@ -934,7 +934,7 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
           <Label htmlFor="exp-vendor">{t("paidTo")}</Label>
           <select
             id="exp-vendor"
-            className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            className="mt-1 h-[42px] w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
             value={vendorId}
             onChange={(e) => setVendorId(e.target.value)}
           >
@@ -946,14 +946,14 @@ function InlineAddExpense({ onDone }: { onDone: () => void }) {
             ))}
           </select>
         </div>
-        <div>
+        <div className="col-span-2 md:col-span-3 xl:col-span-2">
           <Label htmlFor="exp-receipt">{t("receiptOptional")}</Label>
           <input
             id="exp-receipt"
             ref={fileInputRef}
             type="file"
             accept="image/png,image/jpeg,image/webp,application/pdf"
-            className="mt-1 block w-full text-sm text-muted-foreground file:mr-2 file:rounded-lg file:border file:border-input file:bg-transparent file:px-2.5 file:py-1 file:text-sm file:text-foreground"
+            className="mt-1 block w-full min-w-0 text-sm text-muted-foreground file:mr-3 file:h-[38px] file:rounded-md file:border file:border-input file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground"
             onChange={(e) => {
               const f = e.target.files?.[0] ?? null;
               e.target.value = "";

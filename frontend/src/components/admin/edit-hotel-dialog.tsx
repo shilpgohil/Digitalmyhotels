@@ -168,7 +168,7 @@ export function EditHotelDialog({
                 <Label htmlFor="eh-address">Address</Label>
                 <Input id="eh-address" name="address_line1" defaultValue={d.address_line1 ?? ""} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="eh-phone">{t("contactNumber")}</Label>
                   <Input id="eh-phone" name="phone" inputMode="tel" defaultValue={d.phone ?? ""} />

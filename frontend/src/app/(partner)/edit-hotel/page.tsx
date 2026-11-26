@@ -1203,7 +1203,7 @@ function EditHotelContent() {
                     >
                       <Trash2 className="size-4" aria-hidden />
                     </button>
-                    <p className="text-sm font-semibold text-foreground">
+                    <p className="pr-8 text-sm font-semibold text-foreground">
                       {t("roomEntry")} #{idx + 1}
                     </p>
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -1332,7 +1332,7 @@ function EditHotelContent() {
                     >
                       <Trash2 className="size-4" aria-hidden />
                     </button>
-                    <p className="text-sm font-semibold text-foreground">
+                    <p className="pr-8 text-sm font-semibold text-foreground">
                       {t("reqEntry")} #{idx + 1}
                     </p>
                     <div className="grid gap-3 sm:grid-cols-2">

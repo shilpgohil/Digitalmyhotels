@@ -340,7 +340,7 @@ export function AdvanceBookingVoucherModal({
   return (
     <>
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="w-[calc(100vw-1rem)] sm:w-full sm:max-w-[860px] max-h-[92dvh] flex flex-col p-0 overflow-hidden border border-slate-200 shadow-2xl">
+      <DialogContent className="w-[calc(100vw-1rem)] sm:w-full sm:max-w-[860px] max-h-[92dvh] flex flex-col p-0 overflow-hidden gap-0 border border-slate-200 shadow-2xl">
         {/* Scoped print styles for crystal-clear A4 paper vouchers */}
         <style>{`
           @media print {
@@ -386,7 +386,7 @@ export function AdvanceBookingVoucherModal({
           }
         `}</style>
 
-        <DialogHeader className="p-3 sm:p-4 pb-2.5 sm:pb-3 border-b bg-muted/20 shrink-0 pr-12">
+        <DialogHeader className="p-3 sm:p-4 pb-2.5 sm:pb-3 pr-12 mb-0 border-b bg-muted/20 shrink-0">
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <div className="flex size-8 sm:size-9 items-center justify-center rounded-lg bg-navy-900 text-white shadow-sm shrink-0">
               <FileCheck className="size-4" />
@@ -576,47 +576,47 @@ export function AdvanceBookingVoucherModal({
 
         {/* Action Controls Bar */}
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:pb-4 border-t bg-muted/20 shrink-0">
-          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleCopy}
-              className="gap-1.5 text-xs h-9 px-2.5 sm:px-3 w-full sm:w-auto"
+              className="gap-1.5 text-xs h-9 px-2.5 sm:px-3 flex-1 min-w-[132px] sm:flex-initial sm:w-auto"
             >
               {copied ? <Check className="size-3.5 text-emerald-600 shrink-0" /> : <Copy className="size-3.5 shrink-0" />}
-              <span className="truncate">{copied ? "Copied" : "Copy Details"}</span>
+              <span>{copied ? "Copied" : "Copy Details"}</span>
             </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleWhatsApp}
-              className="gap-1.5 text-emerald-700 hover:text-emerald-800 text-xs h-9 px-2.5 sm:px-3 w-full sm:w-auto"
+              className="gap-1.5 text-emerald-700 hover:text-emerald-800 text-xs h-9 px-2.5 sm:px-3 flex-1 min-w-[136px] sm:flex-initial sm:w-auto"
             >
               <Share2 className="size-3.5 shrink-0" />
-              <span className="truncate">WhatsApp Guest</span>
+              <span>WhatsApp Guest</span>
             </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleShareNative}
-              className="gap-1.5 text-xs h-9 px-2.5 sm:px-3 w-full sm:w-auto"
+              className="gap-1.5 text-xs h-9 px-2.5 sm:px-3 flex-1 min-w-[132px] sm:flex-initial sm:w-auto"
               title="Attach PDF file to WhatsApp or apps"
             >
               <Share2 className="size-3.5 shrink-0" />
-              <span className="truncate">Share PDF File</span>
+              <span>Share PDF File</span>
             </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleDownloadPdf}
-              className="gap-1.5 text-xs h-9 px-2.5 sm:px-3 w-full sm:w-auto sm:hidden"
+              className="gap-1.5 text-xs h-9 px-2.5 sm:px-3 flex-1 min-w-[132px] sm:flex-initial sm:w-auto sm:hidden"
             >
               <Download className="size-3.5 shrink-0" />
-              <span className="truncate">Download PDF</span>
+              <span>Download PDF</span>
             </Button>
           </div>
 

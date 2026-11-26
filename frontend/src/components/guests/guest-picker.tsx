@@ -346,7 +346,7 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
               <select
                 id="gp-idtype"
                 data-guest-field="id_proof_type"
-                className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
                 {/* Canonical display-label values — same set the check-in
                     forms store, so guest records stay consistent. */}

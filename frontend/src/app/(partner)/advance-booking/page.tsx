@@ -1258,7 +1258,7 @@ function AdvanceBookingContent() {
           )}
 
           {/* ── Actions ────────────────────────────────────────────────── */}
-          <div className="flex items-center justify-between rounded-xl border bg-white px-5 py-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white px-4 py-4 sm:px-5 shadow-sm">
             <Button
               type="button"
               variant="outline"

@@ -418,8 +418,8 @@ function CreateMemberDialog({ onCreated }: { onCreated: () => void }) {
             mutation.mutate(new FormData(e.currentTarget));
           }}
         >
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 space-y-1.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2 space-y-1.5">
               <Label htmlFor="tm-name">{t("name")}</Label>
               <Input id="tm-name" name="full_name" required minLength={2} maxLength={200} onChange={(e) => { e.target.value = liveNameCase(e.target.value); }} />
             </div>
@@ -443,7 +443,7 @@ function CreateMemberDialog({ onCreated }: { onCreated: () => void }) {
                   setRoleCode(nextRole);
                   setDepartment((prev) => defaultDepartmentForRole(nextRole, prev));
                 }}
-                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
                 {STAFF_ACCESS_ROLES.map((role) => (
                   <option key={role} value={role}>
@@ -464,7 +464,7 @@ function CreateMemberDialog({ onCreated }: { onCreated: () => void }) {
                   setDepartment(nextDept);
                   setRoleCode(defaultRoleForDepartment(nextDept));
                 }}
-                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
                 {STAFF_DEPARTMENTS.map((dept) => (
                   <option key={dept} value={dept}>
@@ -473,8 +473,8 @@ function CreateMemberDialog({ onCreated }: { onCreated: () => void }) {
                 ))}
               </select>
             </div>
-            <p className="col-span-2 text-label text-muted-foreground">{t("deptAutoSyncHint")}</p>
-            <div className="col-span-2 space-y-1.5">
+            <p className="sm:col-span-2 text-label text-muted-foreground">{t("deptAutoSyncHint")}</p>
+            <div className="sm:col-span-2 space-y-1.5">
               <Label htmlFor="tm-password">{t("newPassword")}</Label>
               <div className="relative">
                 <Input
@@ -676,8 +676,8 @@ function EditMemberDialog({
             mutation.mutate();
           }}
         >
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 space-y-1.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2 space-y-1.5">
               <Label htmlFor="em-name">{t("name")}</Label>
               <Input
                 id="em-name"
@@ -713,13 +713,13 @@ function EditMemberDialog({
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="sm:col-span-2 space-y-1.5">
               <Label htmlFor="em-role">{t("role")}</Label>
               {isOwner ? (
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">
-                  <Lock className="size-4 text-amber-600" aria-hidden />
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">
+                  <Lock className="size-4 shrink-0 text-amber-600" aria-hidden />
                   <span className="font-semibold text-amber-900">{t("role_owner")}</span>
-                  <span className="text-xs text-muted-foreground ml-auto">
+                  <span className="text-xs text-muted-foreground sm:ml-auto">
                     {t("ownerRoleLockedHint")}
                   </span>
                 </div>
@@ -734,7 +734,7 @@ function EditMemberDialog({
                     setDepartment((prev) => defaultDepartmentForRole(nextRole, prev));
                   }}
                   required
-                  className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                  className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                 >
                   {editableRoles.map((role) => (
                     <option key={role} value={role}>
@@ -744,7 +744,7 @@ function EditMemberDialog({
                 </select>
               )}
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="sm:col-span-2 space-y-1.5">
               <Label htmlFor="em-dept">{t("department")}</Label>
               <select
                 id="em-dept"
@@ -752,7 +752,7 @@ function EditMemberDialog({
                 value={department}
                 onChange={(e) => setDepartment(e.target.value as StaffDepartment)}
                 required
-                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
                 {STAFF_DEPARTMENTS.map((dept) => (
                   <option key={dept} value={dept}>

@@ -528,11 +528,11 @@ function InvoicesContent() {
         {/* ── Styled invoice preview (the ONE proper invoice design) ── */}
         {invoice && (
           <div className="mt-6 scroll-mt-4" ref={previewRef}>
-            <div className="mx-auto mb-3 grid grid-cols-2 sm:flex sm:flex-wrap max-w-3xl items-center sm:justify-end gap-2">
+            <div className="mx-auto mb-3 flex flex-wrap max-w-3xl items-center sm:justify-end gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full sm:w-auto"
+                className="flex-1 min-w-[120px] sm:flex-initial sm:w-auto"
                 onClick={() => {
                   const prevTitle = document.title;
                   document.title = `${invoice.guest_name || "Guest"} (${invoice.invoice_number}) - ${hotel.data?.name || "Hotel"}`;
@@ -548,7 +548,7 @@ function InvoicesContent() {
               <Button
                 variant="default"
                 size="sm"
-                className="w-full sm:w-auto"
+                className="flex-1 min-w-[135px] sm:flex-initial sm:w-auto"
                 disabled={sharingPdf}
                 onClick={() => void shareInvoiceWhatsApp()}
               >
@@ -558,7 +558,7 @@ function InvoicesContent() {
               <Button
                 variant="outline"
                 size="sm"
-                className="col-span-2 sm:col-span-1 w-full sm:w-auto"
+                className="flex-1 min-w-[140px] sm:flex-initial sm:w-auto"
                 disabled={sharingPdf}
                 onClick={() => void shareInvoiceNativeFile()}
                 title="Attach PDF file to WhatsApp or apps"
@@ -872,7 +872,7 @@ function GenerateDialog({ onDone }: { onDone: () => void }) {
             <Label htmlFor="inv-booking">{t("bookingLabel")}</Label>
             <select
               id="inv-booking"
-              className="mt-1 h-8 w-full rounded-lg border px-2.5 text-sm"
+              className="mt-1 h-[42px] w-full rounded-lg border px-2.5 text-sm"
               value={bookingId}
               onChange={(e) => setBookingId(e.target.value)}
             >

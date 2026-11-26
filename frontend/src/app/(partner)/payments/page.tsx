@@ -358,20 +358,20 @@ function PaymentsContent() {
 
         {/* Summary cards — all six show ₹ amounts (client Figma). */}
         <StatCardGrid cols={6} className="mb-6">
-          <StatCard label={t("totalCollected")} value={fmtINR(summary.data?.total_collected ?? 0)} tone="navy"    isLoading={summary.isLoading} />
-          <StatCard label={t("paidCard")}        value={fmtINR(summary.data?.paid_amount    ?? 0)} tone="success" isLoading={summary.isLoading} />
-          <StatCard label={t("cash")}            value={fmtINR(summary.data?.cash           ?? 0)} tone="gold"    isLoading={summary.isLoading} />
-          <StatCard label={t("upi")}             value={fmtINR(summary.data?.upi            ?? 0)} tone="info"    isLoading={summary.isLoading} />
+          <StatCard label={t("totalCollected")} value={fmtINR(summary.data?.total_collected ?? 0)} tone="navy" isLoading={summary.isLoading} />
+          <StatCard label={t("paidCard")} value={fmtINR(summary.data?.paid_amount ?? 0)} tone="success" isLoading={summary.isLoading} />
+          <StatCard label={t("cash")} value={fmtINR(summary.data?.cash ?? 0)} tone="gold" isLoading={summary.isLoading} />
+          <StatCard label={t("upi")} value={fmtINR(summary.data?.upi ?? 0)} tone="info" isLoading={summary.isLoading} />
           {/* Credit/Debit Card + Others (client 15/09) */}
-          <StatCard label={t("creditDebitCard")} value={fmtINR(summary.data?.card           ?? 0)} tone="danger"  isLoading={summary.isLoading} />
-          <StatCard label={t("othersCard")}      value={fmtINR(summary.data?.other          ?? 0)} tone="info"    isLoading={summary.isLoading} />
-          <StatCard label={t("partialCard")}     value={fmtINR(summary.data?.partial_amount ?? 0)} tone="amber"   isLoading={summary.isLoading} />
-          <StatCard label={t("pendingCard")}     value={fmtINR(summary.data?.pending_amount ?? 0)} tone="danger"  isLoading={summary.isLoading} />
+          <StatCard label={t("creditDebitCard")} value={fmtINR(summary.data?.card ?? 0)} tone="danger" isLoading={summary.isLoading} />
+          <StatCard label={t("othersCard")} value={fmtINR(summary.data?.other ?? 0)} tone="info" isLoading={summary.isLoading} />
+          <StatCard label={t("partialCard")} value={fmtINR(summary.data?.partial_amount ?? 0)} tone="amber" isLoading={summary.isLoading} />
+          <StatCard label={t("pendingCard")} value={fmtINR(summary.data?.pending_amount ?? 0)} tone="danger" isLoading={summary.isLoading} />
         </StatCardGrid>
 
         {/* Filtered by booking banner */}
         {bookingParam && (
-          <div className="mb-4 flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
             <div className="flex items-center gap-2">
               <Receipt className="size-4 text-primary shrink-0" />
               <span>
@@ -404,8 +404,8 @@ function PaymentsContent() {
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <div className="relative w-full sm:w-72">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+              <div className="relative flex-1 min-w-0 sm:w-72 sm:flex-initial">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                 <Input
                   placeholder={t("searchPlaceholder")}
@@ -489,18 +489,18 @@ function PaymentsContent() {
                         <TableCell>
                           {row.mode
                             ? t(
-                                (
-                                  {
-                                    cash: "cash",
-                                    upi: "upi",
-                                    card: "card",
-                                    credit_card: "creditCard",
-                                    debit_card: "debitCard",
-                                    bank_transfer: "bankTransfer",
-                                    other: "otherMethod",
-                                  } as Record<string, string>
-                                )[row.mode] ?? "otherMethod",
-                              )
+                              (
+                                {
+                                  cash: "cash",
+                                  upi: "upi",
+                                  card: "card",
+                                  credit_card: "creditCard",
+                                  debit_card: "debitCard",
+                                  bank_transfer: "bankTransfer",
+                                  other: "otherMethod",
+                                } as Record<string, string>
+                              )[row.mode] ?? "otherMethod",
+                            )
                             : "—"}
                         </TableCell>
                         <TableCell>
@@ -568,130 +568,130 @@ function PaymentsContent() {
             {t("paymentTransactions")}
           </summary>
           <div className="border-t p-4">
-        <div className="mb-4 flex flex-wrap items-end gap-3">
-          <div className="min-w-56">
-            <Label>{t("selectBooking")}</Label>
-            <select
-              className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
-              value={bookingId}
-              onChange={(e) => setBookingId(e.target.value)}
-            >
-              <option value="">{t("selectBooking")}</option>
-              {targetBooking.data && !bookings.data?.items.some((b) => b.id === bookingId) && (
-                <option value={targetBooking.data.id}>
-                  {targetBooking.data.booking_number} · {targetBooking.data.primary_guest_name ?? "—"}
-                </option>
+            <div className="mb-4 flex flex-wrap items-end gap-3">
+              <div className="min-w-56">
+                <Label>{t("selectBooking")}</Label>
+                <select
+                  className="mt-1 h-[42px] w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                  value={bookingId}
+                  onChange={(e) => setBookingId(e.target.value)}
+                >
+                  <option value="">{t("selectBooking")}</option>
+                  {targetBooking.data && !bookings.data?.items.some((b) => b.id === bookingId) && (
+                    <option value={targetBooking.data.id}>
+                      {targetBooking.data.booking_number} · {targetBooking.data.primary_guest_name ?? "—"}
+                    </option>
+                  )}
+                  {bookings.data?.items.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.booking_number} · {b.primary_guest_name ?? "—"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {can(PERMISSIONS.paymentsCollect) && bookingId && (
+                <>
+                  <CollectDialog bookingId={bookingId} onDone={invalidate} />
+                  <ChargeDialog bookingId={bookingId} onDone={invalidate} />
+                </>
               )}
-              {bookings.data?.items.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.booking_number} · {b.primary_guest_name ?? "—"}
-                </option>
-              ))}
-            </select>
-          </div>
-          {can(PERMISSIONS.paymentsCollect) && bookingId && (
-            <>
-              <CollectDialog bookingId={bookingId} onDone={invalidate} />
-              <ChargeDialog bookingId={bookingId} onDone={invalidate} />
-            </>
-          )}
-        </div>
-
-        <section className="rounded-lg border bg-card">
-          {payments.isLoading && <Skeleton className="h-48" />}
-          {payments.isError && (
-            <p className="p-4 text-sm text-danger">
-              {tc("error")}{" "}
-              <button className="underline" onClick={() => payments.refetch()}>
-                {tc("retry")}
-              </button>
-            </p>
-          )}
-          {payments.data && payments.data.items.length === 0 && (
-            <EmptyState icon={Wallet} title={t("noPayments")} subtitle={t("individualPaymentsSubtitle")} />
-          )}
-          {payments.data && payments.data.items.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("amount")}</TableHead>
-                  <TableHead>{t("method")}</TableHead>
-                  <TableHead>{t("purpose")}</TableHead>
-                  <TableHead>{t("reference")}</TableHead>
-                  <TableHead>{t("status")}</TableHead>
-                  {showActions && <TableHead className="text-right">{tc("actions")}</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payments.data.items.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="tabular-nums">{fmtINR(p.amount)}</TableCell>
-                    <TableCell>{t(p.method)}</TableCell>
-                    <TableCell>{t(`purpose_${p.purpose}`)}</TableCell>
-                    <TableCell>{p.reference ?? "—"}</TableCell>
-                    <TableCell>
-                      <StatusBadge tone={p.status === "completed" ? "success" : "warning"}>
-                        {formatStatus(p.status)}
-                      </StatusBadge>
-                    </TableCell>
-                    {showActions && (
-                      <TableCell className="space-x-1 text-right">
-                        {can(PERMISSIONS.paymentsCorrect) && p.status === "completed" && (
-                          <Button size="sm" variant="outline" onClick={() => setCorrectTarget(p)}>
-                            {t("correct")}
-                          </Button>
-                        )}
-                        {can(PERMISSIONS.paymentsRefund) && p.status === "completed" && (
-                          <Button size="sm" variant="ghost" onClick={() => setRefundTarget(p)}>
-                            {t("refundAction")}
-                          </Button>
-                        )}
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </section>
-
-        {bookingId && charges.data && charges.data.items.length > 0 && (
-          <section className="mt-6 rounded-lg border bg-card p-4">
-            <h2 className="mb-3 text-sm font-semibold">{t("addCharge")}</h2>
-            <ul className="space-y-1 text-sm">
-              {charges.data.items.map((c) => (
-                <li key={c.id} className="flex justify-between">
-                  <span>
-                    {c.description} × {c.quantity}
-                    {c.voided_at ? " (void)" : ""}
-                  </span>
-                  <span className="tabular-nums">{fmtINR(c.total_amount)}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {ledger.data && (
-          <section className="mt-6 rounded-lg border bg-card p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold">{t("ledger")}</h2>
-              <p className="text-sm">
-                {t("balance")}: <span className="tabular-nums font-semibold">{fmtINR(ledger.data.balance)}</span>
-              </p>
             </div>
-            <ul className="space-y-1 text-sm">
-              {ledger.data.items.map((e) => (
-                <li key={e.id} className="flex justify-between">
-                  <span>
-                    {e.entry_type === "debit" ? t("debit") : t("credit")} · {e.description}
-                  </span>
-                  <span className="tabular-nums">{fmtINR(e.amount)}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+
+            <section className="rounded-lg border bg-card">
+              {payments.isLoading && <Skeleton className="h-48" />}
+              {payments.isError && (
+                <p className="p-4 text-sm text-danger">
+                  {tc("error")}{" "}
+                  <button className="underline" onClick={() => payments.refetch()}>
+                    {tc("retry")}
+                  </button>
+                </p>
+              )}
+              {payments.data && payments.data.items.length === 0 && (
+                <EmptyState icon={Wallet} title={t("noPayments")} subtitle={t("individualPaymentsSubtitle")} />
+              )}
+              {payments.data && payments.data.items.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("amount")}</TableHead>
+                      <TableHead>{t("method")}</TableHead>
+                      <TableHead>{t("purpose")}</TableHead>
+                      <TableHead>{t("reference")}</TableHead>
+                      <TableHead>{t("status")}</TableHead>
+                      {showActions && <TableHead className="text-right">{tc("actions")}</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {payments.data.items.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="tabular-nums">{fmtINR(p.amount)}</TableCell>
+                        <TableCell>{t(p.method)}</TableCell>
+                        <TableCell>{t(`purpose_${p.purpose}`)}</TableCell>
+                        <TableCell>{p.reference ?? "—"}</TableCell>
+                        <TableCell>
+                          <StatusBadge tone={p.status === "completed" ? "success" : "warning"}>
+                            {formatStatus(p.status)}
+                          </StatusBadge>
+                        </TableCell>
+                        {showActions && (
+                          <TableCell className="space-x-1 text-right">
+                            {can(PERMISSIONS.paymentsCorrect) && p.status === "completed" && (
+                              <Button size="sm" variant="outline" onClick={() => setCorrectTarget(p)}>
+                                {t("correct")}
+                              </Button>
+                            )}
+                            {can(PERMISSIONS.paymentsRefund) && p.status === "completed" && (
+                              <Button size="sm" variant="ghost" onClick={() => setRefundTarget(p)}>
+                                {t("refundAction")}
+                              </Button>
+                            )}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </section>
+
+            {bookingId && charges.data && charges.data.items.length > 0 && (
+              <section className="mt-6 rounded-lg border bg-card p-4">
+                <h2 className="mb-3 text-sm font-semibold">{t("addCharge")}</h2>
+                <ul className="space-y-1 text-sm">
+                  {charges.data.items.map((c) => (
+                    <li key={c.id} className="flex justify-between">
+                      <span>
+                        {c.description} × {c.quantity}
+                        {c.voided_at ? " (void)" : ""}
+                      </span>
+                      <span className="tabular-nums">{fmtINR(c.total_amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {ledger.data && (
+              <section className="mt-6 rounded-lg border bg-card p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold">{t("ledger")}</h2>
+                  <p className="text-sm">
+                    {t("balance")}: <span className="tabular-nums font-semibold">{fmtINR(ledger.data.balance)}</span>
+                  </p>
+                </div>
+                <ul className="space-y-1 text-sm">
+                  {ledger.data.items.map((e) => (
+                    <li key={e.id} className="flex justify-between">
+                      <span>
+                        {e.entry_type === "debit" ? t("debit") : t("credit")} · {e.description}
+                      </span>
+                      <span className="tabular-nums">{fmtINR(e.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           </div>
         </details>
 
@@ -836,7 +836,7 @@ function RefundDialog({
           <div>
             <Label>{t("method")}</Label>
             <select
-              className="mt-1 h-8 w-full rounded-lg border border-input px-2.5 text-sm"
+              className="mt-1 h-[42px] w-full rounded-lg border border-input px-2.5 text-sm"
               value={method}
               onChange={(e) => setMethod(e.target.value)}
             >
@@ -913,7 +913,7 @@ function CollectDialog({ bookingId, onDone }: { bookingId: string; onDone: () =>
           <div>
             <Label>{t("method")}</Label>
             <select
-              className="mt-1 h-8 w-full rounded-lg border border-input px-2.5 text-sm"
+              className="mt-1 h-[42px] w-full rounded-lg border border-input px-2.5 text-sm"
               value={method}
               onChange={(e) => setMethod(e.target.value)}
             >
@@ -930,15 +930,15 @@ function CollectDialog({ bookingId, onDone }: { bookingId: string; onDone: () =>
                 {method === "credit_card" || method === "debit_card"
                   ? "Collected via card machine — recorded for your accounts"
                   : method === "bank_transfer"
-                  ? "Collected via net banking — recorded for your accounts"
-                  : "Collected externally — recorded for your accounts"}
+                    ? "Collected via net banking — recorded for your accounts"
+                    : "Collected externally — recorded for your accounts"}
               </p>
             )}
           </div>
           <div>
             <Label>{t("purpose")}</Label>
             <select
-              className="mt-1 h-8 w-full rounded-lg border border-input px-2.5 text-sm"
+              className="mt-1 h-[42px] w-full rounded-lg border border-input px-2.5 text-sm"
               value={purpose}
               onChange={(e) => setPurpose(e.target.value)}
             >
@@ -1007,7 +1007,7 @@ function ChargeDialog({ bookingId, onDone }: { bookingId: string; onDone: () => 
           <div>
             <Label>{t("chargeCategory")}</Label>
             <select
-              className="mt-1 h-8 w-full rounded-lg border border-input px-2.5 text-sm"
+              className="mt-1 h-[42px] w-full rounded-lg border border-input px-2.5 text-sm"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             >
