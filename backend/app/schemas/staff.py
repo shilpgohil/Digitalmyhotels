@@ -112,6 +112,9 @@ class CheckInIn(BaseModel):
 
 class FrontDeskRecordIn(BaseModel):
     action: str = Field(pattern="^(in|out)$")
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
+    accuracy_m: float | None = Field(default=None, ge=0)
 
 
 class AttendanceCorrectionIn(BaseModel):
@@ -182,6 +185,10 @@ class TodayStatsOut(BaseModel):
 class TodayAttendanceOut(BaseModel):
     stats: TodayStatsOut
     items: list[AttendanceRowOut]
+    geofence_enabled: bool = False
+    geofence_radius_m: int | None = None
+    hotel_latitude: Decimal | None = None
+    hotel_longitude: Decimal | None = None
 
 
 class HistoryOut(BaseModel):

@@ -3,15 +3,16 @@
 Geofence policy (client 09/2026):
 - Hotel admin controls BOTH the radius and an on/off toggle
   (hotels.geofence_enabled / geofence_radius_m / latitude / longitude).
-- SELF check-in/out is validated server-side (never trust the client verdict).
-- Front-desk records skip the fence — the operator's identity + audit is the
-  control (they are physically at the desk terminal).
+- BOTH SELF and Front-desk check-in/out validate GPS against the hotel
+  geofence server-side whenever geofencing is enabled (never trust client).
+- Front-desk records skip live selfie capture while preserving operator
+  identity + audit trail.
 - Manual corrections require staff.attendance_correct + a mandatory note.
 """
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from decimal import Decimal
 from uuid import UUID
 
@@ -32,6 +33,7 @@ from app.schemas.staff import (
     CalendarDayOut,
     CalendarOut,
     CheckInIn,
+    FrontDeskRecordIn,
     LeaveCreate,
     LeaveDecisionIn,
     LeaveOut,
@@ -208,8 +210,10 @@ def _apply_check_in(
     distance_m: float | None = None,
     selfie_key: str | None = None,
     performed_by: UUID | None = None,
-) -> None:
-    if record.first_check_in_at is None:
+) -> bool:
+    """Apply check-in fields and return True when this is a same-day re-check-in."""
+    is_recheckin = record.first_check_in_at is not None
+    if not is_recheckin:
         record.first_check_in_at = now_utc
     record.check_in_at = now_utc
     record.method_in = method
@@ -224,9 +228,40 @@ def _apply_check_in(
     )
     if selfie_key:
         record.check_in_selfie_key = selfie_key
-    late = _late_minutes(profile, now_local, grace_minutes)
-    record.late_minutes = late
-    record.status = "late" if late else "present"
+    # Initial arrival determines lateness and morning status; re-entries after
+    # a break/checkout must NOT overwrite morning on-time arrival as "late".
+    if not is_recheckin:
+        late = _late_minutes(profile, now_local, grace_minutes)
+        record.late_minutes = late
+        record.status = "late" if late else "present"
+    return is_recheckin
+
+
+def _prepare_recheckin(
+    record: AttendanceRecord,
+    *,
+    label: str,
+    tz: tzinfo,
+) -> None:
+    """Reset checkout fields on an earlier completed session for same-day re-entry."""
+    if record.check_out_at is None:
+        return
+    if not record.accumulated_minutes and record.check_in_at is not None:
+        record.accumulated_minutes = max(
+            0, int((record.check_out_at - record.check_in_at).total_seconds() // 60)
+        )
+    prev_out = record.check_out_at.astimezone(tz).strftime("%H:%M")
+    record.check_out_at = None
+    record.check_out_lat = None
+    record.check_out_lng = None
+    record.check_out_accuracy_m = None
+    record.check_out_distance_m = None
+    record.method_out = None
+    record.early_out_minutes = None
+    record.check_out_selfie_key = None
+    record.check_out_selfie_sha256 = None
+    note_part = f"{label} (prev out: {prev_out})"
+    record.note = f"{record.note} | {note_part}" if record.note else note_part
 
 
 def _apply_check_out(
@@ -278,7 +313,8 @@ async def self_check_in(
     distance = enforce_geofence(hotel, body.lat, body.lng, body.accuracy_m)
 
     now_utc = datetime.now(UTC)
-    now_local = now_utc.astimezone(hotel_tz(hotel))
+    tz = hotel_tz(hotel)
+    now_local = now_utc.astimezone(tz)
     work_date = now_local.date()
 
     record = await _record_for(db, profile, work_date)
@@ -286,25 +322,9 @@ async def self_check_in(
         # Already checked in but ALSO already checked out → allow re-check-in.
         # Hotel staff can leave and return in the same day (lunch break etc.).
         # We reset the checkout fields and tag the record as a re-entry —
-        # the earlier checkout time is preserved in the note for audit purposes.
+        # the earlier checkout time (in hotel local time) is preserved in the note.
         if record.check_out_at is not None:
-            if not record.accumulated_minutes and record.check_in_at is not None:
-                record.accumulated_minutes = max(
-                    0, int((record.check_out_at - record.check_in_at).total_seconds() // 60)
-                )
-            prev_out = record.check_out_at.strftime("%H:%M")
-            record.check_out_at = None
-            record.check_out_lat = None
-            record.check_out_lng = None
-            record.check_out_accuracy_m = None
-            record.check_out_distance_m = None
-            record.method_out = None
-            record.early_out_minutes = None
-            record.note = (
-                f"{record.note} | re-check-in (prev out: {prev_out})"
-                if record.note
-                else f"re-check-in (prev out: {prev_out})"
-            )
+            _prepare_recheckin(record, label="re-check-in", tz=tz)
         else:
             # Still checked in (not yet checked out) — genuinely blocked.
             raise ConflictError(
@@ -331,7 +351,7 @@ async def self_check_in(
             "Invalid selfie reference", code="invalid_selfie_key"
         )
 
-    _apply_check_in(
+    is_recheckin = _apply_check_in(
         record,
         profile,
         now_utc=now_utc,
@@ -346,8 +366,8 @@ async def self_check_in(
     )
     await db.flush()
 
-    # Notify managers if the check-in is late.
-    if record.late_minutes:
+    # Notify managers only when the initial check-in of the day is late.
+    if not is_recheckin and record.late_minutes:
         from app.models.user import User as _User
         from app.services.notification_events import NE
         from app.services.notification_events import fire as _fire
@@ -477,38 +497,32 @@ async def front_desk_record(
     db: AsyncSession,
     tenant: TenantContext,
     staff_id: UUID,
-    action: str,
+    body: FrontDeskRecordIn,
     *,
     correlation_id: str | None = None,
 ) -> AttendanceRecord:
     hotel = await _hotel(db, tenant)
     profile = await get_profile(db, tenant, staff_id)
+    action = body.action
+    distance = enforce_geofence(
+        hotel,
+        body.lat,
+        body.lng,
+        body.accuracy_m,
+        action="check in" if action == "in" else "check out",
+    )
     now_utc = datetime.now(UTC)
-    now_local = now_utc.astimezone(hotel_tz(hotel))
+    tz = hotel_tz(hotel)
+    now_local = now_utc.astimezone(tz)
     work_date = now_local.date()
     record = await _record_for(db, profile, work_date)
+    is_recheckin = False
 
     if action == "in":
         if record is not None and record.check_in_at is not None:
             if record.check_out_at is not None:
-                if not record.accumulated_minutes and record.check_in_at is not None:
-                    record.accumulated_minutes = max(
-                        0, int((record.check_out_at - record.check_in_at).total_seconds() // 60)
-                    )
                 # Re-check-in after checkout — same logic as self_check_in.
-                prev_out = record.check_out_at.strftime("%H:%M")
-                record.check_out_at = None
-                record.check_out_lat = None
-                record.check_out_lng = None
-                record.check_out_accuracy_m = None
-                record.check_out_distance_m = None
-                record.method_out = None
-                record.early_out_minutes = None
-                record.note = (
-                    f"{record.note} | re-check-in via front desk (prev out: {prev_out})"
-                    if record.note
-                    else f"re-check-in via front desk (prev out: {prev_out})"
-                )
+                _prepare_recheckin(record, label="re-check-in via front desk", tz=tz)
             else:
                 raise ConflictError(
                     "Staff member is already checked in. Check out first.",
@@ -519,13 +533,17 @@ async def front_desk_record(
                 hotel_id=hotel.id, staff_profile_id=profile.id, work_date=work_date
             )
             db.add(record)
-        _apply_check_in(
+        is_recheckin = _apply_check_in(
             record,
             profile,
             now_utc=now_utc,
             now_local=now_local,
             method="front_desk",
             grace_minutes=hotel.attendance_grace_minutes,
+            lat=body.lat,
+            lng=body.lng,
+            accuracy_m=body.accuracy_m,
+            distance_m=distance,
             performed_by=tenant.user_id,
         )
     else:
@@ -541,10 +559,30 @@ async def front_desk_record(
             now_utc=now_utc,
             now_local=now_local,
             method="front_desk",
+            lat=body.lat,
+            lng=body.lng,
+            accuracy_m=body.accuracy_m,
+            distance_m=distance,
             performed_by=tenant.user_id,
         )
 
     await db.flush()
+    if action == "in" and not is_recheckin and record.late_minutes:
+        from app.models.user import User as _User
+        from app.services.notification_events import NE
+        from app.services.notification_events import fire as _fire
+        actor = await db.get(_User, profile.user_id)
+        await _fire(
+            db,
+            hotel_id=hotel.id,
+            event=NE.STAFF_LATE,
+            data={
+                "staff_name": actor.full_name if actor else profile.staff_code,
+                "staff_code": profile.staff_code,
+                "late_minutes": record.late_minutes,
+                "checkin_time": now_local.strftime("%H:%M"),
+            },
+        )
     await write_audit(
         db,
         action="staff.attendance_recorded",
@@ -552,7 +590,12 @@ async def front_desk_record(
         entity_id=record.id,
         actor_id=tenant.user_id,
         hotel_id=hotel.id,
-        after={"staff_code": profile.staff_code, "action": action, "method": "front_desk"},
+        after={
+            "staff_code": profile.staff_code,
+            "action": action,
+            "method": "front_desk",
+            "distance_m": round(distance, 1) if distance is not None else None,
+        },
         correlation_id=correlation_id,
     )
     return record
@@ -588,6 +631,8 @@ async def correct_record(
         "check_out_at": str(record.check_out_at),
         "status": record.status,
     }
+    prev_accumulated = record.accumulated_minutes or 0
+    prev_out = record.check_out_at
     if body.check_in_at is not None:
         record.check_in_at = body.check_in_at
         if record.first_check_in_at is None:
@@ -597,9 +642,19 @@ async def correct_record(
         record.check_out_at = body.check_out_at
         record.method_out = "manual"
     if record.check_in_at is not None and record.check_out_at is not None:
-        record.accumulated_minutes = max(
-            0, int((record.check_out_at - record.check_in_at).total_seconds() // 60)
-        )
+        if prev_accumulated > 0 and body.check_in_at is None:
+            if prev_out is not None:
+                delta_mins = int((record.check_out_at - prev_out).total_seconds() // 60)
+                record.accumulated_minutes = max(0, prev_accumulated + delta_mins)
+            else:
+                session_mins = max(
+                    0, int((record.check_out_at - record.check_in_at).total_seconds() // 60)
+                )
+                record.accumulated_minutes = prev_accumulated + session_mins
+        else:
+            record.accumulated_minutes = max(
+                0, int((record.check_out_at - record.check_in_at).total_seconds() // 60)
+            )
     if body.status is not None:
         record.status = body.status
     record.note = body.note
@@ -682,6 +737,21 @@ async def today_attendance(
         )
     ).scalars()
     rec_by_staff = {r.staff_profile_id: r for r in recs}
+
+    if on_date is None or day == hotel_today(hotel):
+        # Open overnight shifts started yesterday should still surface as working today.
+        open_prev = (
+            await db.execute(
+                select(AttendanceRecord).where(
+                    AttendanceRecord.hotel_id == hotel_id,
+                    AttendanceRecord.work_date == day - timedelta(days=1),
+                    AttendanceRecord.check_in_at.is_not(None),
+                    AttendanceRecord.check_out_at.is_(None),
+                )
+            )
+        ).scalars()
+        for prev_rec in open_prev:
+            rec_by_staff.setdefault(prev_rec.staff_profile_id, prev_rec)
 
     now_local = datetime.now(hotel_tz(hotel))
 
@@ -770,7 +840,14 @@ async def today_attendance(
                 check_out_selfie_sha256=rec.check_out_selfie_sha256 if rec else None,
             )
         )
-    return TodayAttendanceOut(stats=TodayStatsOut(**stats), items=items)
+    return TodayAttendanceOut(
+        stats=TodayStatsOut(**stats),
+        items=items,
+        geofence_enabled=bool(hotel.geofence_enabled),
+        geofence_radius_m=hotel.geofence_radius_m if hotel.geofence_enabled else None,
+        hotel_latitude=hotel.latitude if hotel.geofence_enabled else None,
+        hotel_longitude=hotel.longitude if hotel.geofence_enabled else None,
+    )
 
 
 async def history(
@@ -892,7 +969,7 @@ async def calendar(
                 day=d,
                 status=status,
                 record_id=rec.id if rec else None,
-                check_in_at=rec.check_in_at if rec else None,
+                check_in_at=(rec.first_check_in_at or rec.check_in_at) if rec else None,
                 check_out_at=rec.check_out_at if rec else None,
                 late_minutes=rec.late_minutes if rec else None,
                 selfie_flushed=bool(rec and rec.selfie_flushed_at),
@@ -1065,6 +1142,10 @@ async def sweep_attendance(db: AsyncSession) -> int:
                 # Give stragglers time: only close once well past shift end.
                 if datetime.now(tz) < end_local + timedelta(hours=AUTO_CLOSE_AFTER_HOURS):
                     continue
+                session_mins = max(
+                    0, int((end_local - rec.check_in_at).total_seconds() // 60)
+                )
+                rec.accumulated_minutes = (rec.accumulated_minutes or 0) + session_mins
                 rec.check_out_at = end_local
                 rec.method_out = "auto"
                 rec.early_out_minutes = None

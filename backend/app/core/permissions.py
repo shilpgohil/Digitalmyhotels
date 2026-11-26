@@ -128,6 +128,7 @@ ROLE_PERMISSIONS: dict[RoleCode, frozenset[Permission]] = {
         {
             Permission.HOTEL_VIEW,
             Permission.HOTEL_MANAGE_SETTINGS,
+            Permission.HOTEL_MANAGE_TEAM,
             # MANAGER cannot configure UPI or manage room types — owner only.
             Permission.HOTEL_VIEW_PAYMENT_QR,   # can view QR for payment collection
             Permission.ROOMS_VIEW,

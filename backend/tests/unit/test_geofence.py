@@ -97,3 +97,28 @@ class TestEnforceGeofence:
             enforce_geofence(make_hotel(), None, None, None, action="check out")
         assert exc.value.code == "location_required"
         assert "to check out at this hotel" in str(exc.value)
+
+
+class TestFrontDeskGeofenceSchema:
+    def test_front_desk_record_in_accepts_optional_gps(self):
+        from decimal import Decimal
+        from app.schemas.staff import FrontDeskRecordIn, TodayAttendanceOut, TodayStatsOut
+
+        body = FrontDeskRecordIn(action="in", lat=23.046, lng=72.531, accuracy_m=15.0)
+        assert body.action == "in"
+        assert body.lat == 23.046
+        assert body.lng == 72.531
+
+        no_gps = FrontDeskRecordIn(action="out")
+        assert no_gps.lat is None and no_gps.lng is None
+
+        out = TodayAttendanceOut(
+            stats=TodayStatsOut(total=0, present=0, working=0, checked_out=0, absent=0, late=0),
+            items=[],
+            geofence_enabled=True,
+            geofence_radius_m=200,
+            hotel_latitude=Decimal("23.046000"),
+            hotel_longitude=Decimal("72.531000"),
+        )
+        assert out.geofence_enabled is True
+        assert out.geofence_radius_m == 200

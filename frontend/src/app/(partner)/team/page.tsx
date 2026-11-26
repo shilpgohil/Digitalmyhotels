@@ -62,7 +62,8 @@ function TeamContent() {
   const tc = useTranslations("common");
   const api = useApi();
   const queryClient = useQueryClient();
-  const { activeHotelId } = useAuth();
+  const { activeHotelId, user, activeRoleCode } = useAuth();
+  const canEditOwner = Boolean(user?.is_super_admin || activeRoleCode === "owner");
 
   const team = useQuery({
     queryKey: ["team", activeHotelId],
@@ -116,6 +117,7 @@ function TeamContent() {
       api(`/api/v1/team/password-requests/${requestId}/dismiss`, { method: "POST" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-password-requests", activeHotelId] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
     onError: (error) =>
       toast.error(error instanceof ApiError ? error.message : tc("error")),
@@ -262,6 +264,14 @@ function TeamContent() {
                         : "—"}
                     </TableCell>
                     <TableCell className="text-right">
+                      {member.role_code === "owner" && !canEditOwner && !member.staff_profile_id ? (
+                        <span
+                          className="inline-flex size-8 items-center justify-center text-muted-foreground"
+                          title={t("ownerRoleLockedHint")}
+                        >
+                          <Lock className="size-4" aria-hidden />
+                        </span>
+                      ) : (
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"
@@ -272,10 +282,12 @@ function TeamContent() {
                         {/* Wider so "Edit Profile" / "Reset Password" never
                             wrap (client 15/09: "Need increase width") */}
                         <DropdownMenuContent align="end" className="min-w-[210px]">
-                          <DropdownMenuItem onClick={() => setEditTarget(member)}>
-                            <Pencil className="size-4" aria-hidden />
-                            {t("editProfile")}
-                          </DropdownMenuItem>
+                          {(member.role_code !== "owner" || canEditOwner) && (
+                            <DropdownMenuItem onClick={() => setEditTarget(member)}>
+                              <Pencil className="size-4" aria-hidden />
+                              {t("editProfile")}
+                            </DropdownMenuItem>
+                          )}
                           {member.staff_profile_id && (
                             <DropdownMenuItem
                               onClick={() => router.push(`/staff/${member.staff_profile_id}?from=team`)}
@@ -320,6 +332,7 @@ function TeamContent() {
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -344,6 +357,7 @@ function TeamContent() {
             queryClient.invalidateQueries({
               queryKey: ["team-password-requests", activeHotelId],
             });
+            queryClient.invalidateQueries({ queryKey: ["notifications"] });
           }}
         />
         <EditMemberDialog

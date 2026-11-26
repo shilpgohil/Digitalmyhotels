@@ -27,7 +27,10 @@ import { FaceCapture } from "@/components/staff/face-capture";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { apiUpload, ApiError } from "@/lib/api/client";
-import { GeoError, getPosition, haversineMeters, type GeoPosition } from "@/lib/geo";
+import {
+  verifyHotelGeofencePosition,
+  type GeoPosition,
+} from "@/lib/geo";
 import { cn } from "@/lib/utils";
 import type { AttendanceRecordOut, SelfTodayOut } from "@/types/staff";
 
@@ -79,41 +82,15 @@ export function CheckInCard({ big = false }: { readonly big?: boolean }) {
 
   /** Get a GPS fix when the fence is on; verify distance client-side before camera launch. */
   const acquireAndVerifyPosition = async (): Promise<GeoPosition | null> => {
-    if (!today.data?.geofence_enabled) return null;
-    let pos: GeoPosition;
-    try {
-      pos = await getPosition();
-    } catch (e) {
-      if (e instanceof GeoError && e.kind === "denied") {
-        throw new Error(t("locationDenied"));
-      }
-      throw new Error(t("locationUnavailable"));
+    const res = await verifyHotelGeofencePosition(today.data, {
+      denied: t("locationDenied"),
+      unavailable: t("locationUnavailable"),
+      distanceViolation: (params) => t("geofenceDistanceViolation", params),
+    });
+    if (res.verifiedDist) {
+      setVerifiedDist(res.verifiedDist);
     }
-
-    const hotelLat = today.data.hotel_latitude != null ? Number(today.data.hotel_latitude) : null;
-    const hotelLng = today.data.hotel_longitude != null ? Number(today.data.hotel_longitude) : null;
-    const hasHotelCoords =
-      hotelLat !== null &&
-      hotelLng !== null &&
-      (Math.abs(hotelLat) > 0.0001 || Math.abs(hotelLng) > 0.0001);
-
-    if (hasHotelCoords && hotelLat !== null && hotelLng !== null) {
-      const dist = haversineMeters(pos.lat, pos.lng, hotelLat, hotelLng);
-      const radius = today.data.geofence_radius_m ?? 200;
-      const grace = Math.min(pos.accuracy_m, 150);
-      if (dist > radius + grace) {
-        throw new Error(
-          t("geofenceDistanceViolation", {
-            distance: dist,
-            radius,
-            accuracy: pos.accuracy_m,
-          }),
-        );
-      }
-      setVerifiedDist({ distance: dist, accuracy: pos.accuracy_m });
-    }
-
-    return pos;
+    return res.pos;
   };
 
   const startCheckIn = async () => {

@@ -148,6 +148,10 @@ export interface TodayStatsOut {
 export interface TodayAttendanceOut {
   stats: TodayStatsOut;
   items: AttendanceRowOut[];
+  geofence_enabled?: boolean;
+  geofence_radius_m?: number | null;
+  hotel_latitude?: string | null;
+  hotel_longitude?: string | null;
 }
 
 export interface HistoryOut {

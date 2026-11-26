@@ -329,6 +329,10 @@ async def update_team_member(
     membership = await _get_membership(db, tenant, membership_id)
     is_owner = membership.role.code == RoleCode.OWNER.value
 
+    # Managers must not modify Owner accounts (profile, contact, or role).
+    if is_owner and not tenant.is_super_admin and tenant.role != RoleCode.OWNER:
+        _guard_not_owner(membership)
+
     # Owners cannot be demoted or have their role altered
     if is_owner and body.role_code is not None and body.role_code != RoleCode.OWNER.value:
         raise ValidationAppError("Owner role cannot be changed", code="owner_role_protected")

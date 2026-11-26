@@ -257,7 +257,7 @@ async def front_desk_record(
     db: AsyncSession = Depends(get_db),
 ) -> AttendanceRecordOut:
     record = await attendance_service.front_desk_record(
-        db, tenant, staff_id, body.action, correlation_id=_correlation(request)
+        db, tenant, staff_id, body, correlation_id=_correlation(request)
     )
     return AttendanceRecordOut.model_validate(record)
 

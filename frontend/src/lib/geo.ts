@@ -145,3 +145,72 @@ export function getPosition(timeoutMs = 12_000): Promise<GeoPosition> {
     }
   });
 }
+
+export interface GeofenceConfig {
+  geofence_enabled?: boolean;
+  geofence_radius_m?: number | null;
+  hotel_latitude?: string | number | null;
+  hotel_longitude?: string | number | null;
+}
+
+export interface VerifiedGeoResult {
+  pos: GeoPosition | null;
+  verifiedDist: { distance: number; accuracy: number } | null;
+}
+
+/**
+ * Shared client-side GPS acquisition + hotel property geofence check.
+ * Mirrors server `enforce_geofence` rules (150 m indoor accuracy grace cap).
+ */
+export async function verifyHotelGeofencePosition(
+  config: GeofenceConfig | null | undefined,
+  messages: {
+    denied: string;
+    unavailable: string;
+    distanceViolation: (params: {
+      distance: number;
+      radius: number;
+      accuracy: number;
+    }) => string;
+  },
+): Promise<VerifiedGeoResult> {
+  if (!config?.geofence_enabled) {
+    return { pos: null, verifiedDist: null };
+  }
+  let pos: GeoPosition;
+  try {
+    pos = await getPosition();
+  } catch (e) {
+    if (e instanceof GeoError && e.kind === "denied") {
+      throw new Error(messages.denied);
+    }
+    throw new Error(messages.unavailable);
+  }
+
+  const hotelLat =
+    config.hotel_latitude != null ? Number(config.hotel_latitude) : null;
+  const hotelLng =
+    config.hotel_longitude != null ? Number(config.hotel_longitude) : null;
+  const hasHotelCoords =
+    hotelLat !== null &&
+    hotelLng !== null &&
+    (Math.abs(hotelLat) > 0.0001 || Math.abs(hotelLng) > 0.0001);
+
+  if (hasHotelCoords && hotelLat !== null && hotelLng !== null) {
+    const dist = haversineMeters(pos.lat, pos.lng, hotelLat, hotelLng);
+    const radius = config.geofence_radius_m ?? 200;
+    const grace = Math.min(pos.accuracy_m, 150);
+    if (dist > radius + grace) {
+      throw new Error(
+        messages.distanceViolation({
+          distance: dist,
+          radius,
+          accuracy: pos.accuracy_m,
+        }),
+      );
+    }
+    return { pos, verifiedDist: { distance: dist, accuracy: pos.accuracy_m } };
+  }
+
+  return { pos, verifiedDist: null };
+}
