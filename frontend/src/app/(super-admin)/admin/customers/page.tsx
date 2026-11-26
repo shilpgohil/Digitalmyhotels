@@ -212,7 +212,7 @@ function CustomerDetailDialog({
 
   return (
     <Dialog open={customer !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{customer?.full_name}</DialogTitle>
         </DialogHeader>

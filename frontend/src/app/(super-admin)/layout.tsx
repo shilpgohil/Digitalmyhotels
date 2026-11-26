@@ -17,20 +17,23 @@ export default function SuperAdminLayout({ children }: { readonly children: Reac
       >
         Skip to main content
       </a>
-      <div className="flex h-screen h-[100dvh] overflow-hidden">
+      <div className="flex h-screen h-[100dvh] overflow-hidden overscroll-none">
         {/* Fixed 256px navy sidebar — always expanded (matches partner) */}
         <div className="hidden lg:block w-64 shrink-0 h-full">
           <AdminSidebar />
         </div>
         {/* Main content */}
-        <div className="flex min-w-0 flex-1 flex-col h-full overflow-hidden">
+        <div className="flex min-w-0 flex-1 min-h-0 flex-col h-full overflow-hidden">
           <AdminHeader />
           {/* min-h-0: flex-1 alone doesn't prevent an item growing past its
               allocated height (min-height defaults to auto). Without min-h-0
               the PageTransition div expands to its content height and
               overflow-y-auto never triggers → content spills into the
               outer container → double scrollbar (client screenshot 63563463). */}
-          <PageTransition id="main-content" className="flex-1 min-h-0 overflow-y-auto">
+          <PageTransition
+            id="main-content"
+            className="flex-1 min-h-0 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom,0px))] lg:pb-0"
+          >
             {children}
           </PageTransition>
         </div>

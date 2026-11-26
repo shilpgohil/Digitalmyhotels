@@ -572,7 +572,7 @@ function AdvanceBookingContent() {
   return (
     <>
       <PartnerHeader title="Advance Booking" subtitle="Front Desk" />
-      <main className="flex-1 overflow-y-auto bg-[#f5f5f0] px-4 py-6 pb-24 lg:pb-6">
+      <main className="flex-1 overflow-y-auto bg-[#f5f5f0] px-4 py-6">
         <form
           className="mx-auto max-w-4xl space-y-4 pb-12"
           onSubmit={(e) => {

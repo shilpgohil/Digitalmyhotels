@@ -394,7 +394,7 @@ function InvoicesContent() {
         }
       `}</style>
       <PartnerHeader title={t("title")} subtitle={tn("money")} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mb-4 flex justify-end">
           <GenerateDialog onDone={invalidate} />
         </div>
@@ -528,9 +528,11 @@ function InvoicesContent() {
         {/* ── Styled invoice preview (the ONE proper invoice design) ── */}
         {invoice && (
           <div className="mt-6 scroll-mt-4" ref={previewRef}>
-            <div className="mx-auto mb-3 flex max-w-3xl items-center justify-end gap-2">
+            <div className="mx-auto mb-3 grid grid-cols-2 sm:flex sm:flex-wrap max-w-3xl items-center sm:justify-end gap-2">
               <Button
                 variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
                 onClick={() => {
                   const prevTitle = document.title;
                   document.title = `${invoice.guest_name || "Guest"} (${invoice.invoice_number}) - ${hotel.data?.name || "Hotel"}`;
@@ -540,26 +542,28 @@ function InvoicesContent() {
                   }, 1000);
                 }}
               >
-                <Printer className="size-4" aria-hidden />
+                <Printer className="size-4 shrink-0" aria-hidden />
                 {tp("print")}
               </Button>
               <Button
                 variant="default"
                 size="sm"
+                className="w-full sm:w-auto"
                 disabled={sharingPdf}
                 onClick={() => void shareInvoiceWhatsApp()}
               >
-                <MessageCircle className="size-4" aria-hidden />
+                <MessageCircle className="size-4 shrink-0" aria-hidden />
                 {sharingPdf ? tp("preparingPdf") : tp("whatsapp")}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
+                className="col-span-2 sm:col-span-1 w-full sm:w-auto"
                 disabled={sharingPdf}
                 onClick={() => void shareInvoiceNativeFile()}
                 title="Attach PDF file to WhatsApp or apps"
               >
-                <Share2 className="size-4" aria-hidden />
+                <Share2 className="size-4 shrink-0" aria-hidden />
                 Share PDF File
               </Button>
             </div>

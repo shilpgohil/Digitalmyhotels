@@ -302,11 +302,11 @@ export function StaffIdProofCard({ staff, onUpdated }: StaffIdProofCardProps) {
             ) : null}
           </div>
 
-          <DialogFooter className="flex flex-row justify-between sm:justify-between items-center gap-2 pt-2">
-            <span className="text-xs text-muted-foreground">
+          <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-between items-stretch sm:items-center gap-2.5 pt-3">
+            <span className="text-xs text-muted-foreground text-center sm:text-left">
               {t("idProofConfidentialNotice")}
             </span>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto">
               {previewSrc && (
                 <a
                   href={previewSrc}
@@ -314,7 +314,7 @@ export function StaffIdProofCard({ staff, onUpdated }: StaffIdProofCardProps) {
                   className={buttonVariants({
                     variant: "outline",
                     size: "sm",
-                    className: "gap-1.5",
+                    className: "gap-1.5 w-full sm:w-auto",
                   })}
                 >
                   <Download className="size-4" />
@@ -325,6 +325,7 @@ export function StaffIdProofCard({ staff, onUpdated }: StaffIdProofCardProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowViewModal(false)}
+                className={previewSrc ? "w-full sm:w-auto" : "col-span-2 w-full sm:w-auto"}
               >
                 {tc("close")}
               </Button>
@@ -344,7 +345,7 @@ export function StaffIdProofCard({ staff, onUpdated }: StaffIdProofCardProps) {
           <p className="text-sm text-muted-foreground">
             {t("confirmDeleteIdProofDesc", { name: staff.full_name })}
           </p>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2.5 sm:gap-2">
             <Button
               variant="outline"
               size="sm"

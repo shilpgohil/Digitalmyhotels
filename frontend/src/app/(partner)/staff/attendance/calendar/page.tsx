@@ -64,7 +64,7 @@ function CalendarContent() {
   return (
     <>
       <PartnerHeader title={t("attendanceCalendarTitle")} subtitle={tn("staffGroup")} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mx-auto max-w-4xl space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">

@@ -575,57 +575,67 @@ export function AdvanceBookingVoucherModal({
         </div>
 
         {/* Action Controls Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 sm:p-4 border-t bg-muted/20 shrink-0">
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:pb-4 border-t bg-muted/20 shrink-0">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleCopy}
-              className="gap-1 sm:gap-1.5 text-xs h-8 sm:h-9 px-2.5 sm:px-3"
+              className="gap-1.5 text-xs h-9 px-2.5 sm:px-3 w-full sm:w-auto"
             >
-              {copied ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
-              {copied ? "Copied" : "Copy Details"}
+              {copied ? <Check className="size-3.5 text-emerald-600 shrink-0" /> : <Copy className="size-3.5 shrink-0" />}
+              <span className="truncate">{copied ? "Copied" : "Copy Details"}</span>
             </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleWhatsApp}
-              className="gap-1 sm:gap-1.5 text-emerald-700 hover:text-emerald-800 text-xs h-8 sm:h-9 px-2.5 sm:px-3"
+              className="gap-1.5 text-emerald-700 hover:text-emerald-800 text-xs h-9 px-2.5 sm:px-3 w-full sm:w-auto"
             >
-              <Share2 className="size-3.5" />
-              WhatsApp Guest
+              <Share2 className="size-3.5 shrink-0" />
+              <span className="truncate">WhatsApp Guest</span>
             </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleShareNative}
-              className="gap-1 sm:gap-1.5 text-xs h-8 sm:h-9 px-2.5 sm:px-3"
+              className="gap-1.5 text-xs h-9 px-2.5 sm:px-3 w-full sm:w-auto"
               title="Attach PDF file to WhatsApp or apps"
             >
-              <Share2 className="size-3.5" />
-              Share PDF File
+              <Share2 className="size-3.5 shrink-0" />
+              <span className="truncate">Share PDF File</span>
             </Button>
-          </div>
-
-          <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleDownloadPdf}
-              className="gap-1 sm:gap-1.5 text-xs h-8 sm:h-9 px-2.5 sm:px-3"
+              className="gap-1.5 text-xs h-9 px-2.5 sm:px-3 w-full sm:w-auto sm:hidden"
             >
-              <Download className="size-3.5" />
+              <Download className="size-3.5 shrink-0" />
+              <span className="truncate">Download PDF</span>
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadPdf}
+              className="hidden sm:inline-flex gap-1.5 text-xs h-9 px-3"
+            >
+              <Download className="size-3.5 shrink-0" />
               Download PDF
             </Button>
             <Button
               type="button"
               size="sm"
               onClick={onClose}
-              className="bg-navy-900 text-white hover:bg-navy-800 text-xs h-8 sm:h-9 px-3.5 sm:px-4"
+              className="bg-navy-900 text-white hover:bg-navy-800 text-xs h-9 px-4 w-full sm:w-auto"
             >
               Done
             </Button>

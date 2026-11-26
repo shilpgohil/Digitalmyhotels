@@ -183,14 +183,25 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* Kinetic momentum scrolling & scroll chaining containment */
+  /* Kinetic momentum scrolling & scroll chaining containment for vertical viewports */
   main,
   .overflow-y-auto,
-  .overflow-x-auto,
-  [data-slot="table-container"] {
+  [data-slot="dialog-content"],
+  [data-slot="sheet-content"] {
     min-height: 0;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
+  }
+
+  /* Horizontal table & chip wrappers: lock horizontal overscroll only while
+     chaining vertical swipes smoothly upward to <main> on Android Blink */
+  .overflow-x-auto,
+  .table-scroll,
+  [data-slot="table-container"] {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: auto;
+    touch-action: pan-x pan-y;
   }
 
   /* ── Minimalist scrollbars — everywhere ─────────────────────────────── */
@@ -222,52 +233,33 @@
   }
 
   /*
-   * iOS ZOOM PREVENTION & FORM INPUT TYPOGRAPHY HARMONIZATION
-   * Safari on iPhone zooms into the page whenever a focused <input>, <select>,
-   * or <textarea> has font-size < 16px. We apply the 16px floor strictly on
-   * mobile viewports (< 768px) to prevent unwanted iOS auto-zooming.
-   * On desktop viewports (>= 768px), inputs, selects, and textareas scale
-   * cleanly to standard 0.875rem (14px / text-sm), perfectly harmonizing
-   * with section titles, labels, badges, and table cells.
+   * FORM INPUT TYPOGRAPHY HARMONIZATION (14px across mobile & desktop)
+   * Keeps <input>, <select>, and <textarea> crisp at 0.875rem (14px / text-sm)
+   * on all viewports so fields match Select triggers, labels, buttons, and cards.
+   * Viewport maximum-scale=1 in layout.tsx prevents iOS focus auto-zoom.
    */
-  @media (max-width: 767px) {
-    input[type="text"],
-    input[type="email"],
-    input[type="search"],
-    input[type="number"],
-    input[type="tel"],
-    input[type="url"],
-    input[type="password"],
-    input[type="date"],
-    input[type="time"],
-    input[type="datetime-local"],
-    select,
-    textarea {
-      font-size: 16px;
-    }
-
-    /* Harmonize mobile form labels with 16px inputs */
-    label,
-    .text-label {
-      font-size: 0.8125rem;
-      line-height: 1.25rem;
-    }
+  input[type="text"],
+  input[type="email"],
+  input[type="search"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="password"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input:not([type]),
+  select,
+  textarea {
+    font-size: 0.875rem;
   }
 
-  @media (min-width: 768px) {
-    input[type="text"],
-    input[type="email"],
-    input[type="search"],
-    input[type="number"],
-    input[type="tel"],
-    input[type="url"],
-    input[type="password"],
-    input[type="date"],
-    input[type="time"],
-    input[type="datetime-local"],
-    select,
-    textarea {
-      font-size: 0.875rem; /* 14px text-sm standard desktop control size */
+  @media (max-width: 767px) {
+    /* Harmonize mobile form labels cleanly above 14px inputs */
+    label,
+    .text-label {
+      font-size: 0.75rem;
+      line-height: 1.15rem;
     }
   }
 
@@ -370,13 +362,10 @@
 }
 
 @layer utilities {
-  /* ── Mobile clearance for floating bottom navigation bar ───────────── */
-  /* Ensures content inside partner scrollable views clears the 72px–106px
-     floating tab bar on mobile screens (< 1024px) without extra desktop padding. */
-  @media (max-width: 1023px) {
-    [data-slot="partner-content"] main,
-    main.overflow-y-auto {
-      padding-bottom: max(6rem, calc(5.5rem + env(safe-area-inset-bottom, 0px))) !important;
+  /* ── Hide docked bottom tab bar when virtual keyboard shrinks viewport ── */
+  @media (max-width: 1023px) and (max-height: 480px) {
+    [data-slot="mobile-tabbar"] {
+      display: none !important;
     }
   }
 

@@ -118,7 +118,7 @@ function StaffProfileContent({ staffId }: { readonly staffId: string }) {
   return (
     <>
       <PartnerHeader title={t("staffProfileTitle")} subtitle={tn("staffGroup")} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6 space-y-4">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
         <button
           type="button"
           onClick={() => router.push(fromTeam ? "/team" : "/staff")}

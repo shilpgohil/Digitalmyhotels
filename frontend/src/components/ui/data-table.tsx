@@ -135,7 +135,7 @@ export function DataTable({
 
   // ── Table ────────────────────────────────────────────────────────────────
   return (
-    <div className={cn("rounded-xl bg-card overflow-x-auto shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)]", className)}>
+    <div className={cn("rounded-xl bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)]", className)}>
       <Table className={tableClassName}>
         <TableHeader>
           <TableRow

@@ -60,7 +60,7 @@ function AuditContent() {
     return (
       <>
         <PartnerHeader title={t("title")} subtitle={tn("operations")} />
-        <main className="flex-1 p-6 pb-24 lg:pb-6">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <p className="text-sm text-muted-foreground">{tc("unauthorized")}</p>
         </main>
       </>
@@ -70,7 +70,7 @@ function AuditContent() {
   return (
     <>
       <PartnerHeader title={t("title")} subtitle={tn("operations")} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mb-4">
           <Input
             placeholder={t("filterByAction")}

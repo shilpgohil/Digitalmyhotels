@@ -37,19 +37,21 @@ export default function PartnerLayout({ children }: { readonly children: React.R
             <PartnerSidebar />
           </div>
 
-          {/* Main content */}
-          <div className="flex min-w-0 flex-1 min-h-0 flex-col h-full overflow-hidden" data-slot="partner-content">
-            <SubscriptionGate>
-              <PageTransition id="main-content" className="flex min-w-0 flex-1 min-h-0 flex-col h-full overflow-hidden">
-                {/* Remount pages on hotel switch to reset cross-hotel form state */}
-                <HotelKeyed>{children}</HotelKeyed>
-              </PageTransition>
-            </SubscriptionGate>
+          {/* Main content + docked mobile tab bar column */}
+          <div className="flex min-w-0 flex-1 min-h-0 flex-col h-full overflow-hidden">
+            <div className="flex min-w-0 flex-1 min-h-0 flex-col overflow-hidden" data-slot="partner-content">
+              <SubscriptionGate>
+                <PageTransition id="main-content" className="flex min-w-0 flex-1 min-h-0 flex-col h-full overflow-hidden">
+                  {/* Remount pages on hotel switch to reset cross-hotel form state */}
+                  <HotelKeyed>{children}</HotelKeyed>
+                </PageTransition>
+              </SubscriptionGate>
+            </div>
+
+            {/* Mobile bottom tab bar — docked flex row so <main> ends cleanly above it */}
+            <PartnerMobileTabBar />
           </div>
         </div>
-
-        {/* Mobile bottom tab bar — Apple-style floating glass pill */}
-        <PartnerMobileTabBar />
       </ImageEditorProvider>
     </RequireAuth>
   );

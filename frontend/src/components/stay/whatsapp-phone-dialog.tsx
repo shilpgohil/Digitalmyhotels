@@ -96,7 +96,7 @@ export function WhatsAppPhoneDialog({
                   }
                 }}
                 placeholder="+91 98765 43210"
-                className="pl-9 h-11 text-base font-mono"
+                className="pl-9 h-[42px] text-sm font-mono"
                 autoFocus
               />
             </div>
@@ -104,7 +104,7 @@ export function WhatsAppPhoneDialog({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="gap-2.5 sm:gap-2">
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>

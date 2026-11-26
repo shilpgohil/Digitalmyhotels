@@ -18,7 +18,7 @@ function AddStaffContent() {
   return (
     <>
       <PartnerHeader title={t("addStaffTitle")} subtitle={tn("staffGroup")} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mx-auto max-w-4xl">
           <p className="mb-4 text-sm text-muted-foreground">{t("addStaffSubtitle")}</p>
           <StaffForm onDone={(id) => router.push(`/staff/${id}`)} />

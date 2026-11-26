@@ -130,7 +130,7 @@ function NotificationsContent() {
   return (
     <>
       <PartnerHeader title={t("title")} subtitle={tn("overview")} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {/* Browser notification permission banner */}
         {isBrowserNotifSupported && browserNotifPermission === "default" && (
           <div className="mb-4 flex flex-col gap-2 rounded-lg border border-gold-300 bg-gold-50/60 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-gold-800 dark:bg-gold-950/20">

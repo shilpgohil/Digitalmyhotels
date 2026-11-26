@@ -412,7 +412,7 @@ function CurrentGuestsContent() {
   return (
     <>
       <PartnerHeader title={t("currentGuestsTitle")} subtitle={tn("frontDesk")} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <FilterBar
           className="mb-4"
           searchValue={search}
@@ -1019,23 +1019,25 @@ function StayDetailDialog({
           </div>
         )}
         </div>
-        <DialogFooter className="p-4 sm:p-6 pt-3 border-t bg-muted/10 shrink-0 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
+        <DialogFooter className="p-3.5 sm:p-6 pt-3 pb-[max(0.875rem,env(safe-area-inset-bottom,0px))] sm:pb-5 border-t bg-muted/10 shrink-0 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:m-0">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full sm:w-auto">
             {entry && onShareWhatsApp && (
               <Button
                 type="button"
                 variant="outline"
+                size="sm"
                 onClick={() => onShareWhatsApp(entry)}
-                className="gap-1.5 border-emerald-600 text-emerald-700 hover:bg-emerald-50"
+                className="col-span-2 sm:col-span-1 h-9 gap-1.5 border-emerald-600 text-emerald-700 hover:bg-emerald-50 w-full sm:w-auto"
               >
-                <Share2 className="size-4" aria-hidden />
-                {t("shareStaySlipWhatsApp")}
+                <Share2 className="size-3.5 shrink-0" aria-hidden />
+                <span className="truncate">{t("shareStaySlipWhatsApp")}</span>
               </Button>
             )}
             {entry && onShareNative && (
               <Button
                 type="button"
                 variant="outline"
+                size="sm"
                 disabled={busyAction !== null}
                 onClick={async () => {
                   setBusyAction("share");
@@ -1045,21 +1047,22 @@ function StayDetailDialog({
                     setBusyAction(null);
                   }
                 }}
-                className="gap-1.5"
+                className="h-9 gap-1.5 w-full sm:w-auto"
                 title="Attach PDF file to WhatsApp or apps"
               >
                 {busyAction === "share" ? (
-                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                  <Loader2 className="size-3.5 animate-spin shrink-0" aria-hidden />
                 ) : (
-                  <Share2 className="size-4" aria-hidden />
+                  <Share2 className="size-3.5 shrink-0" aria-hidden />
                 )}
-                Share PDF File
+                <span className="truncate">Share PDF File</span>
               </Button>
             )}
             {entry && onDownloadPdf && (
               <Button
                 type="button"
                 variant="outline"
+                size="sm"
                 disabled={busyAction !== null}
                 onClick={async () => {
                   setBusyAction("download");
@@ -1069,22 +1072,22 @@ function StayDetailDialog({
                     setBusyAction(null);
                   }
                 }}
-                className="gap-1.5"
+                className="h-9 gap-1.5 w-full sm:w-auto"
               >
                 {busyAction === "download" ? (
-                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                  <Loader2 className="size-3.5 animate-spin shrink-0" aria-hidden />
                 ) : (
-                  <Download className="size-4" aria-hidden />
+                  <Download className="size-3.5 shrink-0" aria-hidden />
                 )}
-                {t("downloadStaySlipPdf")}
+                <span className="truncate">{t("downloadStaySlipPdf")}</span>
               </Button>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
             <Button
               type="button"
               onClick={onClose}
-              className="inline-flex h-[42px] items-center rounded-lg bg-[#d1d1d1] px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors"
+              className="inline-flex h-10 sm:h-[42px] items-center justify-center rounded-lg bg-[#d1d1d1] px-4 sm:px-5 text-sm font-medium text-foreground hover:bg-[#bebebe] transition-colors w-full sm:w-auto"
             >
               {tc("cancel")}
             </Button>
@@ -1093,9 +1096,10 @@ function StayDetailDialog({
               type="button"
               onClick={() => { printRegistration(); onClose(); }}
               disabled={!b}
+              className="h-10 sm:h-[42px] gap-1.5 w-full sm:w-auto"
             >
-              <Printer className="size-4" aria-hidden />
-              {t("printRegistration")}
+              <Printer className="size-4 shrink-0" aria-hidden />
+              <span className="truncate">{t("printRegistration")}</span>
             </Button>
           </div>
         </DialogFooter>
@@ -1388,7 +1392,7 @@ function EditStayDialog({
 
   return (
     <Dialog open={entry !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             {t("editStayTitle")} — {entry?.booking_number}

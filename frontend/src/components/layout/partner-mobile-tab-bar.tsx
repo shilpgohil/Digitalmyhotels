@@ -10,6 +10,7 @@
  * Design: White frost glass (Option E) with gold glow active state.
  * z-index: 35 — above content (z-0), below dialogs (z-50), below edge vignette (z-15).
  */
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -102,6 +103,51 @@ export function PartnerMobileTabBar() {
   const t = useTranslations("nav");
   const pathname = usePathname();
   const { can, accessMode } = useAuth();
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+  // Auto-hide bottom bar when a mobile soft keyboard opens so inputs stay uncluttered
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const vv = window.visualViewport;
+    const checkViewport = () => {
+      if (vv && window.innerWidth < 1024) {
+        const shrunk = vv.height < window.innerHeight * 0.75 || vv.height < 460;
+        setKeyboardOpen(shrunk);
+      } else {
+        setKeyboardOpen(false);
+      }
+    };
+    const onFocusChange = () => {
+      if (window.innerWidth >= 1024) {
+        setKeyboardOpen(false);
+        return;
+      }
+      const el = document.activeElement as HTMLElement | null;
+      const tag = el?.tagName?.toLowerCase();
+      const inputType = el instanceof HTMLInputElement ? el.type.toLowerCase() : "";
+      const isTextField =
+        tag === "textarea" ||
+        (tag === "input" &&
+          !["checkbox", "radio", "file", "button", "submit", "reset", "range", "color"].includes(inputType));
+      setKeyboardOpen(Boolean(isTextField));
+    };
+
+    let focusTimer: number | undefined;
+    const onFocusOut = () => {
+      window.clearTimeout(focusTimer);
+      focusTimer = window.setTimeout(onFocusChange, 120);
+    };
+
+    vv?.addEventListener("resize", checkViewport);
+    document.addEventListener("focusin", onFocusChange);
+    document.addEventListener("focusout", onFocusOut);
+    return () => {
+      window.clearTimeout(focusTimer);
+      vv?.removeEventListener("resize", checkViewport);
+      document.removeEventListener("focusin", onFocusChange);
+      document.removeEventListener("focusout", onFocusOut);
+    };
+  }, []);
 
   // Attendance-only staff (general_staff) on a FULL-ACCESS hotel: their home
   // IS My Attendance — a Dashboard tab would only bounce them back there.
@@ -122,11 +168,16 @@ export function PartnerMobileTabBar() {
           !(item.requiresFullAccess && accessMode !== "full"),
       ).slice(0, MAX_TABS);
 
+  if (keyboardOpen) return null;
+
   return (
-    /* Wrapper — centered pill, mobile only, pointer-events-none so margins don't block clicks */
-    <div className="lg:hidden fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 z-35 w-[calc(100%-20px)] max-w-[430px] pointer-events-none select-none">
+    /* Docked mobile footer slot — keeps translucent pill look while reserving real flex height so <main> never goes behind it */
+    <div
+      data-slot="mobile-tabbar"
+      className="lg:hidden shrink-0 w-full z-30 bg-background/92 glass-nav border-t border-border/50 px-2.5 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] select-none"
+    >
       <nav
-        className="pointer-events-auto glass-tabbar-warm border border-slate-900/[0.08] dark:border-white/[0.1] rounded-full h-[60px] flex items-stretch justify-around px-1 shadow-[0_4px_24px_-2px_rgba(0,0,0,0.12)]"
+        className="mx-auto w-full max-w-[430px] glass-tabbar-warm border border-slate-900/[0.08] dark:border-white/[0.1] rounded-full h-[56px] flex items-stretch justify-around px-1 shadow-[0_2px_16px_-2px_rgba(0,0,0,0.09)]"
         aria-label="Mobile navigation"
       >
         {items.map(({ href, labelKey, icon: Icon }) => {

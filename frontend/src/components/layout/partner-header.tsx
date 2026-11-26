@@ -151,7 +151,9 @@ function MobileNavDrawer() {
               </Link>
             </div>
           )}
-          <PartnerBottomNav onNavigate={() => setOpen(false)} />
+          <div className="pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+            <PartnerBottomNav onNavigate={() => setOpen(false)} />
+          </div>
         </SheetContent>
       </Sheet>
     </>
