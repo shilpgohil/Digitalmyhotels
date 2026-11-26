@@ -171,13 +171,13 @@ export function PartnerMobileTabBar() {
   if (keyboardOpen) return null;
 
   return (
-    /* Docked mobile footer slot — keeps translucent pill look while reserving real flex height so <main> never goes behind it */
+    /* Frameless floating-pill slot — transparent wrapper reserves flex height so <main> ends cleanly above the pill with zero overlap and zero rectangular frame */
     <div
       data-slot="mobile-tabbar"
-      className="lg:hidden shrink-0 w-full z-30 bg-background/92 glass-nav border-t border-border/50 px-2.5 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] select-none"
+      className="lg:hidden shrink-0 w-full z-30 bg-transparent px-2.5 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pointer-events-none select-none"
     >
       <nav
-        className="mx-auto w-full max-w-[430px] glass-tabbar-warm border border-slate-900/[0.08] dark:border-white/[0.1] rounded-full h-[56px] flex items-stretch justify-around px-1 shadow-[0_2px_16px_-2px_rgba(0,0,0,0.09)]"
+        className="pointer-events-auto mx-auto w-full max-w-[430px] glass-tabbar-warm border border-slate-900/[0.08] dark:border-white/[0.1] rounded-full h-[60px] flex items-stretch justify-around px-1 shadow-[0_4px_24px_-2px_rgba(0,0,0,0.12)]"
         aria-label="Mobile navigation"
       >
         {items.map(({ href, labelKey, icon: Icon }) => {

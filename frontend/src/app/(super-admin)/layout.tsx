@@ -17,7 +17,7 @@ export default function SuperAdminLayout({ children }: { readonly children: Reac
       >
         Skip to main content
       </a>
-      <div className="flex h-screen h-[100dvh] overflow-hidden overscroll-none">
+      <div className="flex h-full overflow-hidden overscroll-none">
         {/* Fixed 256px navy sidebar — always expanded (matches partner) */}
         <div className="hidden lg:block w-64 shrink-0 h-full">
           <AdminSidebar />

@@ -24,6 +24,7 @@ class TeamMemberOut(BaseModel):
     # Populated when the user has a StaffProfile for this hotel (i.e. participates
     # in attendance). None for owner accounts and members who have never checked in.
     staff_profile_id: UUID | None = None
+    department: str | None = None
 
 
 class TeamMemberCreate(BaseModel):
@@ -40,6 +41,10 @@ class TeamMemberCreate(BaseModel):
     phone: str | None = Field(default=None, max_length=32)
     role_code: str = Field(
         pattern="^(manager|admin|housekeeping|receptionist|general_staff)$"
+    )
+    department: str | None = Field(
+        default=None,
+        pattern="^(reception|housekeeping|fnb|maintenance|management|other)$",
     )
     password: str = Field(min_length=8, max_length=128)
 
@@ -62,6 +67,10 @@ class TeamMemberUpdate(BaseModel):
     role_code: str | None = Field(
         default=None,
         pattern="^(manager|admin|housekeeping|receptionist|general_staff)$",
+    )
+    department: str | None = Field(
+        default=None,
+        pattern="^(reception|housekeeping|fnb|maintenance|management|other)$",
     )
 
 

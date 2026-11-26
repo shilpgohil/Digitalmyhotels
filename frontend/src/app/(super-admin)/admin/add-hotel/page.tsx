@@ -157,9 +157,10 @@ function roomTypeCode(name: string, index?: number): string {
 // More granular roles (receptionist, general_staff) are added LATER by the
 // hotel owner through Team Members after the hotel is live.
 const STAFF_ROLES = [
-  { value: "manager",      label: "Manager"          },
-  { value: "admin",        label: "Admin / Reception" },
-  { value: "housekeeping", label: "Housekeeping"      },
+  { value: "manager", label: "Hotel Manager" },
+  { value: "receptionist", label: "Receptionist / Front Desk" },
+  { value: "housekeeping", label: "Housekeeping" },
+  { value: "general_staff", label: "General Staff" },
 ] as const;
 
 interface AdditionalMember {
@@ -1042,7 +1043,7 @@ export default function AddHotelPage() {
                 className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                 defaultValue="owner"
               >
-                <option value="owner">Owner</option>
+                <option value="owner">Hotel Owner / Admin</option>
               </select>
             </div>
             <div className="space-y-1.5">

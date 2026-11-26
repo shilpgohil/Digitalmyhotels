@@ -30,6 +30,9 @@ import {
   STAFF_ACCESS_ROLES,
   STAFF_DEPARTMENTS,
   STAFF_EMPLOYMENT_TYPES,
+  defaultDepartmentForRole,
+  defaultRoleForDepartment,
+  type StaffDepartment,
   type StaffOut,
 } from "@/types/staff";
 
@@ -192,6 +195,7 @@ export function StaffForm({
     onSuccess: (staffId) => {
       toast.success(existing ? t("staffUpdatedToast") : t("staffCreatedToast"));
       queryClient.invalidateQueries({ queryKey: ["staff", activeHotelId] });
+      queryClient.invalidateQueries({ queryKey: ["team", activeHotelId] });
       onDone(staffId);
     },
     onError: (e) => setError(e instanceof ApiError ? e.message : tc("error")),
@@ -362,7 +366,15 @@ export function StaffForm({
               id="sf-dept"
               className={selectCls}
               value={department}
-              onChange={(e) => setDepartment(e.target.value as (typeof STAFF_DEPARTMENTS)[number])}
+              onChange={(e) => {
+                const nextDept = e.target.value as StaffDepartment;
+                setDepartment(nextDept);
+                // On Add New Staff, align default access role unless existing account
+                // already has explicit RBAC permissions (never silently downgrade/escalate on Edit).
+                if (!existing) {
+                  setAccessRole(defaultRoleForDepartment(nextDept));
+                }
+              }}
             >
               {STAFF_DEPARTMENTS.map((d) => (
                 <option key={d} value={d}>
@@ -370,6 +382,7 @@ export function StaffForm({
                 </option>
               ))}
             </select>
+            <p className="text-label text-muted-foreground">{t("deptAutoSyncHint")}</p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="sf-designation">{t("designation")}</Label>
@@ -468,9 +481,12 @@ export function StaffForm({
             <div className="space-y-2">
               {(() => {
                 const isOwner = existing?.role_code === "owner";
+                const isLegacyAdmin = existing?.role_code === "admin";
                 const rolesToDisplay = isOwner
                   ? (["owner", ...STAFF_ACCESS_ROLES] as const)
-                  : STAFF_ACCESS_ROLES;
+                  : isLegacyAdmin
+                    ? (["admin", ...STAFF_ACCESS_ROLES] as const)
+                    : STAFF_ACCESS_ROLES;
 
                 return rolesToDisplay.map((role) => {
                   const isSelected = accessRole === role;
@@ -493,7 +509,12 @@ export function StaffForm({
                         value={role}
                         checked={isSelected}
                         disabled={isOwner}
-                        onChange={() => setAccessRole(role)}
+                        onChange={() => {
+                          setAccessRole(role);
+                          setDepartment((prev) =>
+                            defaultDepartmentForRole(role, prev as StaffDepartment),
+                          );
+                        }}
                         className="mt-1"
                       />
                       <span className="flex-1">

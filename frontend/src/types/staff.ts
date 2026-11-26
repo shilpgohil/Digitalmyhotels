@@ -16,18 +16,51 @@ export type StaffEmploymentType = (typeof STAFF_EMPLOYMENT_TYPES)[number];
 export const STAFF_ACCESS_ROLES = [
   "manager",
   "receptionist",
-  "general_staff",
   "housekeeping",
+  "general_staff",
 ] as const;
 
 export const ALL_STAFF_ACCESS_ROLES = [
   "owner",
   "manager",
+  "admin",
   "receptionist",
-  "general_staff",
   "housekeeping",
+  "general_staff",
 ] as const;
 export type StaffAccessRole = (typeof ALL_STAFF_ACCESS_ROLES)[number];
+
+const CUSTOM_GENERAL_DEPARTMENTS = new Set<StaffDepartment>([
+  "fnb",
+  "maintenance",
+  "other",
+]);
+
+/** Canonical Role → operational Department mapping (mirrors backend team.py). */
+export function defaultDepartmentForRole(
+  roleCode: string,
+  currentDept?: StaffDepartment,
+): StaffDepartment {
+  if (roleCode === "owner" || roleCode === "manager") return "management";
+  if (roleCode === "receptionist" || roleCode === "admin") return "reception";
+  if (roleCode === "housekeeping") return "housekeeping";
+  if (roleCode === "general_staff") {
+    return currentDept && CUSTOM_GENERAL_DEPARTMENTS.has(currentDept)
+      ? currentDept
+      : "other";
+  }
+  return currentDept ?? "other";
+}
+
+/** Suggested access role when picking a Department on New Staff / Member forms. */
+export function defaultRoleForDepartment(
+  dept: StaffDepartment,
+): (typeof STAFF_ACCESS_ROLES)[number] {
+  if (dept === "management") return "manager";
+  if (dept === "reception") return "receptionist";
+  if (dept === "housekeeping") return "housekeeping";
+  return "general_staff";
+}
 
 export interface StaffOut {
   id: string;

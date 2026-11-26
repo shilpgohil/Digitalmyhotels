@@ -46,12 +46,18 @@ import type { ListOut, TeamMemberOut } from "@/types/hotel";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
 import { liveNameCase, sanitizePhone } from "@/lib/input-discipline";
-
-const CREATABLE_ROLES = ["manager", "admin", "housekeeping"] as const;
+import {
+  STAFF_ACCESS_ROLES,
+  STAFF_DEPARTMENTS,
+  defaultDepartmentForRole,
+  defaultRoleForDepartment,
+  type StaffDepartment,
+} from "@/types/staff";
 
 function TeamContent() {
   const router = useRouter();
   const t = useTranslations("team");
+  const ts = useTranslations("staff");
   const tn = useTranslations("nav");
   const tc = useTranslations("common");
   const api = useApi();
@@ -71,8 +77,10 @@ function TeamContent() {
   const activeMembers = team.data?.active_members ?? 0;
   const limitReached = activeMembers >= memberLimit;
 
-  const invalidate = () =>
+  const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["team", activeHotelId] });
+    queryClient.invalidateQueries({ queryKey: ["staff", activeHotelId] });
+  };
 
   const statusMutation = useMutation({
     mutationFn: ({ membershipId, enabled }: { membershipId: string; enabled: boolean }) =>
@@ -206,6 +214,7 @@ function TeamContent() {
                   <TableHead className="text-white">{t("phone")}</TableHead>
                   <TableHead className="text-white">{t("email")}</TableHead>
                   <TableHead className="text-white">{t("role")}</TableHead>
+                  <TableHead className="text-white">{t("department")}</TableHead>
                   <TableHead className="text-white">{t("status")}</TableHead>
                   <TableHead className="text-white">{t("lastLogin")}</TableHead>
                   <TableHead className="text-right text-white">{tc("actions")}</TableHead>
@@ -229,7 +238,14 @@ function TeamContent() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">{member.phone || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{member.email || "—"}</TableCell>
-                    <TableCell>{member.role_name}</TableCell>
+                    <TableCell>
+                      {t(`role_${member.role_code}` as Parameters<typeof t>[0]) || member.role_name}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {member.department
+                        ? ts(`dept_${member.department}` as Parameters<typeof ts>[0])
+                        : "—"}
+                    </TableCell>
                     <TableCell>
                       <StatusBadge tone={member.is_active ? "success" : "danger"}>
                         {member.is_active ? t("active") : t("disabled")}
@@ -337,11 +353,14 @@ function TeamContent() {
 
 function CreateMemberDialog({ onCreated }: { onCreated: () => void }) {
   const t = useTranslations("team");
+  const ts = useTranslations("staff");
   const tc = useTranslations("common");
   const api = useApi();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [roleCode, setRoleCode] = useState<string>("manager");
+  const [department, setDepartment] = useState<StaffDepartment>("management");
 
   const mutation = useMutation({
     mutationFn: (form: FormData) =>
@@ -351,7 +370,8 @@ function CreateMemberDialog({ onCreated }: { onCreated: () => void }) {
           full_name: String(form.get("full_name")).trim(),
           email: String(form.get("email") || "").trim() || null,
           phone: String(form.get("phone") || "").trim() || null,
-          role_code: String(form.get("role_code")),
+          role_code: roleCode,
+          department,
           password: String(form.get("password")),
         },
       }),
@@ -359,13 +379,25 @@ function CreateMemberDialog({ onCreated }: { onCreated: () => void }) {
       toast.success(t("memberCreated"));
       setOpen(false);
       setError(null);
+      setRoleCode("manager");
+      setDepartment("management");
       onCreated();
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : tc("error")),
   });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) {
+          setError(null);
+          setRoleCode("manager");
+          setDepartment("management");
+        }
+      }}
+    >
       <DialogTrigger className="inline-flex h-[42px] items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/80">
         <Plus className="size-4" aria-hidden />
         {t("addMember")}
@@ -400,9 +432,15 @@ function CreateMemberDialog({ onCreated }: { onCreated: () => void }) {
                 id="tm-role"
                 name="role_code"
                 required
-                className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                value={roleCode}
+                onChange={(e) => {
+                  const nextRole = e.target.value;
+                  setRoleCode(nextRole);
+                  setDepartment((prev) => defaultDepartmentForRole(nextRole, prev));
+                }}
+                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               >
-                {CREATABLE_ROLES.map((role) => (
+                {STAFF_ACCESS_ROLES.map((role) => (
                   <option key={role} value={role}>
                     {t(`role_${role}`)}
                   </option>
@@ -410,6 +448,28 @@ function CreateMemberDialog({ onCreated }: { onCreated: () => void }) {
               </select>
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="tm-dept">{t("department")}</Label>
+              <select
+                id="tm-dept"
+                name="department"
+                required
+                value={department}
+                onChange={(e) => {
+                  const nextDept = e.target.value as StaffDepartment;
+                  setDepartment(nextDept);
+                  setRoleCode(defaultRoleForDepartment(nextDept));
+                }}
+                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+              >
+                {STAFF_DEPARTMENTS.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {ts(`dept_${dept}`)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="col-span-2 text-label text-muted-foreground">{t("deptAutoSyncHint")}</p>
+            <div className="col-span-2 space-y-1.5">
               <Label htmlFor="tm-password">{t("newPassword")}</Label>
               <div className="relative">
                 <Input
@@ -539,23 +599,37 @@ function EditMemberDialog({
   onDone: () => void;
 }) {
   const t = useTranslations("team");
+  const ts = useTranslations("staff");
   const tc = useTranslations("common");
   const api = useApi();
   const [error, setError] = useState<string | null>(null);
 
   const isOwner = member?.role_code === "owner";
+  const isLegacyAdmin = member?.role_code === "admin";
+  const editableRoles = isLegacyAdmin
+    ? (["admin", ...STAFF_ACCESS_ROLES] as const)
+    : STAFF_ACCESS_ROLES;
 
   const [fullName, setFullName] = useState(member?.full_name ?? "");
   const [phone, setPhone] = useState(member?.phone ?? "");
   const [email, setEmail] = useState(member?.email ?? "");
   const [roleCode, setRoleCode] = useState(member?.role_code ?? "manager");
+  const [department, setDepartment] = useState<StaffDepartment>(
+    (member?.department as StaffDepartment | undefined) ??
+      defaultDepartmentForRole(member?.role_code ?? "manager"),
+  );
 
   useEffect(() => {
     if (member) {
+      const nextRole = member.role_code || "manager";
       setFullName(member.full_name || "");
       setPhone(member.phone || "");
       setEmail(member.email || "");
-      setRoleCode(member.role_code || "manager");
+      setRoleCode(nextRole);
+      setDepartment(
+        (member.department as StaffDepartment | undefined) ??
+          defaultDepartmentForRole(nextRole),
+      );
       setError(null);
     }
   }, [member]);
@@ -569,6 +643,7 @@ function EditMemberDialog({
           phone: phone.trim(),
           email: email.trim() || null,
           ...(isOwner ? {} : { role_code: roleCode }),
+          department,
         },
       }),
     onSuccess: () => {
@@ -648,17 +723,39 @@ function EditMemberDialog({
                   id="em-role"
                   name="role_code"
                   value={roleCode}
-                  onChange={(e) => setRoleCode(e.target.value)}
+                  onChange={(e) => {
+                    const nextRole = e.target.value;
+                    setRoleCode(nextRole);
+                    setDepartment((prev) => defaultDepartmentForRole(nextRole, prev));
+                  }}
                   required
                   className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                 >
-                  {CREATABLE_ROLES.map((role) => (
+                  {editableRoles.map((role) => (
                     <option key={role} value={role}>
                       {t(`role_${role}`)}
                     </option>
                   ))}
                 </select>
               )}
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="em-dept">{t("department")}</Label>
+              <select
+                id="em-dept"
+                name="department"
+                value={department}
+                onChange={(e) => setDepartment(e.target.value as StaffDepartment)}
+                required
+                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+              >
+                {STAFF_DEPARTMENTS.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {ts(`dept_${dept}`)}
+                  </option>
+                ))}
+              </select>
+              <p className="text-label text-muted-foreground">{t("deptAutoSyncHint")}</p>
             </div>
           </div>
           {error && (

@@ -130,8 +130,10 @@ async def create_staff(
     correlation_id: str | None = None,
 ) -> StaffOut:
     from app.services.auth import create_user
+    from app.services.team import enforce_team_limit
 
     hotel_id = tenant.require_hotel()
+    await enforce_team_limit(db, hotel_id, tenant)
 
     phone_norm = normalize_phone(body.phone)
     if not phone_norm:
@@ -332,6 +334,9 @@ async def update_staff(
         user.phone = phone_norm
 
     # Role change
+    from app.services.team import default_department_for_role
+
+    explicit_department = "department" in changes
     if "access_role" in changes:
         new_role = changes.pop("access_role")
         membership = await _membership_for(db, profile.hotel_id, user.id)
@@ -346,10 +351,21 @@ async def update_staff(
                 raise ValidationAppError(
                     "Cannot grant hotel owner role via staff update", code="cannot_promote_to_owner"
                 )
+            if new_role == RoleCode.ADMIN.value and current_code != RoleCode.ADMIN.value:
+                raise ValidationAppError(
+                    "Legacy admin role cannot be newly assigned", code="role_not_assignable"
+                )
             if new_role != current_code:
                 role = await _get_role(db, new_role)
                 before["access_role"] = str(membership.role_id)
                 membership.role_id = role.id
+                if not explicit_department:
+                    synced_dept = default_department_for_role(
+                        new_role, current_dept=profile.department
+                    )
+                    if profile.department != synced_dept:
+                        before["department"] = profile.department
+                        profile.department = synced_dept
 
     # Profile fields
     for key, value in changes.items():

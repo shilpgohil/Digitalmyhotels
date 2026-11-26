@@ -53,8 +53,44 @@ class TestFinancialBoundary:
 class TestTeamBoundary:
     def test_only_owner_manages_team_among_hotel_roles(self) -> None:
         assert has_permission(RoleCode.OWNER, Permission.HOTEL_MANAGE_TEAM)
-        for role in (RoleCode.MANAGER, RoleCode.ADMIN, RoleCode.HOUSEKEEPING):
+        for role in (
+            RoleCode.MANAGER,
+            RoleCode.ADMIN,
+            RoleCode.RECEPTIONIST,
+            RoleCode.HOUSEKEEPING,
+            RoleCode.GENERAL_STAFF,
+        ):
             assert not has_permission(role, Permission.HOTEL_MANAGE_TEAM), role
+
+    def test_manager_receptionist_general_staff_never_manage_upi(self) -> None:
+        for role in (
+            RoleCode.MANAGER,
+            RoleCode.RECEPTIONIST,
+            RoleCode.HOUSEKEEPING,
+            RoleCode.GENERAL_STAFF,
+        ):
+            assert not has_permission(role, Permission.HOTEL_MANAGE_UPI), role
+            assert not has_permission(role, Permission.HOTEL_VIEW_UPI_ID), role
 
     def test_super_admin_has_all_permissions(self) -> None:
         assert permissions_for_role(RoleCode.SUPER_ADMIN) == frozenset(Permission)
+
+
+class TestRoleDepartmentMapping:
+    def test_default_department_for_role_sync(self) -> None:
+        from app.schemas.staff import STAFF_ACCESS_ROLES, StaffUpdate
+        from app.services.team import default_department_for_role
+
+        assert default_department_for_role("owner") == "management"
+        assert default_department_for_role("manager") == "management"
+        assert default_department_for_role("receptionist") == "reception"
+        assert default_department_for_role("admin") == "reception"
+        assert default_department_for_role("housekeeping") == "housekeeping"
+        assert default_department_for_role("general_staff") == "other"
+        assert default_department_for_role("general_staff", "fnb") == "fnb"
+        assert default_department_for_role("general_staff", "maintenance") == "maintenance"
+        assert default_department_for_role("housekeeping", "fnb") == "housekeeping"
+
+        # New staff creation excludes legacy 'admin', while StaffUpdate accepts existing 'admin'
+        assert "admin" not in STAFF_ACCESS_ROLES
+        assert StaffUpdate(access_role="admin").access_role == "admin"

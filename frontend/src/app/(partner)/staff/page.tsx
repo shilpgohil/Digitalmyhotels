@@ -27,7 +27,7 @@ import { RequireAccessMode } from "@/components/auth/require-access-mode";
 import { useApi } from "@/lib/api/use-api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
-import { STAFF_DEPARTMENTS, type StaffListOut } from "@/types/staff";
+import { ALL_STAFF_ACCESS_ROLES, STAFF_DEPARTMENTS, type StaffListOut } from "@/types/staff";
 
 const STATUS_TONE: Record<string, "success" | "info" | "neutral"> = {
   active: "success",
@@ -128,13 +128,10 @@ function StaffListContent() {
               setRole(v);
               setPage(1);
             }}
-            select2Options={[
-              "manager",
-              "admin",
-              "receptionist",
-              "general_staff",
-              "housekeeping",
-            ].map((r) => ({ value: r, label: t(`role_${r}`) }))}
+            select2Options={ALL_STAFF_ACCESS_ROLES.filter((r) => r !== "owner").map((r) => ({
+              value: r,
+              label: t(`role_${r}`),
+            }))}
             select2Placeholder={t("allRoles")}
             select2Label={t("roleCol")}
             hasActiveFilters={!!(q || department || role || status !== "all")}

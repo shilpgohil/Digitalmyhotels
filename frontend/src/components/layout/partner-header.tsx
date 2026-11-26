@@ -171,11 +171,15 @@ export function PartnerHeader({
   action?: ReactNode;
 }) {
   const ta = useTranslations("auth");
+  const ts = useTranslations("staff");
   const tt = useTranslations("tour");
   const { user, memberships, activeHotelId, logout } = useAuth();
   const router = useRouter();
 
-  const roleName = memberships.find((m) => m.hotel_id === activeHotelId)?.role_name;
+  const activeMem = memberships.find((m) => m.hotel_id === activeHotelId);
+  const roleName = activeMem?.role_code
+    ? ts(`role_${activeMem.role_code}` as Parameters<typeof ts>[0]) || activeMem.role_name
+    : activeMem?.role_name;
 
   // Use startTourInPlace — the user is already on a partner page,
   // so the tour runs contextually without navigating away.
