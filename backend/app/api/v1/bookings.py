@@ -399,6 +399,7 @@ async def public_booking_voucher_detail(
         advance_paid=booking.advance_amount,
         balance_due=booking.due_amount,
         payment_method=booking.payment_status,
+        special_requests=booking.special_requests,
         pdf_url=f"/api/v1/bookings/public/{booking.id}/voucher/pdf",
     )
 

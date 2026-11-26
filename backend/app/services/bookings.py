@@ -1304,8 +1304,11 @@ async def render_booking_voucher_pdf(
         )
     ).scalars().all()
 
+    from app.services.payments import payment_method_label
+
     advance_paid = sum((p.amount for p in pay_rows), Decimal("0.00")) or booking.advance_amount
-    pay_methods = ", ".join(sorted({p.method.upper() for p in pay_rows})) or "CASH / UPI"
+    method_labels = sorted({payment_method_label(p.method).upper() for p in pay_rows})
+    pay_methods = ", ".join(method_labels) or "CASH / UPI"
 
     def latin1(text: str) -> str:
         _trans = str.maketrans({
@@ -1447,6 +1450,17 @@ async def render_booking_voucher_pdf(
         f"Advance Received ({pay_methods})", inr(f"{advance_paid:.2f}"), color=GOLD, bold=True
     )
     voucher_row("Balance Payable at Check-In", inr(f"{booking.due_amount:.2f}"), bold=True)
+
+    if booking.special_requests and booking.special_requests.strip():
+        pdf.ln(5)
+        pdf.set_x(14)
+        pdf.set_font("helvetica", "B", 8)
+        pdf.set_text_color(*MUTED)
+        pdf.cell(182, 4.5, "SPECIAL INSTRUCTIONS", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_x(14)
+        pdf.set_font("helvetica", "", 9)
+        pdf.set_text_color(*INK)
+        pdf.multi_cell(182, 4.8, latin1(booking.special_requests.strip()))
 
     pdf.ln(8)
 

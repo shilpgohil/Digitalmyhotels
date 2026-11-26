@@ -106,6 +106,7 @@
     "currentPassword": "Current password",
     "changePassword": "Change Password",
     "passwordChanged": "Password changed",
+    "sameAsCurrentPassword": "New password must be different from your current / temporary password",
     "idleWarning": "You will be signed out in 1 minute due to inactivity",
     "idleLoggedOut": "Signed out due to inactivity"
   },

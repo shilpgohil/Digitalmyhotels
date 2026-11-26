@@ -37,6 +37,7 @@ import { SectionPanel } from "@/components/ui/section-panel";
 import { Button } from "@/components/ui/button";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { fmtApiDate, fmtDateTime, fmtINR } from "@/lib/formatting";
+import { formatPaymentMethod } from "@/lib/format-payment-method";
 
 interface PlatformTrendItem {
   month: string;
@@ -307,8 +308,8 @@ export default function AdminDashboardPage() {
                   </td>
                   <td className="px-4 py-3 font-medium tabular-nums">{fmtINR(r.amount)}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium capitalize">
-                      {r.payment_mode ? r.payment_mode.replace("_", " ") : "UPI"}
+                    <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
+                      {r.payment_mode ? formatPaymentMethod(r.payment_mode) : "UPI"}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">

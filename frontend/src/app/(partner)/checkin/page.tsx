@@ -2410,12 +2410,17 @@ function AdditionalGuestEntry({
             />
             <Button
               type="button"
-              className="h-[42px] bg-navy-900 text-white hover:bg-navy-800 px-4"
+              className="h-[42px] bg-navy-900 text-white hover:bg-navy-800 px-4 whitespace-nowrap shrink-0"
               onClick={() => void handleSearch()}
               disabled={searching || (!searchPhone.trim() && !searchIdLast4.trim())}
+              aria-label={t("searchGuest")}
             >
-              <Search className="size-4" aria-hidden />
-              {searching ? "…" : t("searchGuest")}
+              {searching ? (
+                <Loader2 className="size-4 animate-spin shrink-0" aria-hidden />
+              ) : (
+                <Search className="size-4 shrink-0" aria-hidden />
+              )}
+              <span>{t("searchGuest")}</span>
             </Button>
           </div>
           {searchResults.length > 0 && (() => {
@@ -2845,7 +2850,7 @@ function CheckinForm({
   // ── Special requirements ──
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [serviceAmounts, setServiceAmounts] = useState<Record<string, string>>({});
-  const [specialInstructions, setSpecialInstructions] = useState("");
+  const [specialInstructions, setSpecialInstructions] = useState(booking.special_requests ?? "");
   const toggleService = (id: string) =>
     setSelectedServices((prev) =>
       prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
@@ -3209,11 +3214,12 @@ function CheckinForm({
         body: checkinBody,
       });
 
-      // 5. Add special instructions as a note (via booking patch if changed)
-      if (specialInstructions.trim()) {
+      // 5. Update special instructions if changed from the booking's existing value
+      const trimmedInstructions = specialInstructions.trim();
+      if (trimmedInstructions !== (booking.special_requests ?? "").trim()) {
         await api(`/api/v1/bookings/${booking.id}`, {
           method: "PATCH",
-          body: { special_requests: specialInstructions.trim() },
+          body: { special_requests: trimmedInstructions || null },
         });
       }
 

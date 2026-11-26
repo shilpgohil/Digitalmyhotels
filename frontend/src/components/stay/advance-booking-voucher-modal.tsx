@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { fmtApiDate, fmtINR } from "@/lib/formatting";
+import { formatPaymentMethod } from "@/lib/format-payment-method";
 import { useApi } from "@/lib/api/use-api";
 import { API_BASE } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
@@ -104,7 +105,10 @@ export function AdvanceBookingVoucherModal({
   const hotel = hotelQuery.data;
   const gstin = gstQuery.data?.gstin;
   const advancePaid = paymentInfo?.amount ?? booking.advance_amount ?? "0";
-  const payMethod = paymentInfo?.method ?? "Cash / UPI";
+  const payMethod = paymentInfo?.method
+    ? formatPaymentMethod(paymentInfo.method)
+    : "Cash / UPI";
+  const specialReq = booking.special_requests?.trim() || "";
 
   // Prevent duplicate prefix when booking_number is already formatted like "BK-0052"
   const rawNum = booking.booking_number || "";
@@ -124,6 +128,7 @@ export function AdvanceBookingVoucherModal({
       `*Check-out:* ${fmtApiDate(booking.check_out_date)}${booking.check_out_time ? ` (${booking.check_out_time})` : ""}`,
       `*Room(s):* ${roomList}`,
       `*Guests:* ${booking.adults} Adults${booking.children ? `, ${booking.children} Children` : ""}`,
+      specialReq ? `*Special Instructions:* ${specialReq}` : "",
       ``,
       `*Financial Details:*`,
       `Estimated Tariff: ₹${booking.total_amount}`,
@@ -545,6 +550,15 @@ export function AdvanceBookingVoucherModal({
               </tbody>
             </table>
           </div>
+
+          {specialReq && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-xs">
+              <p className="font-semibold uppercase tracking-wider text-muted-foreground text-micro">
+                Special Instructions
+              </p>
+              <p className="mt-1 text-foreground whitespace-pre-wrap break-words">{specialReq}</p>
+            </div>
+          )}
 
           {/* Statutory Disclosure & Signature */}
           <div className="space-y-3 sm:space-y-4 pt-1">

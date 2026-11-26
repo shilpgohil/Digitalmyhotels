@@ -403,7 +403,9 @@ function ExpensesContent() {
               <TableCell>
                 {FILTER_MODES.includes(ex.payment_method)
                   ? t(`mode_${ex.payment_method}`)
-                  : ex.payment_method}
+                  : ex.payment_method === "card"
+                    ? t("mode_card")
+                    : ex.payment_method}
               </TableCell>
               <TableCell>
                 <StatusBadge tone={TONE[ex.status] ?? "neutral"}>
@@ -445,7 +447,7 @@ function ExpensesContent() {
         </DataTable>
         {recurring.data && recurring.data.length > 0 && (
           <p className="mt-4 text-sm text-muted-foreground">
-            {t("recurring")}: {recurring.data.map((r) => `${r.name} (${FILTER_MODES.includes(r.payment_method) ? t(`mode_${r.payment_method}`) : r.payment_method || t("mode_cash")})`).join(", ")}
+            {t("recurring")}: {recurring.data.map((r) => `${r.name} (${FILTER_MODES.includes(r.payment_method) ? t(`mode_${r.payment_method}`) : r.payment_method === "card" ? t("mode_card") : r.payment_method || t("mode_cash")})`).join(", ")}
           </p>
         )}
 

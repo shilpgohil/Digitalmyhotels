@@ -40,6 +40,7 @@ interface PublicVoucherData {
   advance_paid: string;
   balance_due: string;
   payment_method?: string | null;
+  special_requests?: string | null;
   pdf_url: string;
 }
 
@@ -257,6 +258,16 @@ export default function PublicVoucherPage({
                 </p>
               </div>
             </div>
+            {data.special_requests?.trim() && (
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs">
+                <p className="font-semibold uppercase tracking-wider text-slate-400">
+                  Special Instructions
+                </p>
+                <p className="mt-1 text-slate-700 whitespace-pre-wrap break-words">
+                  {data.special_requests.trim()}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Financial summary */}

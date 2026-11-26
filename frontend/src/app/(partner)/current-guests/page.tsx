@@ -53,6 +53,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useApi } from "@/lib/api/use-api";
 import { invalidateMoney, invalidateRoomState } from "@/lib/query-invalidation";
 import { useAuth } from "@/lib/auth/auth-context";
+import { formatPaymentMethod } from "@/lib/format-payment-method";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ApiError, API_BASE, refreshAccessToken } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/session";
@@ -761,18 +762,7 @@ function StayDetailDialog({
   const latestMethod =
     payments.data?.items?.find((p) => p.status === "completed")?.method ??
     payments.data?.items?.[0]?.method;
-  const methodLabel = (m: string): string => {
-    const keys: Record<string, string> = {
-      cash: "cash",
-      upi: "upi",
-      card: "card",
-      credit_card: "creditCard",
-      debit_card: "debitCard",
-      bank_transfer: "bankTransfer",
-      other: "otherMethod",
-    };
-    return keys[m] ? tm(keys[m]) : m;
-  };
+  const methodLabel = (m: string): string => formatPaymentMethod(m, tm);
 
   const printRegistration = useCallback(() => {
     const b = booking.data;

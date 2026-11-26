@@ -83,3 +83,26 @@ def test_discount_reason_in_booking_out() -> None:
     out = BookingOut.model_validate(data)
     assert out.discount_reason == "Special manager discount"
 
+
+def test_public_voucher_includes_special_requests() -> None:
+    import uuid
+    from decimal import Decimal
+
+    from app.schemas.booking import PublicVoucherOut
+
+    out = PublicVoucherOut(
+        id=uuid.uuid4(),
+        voucher_number="VCH-BK-0050",
+        booking_number="BK-0050",
+        status="confirmed",
+        guest_name="Anant Rawat",
+        hotel_name="Hotel Demo",
+        total_estimated_tariff=Decimal("2000.00"),
+        advance_paid=Decimal("500.00"),
+        balance_due=Decimal("1500.00"),
+        special_requests="Need airport pickup at 6 AM",
+        pdf_url="/api/v1/bookings/public/00000000-0000-0000-0000-000000000001/voucher/pdf",
+    )
+    assert out.special_requests == "Need airport pickup at 6 AM"
+
+

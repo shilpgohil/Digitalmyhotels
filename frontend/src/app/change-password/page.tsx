@@ -23,8 +23,13 @@ function ChangePasswordForm() {
   const [error, setError] = useState<string | null>(null);
 
   const isFirstTimeReset = !!user?.must_reset_password;
+  const isSameAsCurrent = !!current && !!next && current === next;
 
   const submit = async () => {
+    if (isSameAsCurrent) {
+      setError(t("sameAsCurrentPassword"));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -82,15 +87,15 @@ function ChangePasswordForm() {
               autoComplete="new-password"
             />
           </div>
-          {error && (
+          {(isSameAsCurrent || error) && (
             <div className="rounded-md border border-danger/30 bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">
-              {error}
+              {isSameAsCurrent ? t("sameAsCurrentPassword") : error}
             </div>
           )}
           <Button
             className="h-[42px] w-full"
             onClick={submit}
-            disabled={!current || next.length < 8 || busy}
+            disabled={!current || next.length < 8 || isSameAsCurrent || busy}
           >
             {isFirstTimeReset ? t("setPasswordAndContinue") : t("changePassword")}
           </Button>

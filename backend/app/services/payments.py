@@ -19,6 +19,28 @@ from app.services.audit import write_audit
 from app.services.bookings import get_booking, settle_booking_amounts
 from app.services.ledger import append_entry
 
+_PAYMENT_METHOD_LABELS: dict[str, str] = {
+    "cash": "Cash",
+    "upi": "UPI",
+    "card": "Card",
+    "credit_card": "Credit Card",
+    "debit_card": "Debit Card",
+    "bank_transfer": "Net Banking",
+    "net_banking": "Net Banking",
+    "other": "Other",
+    "manual": "Other",
+}
+
+
+def payment_method_label(method: str | None) -> str:
+    """Human-readable label for a payment method code."""
+    if not method:
+        return "—"
+    key = method.strip().lower()
+    if key in _PAYMENT_METHOD_LABELS:
+        return _PAYMENT_METHOD_LABELS[key]
+    return key.replace("_", " ").title()
+
 
 def _now() -> datetime:
     return datetime.now(UTC)
@@ -387,7 +409,7 @@ async def collect_payment(
         booking_id=booking.id,
         entry_type="credit",
         amount=payment.amount,
-        description=f"Payment ({body.method}, {body.purpose})",
+        description=f"Payment ({payment_method_label(body.method)}, {body.purpose.capitalize()})",
         reference_type="payment",
         reference_id=payment.id,
         created_by_id=tenant.user_id,
@@ -576,7 +598,7 @@ async def refund_payment(
         booking_id=booking.id,
         entry_type="debit",
         amount=amount,
-        description=f"Refund ({body.method}): {body.reason}",
+        description=f"Refund ({payment_method_label(body.method)}): {body.reason}",
         reference_type="refund",
         reference_id=refund.id,
         created_by_id=tenant.user_id,

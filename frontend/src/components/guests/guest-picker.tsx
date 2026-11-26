@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, Search, UserPlus, Check } from "lucide-react";
+import { AlertTriangle, Check, Loader2, Search, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -216,13 +216,17 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
         <Button
           type="button"
           /* Client spec 09/2026: NavyBlue solid, 42px height — matches the input fields */
-          className="h-[42px] bg-navy-900 text-white hover:bg-navy-800 px-4"
+          className="h-[42px] bg-navy-900 text-white hover:bg-navy-800 px-4 whitespace-nowrap shrink-0"
           onClick={() => search.mutate()}
           disabled={search.isPending || (phone.length < 3 && last4.length !== 4)}
-          aria-label={search.isPending ? "…" : t("searchAction")}
+          aria-label={t("searchAction")}
         >
-          <Search className="size-4" aria-hidden />
-          {search.isPending ? "…" : t("searchAction")}
+          {search.isPending ? (
+            <Loader2 className="size-4 animate-spin shrink-0" aria-hidden />
+          ) : (
+            <Search className="size-4 shrink-0" aria-hidden />
+          )}
+          <span>{t("searchAction")}</span>
         </Button>
       </div>
 

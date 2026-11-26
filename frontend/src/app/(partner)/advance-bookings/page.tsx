@@ -312,7 +312,19 @@ function AdvanceBookingsContent() {
               paginate(items, page, 10).map((booking) => (
                   <TableRow key={booking.id}>
                     <TableCell className="font-medium">{booking.booking_number}</TableCell>
-                    <TableCell>{booking.primary_guest_name ?? "—"}</TableCell>
+                    <TableCell>
+                      <div>
+                        <span>{booking.primary_guest_name ?? "—"}</span>
+                        {booking.special_requests && (
+                          <p
+                            className="mt-0.5 max-w-[220px] truncate text-micro text-muted-foreground"
+                            title={booking.special_requests}
+                          >
+                            {booking.special_requests}
+                          </p>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {booking.rooms
                         .filter((r) => r.is_current)

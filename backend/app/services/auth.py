@@ -295,6 +295,11 @@ async def change_password(
         raise UnauthorizedError("Current password is incorrect", code="wrong_password")
     if len(new_password) < 8:
         raise ValidationAppError("Password must be at least 8 characters")
+    if new_password == current_password:
+        raise ValidationAppError(
+            "New password must be different from your current password",
+            code="password_reuse",
+        )
     user.password_hash = hash_password(new_password)
     user.must_reset_password = False
     # SECURITY (plan §7.3): a stolen refresh cookie must not survive a

@@ -698,13 +698,14 @@ export default function DashboardPage() {
             {dash.isLoading && <Skeleton className="h-40 w-full" />}
             {weekData.length > 0 && (
               <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={weekData} margin={{ top: 0, right: 4, left: -10, bottom: 0 }}>
+                <BarChart data={weekData} margin={{ top: 4, right: 0, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                   <XAxis dataKey="dow" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                  <YAxis tickFormatter={fmtRev} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={44} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="revenue" name="Avg Revenue" fill="#a08236" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                  <Bar dataKey="checkins" name="Avg Checkins" fill="#1e3a5f" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                  <YAxis yAxisId="rev" tickFormatter={fmtRev} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={44} />
+                  <YAxis yAxisId="cnt" orientation="right" allowDecimals={false} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={28} />
+                  <Tooltip content={<RevTooltip />} />
+                  <Bar yAxisId="rev" dataKey="revenue" name="Avg Revenue" fill="#a08236" radius={[3, 3, 0, 0]} maxBarSize={22} />
+                  <Bar yAxisId="cnt" dataKey="checkins" name="Avg Checkins" fill="#1e3a5f" radius={[3, 3, 0, 0]} maxBarSize={22} />
                 </BarChart>
               </ResponsiveContainer>
             )}

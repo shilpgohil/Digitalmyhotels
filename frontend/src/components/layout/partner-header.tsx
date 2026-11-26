@@ -193,9 +193,9 @@ export function PartnerHeader({
   };
 
   return (
-    <header className="relative shrink-0 w-full z-20 flex items-center justify-between gap-2 sm:gap-4 bg-background/95 glass-nav px-3 sm:px-4 pt-[max(0.625rem,env(safe-area-inset-top,0px))] sm:pt-2.5 pb-2.5 shadow-[0_1px_3px_rgba(16,24,40,0.04)] lg:px-6">
+    <header className="relative shrink-0 w-full z-20 flex items-center justify-between gap-2 sm:gap-4 md:grid md:grid-cols-[1fr_minmax(0,26rem)_1fr] bg-background/95 glass-nav px-3 sm:px-4 pt-[max(0.625rem,env(safe-area-inset-top,0px))] sm:pt-2.5 pb-2.5 shadow-[0_1px_3px_rgba(16,24,40,0.04)] lg:px-6">
       {/* ── 1. Left Section: Drawer + Title & Subtitle ── */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 md:flex-initial md:max-w-xs lg:max-w-sm">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 md:flex-initial">
         <MobileNavDrawer />
         <div className="min-w-0 flex-1 pr-1">
           {subtitle && (
@@ -209,13 +209,15 @@ export function PartnerHeader({
         </div>
       </div>
 
-      {/* ── 2. Center Section: Desktop / Web Search Bar (Centered) ── */}
-      <div className="hidden md:flex flex-1 items-center justify-center max-w-md mx-2 lg:mx-6">
-        <GlobalSearch variant="desktop" />
+      {/* ── 2. Center Section: Desktop / Web Search Bar (Truly Centered) ── */}
+      <div className="hidden md:flex w-full items-center justify-center">
+        <div className="w-full max-w-md">
+          <GlobalSearch variant="desktop" />
+        </div>
       </div>
 
       {/* ── 3. Right Section: Action Slot + Mobile Search Trigger + Utilities + User Menu ── */}
-      <div className="flex shrink-0 items-center gap-1.5 sm:gap-3 ml-auto">
+      <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-3 ml-auto md:ml-0">
         {action && <div className="hidden sm:block shrink-0">{action}</div>}
         <div className="md:hidden">
           <GlobalSearch variant="mobile" />

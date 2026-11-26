@@ -40,6 +40,7 @@ import type { ChargeOut, PaymentOut } from "@/types/money";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatStatus } from "@/lib/format-status";
+import { formatPaymentMethod } from "@/lib/format-payment-method";
 import {
   Dialog,
   DialogClose,
@@ -350,18 +351,7 @@ function BookingDetailSheet({
   const latestMethod =
     payments.data?.items?.find((p) => p.status === "completed")?.method ??
     payments.data?.items?.[0]?.method;
-  const methodLabel = (m: string): string => {
-    const keys: Record<string, string> = {
-      cash: "cash",
-      upi: "upi",
-      card: "card",
-      credit_card: "creditCard",
-      debit_card: "debitCard",
-      bank_transfer: "bankTransfer",
-      other: "otherMethod",
-    };
-    return keys[m] ? tm(keys[m]) : m;
-  };
+  const methodLabel = (m: string): string => formatPaymentMethod(m, tm);
 
   const advancePayments = (payments.data?.items ?? []).filter(
     (p) => p.purpose === "advance" && p.status === "completed",

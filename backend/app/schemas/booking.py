@@ -219,6 +219,7 @@ class PublicVoucherOut(BaseModel):
     advance_paid: Decimal
     balance_due: Decimal
     payment_method: str | None = None
+    special_requests: str | None = None
     pdf_url: str
 
 

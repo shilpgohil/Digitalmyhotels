@@ -93,7 +93,15 @@ async def _hotel_status_counts(db: AsyncSession) -> dict[str, int]:
         select(
             func.count().label("total"),
             func.count(
-                case((and_(Hotel.status == "active", not_(strictly_expired_cond)), one))
+                case(
+                    (
+                        and_(
+                            Hotel.status.in_(["active", "trial"]),
+                            not_(strictly_expired_cond),
+                        ),
+                        one,
+                    )
+                )
             ).label("active"),
             func.count(case((Hotel.status == "suspended", one))).label("suspended"),
             func.count(
@@ -527,7 +535,7 @@ async def list_hotels(
                 ),
                 True,
             )
-            base = base.where(and_(Hotel.status == "active", not_expired))
+            base = base.where(and_(Hotel.status.in_(["active", "trial"]), not_expired))
     elif status:
         base = base.where(Hotel.status == status)
     if q:

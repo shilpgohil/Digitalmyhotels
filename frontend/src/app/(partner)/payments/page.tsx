@@ -44,6 +44,7 @@ import { fmtINR, localToday } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatStatus } from "@/lib/format-status";
+import { formatLedgerDescription, formatPaymentMethod } from "@/lib/format-payment-method";
 import type { ListOut } from "@/types/hotel";
 import type { BookingOut } from "@/types/stay";
 import type {
@@ -405,7 +406,7 @@ function PaymentsContent() {
               )}
             </div>
             <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
-              <div className="relative flex-1 min-w-0 sm:w-72 sm:flex-initial">
+              <div className="relative flex-1 min-w-0 sm:w-80 md:w-96 sm:flex-initial">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                 <Input
                   placeholder={t("searchPlaceholder")}
@@ -486,23 +487,7 @@ function PaymentsContent() {
                         >
                           {fmtINR(row.balance)}
                         </TableCell>
-                        <TableCell>
-                          {row.mode
-                            ? t(
-                              (
-                                {
-                                  cash: "cash",
-                                  upi: "upi",
-                                  card: "card",
-                                  credit_card: "creditCard",
-                                  debit_card: "debitCard",
-                                  bank_transfer: "bankTransfer",
-                                  other: "otherMethod",
-                                } as Record<string, string>
-                              )[row.mode] ?? "otherMethod",
-                            )
-                            : "—"}
-                        </TableCell>
+                        <TableCell>{formatPaymentMethod(row.mode, t)}</TableCell>
                         <TableCell>
                           <PaymentStatusBadge status={row.payment_status} />
                         </TableCell>
@@ -626,7 +611,7 @@ function PaymentsContent() {
                     {payments.data.items.map((p) => (
                       <TableRow key={p.id}>
                         <TableCell className="tabular-nums">{fmtINR(p.amount)}</TableCell>
-                        <TableCell>{t(p.method)}</TableCell>
+                        <TableCell>{formatPaymentMethod(p.method, t)}</TableCell>
                         <TableCell>{t(`purpose_${p.purpose}`)}</TableCell>
                         <TableCell>{p.reference ?? "—"}</TableCell>
                         <TableCell>
@@ -684,7 +669,7 @@ function PaymentsContent() {
                   {ledger.data.items.map((e) => (
                     <li key={e.id} className="flex justify-between">
                       <span>
-                        {e.entry_type === "debit" ? t("debit") : t("credit")} · {e.description}
+                        {e.entry_type === "debit" ? t("debit") : t("credit")} · {formatLedgerDescription(e.description, t)}
                       </span>
                       <span className="tabular-nums">{fmtINR(e.amount)}</span>
                     </li>
