@@ -412,35 +412,37 @@ function ExpensesContent() {
                   {t(`status_${ex.status}`)}
                 </StatusBadge>
               </TableCell>
-              <TableCell className="space-x-1">
-                {ex.has_attachment && <ViewReceiptButton expenseId={ex.id} />}
-                {ex.status === "draft" && can(PERMISSIONS.expensesCreate) && (
-                  <Button size="sm" variant="outline" onClick={() => act.mutate({ id: ex.id, action: "submit" })}>
-                    {t("submit")}
-                  </Button>
-                )}
-                {ex.status === "submitted" && can(PERMISSIONS.expensesApprove) && (
-                  <>
-                    <Button size="sm" onClick={() => act.mutate({ id: ex.id, action: "approve" })}>
-                      {t("approve")}
+              <TableCell>
+                <div className="flex items-center gap-1.5 whitespace-nowrap">
+                  {ex.has_attachment && <ViewReceiptButton expenseId={ex.id} />}
+                  {ex.status === "draft" && can(PERMISSIONS.expensesCreate) && (
+                    <Button size="sm" variant="outline" onClick={() => act.mutate({ id: ex.id, action: "submit" })}>
+                      {t("submit")}
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setRejectTarget(ex.id);
-                        rejectConfirm.show();
-                      }}
-                    >
-                      {t("reject")}
+                  )}
+                  {ex.status === "submitted" && can(PERMISSIONS.expensesApprove) && (
+                    <>
+                      <Button size="sm" onClick={() => act.mutate({ id: ex.id, action: "approve" })}>
+                        {t("approve")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setRejectTarget(ex.id);
+                          rejectConfirm.show();
+                        }}
+                      >
+                        {t("reject")}
+                      </Button>
+                    </>
+                  )}
+                  {ex.status === "approved" && can(PERMISSIONS.expensesApprove) && (
+                    <Button size="sm" onClick={() => act.mutate({ id: ex.id, action: "mark-paid" })}>
+                      {t("markPaid")}
                     </Button>
-                  </>
-                )}
-                {ex.status === "approved" && can(PERMISSIONS.expensesApprove) && (
-                  <Button size="sm" onClick={() => act.mutate({ id: ex.id, action: "mark-paid" })}>
-                    {t("markPaid")}
-                  </Button>
-                )}
+                  )}
+                </div>
               </TableCell>
             </TableRow>
           ))}

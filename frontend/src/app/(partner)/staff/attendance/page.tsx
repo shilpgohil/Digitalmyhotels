@@ -16,6 +16,7 @@ import {
   LogIn,
   LogOut,
   MoreVertical,
+  Pencil,
   UserCheck,
   Users,
   UserX,
@@ -35,6 +36,10 @@ import { SegmentedChips } from "@/components/ui/segmented-chips";
 import { DataTable } from "@/components/ui/data-table";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { AttendanceStatusBadge } from "@/components/staff/attendance-status-badge";
+import {
+  CorrectAttendanceDialog,
+  type AttendanceEditTarget,
+} from "@/components/staff/correct-attendance-dialog";
 import { RecordDetailDialog } from "@/components/staff/record-detail-dialog";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { RequireAccessMode } from "@/components/auth/require-access-mode";
@@ -74,14 +79,16 @@ function TodaysAttendanceContent() {
   const api = useApi();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { activeHotelId, can } = useAuth();
+  const { activeHotelId, can, user } = useAuth();
   const canRecord = can(PERMISSIONS.staffAttendanceRecord);
+  const canCorrect = can(PERMISSIONS.staffAttendanceCorrect);
 
   const [onDate, setOnDate] = useState(localToday());
   const [department, setDepartment] = useState("");
   const [status, setStatus] = useState("all");
   // Evidence dialog (methods, GPS distance, selfie) for one record.
   const [detailRecordId, setDetailRecordId] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<AttendanceEditTarget | null>(null);
 
   const qs = [
     `on_date=${onDate}`,
@@ -221,6 +228,7 @@ function TodaysAttendanceContent() {
           onRetry={() => data.refetch()}
           isEmpty={data.data?.items.length === 0}
           emptyTitle={t("noStaff")}
+          tableClassName="min-w-[860px]"
           columns={[
             t("staffMember"),
             t("department"),
@@ -255,7 +263,7 @@ function TodaysAttendanceContent() {
                   </span>
                 </span>
               </TableCell>
-              <TableCell>{t(`dept_${row.department}`)}</TableCell>
+              <TableCell className="whitespace-nowrap">{t(`dept_${row.department}`)}</TableCell>
               <TableCell className="tabular-nums">
                 {fmtClock(row.first_check_in_at || row.check_in_at)}
               </TableCell>
@@ -320,6 +328,26 @@ function TodaysAttendanceContent() {
                         {t("recordCheckOut")}
                       </DropdownMenuItem>
                     )}
+                    {canCorrect && (!row.user_id || row.user_id !== user?.id) && (
+                      <DropdownMenuItem
+                        onClick={() =>
+                          setEditTarget({
+                            record_id: row.record_id,
+                            staff_profile_id: row.staff_profile_id,
+                            user_id: row.user_id,
+                            full_name: row.full_name,
+                            staff_code: row.staff_code,
+                            work_date: onDate,
+                            check_in_at: row.first_check_in_at || row.check_in_at,
+                            check_out_at: row.check_out_at,
+                            status: row.status,
+                          })
+                        }
+                      >
+                        <Pencil className="size-4" aria-hidden />
+                        {t("editAttendance")}
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>
@@ -353,6 +381,10 @@ function TodaysAttendanceContent() {
         <RecordDetailDialog
           recordId={detailRecordId}
           onClose={() => setDetailRecordId(null)}
+        />
+        <CorrectAttendanceDialog
+          target={editTarget}
+          onClose={() => setEditTarget(null)}
         />
       </main>
     </>

@@ -32,7 +32,8 @@
  *  7. POST /payments                   — if advance payment > 0
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -2693,13 +2694,16 @@ function CheckinForm({
     if (!booking.primary_guest_id) return;
     let cancelled = false;
     (async () => {
-      const [autofillResult, docsResult] = await Promise.allSettled([
+      const [autofillResult, docsResult, fgResult] = await Promise.allSettled([
         api<GuestAutofill>(
           `/api/v1/guests/${booking.primary_guest_id}/autofill`,
           { method: "POST" },
         ),
         api<{ id: string; side: string | null }[]>(
           `/api/v1/guests/${booking.primary_guest_id}/documents`,
+        ),
+        api<(ForeignGuestIn & { guest_id: string })[]>(
+          `/api/v1/bookings/${booking.id}/foreign-guests`,
         ),
       ]);
 
@@ -2731,12 +2735,40 @@ function CheckinForm({
         }
         setPgExistingDocs(docs);
       }
+
+      if (fgResult.status === "fulfilled" && fgResult.value.length > 0) {
+        const fg =
+          fgResult.value.find((f) => f.guest_id === booking.primary_guest_id) ??
+          fgResult.value[0];
+        if (fg) {
+          setFgEnabled(true);
+          setFgForm({
+            passport_number: fg.passport_number ?? "",
+            passport_place_of_issue: fg.passport_place_of_issue ?? "",
+            passport_expiry: fg.passport_expiry ?? "",
+            visa_number: fg.visa_number ?? "",
+            visa_type: fg.visa_type ?? "",
+            visa_place_of_issue: fg.visa_place_of_issue ?? "",
+            visa_expiry: fg.visa_expiry ?? "",
+            place_of_birth: fg.place_of_birth ?? "",
+            country_of_birth: fg.country_of_birth ?? "",
+            nationality: fg.nationality ?? "",
+            arrived_in_india_on: fg.arrived_in_india_on ?? "",
+            arrival_place: fg.arrival_place ?? "",
+            coming_from_city: fg.coming_from_city ?? "",
+            coming_from_country: fg.coming_from_country ?? "",
+            next_destination: fg.next_destination ?? "",
+            next_destination_country: fg.next_destination_country ?? "",
+            purpose_of_visit: fg.purpose_of_visit ?? "",
+          });
+        }
+      }
     })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [booking.primary_guest_id]);
+  }, [booking.id, booking.primary_guest_id]);
 
   // ── OCR autofill state (primary guest) ──
   const pgScan = useCoordinatedIdScan({
@@ -3249,7 +3281,7 @@ function CheckinForm({
   }
 
   return (
-    <div className="space-y-4 max-w-4xl mx-auto pb-12">
+    <div className="space-y-4 max-w-4xl mx-auto">
       {/* Back */}
       <button
         type="button"
@@ -3952,14 +3984,15 @@ function CheckinForm({
             </p>
           )}
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button type="button" variant="outline" onClick={onBack}>
+        <div className="flex flex-col-reverse gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={onBack}>
             {tc("cancel")}
-            </Button>
-          <div className="flex flex-wrap gap-2">
+          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <Button
               type="button"
               variant="outline"
+              className="w-full sm:w-auto"
               disabled
               title={t("availableAfterCheckin")}
             >
@@ -3970,6 +4003,7 @@ function CheckinForm({
                 (disabled:pointer-events-none) and scrolls to the unmet
                 requirement. */}
             <span
+              className="w-full sm:w-auto"
               onClick={() => {
                 if (!terms && !mutation.isPending) {
                   setError(t("requireTerms"));
@@ -3983,7 +4017,7 @@ function CheckinForm({
               <Button
                 type="button"
                 disabled={mutation.isPending || !terms}
-                className="bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
+                className="w-full sm:w-auto bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
                 onClick={() => {
                   if (fgEnabled && fgForm.passport_number.trim().length < 3) {
                     setError(t("passportRequired"));
@@ -4004,7 +4038,7 @@ function CheckinForm({
           </div>
         </div>
         {!terms && !mutation.isPending && (
-          <p className="text-right text-xs text-muted-foreground">{t("requireTerms")}</p>
+          <p className="text-center sm:text-right text-xs text-muted-foreground">{t("requireTerms")}</p>
         )}
       </div>
     </div>
@@ -6064,10 +6098,11 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             </p>
           )}
 
-        <div className="flex flex-wrap items-center justify-end gap-3">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end gap-3">
           <Button
             type="button"
             variant="outline"
+            className="w-full sm:w-auto"
             disabled={mutation.isPending || savingDraft}
             onClick={() => void saveDraft()}
           >
@@ -6078,6 +6113,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               (disabled:pointer-events-none) and scrolls to the first
               invalid section. */}
           <span
+            className="w-full sm:w-auto"
             onClick={() => {
               if (!canSubmit) validateAndSubmit();
             }}
@@ -6085,7 +6121,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
             <Button
               type="button"
               disabled={!canSubmit}
-              className="bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
+              className="w-full sm:w-auto bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
               onClick={validateAndSubmit}
             >
               <LogIn className="size-4" aria-hidden />
@@ -6094,7 +6130,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
           </span>
         </div>
         {submitHint && !mutation.isPending && (
-          <p className="text-right text-xs text-muted-foreground">{submitHint}</p>
+          <p className="text-center sm:text-right text-xs text-muted-foreground">{submitHint}</p>
         )}
       </div>
     </div>
@@ -6226,31 +6262,55 @@ function CheckinContent() {
   const tc = useTranslations("common");
   const api = useApi();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const { activeHotelId } = useAuth();
   const [selectedBooking, setSelectedBooking] = useState<BookingOut | null>(null);
   // Remount key to reset the walk-in form after a completed check-in.
   const [walkInKey, setWalkInKey] = useState(0);
+  const bookingUrlParam = searchParams.get("booking");
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(() => {
+    if (bookingUrlParam) return bookingUrlParam;
     if (typeof window === "undefined") return null;
-    // ?booking=<id> lets other pages (e.g. Advance Bookings) deep-link into
-    // the check-in form for a specific booking.
-    const fromUrl = new URLSearchParams(window.location.search).get("booking");
-    return fromUrl ?? safeGetSession(checkinSessionKey(activeHotelId));
+    return safeGetSession(checkinSessionKey(activeHotelId));
   });
 
-  // Clean ?new=1 / ?booking= from URL after reading them (prevents re-opening
-  // on back navigation). ?new=1 is a legacy link — walk-in mode is now the
-  // default view, so the param is simply ignored.
+  // Sync reactive ?booking=<id> deep-links even when CheckinContent stays mounted.
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("new") === "1" || params.get("booking")) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("new");
-      url.searchParams.delete("booking");
-      window.history.replaceState({}, "", url.toString());
+    if (bookingUrlParam) {
+      setPendingBookingId(bookingUrlParam);
     }
-  }, []); // run once on mount
+  }, [bookingUrlParam]);
+
+  // Direct booking lookup by ID so deep-linking from Advance Bookings never drops
+  // to Walk-in Check-in due to stale arrivals cache or 50-item pagination.
+  const deepLinkBooking = useQuery({
+    queryKey: ["booking", activeHotelId, pendingBookingId, "checkin-deeplink"],
+    queryFn: () => api<BookingOut>(`/api/v1/bookings/${pendingBookingId}`),
+    enabled: !!activeHotelId && !!pendingBookingId && !selectedBooking,
+    staleTime: 0,
+    retry: 1,
+  });
+
+  useEffect(() => {
+    if (!pendingBookingId) return;
+    if (deepLinkBooking.data) {
+      setSelectedBooking(deepLinkBooking.data);
+      setPendingBookingId(null);
+      safeRemoveSession(checkinSessionKey(activeHotelId));
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has("booking") || url.searchParams.has("new")) {
+          url.searchParams.delete("booking");
+          url.searchParams.delete("new");
+          window.history.replaceState({}, "", url.toString());
+        }
+      }
+    } else if (deepLinkBooking.isError) {
+      toast.error(tc("error"));
+      setPendingBookingId(null);
+      safeRemoveSession(checkinSessionKey(activeHotelId));
+    }
+  }, [pendingBookingId, deepLinkBooking.data, deepLinkBooking.isError, activeHotelId, tc]);
 
   // Confirmed bookings arriving — rendered as the compact arrivals strip.
   const bookings = useQuery({
@@ -6271,14 +6331,6 @@ function CheckinContent() {
   const defaultInTime = hotelSettings.data?.check_in_time?.slice(0, 5);
   const defaultOutTime = hotelSettings.data?.check_out_time?.slice(0, 5);
 
-  useEffect(() => {
-    if (!pendingBookingId || !bookings.data) return;
-    const match = bookings.data.items.find((b) => b.id === pendingBookingId);
-    if (match) setSelectedBooking(match);
-    setPendingBookingId(null);
-    safeRemoveSession(checkinSessionKey(activeHotelId));
-  }, [pendingBookingId, bookings.data]);
-
   // Check-in changes room state AND money (advance collected) — refresh both
   // families across every page (plan Part 6).
   const invalidate = () => {
@@ -6286,11 +6338,25 @@ function CheckinContent() {
     invalidateMoney(queryClient);
   };
 
+  if (pendingBookingId && !selectedBooking && !deepLinkBooking.isError) {
+    return (
+      <>
+        <PartnerHeader title={ts("checkinTitle")} subtitle={tn("frontDesk")} />
+        <main className="flex-1 overflow-y-auto bg-[#f5f5f0] p-4 sm:p-6">
+          <div className="mx-auto max-w-4xl space-y-4">
+            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-64 w-full rounded-xl" />
+          </div>
+        </main>
+      </>
+    );
+  }
+
   if (selectedBooking) {
     return (
       <>
         <PartnerHeader title={ts("checkinTitle")} subtitle={tn("frontDesk")} />
-        <main className="flex-1 overflow-y-auto bg-[#f5f5f0] px-4 py-6">
+        <main className="flex-1 overflow-y-auto bg-[#f5f5f0] p-4 sm:p-6">
           <CheckinForm
             booking={selectedBooking}
             onBack={() => {
@@ -6312,8 +6378,8 @@ function CheckinContent() {
   return (
     <>
       <PartnerHeader title={ts("checkinTitle")} subtitle={tn("frontDesk")} />
-      <main className="flex-1 overflow-y-auto bg-[#f5f5f0] px-4 py-6">
-        <div className="mx-auto max-w-4xl space-y-6 pb-12">
+      <main className="flex-1 overflow-y-auto bg-[#f5f5f0] p-4 sm:p-6">
+        <div className="mx-auto max-w-4xl space-y-6">
           <ArrivalsStrip
             bookings={bookings.data?.items ?? []}
             isLoading={bookings.isLoading}
@@ -6360,7 +6426,9 @@ function CheckinContent() {
 export default function CheckinPage() {
   return (
     <RequirePermission permission={PERMISSIONS.checkin}>
-      <CheckinContent />
+      <Suspense fallback={<div className="flex-1 p-4 sm:p-6"><Skeleton className="h-24 w-full rounded-xl" /></div>}>
+        <CheckinContent />
+      </Suspense>
     </RequirePermission>
   );
 }

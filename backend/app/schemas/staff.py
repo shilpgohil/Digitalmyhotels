@@ -126,6 +126,12 @@ class AttendanceCorrectionIn(BaseModel):
     note: str = Field(min_length=3, max_length=1000)
 
 
+class StaffAttendanceCorrectIn(AttendanceCorrectionIn):
+    """Correct (or create) an attendance row by staff_profile_id + work_date."""
+
+    work_date: date
+
+
 class AttendanceRecordOut(ORMModel):
     id: UUID
     staff_profile_id: UUID
@@ -153,6 +159,7 @@ class AttendanceRowOut(BaseModel):
 
     record_id: UUID | None
     staff_profile_id: UUID
+    user_id: UUID | None = None
     staff_code: str
     full_name: str
     department: str
@@ -242,6 +249,7 @@ class RecordDetailOut(BaseModel):
 
     id: UUID
     staff_profile_id: UUID
+    user_id: UUID | None = None
     staff_code: str
     full_name: str
     department: str

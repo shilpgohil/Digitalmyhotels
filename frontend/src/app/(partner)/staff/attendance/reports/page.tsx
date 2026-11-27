@@ -246,16 +246,18 @@ function ReportsContent() {
                   "—"
                 )}
               </TableCell>
-              <TableCell className="space-x-1">
-                {row.late_minutes ? (
-                  <StatusBadge tone="warning">{t("att_late")}</StatusBadge>
-                ) : null}
-                {row.early_out_minutes ? (
-                  <StatusBadge tone="info">{t("earlyOut")}</StatusBadge>
-                ) : null}
-                {row.missing_out ? (
-                  <StatusBadge tone="danger">{t("missingOut")}</StatusBadge>
-                ) : null}
+              <TableCell>
+                <div className="flex items-center gap-1.5 whitespace-nowrap">
+                  {row.late_minutes ? (
+                    <StatusBadge tone="warning">{t("att_late")}</StatusBadge>
+                  ) : null}
+                  {row.early_out_minutes ? (
+                    <StatusBadge tone="info">{t("earlyOut")}</StatusBadge>
+                  ) : null}
+                  {row.missing_out ? (
+                    <StatusBadge tone="danger">{t("missingOut")}</StatusBadge>
+                  ) : null}
+                </div>
               </TableCell>
             </TableRow>
           ))}

@@ -193,6 +193,11 @@ function HotelRow({
           )}
           {(kind === "expired" || kind === "in_grace") && (
             <>
+              {!showMeta && (
+                <div className="flex justify-center">
+                  <HotelStatusBadge hotel={hotel} />
+                </div>
+              )}
               <RenewDialog hotel={hotel} />
               {/* Custom N-day grant (client 09/2026) */}
               <ExtendDialog hotel={hotel} />

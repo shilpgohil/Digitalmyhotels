@@ -620,17 +620,19 @@ function PaymentsContent() {
                           </StatusBadge>
                         </TableCell>
                         {showActions && (
-                          <TableCell className="space-x-1 text-right">
-                            {can(PERMISSIONS.paymentsCorrect) && p.status === "completed" && (
-                              <Button size="sm" variant="outline" onClick={() => setCorrectTarget(p)}>
-                                {t("correct")}
-                              </Button>
-                            )}
-                            {can(PERMISSIONS.paymentsRefund) && p.status === "completed" && (
-                              <Button size="sm" variant="ghost" onClick={() => setRefundTarget(p)}>
-                                {t("refundAction")}
-                              </Button>
-                            )}
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                              {can(PERMISSIONS.paymentsCorrect) && p.status === "completed" && (
+                                <Button size="sm" variant="outline" onClick={() => setCorrectTarget(p)}>
+                                  {t("correct")}
+                                </Button>
+                              )}
+                              {can(PERMISSIONS.paymentsRefund) && p.status === "completed" && (
+                                <Button size="sm" variant="ghost" onClick={() => setRefundTarget(p)}>
+                                  {t("refundAction")}
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         )}
                       </TableRow>

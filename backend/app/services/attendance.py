@@ -39,6 +39,7 @@ from app.schemas.staff import (
     LeaveOut,
     RecordDetailOut,
     SelfTodayOut,
+    StaffAttendanceCorrectIn,
     TodayAttendanceOut,
     TodayStatsOut,
 )
@@ -601,29 +602,27 @@ async def front_desk_record(
     return record
 
 
-async def correct_record(
+async def _apply_correction(
     db: AsyncSession,
     tenant: TenantContext,
-    record_id: UUID,
+    hotel: Hotel,
+    record: AttendanceRecord,
+    profile: StaffProfile,
     body: AttendanceCorrectionIn,
     *,
     correlation_id: str | None = None,
 ) -> AttendanceRecord:
+    """Validate and apply an attendance edit. Strictly forbids self-editing."""
     hotel_id = tenant.require_hotel()
-    record = (
-        await db.execute(
-            select(AttendanceRecord).where(
-                AttendanceRecord.id == record_id, AttendanceRecord.hotel_id == hotel_id
-            )
+    if profile.user_id == tenant.user_id:
+        raise ForbiddenError(
+            "You cannot edit your own attendance record",
+            code="cannot_edit_own_attendance",
         )
-    ).scalar_one_or_none()
-    if record is None:
-        raise NotFoundError("Attendance record not found")
-    if (
-        body.check_in_at is not None
-        and body.check_out_at is not None
-        and body.check_out_at <= body.check_in_at
-    ):
+
+    eff_in = body.check_in_at if body.check_in_at is not None else record.check_in_at
+    eff_out = body.check_out_at if body.check_out_at is not None else record.check_out_at
+    if eff_in is not None and eff_out is not None and eff_out <= eff_in:
         raise ValidationAppError("Check-out must be after check-in")
 
     before = {
@@ -631,16 +630,25 @@ async def correct_record(
         "check_out_at": str(record.check_out_at),
         "status": record.status,
     }
+    tz = hotel_tz(hotel)
     prev_accumulated = record.accumulated_minutes or 0
     prev_out = record.check_out_at
     if body.check_in_at is not None:
         record.check_in_at = body.check_in_at
-        if record.first_check_in_at is None:
+        if record.first_check_in_at is None or prev_accumulated == 0:
             record.first_check_in_at = body.check_in_at
         record.method_in = "manual"
+        if prev_accumulated == 0:
+            late = _late_minutes(
+                profile, body.check_in_at.astimezone(tz), hotel.attendance_grace_minutes
+            )
+            record.late_minutes = late
+            if body.status is None:
+                record.status = "late" if late else "present"
     if body.check_out_at is not None:
         record.check_out_at = body.check_out_at
         record.method_out = "manual"
+        record.early_out_minutes = _early_out_minutes(profile, body.check_out_at.astimezone(tz))
     if record.check_in_at is not None and record.check_out_at is not None:
         if prev_accumulated > 0 and body.check_in_at is None:
             if prev_out is not None:
@@ -669,6 +677,7 @@ async def correct_record(
         hotel_id=hotel_id,
         before=before,
         after={
+            "staff_code": profile.staff_code,
             "check_in_at": str(record.check_in_at),
             "check_out_at": str(record.check_out_at),
             "status": record.status,
@@ -677,6 +686,60 @@ async def correct_record(
         correlation_id=correlation_id,
     )
     return record
+
+
+async def correct_record(
+    db: AsyncSession,
+    tenant: TenantContext,
+    record_id: UUID,
+    body: AttendanceCorrectionIn,
+    *,
+    correlation_id: str | None = None,
+) -> AttendanceRecord:
+    hotel = await _hotel(db, tenant)
+    hotel_id = tenant.require_hotel()
+    record = (
+        await db.execute(
+            select(AttendanceRecord).where(
+                AttendanceRecord.id == record_id, AttendanceRecord.hotel_id == hotel_id
+            )
+        )
+    ).scalar_one_or_none()
+    if record is None:
+        raise NotFoundError("Attendance record not found")
+    profile = await get_profile(db, tenant, record.staff_profile_id)
+    return await _apply_correction(
+        db, tenant, hotel, record, profile, body, correlation_id=correlation_id
+    )
+
+
+async def correct_staff_attendance(
+    db: AsyncSession,
+    tenant: TenantContext,
+    staff_id: UUID,
+    body: StaffAttendanceCorrectIn,
+    *,
+    correlation_id: str | None = None,
+) -> AttendanceRecord:
+    """Correct or create an attendance record for a staff member on work_date."""
+    hotel = await _hotel(db, tenant)
+    profile = await get_profile(db, tenant, staff_id)
+    record = await _record_for(db, profile, body.work_date)
+    if record is None:
+        if profile.user_id == tenant.user_id:
+            raise ForbiddenError(
+                "You cannot edit your own attendance record",
+                code="cannot_edit_own_attendance",
+            )
+        record = AttendanceRecord(
+            hotel_id=hotel.id,
+            staff_profile_id=profile.id,
+            work_date=body.work_date,
+        )
+        db.add(record)
+    return await _apply_correction(
+        db, tenant, hotel, record, profile, body, correlation_id=correlation_id
+    )
 
 
 # ── Views: today / history / calendar / anomalies ────────────────────────────
@@ -820,6 +883,7 @@ async def today_attendance(
             AttendanceRowOut(
                 record_id=rec.id if rec else None,
                 staff_profile_id=profile.id,
+                user_id=profile.user_id,
                 staff_code=profile.staff_code,
                 full_name=user.full_name,
                 department=profile.department,
@@ -895,6 +959,7 @@ async def history(
         AttendanceRowOut(
             record_id=rec.id,
             staff_profile_id=profile.id,
+            user_id=profile.user_id,
             staff_code=profile.staff_code,
             full_name=user.full_name,
             department=profile.department,
@@ -1199,6 +1264,7 @@ async def record_detail(
     return RecordDetailOut(
         id=rec.id,
         staff_profile_id=profile.id,
+        user_id=profile.user_id,
         staff_code=profile.staff_code,
         full_name=user.full_name,
         department=profile.department,

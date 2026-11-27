@@ -65,6 +65,7 @@ class Permission(StrEnum):
     STAFF_ATTENDANCE_VIEW = "staff.attendance_view"
     STAFF_ATTENDANCE_RECORD = "staff.attendance_record"
     STAFF_ATTENDANCE_CORRECT = "staff.attendance_correct"
+    STAFF_LEAVES_DECIDE = "staff.leaves_decide"
 
 
 class RoleCode(StrEnum):
@@ -122,6 +123,7 @@ ROLE_PERMISSIONS: dict[RoleCode, frozenset[Permission]] = {
             Permission.STAFF_ATTENDANCE_VIEW,
             Permission.STAFF_ATTENDANCE_RECORD,
             Permission.STAFF_ATTENDANCE_CORRECT,
+            Permission.STAFF_LEAVES_DECIDE,
         }
     ),
     RoleCode.MANAGER: frozenset(
@@ -166,6 +168,7 @@ ROLE_PERMISSIONS: dict[RoleCode, frozenset[Permission]] = {
             Permission.STAFF_ATTENDANCE_VIEW,
             Permission.STAFF_ATTENDANCE_RECORD,
             Permission.STAFF_ATTENDANCE_CORRECT,
+            Permission.STAFF_LEAVES_DECIDE,
         }
     ),
     RoleCode.ADMIN: frozenset(
@@ -200,6 +203,7 @@ ROLE_PERMISSIONS: dict[RoleCode, frozenset[Permission]] = {
             Permission.STAFF_ATTENDANCE_SELF,
             Permission.STAFF_ATTENDANCE_VIEW,
             Permission.STAFF_ATTENDANCE_RECORD,
+            Permission.STAFF_ATTENDANCE_CORRECT,
         }
     ),
     RoleCode.HOUSEKEEPING: frozenset(
@@ -238,6 +242,7 @@ ROLE_PERMISSIONS: dict[RoleCode, frozenset[Permission]] = {
             Permission.STAFF_ATTENDANCE_SELF,
             Permission.STAFF_ATTENDANCE_VIEW,
             Permission.STAFF_ATTENDANCE_RECORD,
+            Permission.STAFF_ATTENDANCE_CORRECT,
         }
     ),
     # Housekeeping/restaurant workers (access tier 3): own attendance only.

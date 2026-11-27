@@ -119,6 +119,30 @@ class TestTeamBoundary:
         assert permissions_for_role(RoleCode.SUPER_ADMIN) == frozenset(Permission)
 
 
+class TestAttendanceCorrectionBoundary:
+    def test_owner_manager_admin_receptionist_can_correct_attendance(self) -> None:
+        for role in (
+            RoleCode.OWNER,
+            RoleCode.MANAGER,
+            RoleCode.ADMIN,
+            RoleCode.RECEPTIONIST,
+        ):
+            assert has_permission(role, Permission.STAFF_ATTENDANCE_CORRECT), role
+        for role in (RoleCode.HOUSEKEEPING, RoleCode.GENERAL_STAFF):
+            assert not has_permission(role, Permission.STAFF_ATTENDANCE_CORRECT), role
+
+    def test_only_owner_and_manager_decide_leaves_among_hotel_roles(self) -> None:
+        assert has_permission(RoleCode.OWNER, Permission.STAFF_LEAVES_DECIDE)
+        assert has_permission(RoleCode.MANAGER, Permission.STAFF_LEAVES_DECIDE)
+        for role in (
+            RoleCode.ADMIN,
+            RoleCode.RECEPTIONIST,
+            RoleCode.HOUSEKEEPING,
+            RoleCode.GENERAL_STAFF,
+        ):
+            assert not has_permission(role, Permission.STAFF_LEAVES_DECIDE), role
+
+
 class TestRoleDepartmentMapping:
     def test_default_department_for_role_sync(self) -> None:
         from app.schemas.staff import STAFF_ACCESS_ROLES, StaffUpdate

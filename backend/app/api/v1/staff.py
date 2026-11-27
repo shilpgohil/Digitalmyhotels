@@ -29,6 +29,7 @@ from app.schemas.staff import (
     LeaveOut,
     RecordDetailOut,
     SelfTodayOut,
+    StaffAttendanceCorrectIn,
     StaffCreate,
     StaffListOut,
     StaffOut,
@@ -298,6 +299,20 @@ async def correct_attendance(
     return AttendanceRecordOut.model_validate(record)
 
 
+@router.post("/{staff_id}/attendance/correct", response_model=AttendanceRecordOut)
+async def correct_staff_attendance(
+    staff_id: UUID,
+    body: StaffAttendanceCorrectIn,
+    request: Request,
+    tenant: TenantContext = Depends(require_permissions(Permission.STAFF_ATTENDANCE_CORRECT)),
+    db: AsyncSession = Depends(get_db),
+) -> AttendanceRecordOut:
+    record = await attendance_service.correct_staff_attendance(
+        db, tenant, staff_id, body, correlation_id=_correlation(request)
+    )
+    return AttendanceRecordOut.model_validate(record)
+
+
 # ── Leave management (phase 2) ───────────────────────────────────────────────
 
 
@@ -338,7 +353,7 @@ async def decide_leave(
     leave_id: UUID,
     body: LeaveDecisionIn,
     request: Request,
-    tenant: TenantContext = Depends(require_permissions(Permission.STAFF_ATTENDANCE_CORRECT)),
+    tenant: TenantContext = Depends(require_permissions(Permission.STAFF_LEAVES_DECIDE)),
     db: AsyncSession = Depends(get_db),
 ) -> LeaveOut:
     leave = await attendance_service.decide_leave(

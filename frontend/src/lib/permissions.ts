@@ -54,6 +54,7 @@ export const PERMISSIONS = {
   staffAttendanceView: "staff.attendance_view",
   staffAttendanceRecord: "staff.attendance_record",
   staffAttendanceCorrect: "staff.attendance_correct",
+  staffLeavesDecide: "staff.leaves_decide",
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

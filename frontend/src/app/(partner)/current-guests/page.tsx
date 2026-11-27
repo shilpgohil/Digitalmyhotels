@@ -300,21 +300,6 @@ function CurrentGuestsContent() {
       pdfUrl: getAbsolutePublicUrl(`/stay-slip/${entry.booking_id}`),
     });
 
-    // Download the PDF locally on desktop (mobile browsers immediately navigate to wa.me).
-    const isMobile =
-      typeof navigator !== "undefined" &&
-      /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (!isMobile) {
-      void fetchStaySlipPdfBlob(entry.booking_id).then((blob) => {
-        if (!blob) return;
-        const guestClean = (entry.primary_guest_name || "Guest")
-          .replace(/[^\w\s-]/g, "")
-          .trim()
-          .replace(/\s+/g, "_");
-        downloadPdfBlob(blob, `Stay_Slip_${entry.booking_number}_${guestClean}.pdf`);
-      });
-    }
-
     if (normalizeWhatsAppPhone(entry.primary_guest_phone)) {
       openWhatsAppToCustomer(entry.primary_guest_phone, message);
       toast.success(
@@ -1290,6 +1275,12 @@ function RegisteredGuestCard({
                   <dd className="font-medium">{foreignGuest.visa_type}</dd>
                 </div>
               )}
+              {foreignGuest.visa_place_of_issue && (
+                <div>
+                  <dt className="text-muted-foreground">{tck("visaPlaceOfIssue")}</dt>
+                  <dd className="font-medium">{foreignGuest.visa_place_of_issue}</dd>
+                </div>
+              )}
               {foreignGuest.visa_expiry && (
                 <div>
                   <dt className="text-muted-foreground">{tck("visaExpiry")}</dt>
@@ -1326,20 +1317,34 @@ function RegisteredGuestCard({
                   <dd className="font-medium">{foreignGuest.arrival_place}</dd>
                 </div>
               )}
-              {(foreignGuest.coming_from_city || foreignGuest.coming_from_country) && (
+              {foreignGuest.coming_from_city && (
                 <div>
                   <dt className="text-muted-foreground">{tck("comingFromCity")}</dt>
-                  <dd className="font-medium">
-                    {[foreignGuest.coming_from_city, foreignGuest.coming_from_country].filter(Boolean).join(", ")}
-                  </dd>
+                  <dd className="font-medium">{foreignGuest.coming_from_city}</dd>
                 </div>
               )}
-              {(foreignGuest.next_destination || foreignGuest.next_destination_country) && (
+              {foreignGuest.coming_from_country && (
+                <div>
+                  <dt className="text-muted-foreground">{tck("comingFromCountry")}</dt>
+                  <dd className="font-medium">{foreignGuest.coming_from_country}</dd>
+                </div>
+              )}
+              {foreignGuest.next_destination && (
                 <div>
                   <dt className="text-muted-foreground">{tck("nextDestination")}</dt>
-                  <dd className="font-medium">
-                    {[foreignGuest.next_destination, foreignGuest.next_destination_country].filter(Boolean).join(", ")}
-                  </dd>
+                  <dd className="font-medium">{foreignGuest.next_destination}</dd>
+                </div>
+              )}
+              {foreignGuest.next_destination_country && (
+                <div>
+                  <dt className="text-muted-foreground">{tck("nextDestinationCountry")}</dt>
+                  <dd className="font-medium">{foreignGuest.next_destination_country}</dd>
+                </div>
+              )}
+              {foreignGuest.purpose_of_visit && (
+                <div className="sm:col-span-2">
+                  <dt className="text-muted-foreground">{tb("purposeOfVisit")}</dt>
+                  <dd className="font-medium">{foreignGuest.purpose_of_visit}</dd>
                 </div>
               )}
             </dl>

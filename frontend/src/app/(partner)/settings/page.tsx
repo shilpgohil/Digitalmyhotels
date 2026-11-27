@@ -524,19 +524,19 @@ function NotificationSoundCard() {
   return (
     <div className="max-w-2xl rounded-lg border bg-card p-6 shadow-xs">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
+        <div className="space-y-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
             {soundEnabled ? (
-              <Volume2 className="size-5 text-gold-600 dark:text-gold-400" aria-hidden />
+              <Volume2 className="size-5 shrink-0 text-gold-600 dark:text-gold-400" aria-hidden />
             ) : (
-              <VolumeX className="size-5 text-muted-foreground" aria-hidden />
+              <VolumeX className="size-5 shrink-0 text-muted-foreground" aria-hidden />
             )}
             <h3 className="text-base font-semibold tracking-tight text-foreground">
               {tNotif("notificationSoundTitle")}
             </h3>
             <span
               className={cn(
-                "inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium border",
+                "inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-micro font-medium border",
                 soundEnabled
                   ? "bg-gold-50 text-gold-800 border-gold-300 dark:bg-gold-950/40 dark:text-gold-300 dark:border-gold-800"
                   : "bg-muted text-muted-foreground border-border",
@@ -550,7 +550,7 @@ function NotificationSoundCard() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
           <Button
             type="button"
             variant="outline"
@@ -644,9 +644,9 @@ function BrowserNotificationSettingsCard() {
   return (
     <div className="max-w-2xl rounded-lg border bg-card p-6 shadow-xs space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Bell className="size-5 text-gold-600 dark:text-gold-400" aria-hidden />
+        <div className="space-y-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Bell className="size-5 shrink-0 text-gold-600 dark:text-gold-400" aria-hidden />
             <h3 className="text-base font-semibold tracking-tight text-foreground">
               {tNotif("browserNotificationsTitle")}
             </h3>
@@ -657,7 +657,7 @@ function BrowserNotificationSettingsCard() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
           {isSupported && permission === "default" && (
             <Button
               type="button"

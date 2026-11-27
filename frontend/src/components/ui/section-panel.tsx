@@ -44,7 +44,7 @@ export function SectionPanel({
   return (
     <div className={cn("rounded-xl bg-card overflow-hidden transition-shadow duration-200", "shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)]", className)}>
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
         <div className="flex items-center gap-3 min-w-0">
           {Icon && (
             <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-gold-50">
@@ -59,7 +59,7 @@ export function SectionPanel({
           </div>
         </div>
         {action && (
-          <div className="shrink-0">{action}</div>
+          <div className="max-w-full min-w-0">{action}</div>
         )}
       </div>
 

@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { Download } from "lucide-react";
+import { Download, Pencil } from "lucide-react";
 import { PartnerHeader } from "@/components/layout/partner-header";
 import { Button } from "@/components/ui/button";
 import { FilterBar } from "@/components/ui/filter-bar";
@@ -14,6 +14,10 @@ import { DataTable } from "@/components/ui/data-table";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { PaginationFooter, paginate } from "@/components/ui/pagination-footer";
 import { AttendanceStatusBadge } from "@/components/staff/attendance-status-badge";
+import {
+  CorrectAttendanceDialog,
+  type AttendanceEditTarget,
+} from "@/components/staff/correct-attendance-dialog";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { RequireAccessMode } from "@/components/auth/require-access-mode";
 import { useApi } from "@/lib/api/use-api";
@@ -43,8 +47,10 @@ function monthAgo(): string {
 function HistoryContent() {
   const t = useTranslations("staff");
   const tn = useTranslations("nav");
+  const tc = useTranslations("common");
   const api = useApi();
-  const { activeHotelId } = useAuth();
+  const { activeHotelId, can, user } = useAuth();
+  const canCorrect = can(PERMISSIONS.staffAttendanceCorrect);
 
   const [fromDate, setFromDate] = useState(monthAgo());
   const [toDate, setToDate] = useState(localToday());
@@ -54,6 +60,7 @@ function HistoryContent() {
   const searchParams = useSearchParams();
   const [q, setQ] = useState(searchParams.get("q") ?? "");
   const [page, setPage] = useState(1);
+  const [editTarget, setEditTarget] = useState<AttendanceEditTarget | null>(null);
 
   const qs = [
     `from_date=${fromDate}`,
@@ -156,6 +163,7 @@ function HistoryContent() {
           onRetry={() => history.refetch()}
           isEmpty={history.data?.items.length === 0}
           emptyTitle={t("noAttendanceYet")}
+          tableClassName="min-w-[880px]"
           columns={[
             t("dateCol"),
             t("staffMember"),
@@ -164,6 +172,7 @@ function HistoryContent() {
             t("checkOutCol"),
             t("workingHours"),
             t("statusCol"),
+            ...(canCorrect ? [tc("actions")] : []),
           ]}
         >
           {paginate(history.data?.items ?? [], page, 15).map((row) => {
@@ -171,14 +180,15 @@ function HistoryContent() {
               100,
               Math.round(((row.working_minutes ?? 0) / maxMinutes) * 100),
             );
+            const isSelf = Boolean(row.user_id && user?.id && row.user_id === user.id);
             return (
               <TableRow key={`${row.staff_profile_id}-${row.work_date}`}>
-                <TableCell>{fmtApiDate(row.work_date)}</TableCell>
+                <TableCell className="whitespace-nowrap">{fmtApiDate(row.work_date)}</TableCell>
                 <TableCell>
                   <span className="font-medium">{row.full_name}</span>{" "}
                   <span className="text-label text-muted-foreground">{row.staff_code}</span>
                 </TableCell>
-                <TableCell>{t(`dept_${row.department}`)}</TableCell>
+                <TableCell className="whitespace-nowrap">{t(`dept_${row.department}`)}</TableCell>
                 <TableCell
                   className={cn("tabular-nums", row.late_minutes && "font-semibold text-warning")}
                 >
@@ -203,6 +213,35 @@ function HistoryContent() {
                 <TableCell>
                   <AttendanceStatusBadge status={row.status} />
                 </TableCell>
+                {canCorrect && (
+                  <TableCell>
+                    {isSelf ? (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="whitespace-nowrap"
+                        onClick={() =>
+                          setEditTarget({
+                            record_id: row.record_id,
+                            staff_profile_id: row.staff_profile_id,
+                            user_id: row.user_id,
+                            full_name: row.full_name,
+                            staff_code: row.staff_code,
+                            work_date: row.work_date,
+                            check_in_at: row.first_check_in_at || row.check_in_at,
+                            check_out_at: row.check_out_at,
+                            status: row.status,
+                          })
+                        }
+                      >
+                        <Pencil className="mr-1 size-3.5" aria-hidden />
+                        {tc("edit")}
+                      </Button>
+                    )}
+                  </TableCell>
+                )}
               </TableRow>
             );
           })}
@@ -215,6 +254,10 @@ function HistoryContent() {
             onPageChange={setPage}
           />
         )}
+        <CorrectAttendanceDialog
+          target={editTarget}
+          onClose={() => setEditTarget(null)}
+        />
       </main>
     </>
   );

@@ -329,6 +329,7 @@ function ReportsContent() {
             emptyTitle={t("noRoomUtilization")}
             emptySubtitle="Data appears once bookings are made in the selected period."
             className="rounded-none border-0"
+            tableClassName="min-w-[680px]"
             columns={[
               t("colRoomNo"),
               t("colRoomType"),
@@ -343,8 +344,8 @@ function ReportsContent() {
                 paginate(roomUtil.data.items, roomUtilPage, TABLE_PAGE_SIZE).map((row) => (
                   <TableRow key={row.room_number}>
                     <TableCell className="font-medium whitespace-nowrap">{row.room_number}</TableCell>
-                    <TableCell>{row.room_type_name}</TableCell>
-                    <TableCell>{row.floor ?? "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap">{row.room_type_name}</TableCell>
+                    <TableCell className="whitespace-nowrap">{row.floor ?? "—"}</TableCell>
                     <TableCell className="tabular-nums">{row.occupied_nights}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -357,7 +358,7 @@ function ReportsContent() {
                         <span className="tabular-nums text-sm whitespace-nowrap">{row.occupancy_percent}%</span>
                       </div>
                     </TableCell>
-                    <TableCell className="tabular-nums font-medium">{fmtINR(row.revenue)}</TableCell>
+                    <TableCell className="tabular-nums font-medium whitespace-nowrap">{fmtINR(row.revenue)}</TableCell>
                   </TableRow>
                 ))}
           </DataTable>
@@ -406,6 +407,7 @@ function ReportsContent() {
               emptyTitle={t("noGstRows")}
               emptySubtitle="GST appears once invoices are generated for this period."
               className="rounded-none border-0"
+              tableClassName="min-w-[820px]"
               columns={[
                 t("colBooking"),
                 t("colGuest"),

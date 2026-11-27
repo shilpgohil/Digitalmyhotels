@@ -76,19 +76,17 @@ export function openWhatsAppToCustomer(
     ? `https://wa.me/${cleanPhone}?text=${encodedText}`
     : `https://wa.me/?text=${encodedText}`;
 
-  // Check if running on a touch/mobile device
-  const isMobile =
-    typeof navigator !== "undefined" &&
-    (/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-      (navigator.maxTouchPoints && navigator.maxTouchPoints > 1));
-
-  if (isMobile) {
-    // On mobile devices: direct window location navigation cleanly triggers iOS Universal Links
-    // or Android App Links directly into the native WhatsApp app without leaving an empty browser tab
-    window.location.href = targetUrl;
-  } else {
-    // On desktop: open in a new tab so the hotel management dashboard remains active
-    window.open(targetUrl, "_blank", "noopener,noreferrer");
+  // Open WhatsApp in a new tab across desktop & mobile so the active hotel
+  // screen stays intact (fall back to same-tab navigation only if blocked).
+  const opened = window.open(targetUrl, "_blank", "noopener,noreferrer");
+  if (!opened) {
+    const isMobile =
+      typeof navigator !== "undefined" &&
+      (/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+        (navigator.maxTouchPoints && navigator.maxTouchPoints > 1));
+    if (isMobile) {
+      window.location.href = targetUrl;
+    }
   }
 
   return { success: !!cleanPhone, cleanPhone };

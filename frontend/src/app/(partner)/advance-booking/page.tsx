@@ -572,9 +572,9 @@ function AdvanceBookingContent() {
   return (
     <>
       <PartnerHeader title="Advance Booking" subtitle="Front Desk" />
-      <main className="flex-1 overflow-y-auto bg-[#f5f5f0] px-4 py-6">
+      <main className="flex-1 overflow-y-auto bg-[#f5f5f0] p-4 sm:p-6">
         <form
-          className="mx-auto max-w-4xl space-y-4 pb-12"
+          className="mx-auto max-w-4xl space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
             if (!guest?.id || selectedRooms.length === 0) {
@@ -1195,7 +1195,7 @@ function AdvanceBookingContent() {
                     id="ab-mode"
                     value={paymentMode}
                     onChange={(e) => setPaymentMode(e.target.value)}
-                    className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                    className="h-[42px] w-full rounded-lg border border-input bg-background px-2.5 text-sm"
                     disabled={(parseFloat(advanceAmount) || 0) === 0}
                   >
                     <option value="cash">{t("paymentCash")}</option>
@@ -1258,19 +1258,20 @@ function AdvanceBookingContent() {
           )}
 
           {/* ── Actions ────────────────────────────────────────────────── */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white px-4 py-4 sm:px-5 shadow-sm">
+          <div className="flex flex-col-reverse gap-3 rounded-xl border bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 shadow-sm">
             <Button
               type="button"
               variant="outline"
               disabled={mutation.isPending}
               onClick={() => router.push("/advance-bookings")}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={!canSubmit}
-              className="bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
+              className="w-full sm:w-auto bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
             >
               <CalendarPlus className="size-4" aria-hidden />
               {mutation.isPending ? "Saving…" : "Add Advance Booking"}

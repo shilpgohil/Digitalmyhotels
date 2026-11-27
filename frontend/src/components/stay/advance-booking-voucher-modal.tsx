@@ -178,30 +178,6 @@ export function AdvanceBookingVoucherModal({
   };
 
   const handleWhatsApp = () => {
-    // 1. Trigger download in background without blocking user gesture
-    void (async () => {
-      try {
-        const token = getAccessToken();
-        const res = await fetch(`${API_BASE}/api/v1/bookings/${booking.id}/voucher/pdf`, {
-          headers: {
-            Authorization: token ? `Bearer ${token}` : "",
-            "X-Hotel-Id": activeHotelId ?? "",
-          },
-          credentials: "include",
-        });
-        if (res.ok) {
-          const blob = await res.blob();
-          const guestClean = (booking.primary_guest_name || "Guest")
-            .replace(/[^\w\s-]/g, "")
-            .trim()
-            .replace(/\s+/g, "_");
-          downloadPdfBlob(blob, `Booking_Voucher_${voucherRef}_${guestClean}.pdf`);
-        }
-      } catch {
-        // Continue even if background download fails
-      }
-    })();
-
     const hotelAddr = hotel
       ? [hotel.address_line1, hotel.city, hotel.state].filter(Boolean).join(", ")
       : "";
@@ -244,7 +220,7 @@ export function AdvanceBookingVoucherModal({
     if (normalizeWhatsAppPhone(booking.primary_guest_phone)) {
       openWhatsAppToCustomer(booking.primary_guest_phone, message);
       toast.success(
-        `Voucher PDF downloaded & WhatsApp opened for ${booking.primary_guest_name || booking.primary_guest_phone}!`,
+        `WhatsApp opened for ${booking.primary_guest_name || booking.primary_guest_phone}!`,
       );
     } else {
       setWaDialogState({

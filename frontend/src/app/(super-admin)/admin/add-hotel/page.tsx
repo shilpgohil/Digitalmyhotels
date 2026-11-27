@@ -191,7 +191,7 @@ function AdditionalMemberRow({
         <button
           type="button"
           onClick={() => onRemove(idx)}
-          className="size-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
+          className="size-7 inline-flex items-center justify-center rounded-md text-danger hover:text-danger hover:bg-danger/10 transition-colors"
           aria-label="Remove member"
         >
           <Trash2 className="size-4" aria-hidden />
@@ -896,7 +896,7 @@ export default function AddHotelPage() {
                 <button
                   type="button"
                   onClick={() => { setLogoFile(null); setLogoPreview(null); }}
-                  className="ml-2 text-xs text-muted-foreground hover:text-danger"
+                  className="ml-2 text-xs font-medium text-danger hover:text-danger/80"
                 >
                   {tc("delete")}
                 </button>
@@ -1262,7 +1262,7 @@ export default function AddHotelPage() {
                   <button
                     type="button"
                     onClick={() => removeTypeEntry(entry.key)}
-                    className="size-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
+                    className="size-7 inline-flex items-center justify-center rounded-md text-danger hover:text-danger hover:bg-danger/10 transition-colors"
                     aria-label={te("deleteRoomType")}
                   >
                     <Trash2 className="size-4" aria-hidden />
@@ -1350,7 +1350,7 @@ export default function AddHotelPage() {
                   <button
                     type="button"
                     onClick={() => removeRoomEntry(entry.key)}
-                    className="size-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
+                    className="size-7 inline-flex items-center justify-center rounded-md text-danger hover:text-danger hover:bg-danger/10 transition-colors"
                     aria-label={te("removeRoom")}
                   >
                     <Trash2 className="size-4" aria-hidden />
@@ -1469,7 +1469,7 @@ export default function AddHotelPage() {
                 <button
                   type="button"
                   onClick={() => removeService(idx)}
-                  className="size-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
+                  className="size-7 inline-flex items-center justify-center rounded-md text-danger hover:text-danger hover:bg-danger/10 transition-colors"
                   aria-label="Remove"
                 >
                   <Trash2 className="size-4" aria-hidden />

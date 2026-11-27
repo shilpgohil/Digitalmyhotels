@@ -51,13 +51,6 @@ import type { InvoiceOut } from "@/types/money";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { PERMISSIONS } from "@/lib/permissions";
 
-/** Build a wa.me phone: strip non-digits and ensure the 91 country prefix. */
-function waPhone(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length === 10) return `91${digits}`;
-  return digits;
-}
-
 function InvoicesContent() {
   const t = useTranslations("invoices");
   const tp = useTranslations("invoicePreview");
@@ -195,30 +188,6 @@ function InvoicesContent() {
     if (!invoice) return;
     const phone = guestPhone;
 
-    // Trigger local PDF download asynchronously without blocking the user gesture
-    void (async () => {
-      try {
-        const token = getAccessToken();
-        const res = await fetch(`${API_BASE}/api/v1/invoices/${invoice.id}/pdf`, {
-          headers: {
-            Authorization: token ? `Bearer ${token}` : "",
-            "X-Hotel-Id": activeHotelId ?? "",
-          },
-          credentials: "include",
-        });
-        if (res.ok) {
-          const blob = await res.blob();
-          const guestClean = (invoice.guest_name || "Guest")
-            .replace(/[^\w\s-]/g, "")
-            .trim()
-            .replace(/\s+/g, "_");
-          downloadPdfBlob(blob, `Invoice_${invoice.invoice_number}_${guestClean}.pdf`);
-        }
-      } catch {
-        // Continue even if direct background PDF download fails
-      }
-    })();
-
     const roomNumbers =
       booking.data?.rooms
         ?.filter((r) => r.is_current)
@@ -262,7 +231,7 @@ function InvoicesContent() {
     if (normalizeWhatsAppPhone(phone)) {
       openWhatsAppToCustomer(phone, message);
       toast.success(
-        `Invoice PDF downloaded & WhatsApp opened for ${invoice.guest_name || phone}!`,
+        `WhatsApp opened for ${invoice.guest_name || phone}!`,
       );
     } else {
       setWaDialogState({
@@ -436,7 +405,7 @@ function InvoicesContent() {
             <EmptyState icon={FileText} title={t("noInvoices")} subtitle={t("noInvoicesHint")} />
           )}
           {invoices.data && invoices.data.items.length > 0 && (
-            <Table>
+            <Table className="min-w-[820px]">
               <TableHeader>
                 <TableRow>
                   {/* Booking No. alongside Invoice No. so staff can correlate
@@ -477,38 +446,40 @@ function InvoicesContent() {
                         </p>
                       )}
                     </TableCell>
-                    <TableCell className="space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedId(inv.id);
-                          // Bring the preview card into view (plan §3.4).
-                          setTimeout(() => {
-                            previewRef.current?.scrollIntoView({
-                              behavior: "smooth",
-                              block: "start",
-                            });
-                          }, 50);
-                        }}
-                      >
-                        {tc("view")}
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => downloadPdf(inv.id)}>
-                        {t("downloadPdf")}
-                      </Button>
-                      {inv.status !== "cancelled" && (
+                    <TableCell>
+                      <div className="flex items-center gap-2 whitespace-nowrap">
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
                           onClick={() => {
-                            setCancelTarget(inv.id);
-                            cancelConfirm.show();
+                            setSelectedId(inv.id);
+                            // Bring the preview card into view (plan §3.4).
+                            setTimeout(() => {
+                              previewRef.current?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "start",
+                              });
+                            }, 50);
                           }}
                         >
-                          {t("cancelInvoice")}
+                          {tc("view")}
                         </Button>
-                      )}
+                        <Button variant="outline" size="sm" onClick={() => downloadPdf(inv.id)}>
+                          {t("downloadPdf")}
+                        </Button>
+                        {inv.status !== "cancelled" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setCancelTarget(inv.id);
+                              cancelConfirm.show();
+                            }}
+                          >
+                            {t("cancelInvoice")}
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -860,7 +831,7 @@ function GenerateDialog({ onDone }: { onDone: () => void }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="inline-flex h-[42px] items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/85">
+      <DialogTrigger className="inline-flex h-[42px] w-full sm:w-auto items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/85">
         {t("generate")}
       </DialogTrigger>
       <DialogContent>

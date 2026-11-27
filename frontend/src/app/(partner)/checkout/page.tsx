@@ -111,13 +111,6 @@ function actualNights(checkedInAt: string): number {
   return Math.max(Math.ceil(ms / 86_400_000), 1);
 }
 
-/** Normalize an Indian phone for wa.me: keep digits, ensure 91 prefix. */
-function waPhone(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length === 12 && digits.startsWith("91")) return digits;
-  return `91${digits.slice(-10)}`;
-}
-
 /** Today's date as YYYY-MM-DD in the browser's local timezone. */
 function todayLocalDate(): string {
   const d = new Date();
@@ -600,23 +593,6 @@ function CheckoutContent() {
     const hotelName = hotelQuery.data?.name ?? tp("waHotelFallback");
 
     const id = invoiceId ?? (done ? await ensureInvoice() : null);
-    if (id) {
-      void (async () => {
-        try {
-          const blob = await fetchInvoicePdfBlob(id);
-          if (blob) {
-            const guestClean = (booking?.primary_guest_name || "Guest")
-              .replace(/[^\w\s-]/g, "")
-              .trim()
-              .replace(/\s+/g, "_");
-            const bNum = entry?.booking_number || id;
-            downloadPdfBlob(blob, `Invoice_${bNum}_${guestClean}.pdf`);
-          }
-        } catch {
-          // Continue even if background download fails
-        }
-      })();
-    }
 
     const hotelAddr = hotelQuery.data
       ? [
@@ -669,7 +645,7 @@ function CheckoutContent() {
     if (normalizeWhatsAppPhone(phone)) {
       openWhatsAppToCustomer(phone, message);
       toast.success(
-        `Invoice PDF downloaded & WhatsApp opened for ${booking?.primary_guest_name || phone}!`,
+        `WhatsApp opened for ${booking?.primary_guest_name || phone}!`,
       );
     } else {
       setWaDialogState({

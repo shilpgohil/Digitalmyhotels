@@ -153,3 +153,54 @@ def test_recheckin_preserves_initial_lateness_and_formats_local_note():
     )
     assert rec.accumulated_minutes == 480
     assert _working_minutes(rec) == 480
+
+
+def test_correct_attendance_blocks_self_edit_across_all_roles():
+    """Owner, Manager, Admin, and Receptionist can NEVER edit their own attendance."""
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    import pytest
+
+    from app.core.errors import ForbiddenError
+    from app.core.permissions import RoleCode
+    from app.core.tenant import TenantContext
+    from app.models.staff import StaffProfile
+    from app.schemas.staff import AttendanceCorrectionIn
+    from app.services.attendance import _apply_correction
+
+    hotel = SimpleNamespace(id=uuid.uuid4(), timezone="Asia/Kolkata", attendance_grace_minutes=10)
+    actor_user_id = uuid.uuid4()
+    own_profile = StaffProfile(
+        id=uuid.uuid4(),
+        hotel_id=hotel.id,
+        user_id=actor_user_id,
+        staff_code="STF-002",
+        department="management",
+        joining_date=datetime.now(UTC).date(),
+    )
+    rec = AttendanceRecord(
+        id=uuid.uuid4(),
+        hotel_id=hotel.id,
+        staff_profile_id=own_profile.id,
+        work_date=datetime.now(UTC).date(),
+        accumulated_minutes=0,
+    )
+    body = AttendanceCorrectionIn(
+        check_in_at=datetime.now(UTC) - timedelta(hours=8),
+        check_out_at=datetime.now(UTC),
+        status="present",
+        note="Forgot to check out",
+    )
+
+    for role in (RoleCode.OWNER, RoleCode.MANAGER, RoleCode.ADMIN, RoleCode.RECEPTIONIST):
+        tenant = TenantContext(
+            user_id=actor_user_id,
+            hotel_id=hotel.id,
+            role=role,
+            is_super_admin=False,
+        )
+        with pytest.raises(ForbiddenError) as exc:
+            asyncio.run(_apply_correction(AsyncMock(), tenant, hotel, rec, own_profile, body))  # type: ignore[arg-type]
+        assert exc.value.code == "cannot_edit_own_attendance"

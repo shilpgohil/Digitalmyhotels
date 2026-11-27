@@ -141,7 +141,7 @@ function SectionCard({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2.5 px-6 py-4 text-left"
+        className="flex w-full items-center gap-2.5 px-4 sm:px-6 py-4 text-left"
         aria-expanded={open}
       >
         <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gold-100 text-xs font-bold text-gold-700">
@@ -154,7 +154,7 @@ function SectionCard({
         }
       </button>
       {open && (
-        <div className="border-t px-6 pb-6 pt-4">
+        <div className="border-t px-4 sm:px-6 pb-6 pt-4">
           {children}
         </div>
       )}
@@ -839,7 +839,7 @@ function EditHotelContent() {
         ) : (
           // Full-width — client 09/2026: "This full screen UI issue".
           // No max-w cap so the form uses the entire content area on any screen.
-          <div className="w-full space-y-6 pb-12">
+          <div className="w-full space-y-6">
             {/* ── 1. Property Identity ─────────────────────────────────── */}
             <SectionCard number={1} title={t("propertyIdentity")}>
               <div className="grid gap-6 lg:grid-cols-[1fr_260px]">
@@ -1183,7 +1183,7 @@ function EditHotelContent() {
                 <button
                   type="button"
                   onClick={addTypeEntry}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gold-400 py-3 text-sm font-medium text-gold-600 transition-colors hover:bg-gold-50"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gold-400/60 bg-gold-50/20 py-3 text-sm font-semibold text-gold-700 transition-all hover:border-gold-500 hover:bg-gold-50/60"
                 >
                   <Plus className="size-4" aria-hidden />
                   {t("addRoomType")}
@@ -1308,7 +1308,7 @@ function EditHotelContent() {
                 <button
                   type="button"
                   onClick={addRoomEntry}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gold-400 py-3 text-sm font-medium text-gold-600 transition-colors hover:bg-gold-50"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gold-400/60 bg-gold-50/20 py-3 text-sm font-semibold text-gold-700 transition-all hover:border-gold-500 hover:bg-gold-50/60"
                 >
                   <Plus className="size-4" aria-hidden />
                   {t("addAnotherRoom")}
@@ -1365,7 +1365,7 @@ function EditHotelContent() {
                 <button
                   type="button"
                   onClick={addReqEntry}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gold-400 py-3 text-sm font-medium text-gold-600 transition-colors hover:bg-gold-50"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gold-400/60 bg-gold-50/20 py-3 text-sm font-semibold text-gold-700 transition-all hover:border-gold-500 hover:bg-gold-50/60"
                 >
                   <Plus className="size-4" aria-hidden />
                   {t("addRequirement")}
@@ -1376,7 +1376,7 @@ function EditHotelContent() {
             {/* ── 4. Emergency & Vehicle Details (restored per client 9-10 feedback) ── */}
             <SectionCard number={4} title={t("emergencyVehicle")}>
               <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
+                <div className="flex items-center justify-between gap-4 py-2">
                   <div>
                     <p className="text-sm font-medium">{t("emergencyContact")}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
@@ -1389,7 +1389,7 @@ function EditHotelContent() {
                     label={t("emergencyContact")}
                   />
                 </div>
-                <div className="flex items-center justify-between border-t py-2">
+                <div className="flex items-center justify-between gap-4 border-t py-2">
                   <div>
                     <p className="text-sm font-medium">{t("vehicleDetails")}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
@@ -1435,7 +1435,7 @@ function EditHotelContent() {
                   setSaveFailures([]);
                   update.mutate();
                 }}
-                className="bg-navy-900 px-8 text-white hover:bg-navy-900/90"
+                className="w-full sm:w-auto bg-navy-900 px-8 text-white hover:bg-navy-900/90"
               >
                 {update.isPending ? tc("saving") : t("update")}
               </Button>

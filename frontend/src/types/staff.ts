@@ -116,6 +116,7 @@ export interface AttendanceRecordOut {
 export interface AttendanceRowOut {
   record_id: string | null;
   staff_profile_id: string;
+  user_id?: string | null;
   staff_code: string;
   full_name: string;
   department: StaffDepartment;
@@ -203,6 +204,7 @@ export interface AnomaliesOut {
 export interface RecordDetailOut {
   id: string;
   staff_profile_id: string;
+  user_id?: string | null;
   staff_code: string;
   full_name: string;
   department: StaffDepartment;
