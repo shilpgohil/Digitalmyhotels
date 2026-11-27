@@ -2253,6 +2253,7 @@
     "vehicleTypeName": "Vehicle type name",
     "vehicleTypeNamePlaceholder": "e.g. Truck",
     "requireGuest": "Select a guest to continue",
+    "requireGuestDetails": "Enter guest full name and mobile number",
     "requireRooms": "Select at least one room",
     "requireDates": "Fix the check-in/check-out times",
     "requireTerms": "Acknowledge terms to continue",

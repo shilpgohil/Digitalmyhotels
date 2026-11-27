@@ -28,13 +28,16 @@ interface GuestPickerProps {
    * mini creation form. Lets pages render their own rich new-guest form.
    */
   onCreateNew?: (searchedPhone: string) => void;
+  /** Hide the inline "Create New Guest" button (e.g. when the parent auto-opens
+   *  its new-guest form and creates the guest on submit). */
+  hideCreateButton?: boolean;
 }
 
 /**
  * Guest reuse workflow: search by phone or last-4 ID → explicit autofill → pick.
  * Falls back to inline creation for new guests. Never shows booking history.
  */
-export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerProps) {
+export function GuestPicker({ onSelected, selected, onCreateNew, hideCreateButton }: GuestPickerProps) {
   const t = useTranslations("guestPicker");
   const tc = useTranslations("common");
   const api = useApi();
@@ -305,7 +308,7 @@ export function GuestPicker({ onSelected, selected, onCreateNew }: GuestPickerPr
       {results && results.length === 0 && (
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-sm text-muted-foreground">{t("noMatch")}</p>
-          {!showCreate && (
+          {!showCreate && !hideCreateButton && (
             <Button
               type="button"
               size="sm"

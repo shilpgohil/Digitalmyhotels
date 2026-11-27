@@ -2249,6 +2249,7 @@
     "vehicleTypeName": "वाहन प्रकार का नाम",
     "vehicleTypeNamePlaceholder": "जैसे ट्रक",
     "requireGuest": "जारी रखने के लिए अतिथि चुनें",
+    "requireGuestDetails": "अतिथि का पूरा नाम और मोबाइल नंबर दर्ज करें",
     "requireRooms": "कम से कम एक कमरा चुनें",
     "requireDates": "चेक-इन/चेक-आउट समय ठीक करें",
     "requireTerms": "जारी रखने के लिए नियम व शर्तें स्वीकार करें",

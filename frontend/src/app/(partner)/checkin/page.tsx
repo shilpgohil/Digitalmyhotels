@@ -231,6 +231,12 @@ interface CheckinDraft {
   checkOutTime: string;
   guestType: GuestType | "";
   guest: { id: string; full_name: string; phone: string } | null;
+  /** Unsaved new primary guest captured on the walk-in form (deferred until
+   *  Check In, or persisted across Save Draft → Restore just like coGuests). */
+  pendingPrimaryGuest?: {
+    newForm: GuestCreatePayload;
+    draft_docs?: { side: DocSide; key: string }[];
+  };
   selectedRooms: string[];
   adultsCount: number;
   childCount: number;
@@ -281,7 +287,10 @@ interface CheckinDraft {
 
 /** Every draft-photo key referenced by a draft (for cleanup on discard). */
 function draftDocKeys(d: CheckinDraft): string[] {
-  return (d.coGuests ?? []).flatMap((cg) => (cg.draft_docs ?? []).map((x) => x.key));
+  return [
+    ...(d.pendingPrimaryGuest?.draft_docs ?? []).map((x) => x.key),
+    ...(d.coGuests ?? []).flatMap((cg) => (cg.draft_docs ?? []).map((x) => x.key)),
+  ];
 }
 
 function draftId(): string {
@@ -1269,9 +1278,12 @@ function QueuedDocUpload({
 function NewGuestForm({
   initialPhone = "",
   initial,
+  initialDocs,
   confirmLabel,
+  hideConfirm = false,
   pending = false,
   onConfirm,
+  onChange,
   beforeConfirm,
   existingDocs = {},
   guestId = null,
@@ -1280,12 +1292,21 @@ function NewGuestForm({
   readonly initialPhone?: string;
   /** Pre-fills the whole form — used to EDIT an already-resolved co-guest. */
   readonly initial?: Partial<GuestCreatePayload>;
-  readonly confirmLabel: string;
+  /** Restored draft files — pre-populates the doc tiles without re-uploading. */
+  readonly initialDocs?: { side: DocSide; file: File; key?: string }[];
+  readonly confirmLabel?: string;
+  /** Hide the inline confirm button (e.g. walk-in primary guest creates automatically on Check In). */
+  readonly hideConfirm?: boolean;
   /** Disables the confirm button while the parent is creating the guest. */
   readonly pending?: boolean;
-  readonly onConfirm: (
+  readonly onConfirm?: (
     form: GuestCreatePayload,
     docs: { side: DocSide; file: File }[],
+  ) => void;
+  /** Live draft sync callback when parent defers guest creation until submit. */
+  readonly onChange?: (
+    form: GuestCreatePayload,
+    docs: { side: DocSide; file: File; key?: string }[],
   ) => void;
   /** Rendered between the form fields and the confirm button — used to slot
    *  the Foreign Guest (Form C) section so the confirm button always sits
@@ -1307,7 +1328,9 @@ function NewGuestForm({
   const tg = useTranslations("guestPicker");
   const api = useApi();
   const { activeHotelId } = useAuth();
-  const [docs, setDocs] = useState<{ side: DocSide; file: File }[]>([]);
+  const [docs, setDocs] = useState<{ side: DocSide; file: File; key?: string }[]>(
+    () => initialDocs ?? [],
+  );
 
   const [form, setForm] = useState<GuestCreatePayload>({
     full_name: "",
@@ -1324,6 +1347,12 @@ function NewGuestForm({
     postal_code: "",
     ...initial,
   });
+
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  useEffect(() => {
+    onChangeRef.current?.(form, docs);
+  }, [form, docs]);
 
   const set = (k: keyof GuestCreatePayload, v: string) =>
     setForm((prev) => ({ ...prev, [k]: v }));
@@ -1441,6 +1470,7 @@ function NewGuestForm({
           idType={form.id_proof_type}
           existingDocId={existingDocs.front}
           guestId={guestId ?? undefined}
+          initialFile={docs.find((d) => d.side === "front")?.file ?? null}
           isScanning={isFrontScanning}
           onOriginal={(_side, original) => handleFrontUpload(original)}
         />
@@ -1451,6 +1481,7 @@ function NewGuestForm({
           idType={form.id_proof_type}
           existingDocId={existingDocs.back}
           guestId={guestId ?? undefined}
+          initialFile={docs.find((d) => d.side === "back")?.file ?? null}
           isScanning={isBackScanning}
           onOriginal={(_side, original) => handleBackUpload(original)}
         />
@@ -1460,6 +1491,7 @@ function NewGuestForm({
           onQueued={handleQueueDoc}
           existingDocId={existingDocs.selfie}
           guestId={guestId ?? undefined}
+          initialFile={docs.find((d) => d.side === "selfie")?.file ?? null}
         />
       </div>
 
@@ -1591,15 +1623,17 @@ function NewGuestForm({
       {/* Slot for Foreign Guest (Form C) etc. — keeps confirm button LAST */}
       {beforeConfirm}
 
-      <Button
-        type="button"
-        size="sm"
-        className="bg-navy-900 text-white hover:bg-navy-900/90"
-        disabled={!form.full_name.trim() || !form.phone.trim() || pending}
-        onClick={() => onConfirm({ ...form }, docs)}
-      >
-        {pending ? tc("saving") : confirmLabel}
-      </Button>
+      {!hideConfirm && confirmLabel && onConfirm && (
+        <Button
+          type="button"
+          size="sm"
+          className="bg-navy-900 text-white hover:bg-navy-900/90"
+          disabled={!form.full_name.trim() || !form.phone.trim() || pending}
+          onClick={() => onConfirm({ ...form }, docs)}
+        >
+          {pending ? tc("saving") : confirmLabel}
+        </Button>
+      )}
     </div>
   );
 }
@@ -3999,47 +4033,28 @@ function CheckinForm({
               <FileText className="size-4" aria-hidden />
               {ti("generate")}
             </Button>
-            {/* Wrapper catches clicks while the Button is disabled
-                (disabled:pointer-events-none) and scrolls to the unmet
-                requirement. */}
-            <span
-              className="w-full sm:w-auto"
+            <Button
+              type="button"
+              disabled={mutation.isPending}
+              className="w-full sm:w-auto bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
               onClick={() => {
-                if (!terms && !mutation.isPending) {
-                  setError(t("requireTerms"));
-                  termsSectionRefB.current?.scrollIntoView({
+                if (fgEnabled && fgForm.passport_number.trim().length < 3) {
+                  setError(t("passportRequired"));
+                  identitySectionRefB.current?.scrollIntoView({
                     behavior: "smooth",
                     block: "center",
                   });
+                  return;
                 }
+                setError(null);
+                mutation.mutate();
               }}
             >
-              <Button
-                type="button"
-                disabled={mutation.isPending || !terms}
-                className="w-full sm:w-auto bg-gold-500 text-navy-900 hover:bg-gold-400 font-semibold"
-                onClick={() => {
-                  if (fgEnabled && fgForm.passport_number.trim().length < 3) {
-                    setError(t("passportRequired"));
-                    identitySectionRefB.current?.scrollIntoView({
-                      behavior: "smooth",
-                      block: "center",
-                    });
-                    return;
-                  }
-                  setError(null);
-                  mutation.mutate();
-                }}
-              >
-                <LogIn className="size-4" aria-hidden />
-                {mutation.isPending ? t("checkingIn") : tb("checkInAction")}
-              </Button>
-            </span>
+              <LogIn className="size-4" aria-hidden />
+              {mutation.isPending ? t("checkingIn") : tb("checkInAction")}
+            </Button>
           </div>
         </div>
-        {!terms && !mutation.isPending && (
-          <p className="text-center sm:text-right text-xs text-muted-foreground">{t("requireTerms")}</p>
-        )}
       </div>
     </div>
   );
@@ -4304,77 +4319,16 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     }
   };
 
-  // ── Primary guest creation — rich form (same as additional guests) shown
-  // when GuestPicker's search finds no match and staff clicks "Create new
-  // guest". Creates the guest, uploads the queued docs, then selects them
-  // exactly like GuestPicker's onSelected would.
+  // ── Primary guest deferred creation / draft state ──────────────────────────
+  // Shown automatically when GuestPicker's search finds 0 matches; guest record
+  // & queued photos are persisted on Check In (or uploaded to B2 draft storage
+  // on Save Draft) — no separate "Create Guest" click required.
   const [showPgCreate, setShowPgCreate] = useState(false);
   const [pgCreatePhone, setPgCreatePhone] = useState("");
-
-  const createPrimaryGuest = useMutation({
-    mutationFn: async ({
-      form,
-      docs,
-    }: {
-      form: GuestCreatePayload;
-      docs: { side: DocSide; file: File }[];
-    }) => {
-      const created = await api<GuestOut>("/api/v1/guests", {
-        method: "POST",
-        body: {
-          full_name: form.full_name.trim(),
-          phone: form.phone.trim(),
-          email: form.email?.trim() || undefined,
-          address: form.address?.trim() || undefined,
-          city: form.city?.trim() || undefined,
-          state: form.state?.trim() || undefined,
-          country: form.country?.trim() || undefined,
-          postal_code: form.postal_code?.trim() || undefined,
-          gender: form.gender?.trim() || undefined,
-          date_of_birth: form.date_of_birth?.trim() || undefined,
-          id_proof_type: form.id_proof_type?.trim() || undefined,
-          id_number: form.id_number?.trim() || undefined,
-        },
-      });
-      // Upload the queued ID docs (front/back/selfie) for the new guest.
-      // AWAITED (plan §5.1): the previous fire-and-forget version raced the
-      // document-list fetch in handleGuestSelected — the tiles rendered blank
-      // even though the uploads finished a second later (client: "uploaded
-      // aadhaar card and photo but not show"). A failed upload still never
-      // aborts guest creation — it is reported via a warning toast instead.
-      const uploadResults = await Promise.allSettled(
-        docs.map((doc) => {
-          const fd = new FormData();
-          fd.append("side", doc.side);
-          fd.append("document_type", "id_proof");
-          fd.append("file", doc.file);
-          return apiUpload(`/api/v1/guests/${created.id}/documents`, fd, {
-            hotelId: activeHotelId ?? undefined,
-          });
-        }),
-      );
-      const failedUploads = uploadResults.filter(
-        (r) => r.status === "rejected",
-      ).length;
-      return { created, failedUploads };
-    },
-    onSuccess: async ({ created, failedUploads }) => {
-      setShowPgCreate(false);
-      toast.success(tg("guestCreated"));
-      if (failedUploads > 0) {
-        toast.warning(t("someDocsFailed", { count: failedUploads }));
-      }
-      // Select like GuestPicker.onSelected → also re-fetches autofill + docs
-      // so the identity fields and doc tiles below fill in (uploads are now
-      // complete, so the document list includes them).
-      await handleGuestSelected({
-        id: created.id,
-        full_name: created.full_name,
-        phone: created.normalized_phone,
-      });
-    },
-    onError: (e) => toast.error(e instanceof ApiError ? e.message : tc("error")),
-  });
+  const [pgDraftForm, setPgDraftForm] = useState<GuestCreatePayload | null>(null);
+  const [pgDraftDocs, setPgDraftDocs] = useState<{ side: DocSide; file: File; key?: string }[]>([]);
+  const [pgDraftRestoreKey, setPgDraftRestoreKey] = useState(0);
+  const draftDocKeyMapRef = useRef<WeakMap<File, string>>(new WeakMap());
 
   // ── 3. Additional guests ──
   const [coGuests, setCoGuests] = useState<ResolvedCoGuest[]>([]);
@@ -4654,8 +4608,31 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       // to vanish — Files can't live in localStorage, so they go to B2 draft
       // storage and the draft carries only their keys). Already-uploaded keys
       // are reused so restore→save does not create a second B2 object.
-      const coGuestDraftDocs: ({ side: DocSide; key: string }[] | undefined)[] = [];
       let failedPhotos = 0;
+      let pendingPrimaryGuest: CheckinDraft["pendingPrimaryGuest"];
+      if (!guest && showPgCreate && pgDraftForm) {
+        const uploadedPg: { side: DocSide; key: string }[] = [];
+        for (const doc of pgDraftDocs) {
+          const existingKey = doc.key ?? draftDocKeyMapRef.current.get(doc.file);
+          if (existingKey) {
+            uploadedPg.push({ side: doc.side, key: existingKey });
+            continue;
+          }
+          const key = await uploadDraftDoc(doc.file);
+          if (key) {
+            draftDocKeyMapRef.current.set(doc.file, key);
+            uploadedPg.push({ side: doc.side, key });
+          } else {
+            failedPhotos++;
+          }
+        }
+        pendingPrimaryGuest = {
+          // Never persist raw full ID number in localStorage drafts.
+          newForm: { ...pgDraftForm, id_number: "" },
+          draft_docs: uploadedPg.length > 0 ? uploadedPg : undefined,
+        };
+      }
+      const coGuestDraftDocs: ({ side: DocSide; key: string }[] | undefined)[] = [];
       for (const cg of coGuests.filter(Boolean)) {
         if (!cg.docs || cg.docs.length === 0) {
           coGuestDraftDocs.push(undefined);
@@ -4693,6 +4670,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         checkOutTime,
         guestType,
         guest: guest ? { id: guest.id, full_name: guest.full_name, phone: pgPhone } : null,
+        pendingPrimaryGuest,
         selectedRooms,
         adultsCount,
         childCount,
@@ -4804,15 +4782,41 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     setPgCompany(d.pgCompany ?? "");
     setFgEnabled(d.foreignEnabled ?? false);
     setFgForm(d.foreignGuest ?? EMPTY_FOREIGN_GUEST);
+    let failedRestore = 0;
     if (d.guest) {
+      setShowPgCreate(false);
+      setPgDraftForm(null);
+      setPgDraftDocs([]);
       // Re-select the guest (also re-fetches identity autofill, non-fatal).
       void handleGuestSelected(d.guest);
+    } else if (d.pendingPrimaryGuest) {
+      const restoredPgDocs: { side: DocSide; file: File; key?: string }[] = [];
+      for (const dd of d.pendingPrimaryGuest.draft_docs ?? []) {
+        const file = await fetchDraftDoc(dd.side, dd.key);
+        if (file) {
+          draftDocKeyMapRef.current.set(file, dd.key);
+          restoredPgDocs.push({ side: dd.side, file, key: dd.key });
+        } else {
+          failedRestore++;
+        }
+      }
+      setGuest(null);
+      setPgBaseline(null);
+      setPgCreatePhone(d.pendingPrimaryGuest.newForm.phone ?? "");
+      setPgDraftForm(d.pendingPrimaryGuest.newForm);
+      setPgDraftDocs(restoredPgDocs);
+      setPgDraftRestoreKey((k) => k + 1);
+      setShowPgCreate(true);
+    } else {
+      setGuest(null);
+      setShowPgCreate(false);
+      setPgDraftForm(null);
+      setPgDraftDocs([]);
     }
     // Additional guests round-trip (plan §4.2 + client 16/09): rebuild
     // resolved entries from the serialized text data AND re-download any
     // server-persisted draft photos back into their tiles. Existing guests
     // additionally re-fetch their saved profile documents on mount.
-    let failedRestore = 0;
     const restoredCoGuests = await Promise.all(
       (d.coGuests ?? []).map(async (sg) => {
         const docs: { side: DocSide; file: File; key?: string }[] = [];
@@ -4877,7 +4881,88 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
   // ── Mutation: book + check in atomically, then charges + advance payment ──
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!guest) throw new ApiError(400, "validation", t("selectGuestFirst"));
+      let activeGuestId = guest?.id ?? "";
+      let guestCreatedNow = false;
+      let pgFailedDocUploads = 0;
+
+      if (!activeGuestId) {
+        if (!showPgCreate || !pgDraftForm?.full_name.trim() || !pgDraftForm?.phone.trim()) {
+          throw new ApiError(400, "validation", t("selectOrCreateGuest"));
+        }
+        const rawId = pgDraftForm.id_number?.trim() ?? "";
+        const idType = pgDraftForm.id_proof_type?.trim() || "Aadhar Card";
+        const cleanedId =
+          rawId && idType === "Aadhar Card"
+            ? rawId.replace(/\s/g, "")
+            : rawId || undefined;
+        const created = await api<GuestOut>("/api/v1/guests", {
+          method: "POST",
+          body: {
+            full_name: pgDraftForm.full_name.trim(),
+            phone: pgDraftForm.phone.trim(),
+            email: pgDraftForm.email?.trim() || undefined,
+            address: pgDraftForm.address?.trim() || undefined,
+            city: pgDraftForm.city?.trim() || undefined,
+            state: pgDraftForm.state?.trim() || undefined,
+            country: pgDraftForm.country?.trim() || undefined,
+            postal_code: pgDraftForm.postal_code?.trim() || undefined,
+            gender: pgDraftForm.gender?.trim() || undefined,
+            date_of_birth: pgDraftForm.date_of_birth?.trim() || undefined,
+            id_proof_type: idType || undefined,
+            id_number: cleanedId,
+          },
+        });
+        activeGuestId = created.id;
+        guestCreatedNow = true;
+        // Persist created guest immediately in UI state so a downstream booking
+        // error (e.g. double_booking) won't trigger 409 guest_exists on retry.
+        setGuest({ id: created.id, full_name: created.full_name });
+        setShowPgCreate(false);
+        setPgEditing(false);
+        setPgName(created.full_name);
+        setPgPhone(created.normalized_phone);
+        setPgGender(pgDraftForm.gender ?? "");
+        setPgDob(pgDraftForm.date_of_birth ?? "");
+        setPgAddress(pgDraftForm.address ?? "");
+        setPgPostalCode(pgDraftForm.postal_code ?? "");
+        setPgCity(pgDraftForm.city ?? "");
+        setPgState(pgDraftForm.state ?? "");
+        setPgCountry(pgDraftForm.country ?? "India");
+        setPgIdType(idType);
+        setPgIdNumber(created.id_last4 ? `••••••••${created.id_last4}` : "");
+        setPgBaseline({
+          id: created.id,
+          full_name: created.full_name,
+          phone: created.normalized_phone,
+          email: created.email,
+          address: created.address,
+          city: created.city,
+          state: created.state,
+          country: created.country,
+          postal_code: created.postal_code,
+          gender: created.gender,
+          date_of_birth: created.date_of_birth,
+          id_proof_type: created.id_proof_type,
+          id_last4: created.id_last4,
+        });
+        setPgDraftForm(null);
+        const uploadResults = await Promise.allSettled(
+          pgDraftDocs.map((doc) => {
+            const fd = new FormData();
+            fd.append("side", doc.side);
+            fd.append("document_type", "id_proof");
+            fd.append("file", doc.file);
+            return apiUpload(`/api/v1/guests/${created.id}/documents`, fd, {
+              hotelId: activeHotelId ?? undefined,
+            });
+          }),
+        );
+        pgFailedDocUploads = uploadResults.filter(
+          (r) => r.status === "rejected",
+        ).length;
+        setPgDraftDocs([]);
+      }
+
       // Co-guests marked foreign need a passport number too.
       if (
         coGuests
@@ -4887,27 +4972,29 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         throw new ApiError(400, "validation", t("passportRequired"));
       }
 
-      // 1. Update primary guest profile if identity fields were edited.
-      const patch: Record<string, string> = {};
-      if (pgName.trim() && pgName.trim() !== (pgBaseline?.full_name ?? guest.full_name))
-        patch.full_name = pgName.trim();
-      if (pgPhone.trim() && pgPhone.trim() !== (pgBaseline?.phone ?? pgPhone.trim()))
-        patch.phone = pgPhone.trim();
-      if (pgGender && pgGender !== (pgBaseline?.gender ?? "")) patch.gender = pgGender;
-      if (pgDob && pgDob !== (pgBaseline?.date_of_birth ?? "")) patch.date_of_birth = pgDob;
-      if (pgAddress && pgAddress !== (pgBaseline?.address ?? "")) patch.address = pgAddress;
-      if (pgPostalCode && pgPostalCode !== (pgBaseline?.postal_code ?? "")) patch.postal_code = pgPostalCode;
-      if (pgCity && pgCity !== (pgBaseline?.city ?? "")) patch.city = pgCity;
-      if (pgState && pgState !== (pgBaseline?.state ?? "")) patch.state = pgState;
-      if (pgCountry && pgCountry !== (pgBaseline?.country ?? "India")) patch.country = pgCountry;
-      // Only send id_number if the desk typed a real number (not the mask).
-      // Strip OCR whitespace before sending.
-      if (pgIdNumber.trim() && !isIdMask(pgIdNumber)) {
-        patch.id_number = pgIdNumber.trim().replace(/\s/g, "");
-        patch.id_proof_type = pgIdType;
-      }
-      if (Object.keys(patch).length > 0) {
-        await api(`/api/v1/guests/${guest.id}`, { method: "PATCH", body: patch });
+      // 1. Update primary guest profile if identity fields were edited on an existing guest.
+      if (!guestCreatedNow && guest) {
+        const patch: Record<string, string> = {};
+        if (pgName.trim() && pgName.trim() !== (pgBaseline?.full_name ?? guest.full_name))
+          patch.full_name = pgName.trim();
+        if (pgPhone.trim() && pgPhone.trim() !== (pgBaseline?.phone ?? pgPhone.trim()))
+          patch.phone = pgPhone.trim();
+        if (pgGender && pgGender !== (pgBaseline?.gender ?? "")) patch.gender = pgGender;
+        if (pgDob && pgDob !== (pgBaseline?.date_of_birth ?? "")) patch.date_of_birth = pgDob;
+        if (pgAddress && pgAddress !== (pgBaseline?.address ?? "")) patch.address = pgAddress;
+        if (pgPostalCode && pgPostalCode !== (pgBaseline?.postal_code ?? "")) patch.postal_code = pgPostalCode;
+        if (pgCity && pgCity !== (pgBaseline?.city ?? "")) patch.city = pgCity;
+        if (pgState && pgState !== (pgBaseline?.state ?? "")) patch.state = pgState;
+        if (pgCountry && pgCountry !== (pgBaseline?.country ?? "India")) patch.country = pgCountry;
+        // Only send id_number if the desk typed a real number (not the mask).
+        // Strip OCR whitespace before sending.
+        if (pgIdNumber.trim() && !isIdMask(pgIdNumber)) {
+          patch.id_number = pgIdNumber.trim().replace(/\s/g, "");
+          patch.id_proof_type = pgIdType;
+        }
+        if (Object.keys(patch).length > 0) {
+          await api(`/api/v1/guests/${activeGuestId}`, { method: "PATCH", body: patch });
+        }
       }
 
       // 2. Create new additional guests + upload queued docs (same as MODE B).
@@ -4977,7 +5064,8 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
         }
       }
       const docResults = await Promise.allSettled(coGuestDocUploads);
-      const failedDocUploads = docResults.filter((r) => r.status === "rejected").length;
+      const failedDocUploads =
+        pgFailedDocUploads + docResults.filter((r) => r.status === "rejected").length;
 
       // 3. Book + check in atomically — service charges, early check-in fee,
       // extra charges and the advance payment are all applied by the backend
@@ -5021,7 +5109,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
 
       const payload: BookAndCheckInRequest = {
         booking: {
-          primary_guest_id: guest.id,
+          primary_guest_id: activeGuestId,
           room_ids: selectedRooms,
           rate_overrides: rateOverrides.length > 0 ? rateOverrides : undefined,
           check_in_date: checkInDate,
@@ -5099,6 +5187,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     },
     onError: (e) => {
       setError(e instanceof ApiError ? e.message : t("checkinFailed"));
+      if (e instanceof ApiError && e.code === "guest_exists") {
+        scrollToSection(guestSectionRef);
+      }
       // Rooms got taken between selection and submit — refresh availability.
       if (e instanceof ApiError && e.code === "double_booking") {
         setSelectedRooms([]);
@@ -5120,24 +5211,30 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     );
   }
 
-  const canSubmit =
-    !!guest && selectedRooms.length > 0 && datesValid && terms && !mutation.isPending;
+  const hasPrimaryGuest =
+    !!guest ||
+    (showPgCreate &&
+      !!pgDraftForm?.full_name.trim() &&
+      !!pgDraftForm?.phone.trim());
 
-  const submitHint = !guest
+  const canSubmit =
+    hasPrimaryGuest && selectedRooms.length > 0 && datesValid && !mutation.isPending;
+
+  const submitHint = !guest && !showPgCreate
     ? t("requireGuest")
-    : selectedRooms.length === 0
-      ? t("requireRooms")
-      : !datesValid
-        ? t("requireDates")
-        : !terms
-          ? t("requireTerms")
+    : !hasPrimaryGuest
+      ? t("requireGuestDetails")
+      : selectedRooms.length === 0
+        ? t("requireRooms")
+        : !datesValid
+          ? t("requireDates")
           : null;
 
   /** Validate in section order, set the error, scroll to the failing section. */
   const validateAndSubmit = () => {
     if (mutation.isPending) return;
-    if (!guest) {
-      setError(t("selectOrCreateGuest"));
+    if (!hasPrimaryGuest) {
+      setError(showPgCreate ? t("requireGuestDetails") : t("selectOrCreateGuest"));
       scrollToSection(guestSectionRef);
       return;
     }
@@ -5154,11 +5251,6 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
     if (fgEnabled && fgForm.passport_number.trim().length < 3) {
       setError(t("passportRequired"));
       scrollToSection(guestSectionRef);
-      return;
-    }
-    if (!terms) {
-      setError(t("requireTerms"));
-      scrollToSection(termsSectionRef);
       return;
     }
     setError(null);
@@ -5224,8 +5316,10 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                         : <FileText className="size-4 shrink-0 text-gold-600" aria-hidden />}
                       <span className={`truncate ${isThisRestored ? "text-success font-medium" : "text-gold-800"}`}>
                         {t("draftFrom", { date: new Date(d.savedAt).toLocaleString() })}
-                        {d.guest?.full_name ? ` — ${d.guest.full_name}` : ""}
-                        {!d.guest?.full_name && d.selectedRooms?.length
+                        {(d.guest?.full_name || d.pendingPrimaryGuest?.newForm.full_name)
+                          ? ` — ${d.guest?.full_name || d.pendingPrimaryGuest?.newForm.full_name}`
+                          : ""}
+                        {!(d.guest?.full_name || d.pendingPrimaryGuest?.newForm.full_name) && d.selectedRooms?.length
                           ? ` — ${d.selectedRooms.length} room(s)` : ""}
                       </span>
               </div>
@@ -5356,20 +5450,39 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
       <div ref={guestSectionRef}>
       <Section icon={BadgeCheck} title={t("primaryGuestIdentity")} subtitle={t("primaryGuestIdentitySubtitle")}>
         <div className="space-y-5">
-              <GuestPicker
+          <GuestPicker
             selected={guest?.id ? guest : null}
-                onSelected={(g) => {
+            hideCreateButton={showPgCreate}
+            onSelected={(g) => {
               setShowPgCreate(false);
+              setPgDraftForm(null);
+              setPgDraftDocs([]);
               void handleGuestSelected(g);
             }}
             onCreateNew={(phone) => {
               setPgCreatePhone(phone);
+              setPgDraftForm({
+                full_name: "",
+                phone,
+                email: "",
+                address: "",
+                city: "",
+                state: "",
+                country: "India",
+                gender: "",
+                date_of_birth: "",
+                id_proof_type: "Aadhar Card",
+                id_number: "",
+                postal_code: "",
+              });
+              setPgDraftDocs([]);
+              setPgDraftRestoreKey((k) => k + 1);
               setShowPgCreate(true);
             }}
           />
 
-          {/* Rich new-guest form (same as Additional Guests → Create New) —
-              replaces GuestPicker's old inline mini-form for walk-ins. */}
+          {/* Rich new-guest form (auto-opened on 0 search matches; guest record +
+              queued photos are created automatically on Check In or Save Draft). */}
           {!guest && showPgCreate && (
             <div className="rounded-xl border p-4 space-y-4">
               <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase text-muted-foreground">
@@ -5377,11 +5490,15 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                 {tg("newGuest")}
               </p>
               <NewGuestForm
-                key={pgCreatePhone}
+                key={`${pgCreatePhone}-${pgDraftRestoreKey}`}
                 initialPhone={pgCreatePhone}
-                confirmLabel={t("createGuestAction")}
-                pending={createPrimaryGuest.isPending}
-                onConfirm={(form, docs) => createPrimaryGuest.mutate({ form, docs })}
+                initial={pgDraftForm ?? undefined}
+                initialDocs={pgDraftDocs}
+                hideConfirm
+                onChange={(form, docs) => {
+                  setPgDraftForm(form);
+                  setPgDraftDocs(docs);
+                }}
               />
             </div>
           )}
