@@ -451,19 +451,19 @@ function PaymentsContent() {
           {billing.data && billing.data.items.length > 0 && (
             <>
               <div className="mt-3 overflow-x-auto">
-                <Table>
+                <Table className="min-w-[960px]">
                   <TableHeader>
                     <TableRow className="bg-navy-900 hover:bg-navy-900">
-                      <TableHead className="text-white">{t("colBooking")}</TableHead>
-                      <TableHead className="text-white">{t("colGuest")}</TableHead>
-                      <TableHead className="text-white">{t("colRoomRent")}</TableHead>
-                      {showGstCol && <TableHead className="text-white">{t("colTax")}</TableHead>}
-                      <TableHead className="text-white">{t("colDiscount")}</TableHead>
-                      <TableHead className="text-white">{t("colAdvance")}</TableHead>
-                      <TableHead className="text-white">{t("colBalance")}</TableHead>
-                      <TableHead className="text-white">{t("colMode")}</TableHead>
-                      <TableHead className="text-white">{t("colStatus")}</TableHead>
-                      <TableHead className="text-white text-right">{tc("actions")}</TableHead>
+                      <TableHead className="text-white whitespace-nowrap">{t("colBooking")}</TableHead>
+                      <TableHead className="text-white whitespace-nowrap">{t("colGuest")}</TableHead>
+                      <TableHead className="text-white whitespace-nowrap">{t("colRoomRent")}</TableHead>
+                      {showGstCol && <TableHead className="text-white whitespace-nowrap">{t("colTax")}</TableHead>}
+                      <TableHead className="text-white whitespace-nowrap">{t("colDiscount")}</TableHead>
+                      <TableHead className="text-white whitespace-nowrap">{t("colAdvance")}</TableHead>
+                      <TableHead className="text-white whitespace-nowrap">{t("colBalance")}</TableHead>
+                      <TableHead className="text-white whitespace-nowrap">{t("colMode")}</TableHead>
+                      <TableHead className="text-white whitespace-nowrap">{t("colStatus")}</TableHead>
+                      <TableHead className="text-white text-right whitespace-nowrap">{tc("actions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

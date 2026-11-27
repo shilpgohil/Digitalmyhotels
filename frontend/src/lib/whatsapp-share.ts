@@ -76,18 +76,11 @@ export function openWhatsAppToCustomer(
     ? `https://wa.me/${cleanPhone}?text=${encodedText}`
     : `https://wa.me/?text=${encodedText}`;
 
-  // Open WhatsApp in a new tab across desktop & mobile so the active hotel
-  // screen stays intact (fall back to same-tab navigation only if blocked).
-  const opened = window.open(targetUrl, "_blank", "noopener,noreferrer");
-  if (!opened) {
-    const isMobile =
-      typeof navigator !== "undefined" &&
-      (/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-        (navigator.maxTouchPoints && navigator.maxTouchPoints > 1));
-    if (isMobile) {
-      window.location.href = targetUrl;
-    }
-  }
+  // Open WhatsApp strictly in a new tab across desktop & mobile so the current
+  // portal tab stays untouched. Note: passing "noopener" causes browsers to
+  // return `null` by spec even when the new tab opened cleanly, so never fall
+  // back to `window.location.href`.
+  window.open(targetUrl, "_blank", "noopener,noreferrer");
 
   return { success: !!cleanPhone, cleanPhone };
 }
