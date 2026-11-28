@@ -2084,9 +2084,9 @@ function AdditionalGuestEntry({
     ].filter((row) => !!row.value);
 
     return (
-      <div className="rounded-xl border bg-muted/30 p-3.5 sm:p-4 space-y-3">
+      <div className="relative rounded-xl border bg-muted/30 p-3.5 sm:p-4 space-y-3">
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 pr-9 sm:pr-0">
             <BadgeCheck className="size-4 shrink-0 text-success" aria-hidden />
             <div className="min-w-0">
               <p className="text-sm font-semibold leading-snug break-words">{resolved.full_name}</p>
@@ -2173,7 +2173,7 @@ function AdditionalGuestEntry({
                 setCoGuestOcrId(null);
                 onRemove();
               }}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-danger hover:bg-danger/10"
+              className="absolute right-3 top-3 inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-danger hover:bg-danger/10 sm:static"
               aria-label={t("removeGuest")}
             >
               <Trash2 className="size-4" aria-hidden />
