@@ -2084,20 +2084,20 @@ function AdditionalGuestEntry({
     ].filter((row) => !!row.value);
 
     return (
-      <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BadgeCheck className="size-4 text-success" aria-hidden />
-            <div>
-              <span className="text-sm font-semibold">{resolved.full_name}</span>
+      <div className="rounded-xl border bg-muted/30 p-3.5 sm:p-4 space-y-3">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <BadgeCheck className="size-4 shrink-0 text-success" aria-hidden />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold leading-snug break-words">{resolved.full_name}</p>
               {resolved.phone && (
                 <p className="text-xs text-muted-foreground tabular-nums">
                   {resolved.phone}
-            </p>
-          )}
+                </p>
+              )}
             </div>
-        </div>
-          <div className="flex items-center gap-2">
+          </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             {/* Auto-fill — always visible for existing guests; re-fetches the
                 saved profile from the server so the Edit form is never empty,
                 even when autofill data loaded from a previous session. */}
@@ -2126,7 +2126,7 @@ function AdditionalGuestEntry({
                     setEditing(true);
                   }).catch(() => setEditing(true)).finally(() => setCoGuestAutofilling(false));
                 }}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gold-400 bg-gold-50 px-2.5 text-xs font-semibold text-gold-700 transition-colors hover:bg-gold-100 disabled:opacity-60"
+                className="inline-flex h-8 shrink-0 whitespace-nowrap items-center gap-1.5 rounded-lg border border-gold-400 bg-gold-50 px-2.5 text-xs font-semibold text-gold-700 transition-colors hover:bg-gold-100 disabled:opacity-60"
               >
                 {coGuestAutofilling ? "…" : t("autofillLabel")}
               </button>
@@ -2158,14 +2158,14 @@ function AdditionalGuestEntry({
                   setEditing(true);
                 }
               }}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-input bg-white px-2.5 text-xs font-semibold transition-colors hover:bg-muted"
+              className="inline-flex h-8 shrink-0 whitespace-nowrap items-center gap-1.5 rounded-lg border border-input bg-white px-2.5 text-xs font-semibold transition-colors hover:bg-muted"
             >
-              <Pencil className="size-3.5" aria-hidden />
+              <Pencil className="size-3.5 shrink-0" aria-hidden />
               {t("editGuest")}
             </button>
             <button
               type="button"
-                      onClick={() => {
+              onClick={() => {
                 setResolved(null);
                 setSearchPhone("");
                 setSearchResults([]);
@@ -2173,7 +2173,7 @@ function AdditionalGuestEntry({
                 setCoGuestOcrId(null);
                 onRemove();
               }}
-              className="p-1 text-danger hover:opacity-70"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-danger hover:bg-danger/10"
               aria-label={t("removeGuest")}
             >
               <Trash2 className="size-4" aria-hidden />
@@ -2398,12 +2398,12 @@ function AdditionalGuestEntry({
             </div>
 
       {/* Mode toggle */}
-      <div className="flex rounded-lg overflow-hidden border text-xs font-medium w-fit">
+      <div className="flex flex-wrap rounded-lg overflow-hidden border text-xs font-medium w-fit max-w-full">
         <button
           type="button"
           onClick={() => { setMode("search"); setHasSearched(false); }}
           className={cn(
-            "px-3 py-1.5 transition-colors",
+            "px-3 py-1.5 whitespace-nowrap transition-colors",
             mode === "search" ? "bg-navy-900 text-white" : "hover:bg-muted",
           )}
         >
@@ -2413,7 +2413,7 @@ function AdditionalGuestEntry({
           type="button"
           onClick={() => setMode("form")}
           className={cn(
-            "px-3 py-1.5 border-l transition-colors",
+            "px-3 py-1.5 border-l whitespace-nowrap transition-colors",
             mode === "form" ? "bg-navy-900 text-white" : "hover:bg-muted",
           )}
         >
@@ -2477,36 +2477,40 @@ function AdditionalGuestEntry({
                     </span>
                   </div>
                 )}
-                <ul className="rounded-lg border divide-y">
+                <ul className="rounded-lg border divide-y overflow-hidden">
                   {searchResults.map((g) => {
                     const isDupInResults = wasIdSearch && g.id_last4 && (idLast4Counts[g.id_last4] ?? 0) > 1;
                     const isSelecting = selectingGuestId === g.id;
                     return (
-                      <li key={g.id}>
+                      <li key={g.id} className="min-w-0">
                         <button
                           type="button"
                           onClick={() => handleSelectExisting(g)}
                           disabled={selectingGuestId !== null}
-                          className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted transition-colors disabled:opacity-60"
+                          className="flex w-full items-center justify-between gap-2.5 px-3 py-2.5 text-left text-sm hover:bg-muted transition-colors disabled:opacity-60"
                         >
-                          {/* Guest info — mirrors GuestPicker row layout */}
-                          <span className="font-medium flex-1 min-w-0 truncate">{g.full_name}</span>
-                          <span className="text-muted-foreground tabular-nums shrink-0">{g.phone_masked}</span>
-                          {g.id_last4 && (
-                            <span className="text-xs text-muted-foreground shrink-0">{t("idLast4", { last4: g.id_last4 })}</span>
-                          )}
-                          {isDupInResults && (
-                            <span className="rounded-full bg-warning-bg px-2 py-0.5 text-micro font-semibold text-warning shrink-0">
-                              {t("sameIdDiffPhone")}
-                            </span>
-                          )}
-                          {g.cross_hotel && (
-                            <span className="rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info shrink-0">
-                              {t("otherHotelBadge")}
-                            </span>
-                          )}
-                          {/* "Select" chip — mirrors GuestPicker primary-guest rows exactly */}
-                          <span className="ml-auto shrink-0 inline-flex h-7 items-center justify-center rounded-md bg-navy-900 px-2.5 text-xs font-semibold text-white min-w-[54px]">
+                          {/* Guest info — stacks name cleanly above metadata on narrow mobile zoom */}
+                          <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
+                            <span className="font-medium break-words sm:truncate text-foreground">{g.full_name}</span>
+                            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs sm:text-sm">
+                              <span className="text-muted-foreground tabular-nums">{g.phone_masked}</span>
+                              {g.id_last4 && (
+                                <span className="text-xs text-muted-foreground whitespace-nowrap">{t("idLast4", { last4: g.id_last4 })}</span>
+                              )}
+                              {isDupInResults && (
+                                <span className="rounded-full bg-warning-bg px-2 py-0.5 text-micro font-semibold text-warning whitespace-nowrap">
+                                  {t("sameIdDiffPhone")}
+                                </span>
+                              )}
+                              {g.cross_hotel && (
+                                <span className="rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info whitespace-nowrap">
+                                  {t("otherHotelBadge")}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {/* "Select" chip — stays inside card border even on zoomed mobile */}
+                          <span className="shrink-0 whitespace-nowrap inline-flex h-7 items-center justify-center rounded-md bg-navy-900 px-2.5 text-xs font-semibold text-white min-w-[54px]">
                             {isSelecting ? "…" : (g.cross_hotel ? tg("importAction") : tg("selectGuest"))}
                           </span>
                         </button>
@@ -5505,19 +5509,19 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
 
           {/* ── Primary guest SUMMARY CARD (same pattern as CoGuestCard resolved) ─── */}
           {guest && !pgEditing && (
-            <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
+            <div className="rounded-xl border bg-muted/30 p-3.5 sm:p-4 space-y-3">
               {/* Header: name + phone + action buttons */}
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <BadgeCheck className="size-4 text-success" aria-hidden />
-                  <div>
-                    <span className="text-sm font-semibold">{pgName || guest.full_name}</span>
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                  <BadgeCheck className="size-4 shrink-0 text-success" aria-hidden />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold leading-snug break-words">{pgName || guest.full_name}</p>
                     {pgPhone && (
                       <p className="text-xs text-muted-foreground tabular-nums">{pgPhone}</p>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
                   {/* Auto-fill: re-fetches latest profile + docs then opens edit */}
                   <button
                     type="button"
@@ -5551,7 +5555,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                         setPgEditing(true);
                       }).catch(() => setPgEditing(true)).finally(() => setPgAutofilling(false));
                     }}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gold-400 bg-gold-50 px-2.5 text-xs font-semibold text-gold-700 transition-colors hover:bg-gold-100 disabled:opacity-60"
+                    className="inline-flex h-8 shrink-0 whitespace-nowrap items-center gap-1.5 rounded-lg border border-gold-400 bg-gold-50 px-2.5 text-xs font-semibold text-gold-700 transition-colors hover:bg-gold-100 disabled:opacity-60"
                   >
                     {pgAutofilling ? "…" : t("autofillLabel")}
                   </button>
@@ -5559,9 +5563,9 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
                   <button
                     type="button"
                     onClick={() => setPgEditing(true)}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-input bg-white px-2.5 text-xs font-semibold transition-colors hover:bg-muted"
+                    className="inline-flex h-8 shrink-0 whitespace-nowrap items-center gap-1.5 rounded-lg border border-input bg-white px-2.5 text-xs font-semibold transition-colors hover:bg-muted"
                   >
-                    <Pencil className="size-3.5" aria-hidden />
+                    <Pencil className="size-3.5 shrink-0" aria-hidden />
                     {t("editGuest")}
                   </button>
                 </div>
@@ -5629,7 +5633,7 @@ function WalkInCheckinForm({ onDone }: { readonly onDone: () => void }) {
               )}
 
               {/* Photo tiles (read-only display — same as co-guest summary card) */}
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <DocUpload key={`${guest.id}-front`} guestId={guest.id} side="front" label={t("uploadFrontFace")} idType={pgIdType} existingDocId={pgExistingDocs.front} onOcrResult={() => {}} />
                 <DocUpload key={`${guest.id}-back`}  guestId={guest.id} side="back"  label={t("uploadBackFace")}  idType={pgIdType} existingDocId={pgExistingDocs.back}  onOcrResult={() => {}} />
                 <DocUpload key={`${guest.id}-selfie`} guestId={guest.id} side="selfie" label={t("selfieCapture")} existingDocId={pgExistingDocs.selfie} onOcrResult={() => {}} />

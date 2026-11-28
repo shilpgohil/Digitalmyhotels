@@ -160,11 +160,11 @@ export function GuestPicker({ onSelected, selected, onCreateNew, hideCreateButto
   if (selected) {
     return (
       <div className="flex items-center gap-2 rounded-md border border-success/30 bg-success-bg px-3 py-2 text-sm">
-        <Check className="size-4 text-success" aria-hidden />
-        <span className="font-medium">{selected.full_name}</span>
+        <Check className="size-4 shrink-0 text-success" aria-hidden />
+        <span className="min-w-0 flex-1 truncate font-medium">{selected.full_name}</span>
         <button
           type="button"
-          className="ml-auto text-xs underline"
+          className="ml-auto shrink-0 whitespace-nowrap text-xs underline"
           onClick={() => {
             setResults(null);
             setShowCreate(false);
@@ -249,7 +249,7 @@ export function GuestPicker({ onSelected, selected, onCreateNew, hideCreateButto
                 <span>{t("duplicateIdWarning", { count: results.length })}</span>
               </div>
             )}
-            <ul className="divide-y rounded-md border">
+            <ul className="divide-y rounded-md border overflow-hidden">
               {results.map((hit) => {
                 const isDupInResults = wasIdSearch && hit.id_last4 && (idLast4Counts[hit.id_last4] ?? 0) > 1;
                 const isSelecting = (autofill.isPending || importGuest.isPending) && selectingId === hit.id;
@@ -257,10 +257,10 @@ export function GuestPicker({ onSelected, selected, onCreateNew, hideCreateButto
                   /* Clicking the entire row selects the guest — the separate "Auto Fill"
                      button was removed at client request ("Again remove Auto-Fill"). The
                      row is keyboard-focusable so accessibility is preserved. */
-                  <li key={hit.id}>
+                  <li key={hit.id} className="min-w-0">
                     <button
                       type="button"
-                      className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted transition-colors disabled:opacity-60"
+                      className="flex w-full items-center justify-between gap-2.5 px-3 py-2.5 text-left text-sm hover:bg-muted transition-colors disabled:opacity-60"
                       disabled={autofill.isPending || importGuest.isPending}
                       onClick={() => {
                         setSelectingId(hit.id);
@@ -271,26 +271,30 @@ export function GuestPicker({ onSelected, selected, onCreateNew, hideCreateButto
                         }
                       }}
                     >
-                      {/* Guest info */}
-                      <span className="font-medium flex-1 min-w-0 truncate">{hit.full_name}</span>
-                      <span className="text-muted-foreground tabular-nums shrink-0">{hit.phone_masked}</span>
-                      {hit.id_last4 && (
-                        <span className="text-xs text-muted-foreground shrink-0">ID ••{hit.id_last4}</span>
-                      )}
-                      {/* Duplicate Aadhaar — same person, different phones */}
-                      {isDupInResults && (
-                        <span className="rounded-full bg-warning-bg px-2 py-0.5 text-micro font-semibold text-warning shrink-0">
-                          {t("sameIdDiffPhone")}
-                        </span>
-                      )}
-                      {/* Guest found at ANOTHER hotel (plan §1.7) */}
-                      {hit.cross_hotel && (
-                        <span className="rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info shrink-0">
-                          {t("otherHotelBadge")}
-                        </span>
-                      )}
-                      {/* Clear "Select" button so staff knows tapping this row selects the guest */}
-                      <span className="ml-auto shrink-0 inline-flex h-7 items-center justify-center rounded-md bg-navy-900 px-2.5 text-xs font-semibold text-white min-w-[54px]">
+                      {/* Guest info — stacks cleanly above phone/ID on narrow mobile zoom */}
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
+                        <span className="font-medium break-words sm:truncate text-foreground">{hit.full_name}</span>
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs sm:text-sm">
+                          <span className="text-muted-foreground tabular-nums">{hit.phone_masked}</span>
+                          {hit.id_last4 && (
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">ID ••{hit.id_last4}</span>
+                          )}
+                          {/* Duplicate Aadhaar — same person, different phones */}
+                          {isDupInResults && (
+                            <span className="rounded-full bg-warning-bg px-2 py-0.5 text-micro font-semibold text-warning whitespace-nowrap">
+                              {t("sameIdDiffPhone")}
+                            </span>
+                          )}
+                          {/* Guest found at ANOTHER hotel (plan §1.7) */}
+                          {hit.cross_hotel && (
+                            <span className="rounded-full bg-info-bg px-2 py-0.5 text-micro font-semibold text-info whitespace-nowrap">
+                              {t("otherHotelBadge")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Clear "Select" button kept cleanly inside the row at all widths */}
+                      <span className="shrink-0 whitespace-nowrap inline-flex h-7 items-center justify-center rounded-md bg-navy-900 px-2.5 text-xs font-semibold text-white min-w-[54px]">
                         {isSelecting ? "…" : (hit.cross_hotel ? t("importAction") : t("selectGuest"))}
                       </span>
                     </button>

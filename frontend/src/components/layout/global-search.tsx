@@ -144,53 +144,106 @@ export function GlobalSearch({ variant = "both" }: GlobalSearchProps) {
   };
 
   const handleGuestClick = async (g: GuestOut) => {
-    // 1. Check if guest is currently checked in (in-house stay)
-    const inHouseBooking = bookings.data?.items.find(
-      (b) =>
-        (b.primary_guest_id === g.id ||
-          b.primary_guest_name?.toLowerCase() === g.full_name.toLowerCase()) &&
-        b.status === "checked_in",
-    );
-    if (inHouseBooking) {
-      go(`/current-guests?q=${encodeURIComponent(g.full_name)}`);
+    const encoded = encodeURIComponent(g.full_name);
+    const cachedBookings = bookings.data?.items ?? [];
+    const matchesGuest = (b: BookingOut) =>
+      b.primary_guest_id === g.id ||
+      b.primary_guest_name?.toLowerCase() === g.full_name.toLowerCase();
+
+    // 1. Fast path from already-fetched search results
+    if (cachedBookings.some((b) => matchesGuest(b) && b.status === "checked_in")) {
+      go(`/current-guests?q=${encoded}`);
+      return;
+    }
+    if (
+      cachedBookings.some(
+        (b) => matchesGuest(b) && (b.status === "confirmed" || b.status === "pending"),
+      )
+    ) {
+      go(`/advance-bookings?q=${encoded}`);
       return;
     }
 
-    // 2. Check if guest has an upcoming advance booking
-    const upcomingBooking = bookings.data?.items.find(
-      (b) =>
-        (b.primary_guest_id === g.id ||
-          b.primary_guest_name?.toLowerCase() === g.full_name.toLowerCase()) &&
-        (b.status === "confirmed" || b.status === "pending"),
+    const hasCachedCheckedOut = cachedBookings.some(
+      (b) => matchesGuest(b) && b.status === "checked_out",
     );
-    if (upcomingBooking) {
-      go(`/advance-bookings?q=${encodeURIComponent(g.full_name)}`);
-      return;
-    }
+    const hasCachedCancelled = cachedBookings.some(
+      (b) =>
+        matchesGuest(b) && (b.status === "cancelled" || b.status === "no_show"),
+    );
 
-    // 3. Fast verification: check if guest has an active in-house stay
+    // 2. Verify across status buckets in parallel:
+    //    checked_in > pending/confirmed > checked_out > cancelled/no_show
     try {
-      const inHouseCheck = await api<ListOut<{ booking_id: string }>>(
-        `/api/v1/current-guests?limit=1&q=${encodeURIComponent(g.full_name)}`,
-      );
-      if (inHouseCheck.items && inHouseCheck.items.length > 0) {
-        go(`/current-guests?q=${encodeURIComponent(g.full_name)}`);
+      const canGuests = can(PERMISSIONS.guestsView);
+      const canBookings = can(PERMISSIONS.bookingsView);
+      const [inHouseRes, advanceRes, checkedOutRes, cancelledRes] =
+        await Promise.allSettled([
+          canGuests
+            ? api<ListOut<{ booking_id: string }>>(
+                `/api/v1/current-guests?limit=1&q=${encoded}`,
+              )
+            : Promise.resolve({ items: [], total: 0 }),
+          canBookings
+            ? api<ListOut<{ id: string }>>(
+                `/api/v1/bookings?status=pending,confirmed&limit=1&q=${encoded}`,
+              )
+            : Promise.resolve({ items: [], total: 0 }),
+          hasCachedCheckedOut
+            ? Promise.resolve({ items: [{ id: "cached" }], total: 1 })
+            : canBookings
+              ? api<ListOut<{ id: string }>>(
+                  `/api/v1/bookings?status=checked_out&limit=1&q=${encoded}`,
+                )
+              : Promise.resolve({ items: [], total: 0 }),
+          hasCachedCancelled
+            ? Promise.resolve({ items: [{ id: "cached" }], total: 1 })
+            : canBookings
+              ? api<ListOut<{ id: string }>>(
+                  `/api/v1/bookings?status=cancelled,no_show&limit=1&q=${encoded}`,
+                )
+              : Promise.resolve({ items: [], total: 0 }),
+        ]);
+
+      if (
+        inHouseRes.status === "fulfilled" &&
+        (inHouseRes.value.items?.length ?? 0) > 0
+      ) {
+        go(`/current-guests?q=${encoded}`);
         return;
       }
-
-      const advanceCheck = await api<ListOut<{ id: string }>>(
-        `/api/v1/bookings?status=pending,confirmed&limit=1&q=${encodeURIComponent(g.full_name)}`,
-      );
-      if (advanceCheck.items && advanceCheck.items.length > 0) {
-        go(`/advance-bookings?q=${encodeURIComponent(g.full_name)}`);
+      if (
+        advanceRes.status === "fulfilled" &&
+        (advanceRes.value.items?.length ?? 0) > 0
+      ) {
+        go(`/advance-bookings?q=${encoded}`);
+        return;
+      }
+      if (
+        hasCachedCheckedOut ||
+        (checkedOutRes.status === "fulfilled" &&
+          (checkedOutRes.value.items?.length ?? 0) > 0)
+      ) {
+        go(`/completed-bookings?q=${encoded}`);
+        return;
+      }
+      if (
+        hasCachedCancelled ||
+        (cancelledRes.status === "fulfilled" &&
+          (cancelledRes.value.items?.length ?? 0) > 0)
+      ) {
+        go(`/completed-bookings?q=${encoded}&status=cancelled`);
         return;
       }
     } catch {
-      // fallback
+      if (hasCachedCancelled && !hasCachedCheckedOut) {
+        go(`/completed-bookings?q=${encoded}&status=cancelled`);
+        return;
+      }
     }
 
-    // 4. Past / checked-out guest: route directly to Completed Bookings
-    go(`/completed-bookings?q=${encodeURIComponent(g.full_name)}`);
+    // 3. Fallback: route to Completed Bookings
+    go(`/completed-bookings?q=${encoded}`);
   };
 
   // Touch gesture handlers: prevents dragging/scrolling from triggering accidental taps

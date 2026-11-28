@@ -834,6 +834,26 @@ function CompletedBookingsContent() {
     staleTime: 30_000,
   });
 
+  // When the active tab has 0 matching rows, check the sibling tab
+  // (Cancelled / No-show ↔ Checked Out) so staff are guided to matches
+  // instead of seeing a dead-end empty screen.
+  const otherStatusParam =
+    status === "checked_out" ? "cancelled,no_show" : "checked_out";
+  const otherTabBookings = useQuery({
+    queryKey: ["bookings", activeHotelId, "other-tab-check", otherStatusParam, filterQs],
+    queryFn: () =>
+      api<ListOut<BookingOut>>(
+        `/api/v1/bookings?status=${otherStatusParam}&limit=1${filterQs}`,
+      ),
+    enabled:
+      !!activeHotelId &&
+      !bookings.isLoading &&
+      !bookings.isError &&
+      (bookings.data?.items.length ?? 0) === 0,
+    staleTime: 30_000,
+  });
+  const otherTabTotal = otherTabBookings.data?.total ?? 0;
+
   const statusChips: { value: CompletedStatus; label: string }[] = [
     { value: "checked_out", label: t("status_checked_out") },
     { value: "cancelled", label: t("status_cancelled_noshow") },
@@ -901,6 +921,29 @@ function CompletedBookingsContent() {
           onRetry={() => bookings.refetch()}
           isEmpty={bookings.data?.items.length === 0}
           emptyTitle={t("noBookings")}
+          emptySubtitle={
+            otherTabTotal > 0
+              ? status === "checked_out"
+                ? t("foundInCancelledNoShow", { count: otherTabTotal })
+                : t("foundInCheckedOut", { count: otherTabTotal })
+              : undefined
+          }
+          emptyAction={
+            otherTabTotal > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setStatus(status === "checked_out" ? "cancelled" : "checked_out")
+                }
+              >
+                {status === "checked_out"
+                  ? t("viewCancelledNoShow")
+                  : t("viewCheckedOut")}
+              </Button>
+            ) : undefined
+          }
           columns={[
             t("bookingNumber"), t("guest"), t("roomsCol"),
             t("dates"), t("total"), t("statusCol"), t("payment"),
